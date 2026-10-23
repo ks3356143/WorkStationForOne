@@ -7,7 +7,7 @@ interface StatusBarProps {
 }
 
 export function StatusBar({ notify }: StatusBarProps) {
-  const sessions = useWorkstation((state) => state.sessions)
+  const sessionCount = useWorkstation((state) => state.sessions.length)
   const session = useWorkstation(selectActiveSession)
   const permission = useWorkstation((state) => state.permission)
   const motionOn = useWorkstation((state) => state.motionOn)
@@ -32,7 +32,7 @@ export function StatusBar({ notify }: StatusBarProps) {
         <i className="w1-sdot warn" />
         MCP 未接入
       </button>
-      <span>会话 {sessions.length}</span>
+      <span>会话 {sessionCount}</span>
       {permission ? (
         <button className="w1-sbtn pending" type="button" onClick={() => setActiveSession(permission.sessionId)}>
           待审批 1

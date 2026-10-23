@@ -51,6 +51,7 @@
 }
 
 .w1-tbar i {
+  position: relative;
   display: block;
   width: 100%;
   height: 100%;
@@ -58,6 +59,15 @@
   transform-origin: left;
   transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
   box-shadow: 0 0 8px rgba(124, 92, 255, 0.45);
+}
+
+.w1-tbar i::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05));
+  opacity: 0;
   animation: barGlow 3.8s ease-in-out infinite;
 }
 

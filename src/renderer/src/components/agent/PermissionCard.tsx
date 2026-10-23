@@ -21,6 +21,7 @@ export function PermissionCard({ permission, tasks, onResolve }: PermissionCardP
       exit={{ opacity: 0, y: -6 }}
       transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
     >
+      <span className="w1-permglow" aria-hidden="true" />
       <div className="w1-ph">
         <span className="w1-pi">!</span>
         <span>// 权限请求</span>

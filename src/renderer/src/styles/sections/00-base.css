@@ -74,6 +74,7 @@ button {
     radial-gradient(40% 38% at 28% 76%, rgba(45, 226, 230, 0.16), transparent 70%),
     radial-gradient(32% 30% at 88% 88%, rgba(255, 94, 196, 0.12), transparent 70%);
   filter: blur(26px);
+  will-change: transform;
   animation: auroraDrift 52s ease-in-out infinite alternate;
 }
 
@@ -124,6 +125,7 @@ button {
   z-index: 35;
   pointer-events: none;
   opacity: 0;
+  visibility: hidden;
   background: linear-gradient(
     180deg,
     transparent 0%,
@@ -140,13 +142,18 @@ button {
 @keyframes scanSweep {
   0% {
     opacity: 0;
+    visibility: visible;
     transform: translateY(-160px);
   }
   8% {
     opacity: 1;
   }
+  99% {
+    visibility: visible;
+  }
   100% {
     opacity: 0;
+    visibility: hidden;
     transform: translateY(100vh);
   }
 }

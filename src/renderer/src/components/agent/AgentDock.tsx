@@ -2,11 +2,13 @@ import { useEffect, useRef } from 'react'
 import { AnimatePresence, m } from 'motion/react'
 import { AGENT_META, agentCommandPreview, demoReply } from '../../lib/agent'
 import { selectActiveSession, selectActiveThread, useWorkstation } from '../../store/useWorkstation'
-import type { AgentId } from '../../types'
+import type { AgentId, Task } from '../../types'
 import { Composer } from './Composer'
 import { DockHeader } from './DockHeader'
 import { MessageRow } from './MessageRow'
 import { PermissionCard } from './PermissionCard'
+
+const EMPTY_TASKS: Task[] = []
 
 export function AgentDock() {
   const sessions = useWorkstation((state) => state.sessions)
@@ -21,9 +23,12 @@ export function AgentDock() {
   const pendingReplyTo = useWorkstation((state) => state.pendingReplyTo)
   const permission = useWorkstation((state) => state.permission)
   const resolution = useWorkstation((state) => state.resolution)
-  const tasks = useWorkstation((state) => state.tasks)
-  const notes = useWorkstation((state) => state.notes)
-  const habits = useWorkstation((state) => state.habits)
+  const taskCount = useWorkstation((state) => state.tasks.length)
+  const noteCount = useWorkstation((state) => state.notes.length)
+  const habitCount = useWorkstation((state) => state.habits.length)
+  const permissionTasks = useWorkstation((state) =>
+    state.permission?.sessionId === state.activeSessionId ? state.tasks : EMPTY_TASKS
+  )
   const sendMessage = useWorkstation((state) => state.sendMessage)
   const receiveReply = useWorkstation((state) => state.receiveReply)
   const resolvePermission = useWorkstation((state) => state.resolvePermission)
@@ -71,9 +76,9 @@ export function AgentDock() {
         <div className="w1-tdiv">// {activeSession.threadDate} · {activeSession.title}</div>
         <div className="w1-ctx">
           <span>上下文</span>
-          <i>任务 {tasks.length}</i>
-          <i>笔记 {notes.length}</i>
-          <i>习惯 {habits.length}</i>
+          <i>任务 {taskCount}</i>
+          <i>笔记 {noteCount}</i>
+          <i>习惯 {habitCount}</i>
           <b>只读</b>
         </div>
 
@@ -98,7 +103,7 @@ export function AgentDock() {
             <PermissionCard
               key={permission.id}
               permission={permission}
-              tasks={tasks}
+              tasks={permissionTasks}
               onResolve={resolvePermission}
             />
           ) : null}

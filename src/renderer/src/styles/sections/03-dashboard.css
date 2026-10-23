@@ -225,6 +225,7 @@
   bottom: 0;
   width: 1px;
   background: var(--wn);
+  box-shadow: 0 0 16px rgba(224, 175, 90, 0.65);
   animation: nowPulse 3.2s ease-in-out infinite;
 }
 
