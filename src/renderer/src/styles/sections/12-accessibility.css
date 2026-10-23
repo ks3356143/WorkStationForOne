@@ -1,0 +1,64 @@
+/* ---------- accessibility fallbacks ---------- */
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .w1-bar {
+    background: #070812;
+    backdrop-filter: none;
+  }
+
+  .w1-rail {
+    background: #0a0918;
+    backdrop-filter: none;
+  }
+
+  .w1-card,
+  .w1-tl {
+    background: #141229;
+    backdrop-filter: none;
+  }
+
+  .w1-dock {
+    background: #0c0b1c;
+    backdrop-filter: none;
+  }
+
+  .w1-compose {
+    background: #0b0a1c;
+    backdrop-filter: none;
+  }
+
+  .w1-perm {
+    background: rgba(224, 175, 90, 0.09);
+    backdrop-filter: none;
+  }
+
+  .w1-modal,
+  .w1-focus-box,
+  .w1-palette,
+  .w1-toast {
+    background: #0d0c1e;
+    backdrop-filter: none;
+  }
+
+  .w1-paletteback {
+    background: rgba(4, 5, 12, 0.92);
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .w1 *,
+  .w1 *::before,
+  .w1 *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+.w1.motion-off *,
+.w1.motion-off *::before,
+.w1.motion-off *::after {
+  animation: none !important;
+  transition-duration: 0s !important;
+}
+

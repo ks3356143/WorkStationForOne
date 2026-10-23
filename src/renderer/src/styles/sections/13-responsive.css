@@ -1,0 +1,204 @@
+/* ---------- responsive ---------- */
+
+@media (max-width: 1365px) {
+  .w1-body {
+    grid-template-columns: 224px minmax(0, 1fr) 352px;
+  }
+
+  .w1-brand {
+    width: 208px;
+  }
+
+  .w1-cmd {
+    width: clamp(240px, 26vw, 360px);
+  }
+
+  .w1-main {
+    padding: 20px 22px 22px;
+  }
+
+  .w1-sub-next {
+    display: none;
+  }
+
+  .w1-tlblk {
+    padding: 0 5px;
+  }
+}
+
+@media (max-width: 1279px) {
+  .w1-body {
+    grid-template-columns: 216px minmax(0, 1fr) 340px;
+  }
+
+  .w1-bento {
+    grid-template-columns: 1fr;
+  }
+
+  .w1-tasks,
+  .w1-note {
+    grid-column: auto;
+  }
+
+  .w1-taskgrid {
+    grid-template-columns: 1fr;
+  }
+
+  .w1-taskcol + .w1-taskcol {
+    border-left: 0;
+    padding-left: 0;
+  }
+
+  .w1-nlist {
+    grid-template-columns: 1fr;
+  }
+
+  .w1-cmd {
+    width: clamp(220px, 24vw, 320px);
+  }
+
+  .w1-status {
+    gap: 10px;
+  }
+
+  .w1-st-mcp,
+  .w1-st-key {
+    display: none;
+  }
+}
+
+@media (max-height: 800px) {
+  .w1-rail {
+    padding: 10px 10px 8px;
+  }
+
+  .w1-rhead {
+    padding-bottom: 5px;
+  }
+
+  .w1-fleet {
+    margin-bottom: 8px;
+  }
+
+  .w1-fcell {
+    gap: 3px;
+    padding: 7px 5px;
+    font-size: 10px;
+  }
+
+  .w1-fcell b {
+    font-size: 15px;
+  }
+
+  .w1-fjump {
+    padding: 6px 9px;
+  }
+
+  .w1-agroup {
+    margin-bottom: 6px;
+  }
+
+  .w1-ahead {
+    padding: 4px 7px 5px;
+  }
+
+  .w1-sess {
+    gap: 2px;
+    padding: 7px 9px 7px 24px;
+  }
+
+  .w1-spacer {
+    min-height: 4px;
+  }
+
+  .w1-launch {
+    padding-top: 5px;
+  }
+
+  .w1-lrow {
+    height: 30px;
+  }
+
+  .w1-rfoot {
+    margin-top: 4px;
+    padding-top: 6px;
+  }
+
+  .w1-main {
+    padding: 16px 20px 20px;
+  }
+
+  .w1-thead {
+    margin-bottom: 12px;
+  }
+
+  .w1-h1 {
+    font-size: 36px;
+    margin: 6px 0 4px;
+  }
+
+  .w1-tl {
+    height: 58px;
+    margin-bottom: 12px;
+  }
+
+  .w1-bento {
+    gap: 12px;
+  }
+
+  .w1-card {
+    padding: 15px 17px;
+  }
+
+  .w1-ct {
+    margin-bottom: 9px;
+  }
+
+  .w1-task {
+    min-height: 38px;
+    padding: 7px 3px 7px 0;
+  }
+
+  .w1-habits {
+    gap: 6px;
+  }
+
+  .w1-hdot {
+    width: 16px;
+    height: 16px;
+  }
+
+  .w1-big {
+    font-size: 56px;
+  }
+
+  .w1-rbtn {
+    height: 36px;
+  }
+
+  .w1-thread {
+    gap: 10px;
+    padding-top: 10px;
+  }
+
+  .w1-umsg {
+    padding: 7px 10px 8px 11px;
+  }
+
+  .w1-compose {
+    margin-bottom: 10px;
+  }
+
+  .w1-input {
+    height: 56px;
+    padding-top: 9px;
+  }
+
+  .w1-ifield {
+    height: 34px;
+  }
+
+  .w1-focus-time {
+    font-size: 60px;
+  }
+}

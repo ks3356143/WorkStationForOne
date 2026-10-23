@@ -1,0 +1,86 @@
+/* ---------- habits ---------- */
+
+.w1-habits {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.w1-hrow {
+  display: grid;
+  grid-template-columns: 84px repeat(7, 1fr);
+  gap: 4px;
+  align-items: center;
+  min-height: 18px;
+}
+
+.w1-hday {
+  font: 11px/1 var(--mono);
+  color: var(--su);
+  text-align: center;
+}
+
+.w1-hname {
+  font-size: 13.5px;
+  line-height: 1.2;
+  color: var(--fs);
+  white-space: nowrap;
+}
+
+.w1-hdot {
+  width: 18px;
+  height: 18px;
+  margin: 0 auto;
+  padding: 0;
+  border: 1px solid #3a3560;
+  background: transparent;
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.2s, background-color 0.2s,
+    box-shadow 0.2s;
+}
+
+.w1-hdot.on {
+  border-color: var(--ok);
+  background: var(--ok);
+  opacity: 0.82;
+  animation: dotPop 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes dotPop {
+  0% {
+    transform: scale(0.6);
+  }
+  65% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.w1-hdot.miss {
+  border-color: var(--bd);
+  background: var(--s2);
+}
+
+.w1-hdot.today {
+  box-shadow: 0 0 0 2px rgba(16, 14, 34, 0.9), 0 0 0 3px rgba(167, 139, 250, 0.85),
+    0 0 10px rgba(124, 92, 255, 0.35);
+}
+
+.w1-hdot:not(:disabled):hover {
+  transform: scale(1.15);
+  border-color: var(--ac2);
+  box-shadow: 0 0 10px rgba(45, 226, 230, 0.4);
+}
+
+.w1-hdot:disabled {
+  opacity: 1;
+}
+
+.w1-hday.today {
+  color: var(--ac2);
+  border-bottom: 1px solid rgba(45, 226, 230, 0.6);
+  padding-bottom: 3px;
+}
+

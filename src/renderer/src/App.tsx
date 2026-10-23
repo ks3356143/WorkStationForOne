@@ -1,0 +1,156 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { AnimatePresence, LazyMotion, MotionConfig, domAnimation, m, useReducedMotion } from 'motion/react'
+import { AgentDock } from './components/agent/AgentDock'
+import { BootOverlay } from './components/BootOverlay'
+import { CommandPalette } from './components/CommandPalette'
+import { FocusOverlay } from './components/FocusOverlay'
+import { QuickNoteModal } from './components/QuickNoteModal'
+import { SessionRail } from './components/SessionRail'
+import { StatusBar } from './components/StatusBar'
+import { TodayDashboard } from './components/TodayDashboard'
+import { TopBar } from './components/TopBar'
+import { useWorkstation } from './store/useWorkstation'
+import { hydrateTasks } from './lib/persistence'
+
+export default function App() {
+  const motionOn = useWorkstation((state) => state.motionOn)
+  const focus = useWorkstation((state) => state.focus)
+  const quickNoteOpen = useWorkstation((state) => state.quickNoteOpen)
+  const openQuickNote = useWorkstation((state) => state.openQuickNote)
+  const closeQuickNote = useWorkstation((state) => state.closeQuickNote)
+  const closeFocus = useWorkstation((state) => state.closeFocus)
+
+  const [booting, setBooting] = useState(true)
+  const [commandOpen, setCommandOpen] = useState(false)
+  const [paletteSeq, setPaletteSeq] = useState(0)
+  const [notice, setNotice] = useState<string | null>(null)
+  const noticeTimer = useRef<number | null>(null)
+  const paletteTriggerRef = useRef<HTMLElement | null>(null)
+  const reducedMotion = useReducedMotion()
+
+  const notify = useCallback((text: string) => {
+    setNotice(text)
+    if (noticeTimer.current) window.clearTimeout(noticeTimer.current)
+    noticeTimer.current = window.setTimeout(() => setNotice(null), 2400)
+  }, [])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setBooting(false), reducedMotion ? 420 : 1250)
+    return () => window.clearTimeout(timer)
+  }, [reducedMotion])
+
+  useEffect(() => {
+    void hydrateTasks()
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (noticeTimer.current) window.clearTimeout(noticeTimer.current)
+    }
+  }, [])
+
+  const openPalette = useCallback(() => {
+    if (focus || quickNoteOpen || commandOpen) return
+    paletteTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    setPaletteSeq((seq) => seq + 1)
+    setCommandOpen(true)
+  }, [commandOpen, focus, quickNoteOpen])
+
+  const closePalette = useCallback(() => {
+    setCommandOpen(false)
+    const trigger = paletteTriggerRef.current
+    paletteTriggerRef.current = null
+    trigger?.focus()
+  }, [])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (booting) {
+        setBooting(false)
+        return
+      }
+      const mod = event.ctrlKey || event.metaKey
+      if (mod && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        if (focus || quickNoteOpen) return
+        if (commandOpen) closePalette()
+        else openPalette()
+        return
+      }
+      if (mod && event.key.toLowerCase() === 'n') {
+        event.preventDefault()
+        if (!focus && !commandOpen) openQuickNote()
+        return
+      }
+      if (event.key === 'Escape') {
+        if (event.isComposing || event.keyCode === 229) return
+        if (commandOpen) closePalette()
+        else if (quickNoteOpen) closeQuickNote()
+        else if (focus) closeFocus()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [
+    booting,
+    closeFocus,
+    closePalette,
+    closeQuickNote,
+    commandOpen,
+    focus,
+    openPalette,
+    openQuickNote,
+    quickNoteOpen
+  ])
+
+  return (
+    <MotionConfig reducedMotion={motionOn ? 'user' : 'always'}>
+      <LazyMotion features={domAnimation} strict>
+        <div
+          className={`w1${motionOn ? '' : ' motion-off'}${booting ? '' : ' is-booted'}${
+            commandOpen ? ' palette-open' : ''
+          }`}
+        >
+          <div className={`w1-scan${booting ? '' : ' run'}`} aria-hidden="true" />
+          <TopBar onCommand={openPalette} />
+          <div className="w1-body">
+            <SessionRail notify={notify} />
+            <TodayDashboard />
+            <AgentDock />
+          </div>
+          <StatusBar notify={notify} />
+
+          <AnimatePresence>{booting ? <BootOverlay onSkip={() => setBooting(false)} /> : null}</AnimatePresence>
+
+          <AnimatePresence>
+            {focus ? <FocusOverlay key={focus.label} focus={focus} onClose={closeFocus} /> : null}
+          </AnimatePresence>
+
+          <AnimatePresence>{quickNoteOpen ? <QuickNoteModal /> : null}</AnimatePresence>
+
+          <AnimatePresence>
+            {commandOpen ? (
+              <CommandPalette key={`palette-${paletteSeq}`} notify={notify} onClose={closePalette} />
+            ) : null}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {notice ? (
+              <m.div
+                className="w1-toast"
+                role="status"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 6 }}
+                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <i />
+                {notice}
+              </m.div>
+            ) : null}
+          </AnimatePresence>
+        </div>
+      </LazyMotion>
+    </MotionConfig>
+  )
+}

@@ -1,0 +1,60 @@
+import { selectActiveSession, useWorkstation } from '../store/useWorkstation'
+import { useNow } from '../lib/useNow'
+import { formatHM } from '../lib/date'
+
+interface StatusBarProps {
+  notify: (text: string) => void
+}
+
+export function StatusBar({ notify }: StatusBarProps) {
+  const sessions = useWorkstation((state) => state.sessions)
+  const session = useWorkstation(selectActiveSession)
+  const permission = useWorkstation((state) => state.permission)
+  const motionOn = useWorkstation((state) => state.motionOn)
+  const toggleMotion = useWorkstation((state) => state.toggleMotion)
+  const setActiveSession = useWorkstation((state) => state.setActiveSession)
+  const now = useNow(30_000)
+
+  const agentName = session.agent === 'claude' ? 'Claude Code' : 'Codex'
+  const stateLabel = session.status === 'run' ? '运行中' : session.status === 'wait' ? '待确认' : '空闲'
+
+  return (
+    <footer className="w1-status">
+      <span>
+        <i className={`w1-sdot${session.status === 'run' ? '' : ' idle'}`} />
+        {agentName} {stateLabel} · {session.meta.split(' · ')[0]}
+      </span>
+      <button
+        className="w1-sbtn w1-st-mcp"
+        type="button"
+        onClick={() => notify('MCP 服务端将在 P1 接入')}
+      >
+        <i className="w1-sdot warn" />
+        MCP 未接入
+      </button>
+      <span>会话 {sessions.length}</span>
+      {permission ? (
+        <button className="w1-sbtn pending" type="button" onClick={() => setActiveSession(permission.sessionId)}>
+          待审批 1
+        </button>
+      ) : (
+        <span>无待审批</span>
+      )}
+      <span className="sp" />
+      <button
+        className="w1-motion"
+        type="button"
+        aria-pressed={motionOn}
+        onClick={toggleMotion}
+        title="暂停或恢复环境动效"
+      >
+        <i />
+        {motionOn ? '动效 开' : '动效 关'}
+      </button>
+      <span>v0.1.0</span>
+      <span className="w1-st-key">^K 聚焦</span>
+      <span className="w1-st-key">^N 笔记</span>
+      <span>{formatHM(now)} 本地</span>
+    </footer>
+  )
+}

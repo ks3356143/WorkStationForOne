@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0C0E20"/>
+      <stop offset="0.55" stop-color="#080A16"/>
+      <stop offset="1" stop-color="#05060E"/>
+    </linearGradient>
+    <radialGradient id="auroraA" cx="0.74" cy="0.14" r="0.7">
+      <stop offset="0" stop-color="#7C5CFF" stop-opacity="0.82"/>
+      <stop offset="0.55" stop-color="#7C5CFF" stop-opacity="0.2"/>
+      <stop offset="1" stop-color="#7C5CFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="auroraB" cx="0.14" cy="0.92" r="0.64">
+      <stop offset="0" stop-color="#2DE2E6" stop-opacity="0.46"/>
+      <stop offset="0.6" stop-color="#2DE2E6" stop-opacity="0.1"/>
+      <stop offset="1" stop-color="#2DE2E6" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="accent" x1="0" y1="1" x2="0.9" y2="0">
+      <stop offset="0" stop-color="#2DE2E6"/>
+      <stop offset="0.55" stop-color="#8B7BFF"/>
+      <stop offset="1" stop-color="#A78BFA"/>
+    </linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#A78BFA" stroke-opacity="0.1" stroke-width="0.8"/>
+    </pattern>
+    <filter id="glowPurple" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="9"/>
+    </filter>
+    <filter id="glowCyan" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="8"/>
+    </filter>
+  </defs>
+
+  <rect width="256" height="256" fill="url(#bg)"/>
+  <rect width="256" height="256" fill="url(#auroraA)"/>
+  <rect width="256" height="256" fill="url(#auroraB)"/>
+  <rect width="256" height="256" fill="url(#grid)"/>
+
+  <rect x="5.5" y="5.5" width="245" height="245" fill="none" stroke="#A78BFA" stroke-opacity="0.26"/>
+
+  <path d="M14 44V14H44" fill="none" stroke="#A78BFA" stroke-opacity="0.6" stroke-width="2.4"/>
+  <path d="M212 14H242V44" fill="none" stroke="#A78BFA" stroke-opacity="0.6" stroke-width="2.4"/>
+  <path d="M242 212V242H212" fill="none" stroke="#A78BFA" stroke-opacity="0.6" stroke-width="2.4"/>
+  <path d="M44 242H14V212" fill="none" stroke="#A78BFA" stroke-opacity="0.6" stroke-width="2.4"/>
+
+  <path d="M34 94 L68 186 L100 126 L132 186 L166 94"
+        fill="none" stroke="#7C5CFF" stroke-opacity="0.72" stroke-width="22"
+        stroke-linejoin="miter" filter="url(#glowPurple)"/>
+  <path d="M34 94 L68 186 L100 126 L132 186 L166 94"
+        fill="none" stroke="#F4F1FF" stroke-width="18" stroke-linejoin="miter"/>
+
+  <path d="M196 194 L226 62" fill="none" stroke="#2DE2E6" stroke-width="18"
+        stroke-opacity="0.75" filter="url(#glowCyan)"/>
+  <path d="M196 194 L226 62" fill="none" stroke="url(#accent)" stroke-width="14"/>
+
+  <rect x="34" y="206" width="76" height="4.5" fill="url(#accent)"/>
+  <rect x="118" y="206" width="6" height="4.5" fill="#A78BFA" fill-opacity="0.55"/>
+  <rect x="130" y="206" width="6" height="4.5" fill="#A78BFA" fill-opacity="0.3"/>
+</svg>

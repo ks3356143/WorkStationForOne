@@ -1,0 +1,141 @@
+/* ---------- notes ---------- */
+
+.w1-note {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px;
+}
+
+.w1-nmain {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 0;
+  border-top: 1px solid var(--bd);
+  border-bottom: 1px solid var(--bd);
+}
+
+.w1-npin {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(167, 139, 250, 0.24);
+  background: rgba(124, 92, 255, 0.12);
+  color: #c4b5fd;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.w1-nbody {
+  min-width: 0;
+  flex: 1;
+}
+
+.w1-nmain .w1-ntext {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.w1-ntext {
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--fs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: text;
+}
+
+.w1-ntags {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  font: 11px/1 var(--mono);
+  color: var(--su);
+}
+
+.w1-ntags b {
+  font-weight: 500;
+  color: var(--mu);
+}
+
+.w1-nlist {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 28px;
+}
+
+.w1-nitem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 0;
+  border-bottom: 1px solid rgba(167, 139, 250, 0.1);
+  font-size: 13.5px;
+  color: var(--fs);
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), color 0.2s;
+}
+
+.w1-nitem:last-child {
+  border-bottom: 0;
+}
+
+.w1-nitem > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.w1-nitem time {
+  margin-left: auto;
+  flex: none;
+  font: 11px/1 var(--mono);
+  color: var(--su);
+  transition: color 0.2s;
+}
+
+.w1-nitem:hover {
+  transform: translateX(2px);
+  color: #f2f0ff;
+}
+
+.w1-nitem:hover time {
+  color: var(--ac2);
+}
+
+.w1-nfoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 10px;
+  font: 11.5px/1 var(--mono);
+  color: var(--su);
+}
+
+.w1-nfoot b {
+  font-weight: 500;
+  color: var(--fs);
+}
+
+.w1-nall {
+  border: 0;
+  background: transparent;
+  padding: 3px 0;
+  color: var(--mu);
+  font: 11.5px/1 var(--mono);
+  transition: color 0.2s;
+}
+
+.w1-nall:hover {
+  color: var(--ac2);
+}
+

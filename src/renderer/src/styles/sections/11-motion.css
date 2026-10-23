@@ -1,0 +1,181 @@
+/* ---------- entrance choreography ---------- */
+
+@keyframes shellInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes shellInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes shellInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes shellInRight {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes shellFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes growX {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.w1.is-booted .w1-bar {
+  animation: shellInDown 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.w1.is-booted .w1-rail {
+  animation: shellInLeft 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.06s backwards;
+}
+
+.w1.is-booted .w1-main {
+  animation: shellInUp 0.65s cubic-bezier(0.22, 1, 0.36, 1) 0.12s backwards;
+}
+
+.w1.is-booted .w1-dock {
+  animation: shellInRight 0.65s cubic-bezier(0.22, 1, 0.36, 1) 0.18s backwards;
+}
+
+.w1.is-booted .w1-status {
+  animation: shellFade 0.5s ease 0.34s backwards;
+}
+
+.w1.is-booted .w1-bento > .w1-card:nth-child(1) {
+  animation: cardIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.22s backwards;
+}
+
+.w1.is-booted .w1-bento > .w1-card:nth-child(2) {
+  animation: cardIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.3s backwards;
+}
+
+.w1.is-booted .w1-bento > .w1-card:nth-child(3) {
+  animation: cardIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.38s backwards;
+}
+
+.w1.is-booted .w1-bento > .w1-card:nth-child(4) {
+  animation: cardIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.46s backwards;
+}
+
+.w1.is-booted .w1-rbar i {
+  animation: growX 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.5s backwards;
+}
+
+/* ---------- ambient loops ---------- */
+
+@keyframes ledPulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.78);
+  }
+}
+
+@keyframes sessBreathe {
+  0%,
+  100% {
+    box-shadow: inset 0 1px rgba(255, 255, 255, 0.06), 0 0 20px rgba(124, 92, 255, 0.1);
+  }
+  50% {
+    box-shadow: inset 0 1px rgba(255, 255, 255, 0.1), 0 0 28px rgba(124, 92, 255, 0.24);
+  }
+}
+
+@keyframes nowPulse {
+  0%,
+  100% {
+    opacity: 0.82;
+    box-shadow: 0 0 7px rgba(224, 175, 90, 0.35);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 16px rgba(224, 175, 90, 0.65);
+  }
+}
+
+@keyframes permBreathe {
+  0%,
+  100% {
+    box-shadow: inset 0 1px rgba(224, 175, 90, 0.08), 0 0 0 rgba(224, 175, 90, 0);
+  }
+  50% {
+    box-shadow: inset 0 1px rgba(224, 175, 90, 0.12), 0 0 26px rgba(224, 175, 90, 0.14);
+  }
+}
+
+@keyframes piPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(224, 175, 90, 0);
+  }
+  50% {
+    box-shadow: 0 0 10px rgba(224, 175, 90, 0.35);
+  }
+}
+
+@keyframes barGlow {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.3);
+  }
+}
+

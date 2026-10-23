@@ -1,0 +1,248 @@
+/* ---------- tasks ---------- */
+
+.w1-tasks {
+  grid-column: 1 / -1;
+}
+
+.w1-filters {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+
+.w1-filter {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--mu);
+  font: 500 12px/1 var(--sans);
+  letter-spacing: 0.02em;
+  transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.24s, color 0.24s,
+    background-color 0.24s, box-shadow 0.24s;
+}
+
+.w1-filter:hover {
+  color: #f2f0ff;
+  border-color: rgba(167, 139, 250, 0.3);
+}
+
+.w1-filter.on {
+  border-color: rgba(167, 139, 250, 0.34);
+  background: rgba(124, 92, 255, 0.16);
+  color: #f2f0ff;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.w1-tprog {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 6px;
+  font: 11px/1 var(--mono);
+  color: var(--su);
+}
+
+.w1-tbar {
+  flex: 1;
+  height: 4px;
+  background: var(--s2);
+  overflow: hidden;
+}
+
+.w1-tbar i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, #7c5cff, #2de2e6);
+  transform-origin: left;
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: 0 0 8px rgba(124, 92, 255, 0.45);
+  animation: barGlow 3.8s ease-in-out infinite;
+}
+
+.w1-tprog b {
+  font-weight: 500;
+  color: var(--fs);
+  font-variant-numeric: tabular-nums;
+}
+
+.w1-taskgrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 22px;
+  animation: taskIn 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes taskIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.w1-taskcol + .w1-taskcol {
+  border-left: 1px solid var(--bd);
+  padding-left: 18px;
+}
+
+.w1-task {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 44px 17px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 40px;
+  padding: 8px 3px 8px 0;
+  border: 0;
+  border-bottom: 1px solid rgba(167, 139, 250, 0.1);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  transition: background-color 0.2s, opacity 0.2s;
+}
+
+.w1-task:hover {
+  background: linear-gradient(90deg, rgba(124, 92, 255, 0.08), transparent 80%);
+}
+
+.w1-task:focus-visible {
+  outline-offset: -1px;
+}
+
+.w1-task:last-child {
+  border-bottom: 0;
+}
+
+.w1-time {
+  font: 11.5px/1 var(--mono);
+  color: var(--mu);
+  font-variant-numeric: tabular-nums;
+}
+
+.w1-cb {
+  width: 17px;
+  height: 17px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--ctl);
+  color: transparent;
+  background: transparent;
+  transition: border-color 0.22s, background-color 0.22s, color 0.22s, transform 0.22s;
+}
+
+.w1-task:hover .w1-cb {
+  border-color: var(--ac);
+}
+
+.w1-cb.on {
+  border-color: rgba(69, 194, 155, 0.56);
+  background: rgba(69, 194, 155, 0.14);
+  color: var(--ok);
+}
+
+.w1-cb.on svg {
+  animation: checkIn 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes checkIn {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.w1-ttext {
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.w1-task.done .w1-ttext {
+  color: var(--su);
+  text-decoration: line-through;
+  text-decoration-color: var(--su);
+}
+
+.w1-tag {
+  flex: none;
+  padding: 3px 6px;
+  border: 1px solid var(--bd);
+  font: 10.5px/1 var(--mono);
+  letter-spacing: 0.03em;
+  color: var(--mu);
+  white-space: nowrap;
+}
+
+.w1-tag.agent {
+  border-color: rgba(167, 139, 250, 0.32);
+  background: rgba(124, 92, 255, 0.1);
+  color: #c4b5fd;
+}
+
+.w1-tag.hot {
+  border-color: rgba(224, 175, 90, 0.34);
+  background: rgba(224, 175, 90, 0.065);
+  color: #d7b273;
+}
+
+.w1-tempty {
+  grid-column: 1 / -1;
+  padding: 26px 8px;
+  font: 12px/1.6 var(--mono);
+  color: var(--su);
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+
+.w1-anote {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--bd);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--fs);
+}
+
+.w1-anote svg {
+  color: var(--ac);
+}
+
+.w1-anote b {
+  font-weight: 500;
+  color: #f2f0ff;
+}
+
+.w1-anote-status {
+  margin-left: auto;
+  flex: none;
+  font: 10.5px/1 var(--mono);
+}
+
+.w1-anote-status.pend {
+  color: var(--wn);
+}
+
+.w1-anote-status.ok {
+  color: var(--ok);
+}
+
+.w1-anote-status.deny {
+  color: var(--dg);
+}
+
