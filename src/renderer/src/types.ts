@@ -81,4 +81,5 @@ export interface WorkstationData {
   motionOn: boolean
   focus: FocusSession | null
   quickNoteOpen: boolean
+  notesViewOpen: boolean
 }

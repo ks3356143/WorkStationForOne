@@ -2,6 +2,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { app, BrowserWindow, session, shell } from 'electron'
 import { initDatabase, type DatabaseContext } from './db'
+import { registerNoteHandlers } from './ipc/notes'
 import { registerTaskHandlers } from './ipc/tasks'
 
 const devUrl = process.env.ELECTRON_RENDERER_URL
@@ -93,6 +94,7 @@ if (!gotTheLock) {
 
     database = initDatabase()
     registerTaskHandlers(database.tasks)
+    registerNoteHandlers(database.notes)
 
     createWindow()
     app.on('activate', () => {

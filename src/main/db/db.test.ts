@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { migrate, openDatabase, userVersion } from './database'
+import { MIGRATIONS, migrate, openDatabase, userVersion } from './database'
 import { TaskRepository } from './tasks'
 import type { TaskRecord } from '../../shared/ipc'
 
@@ -37,7 +37,7 @@ describe('migrate', () => {
 
     migrate(db)
 
-    expect(userVersion(db)).toBe(1)
+    expect(userVersion(db)).toBe(MIGRATIONS.at(-1)!.version)
     const journal = db.prepare('PRAGMA journal_mode').get() as { journal_mode: string }
     expect(journal.journal_mode).toBe('wal')
     db.close()
@@ -47,7 +47,7 @@ describe('migrate', () => {
     const db = tempDb()
     migrate(db)
     migrate(db)
-    expect(userVersion(db)).toBe(1)
+    expect(userVersion(db)).toBe(MIGRATIONS.at(-1)!.version)
     db.close()
   })
 

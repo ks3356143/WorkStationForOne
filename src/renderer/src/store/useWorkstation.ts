@@ -4,6 +4,7 @@ import { getTodayIndex } from '../lib/date'
 import type {
   ChatMessage,
   FocusSession,
+  Note,
   Resolution,
   Task,
   TaskFilter,
@@ -16,10 +17,19 @@ interface TaskPersistence {
   applySchedule: (changes: { taskId: string; toTime: string; toTag: string }[]) => Promise<void>
 }
 
+interface NotePersistence {
+  create: (text: string, tag?: string) => Promise<Note>
+}
+
 let persistence: TaskPersistence | null = null
+let notePersistence: NotePersistence | null = null
 
 export function bindTaskPersistence(next: TaskPersistence | null): void {
   persistence = next
+}
+
+export function bindNotePersistence(next: NotePersistence | null): void {
+  notePersistence = next
 }
 
 function persistQuietly(run: () => Promise<void>): void {
@@ -42,6 +52,8 @@ interface WorkstationActions {
   openQuickNote: () => void
   closeQuickNote: () => void
   addNote: (text: string) => void
+  openNotesView: () => void
+  closeNotesView: () => void
 }
 
 export type WorkstationState = WorkstationData & WorkstationActions
@@ -166,18 +178,35 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
   addNote: (text) => {
     const trimmed = text.trim()
     if (!trimmed) return
-    set((state) => ({
-      notes: [
-        { id: `n-${Date.now()}`, text: trimmed, time: '刚刚', tag: '想法' },
-        ...state.notes
-      ],
-      quickNoteOpen: false
-    }))
-  }
+    const local: Note = { id: `n-${Date.now()}`, text: trimmed, time: '刚刚', tag: '想法' }
+    set((state) => ({ notes: [local, ...state.notes], quickNoteOpen: false }))
+
+    if (!notePersistence) return
+    void notePersistence
+      .create(trimmed, '想法')
+      .then((saved) => {
+        set((state) => ({
+          notes: state.notes.map((note) =>
+            note.id === local.id ? { ...saved, text: note.text, time: note.time, tag: note.tag } : note
+          )
+        }))
+      })
+      .catch((error) => {
+        console.error('[persistence] 笔记写入失败', error)
+      })
+  },
+
+  openNotesView: () => set({ notesViewOpen: true }),
+
+  closeNotesView: () => set({ notesViewOpen: false })
 }))
 
 export function replaceTasks(tasks: Task[]): void {
   useWorkstation.setState({ tasks })
+}
+
+export function replaceNotes(notes: Note[]): void {
+  useWorkstation.setState({ notes })
 }
 
 export function filterTasks(tasks: Task[], filter: TaskFilter): Task[] {
@@ -196,4 +225,17 @@ export function selectActiveSession(state: WorkstationState) {
 
 export function selectActiveThread(state: WorkstationState): ChatMessage[] {
   return state.threads[state.activeSessionId] ?? []
+}
+
+export function selectPreviewNotes(notes: Note[]): { pinned?: Note; rest: Note[] } {
+  const pinnedIndex = notes.findIndex((note) => note.pinned)
+  const pinned = notes[pinnedIndex >= 0 ? pinnedIndex : 0]
+  const rest: Note[] = []
+
+  for (let index = 0; index < notes.length && rest.length < 2; index += 1) {
+    if (index === (pinnedIndex >= 0 ? pinnedIndex : 0)) continue
+    rest.push(notes[index])
+  }
+
+  return { pinned, rest }
 }

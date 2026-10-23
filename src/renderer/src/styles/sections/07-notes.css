@@ -139,3 +139,192 @@
   color: var(--ac2);
 }
 
+
+/* ---------- all-notes view ---------- */
+
+.w1-notesview {
+  position: fixed;
+  inset: 0;
+  z-index: 54;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  background: rgba(5, 6, 14, 0.62);
+  backdrop-filter: blur(6px);
+}
+
+.w1-nvbox {
+  width: min(820px, 100%);
+  height: min(720px, calc(100vh - 56px));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 22px 16px;
+  border: 1px solid rgba(167, 139, 250, 0.26);
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.07), transparent 42%),
+    linear-gradient(155deg, rgba(34, 30, 66, 0.94), rgba(10, 14, 30, 0.96));
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.08), 0 30px 70px rgba(0, 0, 0, 0.45);
+}
+
+.w1-nvhead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.w1-nvcount {
+  font: 11.5px/1 var(--mono);
+  color: var(--su);
+}
+
+.w1-nvhead .w1-modalx {
+  margin-left: auto;
+}
+
+.w1-nvsearch {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid rgba(167, 139, 250, 0.24);
+  background: rgba(8, 9, 20, 0.6);
+  color: var(--ac2);
+}
+
+.w1-nvinput {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font: 14px/1 var(--sans);
+  outline: none;
+}
+
+.w1-nvinput::placeholder {
+  color: #7d8ba0;
+}
+
+.w1-nvsearch kbd,
+.w1-nvclear {
+  flex: none;
+  padding: 2px 6px;
+  border: 1px solid rgba(167, 139, 250, 0.24);
+  background: transparent;
+  color: var(--mu);
+  font: 10.5px/1.4 var(--mono);
+}
+
+.w1-nvclear:hover {
+  color: var(--ac2);
+  border-color: rgba(45, 226, 230, 0.5);
+}
+
+.w1-nverror {
+  padding: 8px 10px;
+  border-left: 2px solid var(--dg);
+  background: rgba(240, 120, 134, 0.1);
+  color: #f2a1aa;
+  font-size: 12.5px;
+}
+
+.w1-nvlist {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  border-top: 1px solid rgba(167, 139, 250, 0.14);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(167, 139, 250, 0.3) transparent;
+}
+
+.w1-nvspacer {
+  position: relative;
+}
+
+.w1-nvrow {
+  height: 64px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 6px;
+  border-bottom: 1px solid rgba(167, 139, 250, 0.1);
+}
+
+.w1-nvrow:hover {
+  background: rgba(124, 92, 255, 0.07);
+}
+
+.w1-nvrowtop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 10.5px/1 var(--mono);
+  color: var(--su);
+}
+
+.w1-nvrowtop time {
+  margin-left: auto;
+}
+
+.w1-nvpin {
+  padding: 1px 5px;
+  border: 1px solid rgba(45, 226, 230, 0.4);
+  color: var(--ac2);
+}
+
+.w1-nvtag {
+  padding: 1px 5px;
+  border: 1px solid rgba(167, 139, 250, 0.3);
+  color: #b9a9f5;
+}
+
+.w1-nvtext {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--fs);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  text-overflow: ellipsis;
+}
+
+.w1-nvempty,
+.w1-nvloading {
+  padding: 26px 6px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--mu);
+}
+
+.w1-nvmore {
+  flex: none;
+  height: 34px;
+  border: 1px solid rgba(167, 139, 250, 0.26);
+  background: transparent;
+  color: var(--fs);
+  font: 500 12.5px/1 var(--sans);
+}
+
+.w1-nvmore:hover:not(:disabled) {
+  border-color: rgba(45, 226, 230, 0.5);
+  color: #d9fbff;
+}
+
+.w1-nvmore:disabled {
+  opacity: 0.5;
+}
+
+.w1-nvfoot {
+  flex: none;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font: 10.5px/1.4 var(--mono);
+  color: var(--su);
+}

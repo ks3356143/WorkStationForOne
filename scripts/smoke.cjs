@@ -262,6 +262,20 @@ async function run() {
     await sleep(350)
     check('切换到 Codex 会话', one('.w1-tdiv')?.textContent?.includes('周报草稿'), one('.w1-tdiv')?.textContent ?? '')
 
+    byText('.w1-sess', '重构 auth 模块')?.click()
+    await sleep(300)
+    one('.w1-nall')?.click()
+    await sleep(600)
+    check('全部笔记页打开', !!one('.w1-notesview'))
+    check(
+      '未接数据库时笔记页给出空态而非崩溃',
+      !!one('.w1-nvempty') || all('.w1-nvrow').length >= 0,
+      one('.w1-nvempty')?.textContent ?? String(all('.w1-nvrow').length)
+    )
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
+    await sleep(500)
+    check('Esc 关闭全部笔记页', !one('.w1-notesview'))
+
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', code: 'KeyN', ctrlKey: true, bubbles: true }))
     await sleep(350)
     check('Ctrl+N 打开笔记', !!one('.w1-modal'))

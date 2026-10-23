@@ -4,6 +4,7 @@ import { AgentDock } from './components/agent/AgentDock'
 import { BootOverlay } from './components/BootOverlay'
 import { CommandPalette } from './components/CommandPalette'
 import { FocusOverlay } from './components/FocusOverlay'
+import { NotesView } from './components/NotesView'
 import { QuickNoteModal } from './components/QuickNoteModal'
 import { SessionRail } from './components/SessionRail'
 import { StatusBar } from './components/StatusBar'
@@ -11,14 +12,17 @@ import { TodayDashboard } from './components/TodayDashboard'
 import { TopBar } from './components/TopBar'
 import { useWorkstation } from './store/useWorkstation'
 import { hydrateTasks } from './lib/persistence'
+import { hydrateNotes } from './lib/notes-persistence'
 
 export default function App() {
   const motionOn = useWorkstation((state) => state.motionOn)
   const focus = useWorkstation((state) => state.focus)
   const quickNoteOpen = useWorkstation((state) => state.quickNoteOpen)
+  const notesViewOpen = useWorkstation((state) => state.notesViewOpen)
   const openQuickNote = useWorkstation((state) => state.openQuickNote)
   const closeQuickNote = useWorkstation((state) => state.closeQuickNote)
   const closeFocus = useWorkstation((state) => state.closeFocus)
+  const closeNotesView = useWorkstation((state) => state.closeNotesView)
 
   const [booting, setBooting] = useState(true)
   const [commandOpen, setCommandOpen] = useState(false)
@@ -41,6 +45,7 @@ export default function App() {
 
   useEffect(() => {
     void hydrateTasks()
+    void hydrateNotes()
   }, [])
 
   useEffect(() => {
@@ -50,11 +55,11 @@ export default function App() {
   }, [])
 
   const openPalette = useCallback(() => {
-    if (focus || quickNoteOpen || commandOpen) return
+    if (focus || quickNoteOpen || notesViewOpen || commandOpen) return
     paletteTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     setPaletteSeq((seq) => seq + 1)
     setCommandOpen(true)
-  }, [commandOpen, focus, quickNoteOpen])
+  }, [commandOpen, focus, notesViewOpen, quickNoteOpen])
 
   const closePalette = useCallback(() => {
     setCommandOpen(false)
@@ -72,20 +77,21 @@ export default function App() {
       const mod = event.ctrlKey || event.metaKey
       if (mod && event.key.toLowerCase() === 'k') {
         event.preventDefault()
-        if (focus || quickNoteOpen) return
+        if (focus || quickNoteOpen || notesViewOpen) return
         if (commandOpen) closePalette()
         else openPalette()
         return
       }
       if (mod && event.key.toLowerCase() === 'n') {
         event.preventDefault()
-        if (!focus && !commandOpen) openQuickNote()
+        if (!focus && !commandOpen && !notesViewOpen) openQuickNote()
         return
       }
       if (event.key === 'Escape') {
         if (event.isComposing || event.keyCode === 229) return
         if (commandOpen) closePalette()
         else if (quickNoteOpen) closeQuickNote()
+        else if (notesViewOpen) closeNotesView()
         else if (focus) closeFocus()
       }
     }
@@ -94,10 +100,12 @@ export default function App() {
   }, [
     booting,
     closeFocus,
+    closeNotesView,
     closePalette,
     closeQuickNote,
     commandOpen,
     focus,
+    notesViewOpen,
     openPalette,
     openQuickNote,
     quickNoteOpen
@@ -127,6 +135,8 @@ export default function App() {
           </AnimatePresence>
 
           <AnimatePresence>{quickNoteOpen ? <QuickNoteModal /> : null}</AnimatePresence>
+
+          <AnimatePresence>{notesViewOpen ? <NotesView /> : null}</AnimatePresence>
 
           <AnimatePresence>
             {commandOpen ? (

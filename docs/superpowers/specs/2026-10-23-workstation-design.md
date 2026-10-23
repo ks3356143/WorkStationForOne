@@ -63,7 +63,7 @@ Agent 通过本地 MCP 读取和写入看板数据，写入受分区授权约束
 
 | 模块 | 内容 |
 | --- | --- |
-| 看板 | 任务与日程、习惯打卡、学习与复习、快速笔记；时间轴时间块可直接开始专注；日期切换；进度展示 |
+| 看板 | 任务与日程、习惯打卡、学习与复习、快速笔记；时间轴时间块可直接开始专注；日期切换；进度展示；全部笔记浏览页（分页 + 虚拟滚动 + FTS 搜索） |
 | 会话 | 会话列表、舰队状态总览（运行/待确认/空闲/总数）、运行时长、只读/可写标记、恢复、Fork（按 SDK 能力）、停止 |
 | 对话 | 流式文本、工具调用行、错误提示、权限卡逐行 diff、输入区、上下文用量 |
 | 启动器 | Claude Code、Codex、Qoder、DeepSeek Harness；前两者新建会话，后两者仅启动 |
@@ -326,7 +326,7 @@ server 名称：`workstation`。
 | `learning_items` | id, title, source, notes, next_review_at, interval_days, ease, last_reviewed_at, created_at, updated_at |
 | `learning_reviews` | id, item_id, rating, reviewed_at |
 | `notes` | id, title, body_md, pinned, source, created_at, updated_at |
-| `notes_fts` | FTS5 外部内容表，索引 title 与 body_md，触发器同步 |
+| `notes_fts` | FTS5 外部内容表，索引 title 与 body，`tokenize='trigram'`，触发器同步 |
 | `permission_settings` | domain 主键，mode |
 | `audit_events` | 见 7.4 |
 | `settings` | key 主键，value_json |
@@ -338,6 +338,7 @@ server 名称：`workstation`。
 - `habit_logs(habit_id, date)`、`learning_items(next_review_at)`。
 - `audit_events(ts)`、`audit_events(session_id, ts)`、`audit_events(domain, ts)`。
 - 笔记搜索走 FTS5；`notes_search` 的用户输入必须参数化并按 FTS5 语法转义/引号包裹，语法错误返回可读错误，不中断服务。
+- FTS5 使用 `trigram` 分词器：默认 `unicode61` 无法检索中文（实测命中 0）。trigram 要求关键词至少 3 个字符，因此**少于 3 字符的查询回退 `LIKE` 模糊匹配**（转义 `%` `_` `\`），保证「登录」「检索」这类两字关键词可用。
 - 会话按标题与最近活动排序；v1 不做消息全文搜索。
 
 ### 8.4 备份与恢复
@@ -493,7 +494,7 @@ B‴ 极光 HUD：深靛黑背景上的紫→青极光，每张卡片玻璃，�
 | UI | React 19 + TypeScript + 手写 CSS 分节 | 自绘 HUD；cmdk 负责命令面板 |
 | 动效 | Motion（`motion/react`）+ CSS | 见第 10 节 |
 | 状态 | Zustand | 分域 store + IPC 事件 |
-| 数据 | Electron 内置 `node:sqlite` + 显式前向迁移 + FTS5 | 本地单文件，WAL；无需原生模块重编译 |
+| 数据 | Electron 内置 `node:sqlite` + 显式前向迁移 + FTS5（trigram） | 本地单文件，WAL；无需原生模块重编译 |
 | 校验 | Zod | 主/渲染共享 schema |
 | Agent | Claude Agent SDK、Codex SDK | 主进程内，适配器隔离 |
 | MCP | 官方 MCP SDK | 仅 loopback |

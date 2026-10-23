@@ -20,6 +20,7 @@ export function createInitialData(): WorkstationData {
     resolution: null,
     motionOn: true,
     focus: null,
-    quickNoteOpen: false
+    quickNoteOpen: false,
+    notesViewOpen: false
   }
 }

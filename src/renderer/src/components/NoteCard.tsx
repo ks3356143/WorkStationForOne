@@ -1,12 +1,11 @@
-import { useWorkstation } from '../store/useWorkstation'
+import { selectPreviewNotes, useWorkstation } from '../store/useWorkstation'
 import { PinIcon } from './Glyphs'
 
 export function NoteCard() {
   const notes = useWorkstation((state) => state.notes)
   const openQuickNote = useWorkstation((state) => state.openQuickNote)
-
-  const pinned = notes.find((note) => note.pinned) ?? notes[0]
-  const rest = notes.filter((note) => note.id !== pinned?.id).slice(0, 2)
+  const openNotesView = useWorkstation((state) => state.openNotesView)
+  const { pinned, rest } = selectPreviewNotes(notes)
 
   return (
     <section className="w1-card w1-note">
@@ -45,7 +44,7 @@ export function NoteCard() {
 
       <div className="w1-nfoot">
         <b>{notes.length} 条笔记</b>
-        <button className="w1-nall" type="button" onClick={openQuickNote}>
+        <button className="w1-nall" type="button" onClick={openNotesView}>
           全部 →
         </button>
       </div>

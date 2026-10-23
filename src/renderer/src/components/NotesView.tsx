@@ -1,0 +1,196 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { m } from 'motion/react'
+import type { NoteRecord, NoteSearchHit } from '../../../shared/ipc'
+import { useWorkstation } from '../store/useWorkstation'
+import { NoteList, NoteListFooter, type NoteListRow } from './NoteList'
+
+type Mode = 'browse' | 'search'
+
+const PAGE_SIZE = 60
+const SEARCH_LIMIT = 60
+
+export function notesToRows(notes: NoteRecord[]): NoteListRow[] {
+  return notes.map((note) => ({
+    id: note.id,
+    text: note.text,
+    time: note.time,
+    tag: note.tag,
+    pinned: note.pinned === true
+  }))
+}
+
+export function hitsToRows(hits: NoteSearchHit[]): NoteListRow[] {
+  return hits.map((hit) => ({
+    id: hit.id,
+    text: hit.text,
+    time: hit.time,
+    tag: hit.tag,
+    pinned: hit.pinned === true,
+    snippet: hit.snippet
+  }))
+}
+
+export function NotesView() {
+  const api = typeof window === 'undefined' ? undefined : window.ws?.notes
+  const closeNotesView = useWorkstation((state) => state.closeNotesView)
+  const memoryNotes = useWorkstation((state) => state.notes)
+
+  const [query, setQuery] = useState('')
+  const [mode, setMode] = useState<Mode>('browse')
+  const [rows, setRows] = useState<NoteListRow[]>(() => notesToRows(memoryNotes))
+  const [total, setTotal] = useState(memoryNotes.length)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const offsetRef = useRef(0)
+  const searchSeq = useRef(0)
+
+  const loadPage = useCallback(
+    async (reset: boolean) => {
+      if (!api || loading) return
+      setLoading(true)
+      setError(null)
+      try {
+        const offset = reset ? 0 : offsetRef.current
+        const page = await api.page(offset, PAGE_SIZE)
+        offsetRef.current = offset + page.items.length
+        setRows((current) => (reset ? notesToRows(page.items) : [...current, ...notesToRows(page.items)]))
+        setTotal(page.total)
+        setMode('browse')
+      } catch (cause) {
+        console.error('[notes] 读取失败', cause)
+        setError('读取笔记失败')
+      } finally {
+        setLoading(false)
+      }
+    },
+    [api, loading]
+  )
+
+  useEffect(() => {
+    if (!api) return
+    void loadPage(true)
+    // 只在挂载时拉第一页
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    const trimmed = query.trim()
+
+    if (!trimmed) {
+      if (api) void loadPage(true)
+      else {
+        setRows(notesToRows(memoryNotes))
+        setTotal(memoryNotes.length)
+        setMode('browse')
+      }
+      return
+    }
+
+    if (!api) {
+      const needle = trimmed.toLowerCase()
+      const hits = memoryNotes.filter((note) => note.text.toLowerCase().includes(needle))
+      const rowsFromMemory = notesToRows(hits).map((row) => ({ ...row, snippet: row.text }))
+      setRows(rowsFromMemory)
+      setTotal(rowsFromMemory.length)
+      setMode('search')
+      return
+    }
+
+    const seq = ++searchSeq.current
+    setLoading(true)
+    setError(null)
+    const timer = window.setTimeout(() => {
+      void api
+        .search(trimmed, SEARCH_LIMIT)
+        .then((hits) => {
+          if (seq !== searchSeq.current) return
+          setRows(hitsToRows(hits))
+          setTotal(hits.length)
+          setMode('search')
+        })
+        .catch((cause) => {
+          if (seq !== searchSeq.current) return
+          console.error('[notes] 搜索失败', cause)
+          setError('搜索失败')
+        })
+        .finally(() => {
+          if (seq === searchSeq.current) setLoading(false)
+        })
+    }, 160)
+
+    return () => window.clearTimeout(timer)
+    // loadPage 依赖 loading，避免把搜索重复触发
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query])
+
+  const close = () => closeNotesView()
+
+  const hasMore = mode === 'browse' && rows.length < total
+
+  return (
+    <m.div
+      className="w1-notesview"
+      role="dialog"
+      aria-modal="true"
+      aria-label="全部笔记"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+    >
+      <m.div
+        className="w1-nvbox"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 8 }}
+        transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <div className="w1-nvhead">
+          <span className="w1-eyebrow">// 全部笔记</span>
+          <span className="w1-nvcount">
+            {mode === 'search' ? `命中 ${total}${total >= SEARCH_LIMIT ? '+' : ''}` : `共 ${total} 条 · 已载入 ${rows.length}`}
+          </span>
+          <button className="w1-modalx" type="button" aria-label="关闭全部笔记" onClick={close}>
+            ×
+          </button>
+        </div>
+
+        <div className="w1-nvsearch">
+          <span>&gt;</span>
+          <input
+            className="w1-nvinput"
+            value={query}
+            placeholder="搜索笔记内容，支持中文与英文…"
+            aria-label="搜索笔记"
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          {query ? (
+            <button className="w1-nvclear" type="button" onClick={() => setQuery('')}>
+              清空
+            </button>
+          ) : (
+            <kbd>Esc</kbd>
+          )}
+        </div>
+
+        {error ? <div className="w1-nverror">{error}</div> : null}
+
+        <NoteList rows={rows} loading={loading} mode={mode} />
+
+        {hasMore ? (
+          <NoteListFooter
+            loading={loading}
+            visible={rows.length}
+            total={total}
+            onMore={() => void loadPage(false)}
+          />
+        ) : null}
+
+        <div className="w1-nvfoot">
+          <span>本地 SQLite · trigram 全文索引</span>
+          <span>{mode === 'search' ? '两字以内自动回退模糊匹配' : '置顶优先 · 按更新时间排序'}</span>
+        </div>
+      </m.div>
+    </m.div>
+  )
+}

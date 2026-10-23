@@ -22,13 +22,44 @@ export interface TaskApi {
   applySchedule: (changes: TaskScheduleChange[]) => Promise<void>
 }
 
+export interface NoteRecord {
+  id: string
+  text: string
+  time: string
+  tag?: string
+  pinned?: boolean
+}
+
+export interface NotePage {
+  items: NoteRecord[]
+  total: number
+}
+
+export interface NoteSearchHit extends NoteRecord {
+  snippet: string
+}
+
+export interface NoteApi {
+  bootstrap: (notes: NoteRecord[]) => Promise<void>
+  page: (offset: number, limit: number) => Promise<NotePage>
+  search: (query: string, limit: number) => Promise<NoteSearchHit[]>
+  create: (text: string, tag?: string) => Promise<NoteRecord>
+  togglePin: (id: string) => Promise<void>
+}
+
 export interface WsApi {
   tasks: TaskApi
+  notes: NoteApi
 }
 
 export const IPC_CHANNELS = {
   tasksList: 'tasks:list',
   tasksBootstrap: 'tasks:bootstrap',
   tasksSetDone: 'tasks:set-done',
-  tasksApplySchedule: 'tasks:apply-schedule'
+  tasksApplySchedule: 'tasks:apply-schedule',
+  notesBootstrap: 'notes:bootstrap',
+  notesPage: 'notes:page',
+  notesSearch: 'notes:search',
+  notesCreate: 'notes:create',
+  notesTogglePin: 'notes:toggle-pin'
 } as const

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createInitialData } from '../data/mock'
 import { getTodayIndex } from '../lib/date'
-import { bindTaskPersistence, selectVisibleTasks, useWorkstation } from './useWorkstation'
+import { bindTaskPersistence, selectPreviewNotes, selectVisibleTasks, useWorkstation } from './useWorkstation'
 
 beforeEach(() => {
   useWorkstation.setState(createInitialData())
@@ -173,6 +173,37 @@ describe('持久化', () => {
     expect(useWorkstation.getState().tasks.find((task) => task.id === 't2')?.done).toBe(true)
     expect(spy).toHaveBeenCalled()
     spy.mockRestore()
+  })
+})
+
+describe('笔记预览选择', () => {
+  const note = (id: string, pinned = false) => ({ id, text: id, time: '12:00', pinned })
+
+  it('置顶笔记优先生效，并返回两条其余笔记', () => {
+    const result = selectPreviewNotes([note('a'), note('b', true), note('c'), note('d')])
+
+    expect(result.pinned?.id).toBe('b')
+    expect(result.rest.map((item) => item.id)).toEqual(['a', 'c'])
+  })
+
+  it('没有置顶时取第一条', () => {
+    const result = selectPreviewNotes([note('a'), note('b'), note('c')])
+
+    expect(result.pinned?.id).toBe('a')
+    expect(result.rest.map((item) => item.id)).toEqual(['b', 'c'])
+  })
+
+  it('笔记不足时返回可用的部分', () => {
+    expect(selectPreviewNotes([note('only')])).toEqual({ pinned: note('only'), rest: [] })
+    expect(selectPreviewNotes([])).toEqual({ pinned: undefined, rest: [] })
+  })
+
+  it('只遍历到凑够两条，不复制整个数组', () => {
+    const many = Array.from({ length: 5000 }, (_, index) => note(`n${index}`, index === 2000))
+    const result = selectPreviewNotes(many)
+
+    expect(result.pinned?.id).toBe('n2000')
+    expect(result.rest.map((item) => item.id)).toEqual(['n0', 'n1'])
   })
 })
 
