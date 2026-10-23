@@ -14,15 +14,19 @@ export async function hydrateTasks(deps: HydrateDeps | undefined = bridgeTasks()
 
   bindTaskPersistence({ setDone: deps.setDone, applySchedule: deps.applySchedule })
 
-  const initial = useWorkstation.getState().tasks
-  const stored = await deps.list()
+  try {
+    const initial = useWorkstation.getState().tasks
+    const stored = await deps.list()
 
-  if (stored.length === 0) {
-    await deps.bootstrap(initial)
-    return
+    if (stored.length === 0) {
+      await deps.bootstrap(initial)
+      return
+    }
+
+    replaceTasks(stored satisfies Task[])
+  } catch (error) {
+    console.error('[persistence] 任务读取失败，使用内存种子数据', error)
   }
-
-  replaceTasks(stored satisfies Task[])
 }
 
 function bridgeTasks(): HydrateDeps | undefined {

@@ -1,16 +1,11 @@
+import type { TaskRecord } from '../../shared/ipc'
+
 export type AgentId = 'claude' | 'codex'
 export type TaskFilter = 'all' | 'todo' | 'done'
 export type SessionStatus = 'run' | 'wait' | 'idle'
 export type Resolution = 'allowed' | 'denied'
 
-export interface Task {
-  id: string
-  time: string
-  title: string
-  done: boolean
-  tag?: string
-  tone?: 'agent' | 'hot'
-}
+export type Task = TaskRecord
 
 export interface Habit {
   id: string

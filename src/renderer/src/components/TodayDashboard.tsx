@@ -1,4 +1,5 @@
 import { formatDateLine, formatHM, getTimeMarkerPercent } from '../lib/date'
+import { summarizeFleet } from '../lib/fleet'
 import { blockMinutes, findNextBlock, findNextTask } from '../lib/schedule'
 import { useNow } from '../lib/useNow'
 import { useWorkstation } from '../store/useWorkstation'
@@ -23,8 +24,7 @@ export function TodayDashboard() {
   const startFocus = useWorkstation((state) => state.startFocus)
   const now = useNow(30_000)
 
-  const running = sessions.filter((session) => session.status === 'run').length
-  const waiting = sessions.filter((session) => session.status === 'wait').length
+  const fleet = summarizeFleet(sessions)
   const todo = tasks.filter((task) => !task.done).length
   const nowMinutes = now.getHours() * 60 + now.getMinutes()
   const next = findNextTask(tasks, nowMinutes)
@@ -43,7 +43,7 @@ export function TodayDashboard() {
           </h1>
           <div className="w1-sub">
             <span className="w1-subtag">状态</span>
-            <b>{running}</b> 个在跑 · <b>{waiting}</b> 个待确认 · <b>{todo}</b> 项待办
+            <b>{fleet.running}</b> 个在跑 · <b>{fleet.waiting}</b> 个待确认 · <b>{todo}</b> 项待办
             {next ? (
               <span className="w1-sub-next">
                 {' '}

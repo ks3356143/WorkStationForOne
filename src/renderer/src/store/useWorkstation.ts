@@ -180,10 +180,14 @@ export function replaceTasks(tasks: Task[]): void {
   useWorkstation.setState({ tasks })
 }
 
+export function filterTasks(tasks: Task[], filter: TaskFilter): Task[] {
+  if (filter === 'todo') return tasks.filter((task) => !task.done)
+  if (filter === 'done') return tasks.filter((task) => task.done)
+  return tasks
+}
+
 export function selectVisibleTasks(state: WorkstationState): Task[] {
-  if (state.taskFilter === 'todo') return state.tasks.filter((task) => !task.done)
-  if (state.taskFilter === 'done') return state.tasks.filter((task) => task.done)
-  return state.tasks
+  return filterTasks(state.tasks, state.taskFilter)
 }
 
 export function selectActiveSession(state: WorkstationState) {

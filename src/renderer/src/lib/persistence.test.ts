@@ -49,4 +49,13 @@ describe('hydrateTasks', () => {
 
     expect(d.setDone).toHaveBeenCalledWith('t3', true)
   })
+
+  it('读库失败时保留种子数据并记录错误', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await hydrateTasks(deps({ list: vi.fn().mockRejectedValue(new Error('db locked')) }))
+
+    expect(useWorkstation.getState().tasks).toHaveLength(8)
+    expect(spy).toHaveBeenCalled()
+    spy.mockRestore()
+  })
 })

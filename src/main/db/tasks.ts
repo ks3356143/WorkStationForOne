@@ -1,5 +1,6 @@
-import type { DatabaseSync } from 'node:sqlite'
+import type { DatabaseSync, StatementSync } from 'node:sqlite'
 import type { TaskRecord, TaskScheduleChange } from '../../shared/ipc'
+
 interface TaskRow {
   id: string
   title: string
@@ -8,6 +9,17 @@ interface TaskRow {
   tone: 'agent' | 'hot' | null
   done: number
 }
+
+const LIST_SQL = `SELECT id, title, time_label, tag, tone, done
+  FROM tasks
+  ORDER BY sort_order ASC, created_at ASC`
+
+const INSERT_SQL = `INSERT INTO tasks
+  (id, title, time_label, tag, tone, done, sort_order, created_at, updated_at, completed_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
+const SET_DONE_SQL = 'UPDATE tasks SET done = ?, completed_at = ?, updated_at = ? WHERE id = ?'
+const APPLY_SCHEDULE_SQL = 'UPDATE tasks SET time_label = ?, tag = ?, updated_at = ? WHERE id = ?'
 
 function toRecord(row: TaskRow): TaskRecord {
   return {
@@ -21,35 +33,44 @@ function toRecord(row: TaskRow): TaskRecord {
 }
 
 export class TaskRepository {
+  private readonly statements = new Map<string, StatementSync>()
+
   constructor(private readonly db: DatabaseSync) {}
 
+  private sql(query: string): StatementSync {
+    let statement = this.statements.get(query)
+    if (!statement) {
+      statement = this.db.prepare(query)
+      this.statements.set(query, statement)
+    }
+    return statement
+  }
+
+  private transaction<T>(run: () => T): T {
+    this.db.exec('BEGIN')
+    try {
+      const result = run()
+      this.db.exec('COMMIT')
+      return result
+    } catch (error) {
+      this.db.exec('ROLLBACK')
+      throw error
+    }
+  }
+
   list(): TaskRecord[] {
-    const rows = this.db
-      .prepare(
-        `SELECT id, title, time_label, tag, tone, done
-         FROM tasks
-         ORDER BY sort_order ASC, created_at ASC`
-      )
-      .all() as unknown as TaskRow[]
+    const rows = this.sql(LIST_SQL).all() as unknown as TaskRow[]
     return rows.map(toRecord)
   }
 
-  count(): number {
-    const row = this.db.prepare('SELECT COUNT(*) AS n FROM tasks').get() as { n: number }
-    return Number(row.n)
-  }
-
   bootstrap(tasks: TaskRecord[]): void {
-    if (this.count() > 0) return
+    const row = this.sql('SELECT COUNT(*) AS n FROM tasks').get() as { n: number }
+    if (Number(row.n) > 0) return
 
     const now = Date.now()
-    const insert = this.db.prepare(
-      `INSERT INTO tasks (id, title, time_label, tag, tone, done, sort_order, created_at, updated_at, completed_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
+    const insert = this.sql(INSERT_SQL)
 
-    this.db.exec('BEGIN')
-    try {
+    this.transaction(() => {
       tasks.forEach((task, index) => {
         insert.run(
           task.id,
@@ -64,33 +85,21 @@ export class TaskRepository {
           task.done ? now : null
         )
       })
-      this.db.exec('COMMIT')
-    } catch (error) {
-      this.db.exec('ROLLBACK')
-      throw error
-    }
+    })
   }
 
   setDone(id: string, done: boolean): void {
     const now = Date.now()
-    this.db
-      .prepare('UPDATE tasks SET done = ?, completed_at = ?, updated_at = ? WHERE id = ?')
-      .run(done ? 1 : 0, done ? now : null, now, id)
+    this.sql(SET_DONE_SQL).run(done ? 1 : 0, done ? now : null, now, id)
   }
 
   applySchedule(changes: TaskScheduleChange[]): void {
     if (changes.length === 0) return
 
     const now = Date.now()
-    const update = this.db.prepare('UPDATE tasks SET time_label = ?, tag = ?, updated_at = ? WHERE id = ?')
-
-    this.db.exec('BEGIN')
-    try {
+    const update = this.sql(APPLY_SCHEDULE_SQL)
+    this.transaction(() => {
       for (const change of changes) update.run(change.toTime, change.toTag, now, change.taskId)
-      this.db.exec('COMMIT')
-    } catch (error) {
-      this.db.exec('ROLLBACK')
-      throw error
-    }
+    })
   }
 }

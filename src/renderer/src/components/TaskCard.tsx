@@ -1,4 +1,4 @@
-import { useWorkstation } from '../store/useWorkstation'
+import { filterTasks, useWorkstation } from '../store/useWorkstation'
 import type { TaskFilter } from '../types'
 import { CheckIcon, SparkIcon } from './Glyphs'
 
@@ -21,8 +21,7 @@ export function TaskCard({ nextTaskId }: TaskCardProps) {
 
   const doneCount = tasks.filter((task) => task.done).length
   const todoCount = tasks.length - doneCount
-  const visible =
-    filter === 'all' ? tasks : tasks.filter((task) => (filter === 'todo' ? !task.done : task.done))
+  const visible = filterTasks(tasks, filter)
   const half = Math.ceil(visible.length / 2)
   const columns = [visible.slice(0, half), visible.slice(half)]
 
