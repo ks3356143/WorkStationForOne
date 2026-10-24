@@ -426,7 +426,7 @@ B‴ 极光 HUD：深靛黑背景上的紫→青极光，每张卡片玻璃，�
 - 正文对比度 ≥ 4.5:1，大号文字 ≥ 3:1；渐变/实底按钮的文字颜色必须按主题实测。
 - `prefers-reduced-transparency` 或不支持 `backdrop-filter` 时，玻璃降级为实色背景，文字与边框对比度不变（降级色同样走主题令牌）。
 - 双主题：默认夜间，状态栏与命令面板都可切换白天模式；选择写入 `localStorage`，重启后保留。
-- 主题在首帧渲染前应用到 `<html data-theme>`，并通过窄 IPC 同步 `BrowserWindow` 背景色与标题栏配色，避免启动闪色。
+- 主题在首帧渲染前应用到 `<html data-theme>`：`src/renderer/public/theme-init.js` 在样式表与 React 之前同步读取 `localStorage` 并写入属性；并通过窄 IPC 同步 `BrowserWindow` 背景色与标题栏配色，避免启动与重载闪色。
 - 白天模式沿用极光玻璃语言：浅灰蓝底、低透明度紫/青/粉极光、白色半透明玻璃、深靛文字；主按钮与琥珀按钮使用白字以满足对比度。
 
 ## 10. 动效系统

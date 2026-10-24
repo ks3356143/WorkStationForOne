@@ -47,7 +47,7 @@ npm run dev
 | `npm start` | 预览上一次构建 |
 | `npm run typecheck` | 类型检查（main/preload 与 renderer 各一套配置） |
 | `npm test` | 运行全部单元测试（113 项） |
-| `npm run smoke` | 构建后跑 UI 交互冒烟测试（60 项检查） |
+| `npm run smoke` | 构建后跑 UI 交互冒烟测试（59 项检查） |
 | `npm run capture -- .screenshots/home.png 1440 900 .screenshots/audit.json` | 截图并输出布局审计 |
 | `npm run capture -- .screenshots/day.png 1440 900 light` | 以白天模式截图（末位参数为主题） |
 | `npm run icon` | 从 `resources/icon.svg` 重新生成 PNG 与多尺寸 ICO |

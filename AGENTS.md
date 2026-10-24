@@ -46,7 +46,7 @@
 
 - 中文优先文案。保持 B‴ 极光 HUD：玻璃卡片、渐变/辉光、直角、终端式元素。默认夜间，支持白天模式；白天同样使用极光玻璃语言，不得退化为通用极简 UI。
 - 颜色一律走令牌：半透明色用 `rgb(var(--*-rgb) / α)`，不要在组件里写死 `rgba()` 或深浅主题分支；浅色覆盖集中在 `styles/sections/14-theme.css`。
-- 主题状态在 `lib/theme.ts`：读取/写入 `localStorage`、在首帧前设置 `<html data-theme>`，并通过 `window.ws.app.setTheme` 同步窗口背景与标题栏。新增主题相关逻辑复用这些函数。
+- 主题状态在 `lib/theme.ts`：读取/写入 `localStorage`、应用 `<html data-theme>`，并通过 `window.ws.app.setTheme` 同步窗口背景与标题栏。`src/renderer/public/theme-init.js` 在样式表之前同步写入 `data-theme`，避免重载/可见窗口的首帧闪色；它重复了存储键 `workstation.theme`，改键时两处一起改。新增主题相关逻辑复用这些函数。
 - 动效是预期要求，使用 `motion/react`（`m` + `LazyMotion`、`domAnimation`）。尊重 `prefers-reduced-motion` 与 `motion-off` 开关。
 - 未经明确同意，不得将视觉系统替换为通用/极简 UI，也不得引入 UI 组件库。
 - 布局以 1440×900 为目标，且必须在 1180×720 下可用。两种尺寸都要检查。

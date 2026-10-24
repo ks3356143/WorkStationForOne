@@ -1,5 +1,6 @@
 import type { Theme } from '../../../shared/ipc'
 
+// 与 src/renderer/public/theme-init.js 中的键保持一致：该脚本在样式表加载前同步读取。
 export const THEME_STORAGE_KEY = 'workstation.theme'
 
 export function normalizeTheme(value: unknown): Theme {
