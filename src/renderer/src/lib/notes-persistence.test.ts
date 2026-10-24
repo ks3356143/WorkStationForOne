@@ -32,6 +32,16 @@ describe('hydrateNotes', () => {
     await hydrateNotes(deps({ page: vi.fn().mockResolvedValue({ items: stored, total: 9 }) }))
 
     expect(useWorkstation.getState().notes).toEqual(stored)
+    expect(useWorkstation.getState().noteTotal).toBe(9)
+  })
+
+  it('新增笔记时导航总数加一', async () => {
+    await hydrateNotes(deps())
+    const before = useWorkstation.getState().noteTotal
+
+    useWorkstation.getState().addNote('新的想法')
+
+    expect(useWorkstation.getState().noteTotal).toBe(before + 1)
   })
 
   it('没有 preload 桥时保持种子', async () => {

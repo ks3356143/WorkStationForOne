@@ -2,19 +2,27 @@
 
 @media (max-width: 1365px) {
   .w1-body {
-    grid-template-columns: 224px minmax(0, 1fr) 352px;
+    grid-template-columns: 208px minmax(0, 1fr);
   }
 
   .w1-brand {
-    width: 208px;
+    width: 200px;
   }
 
   .w1-cmd {
-    width: clamp(240px, 26vw, 360px);
+    width: clamp(240px, 28vw, 360px);
+  }
+
+  .w1-agent {
+    grid-template-columns: 264px minmax(0, 1fr);
   }
 
   .w1-main {
-    padding: 20px 22px 22px;
+    padding: 22px 24px 24px;
+  }
+
+  .w1-notesview {
+    padding: 22px 24px 24px;
   }
 
   .w1-sub-next {
@@ -28,37 +36,72 @@
 
 @media (max-width: 1279px) {
   .w1-body {
-    grid-template-columns: 216px minmax(0, 1fr) 340px;
+    grid-template-columns: 196px minmax(0, 1fr);
   }
 
-  .w1-bento {
-    grid-template-columns: 1fr;
+  .w1-nav {
+    padding: 12px 10px 9px;
   }
 
-  .w1-tasks,
-  .w1-note {
-    grid-column: auto;
+  .w1-navitem {
+    min-height: 54px;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 0 10px 0 8px;
   }
 
-  .w1-taskgrid {
-    grid-template-columns: 1fr;
+  .w1-navicon {
+    width: 32px;
+    height: 32px;
   }
 
-  .w1-taskcol + .w1-taskcol {
-    border-left: 0;
-    padding-left: 0;
+  .w1-navtext b {
+    font-size: 15px;
   }
 
-  .w1-nlist {
-    grid-template-columns: 1fr;
+  .w1-navtext small {
+    font-size: 12px;
+  }
+
+  .w1-agent {
+    grid-template-columns: 242px minmax(0, 1fr);
+  }
+
+  .w1-lmeta {
+    display: none;
+  }
+
+  .w1-rail {
+    padding: 12px 10px 0;
+  }
+
+  .w1-railscroll {
+    padding-bottom: 10px;
   }
 
   .w1-cmd {
-    width: clamp(220px, 24vw, 320px);
+    width: clamp(210px, 24vw, 300px);
+  }
+
+  .w1-thread {
+    padding: 16px 18px 8px;
+  }
+
+  .w1-dhead {
+    padding: 0 16px;
+  }
+
+  .w1-term {
+    padding: 0 16px;
+  }
+
+  .w1-compose {
+    margin: 0 14px 14px;
   }
 
   .w1-status {
     gap: 10px;
+    padding: 0 10px;
   }
 
   .w1-st-mcp,
@@ -68,51 +111,43 @@
 }
 
 @media (max-height: 800px) {
-  .w1-rail {
+  .w1-nav {
     padding: 10px 10px 8px;
   }
 
-  .w1-rhead {
-    padding-bottom: 5px;
+  .w1-navhead {
+    padding-bottom: 7px;
   }
 
-  .w1-fleet {
-    margin-bottom: 8px;
+  .w1-navlist {
+    gap: 4px;
+    margin-bottom: 12px;
+  }
+
+  .w1-navitem {
+    min-height: 50px;
+  }
+
+  .w1-navspacer {
+    min-height: 8px;
   }
 
   .w1-fcell {
-    gap: 3px;
-    padding: 7px 5px;
-    font-size: 10px;
+    gap: 4px;
+    padding: 7px 4px;
+    font-size: 10.5px;
   }
 
   .w1-fcell b {
-    font-size: 15px;
+    font-size: 17px;
   }
 
   .w1-fjump {
-    padding: 6px 9px;
-  }
-
-  .w1-agroup {
-    margin-bottom: 6px;
-  }
-
-  .w1-ahead {
-    padding: 4px 7px 5px;
-  }
-
-  .w1-sess {
-    gap: 2px;
-    padding: 7px 9px 7px 24px;
-  }
-
-  .w1-spacer {
-    min-height: 4px;
+    padding: 7px 9px;
   }
 
   .w1-launch {
-    padding-top: 5px;
+    padding-top: 6px;
   }
 
   .w1-lrow {
@@ -120,12 +155,58 @@
   }
 
   .w1-rfoot {
-    margin-top: 4px;
+    margin-top: 6px;
     padding-top: 6px;
+  }
+
+  .w1-rail {
+    padding: 10px 10px 0;
+  }
+
+  .w1-rail .w1-rhead {
+    padding-bottom: 8px;
+  }
+
+  .w1-agroup {
+    margin-bottom: 8px;
+  }
+
+  .w1-ahead {
+    padding: 5px 8px 6px;
+  }
+
+  .w1-sess {
+    gap: 3px;
+    padding: 9px 10px 9px 28px;
+  }
+
+  .w1-st {
+    font-size: 14.5px;
+  }
+
+  .w1-sm {
+    font-size: 12px;
   }
 
   .w1-main {
     padding: 16px 20px 20px;
+  }
+
+  .w1-notesview {
+    padding: 16px 20px 18px;
+  }
+
+  .w1-nvbox {
+    gap: 10px;
+    padding: 18px 20px 14px;
+  }
+
+  .w1-nvtitle h1 {
+    font-size: 26px;
+  }
+
+  .w1-nvsearch {
+    height: 42px;
   }
 
   .w1-thead {
@@ -176,29 +257,87 @@
     height: 36px;
   }
 
+  .w1-dhead {
+    height: 52px;
+  }
+
+  .w1-term {
+    height: 30px;
+  }
+
   .w1-thread {
     gap: 10px;
-    padding-top: 10px;
+    padding-top: 12px;
   }
 
   .w1-umsg {
-    padding: 7px 10px 8px 11px;
+    padding: 8px 11px 9px 12px;
   }
 
   .w1-compose {
-    margin-bottom: 10px;
+    margin-bottom: 12px;
   }
 
   .w1-input {
-    height: 56px;
-    padding-top: 9px;
+    height: 60px;
+    padding-top: 10px;
   }
 
   .w1-ifield {
-    height: 34px;
+    height: 36px;
   }
 
   .w1-focus-time {
     font-size: 60px;
+  }
+}
+
+@media (max-width: 1365px) {
+  .w1-todos {
+    grid-template-columns: 208px minmax(0, 1fr);
+  }
+
+  .w1-todomain {
+    padding: 18px 20px 0;
+  }
+
+  .w1-todogroupdate {
+    padding-top: 8px;
+  }
+}
+
+@media (max-width: 1279px) {
+  .w1-todos {
+    grid-template-columns: 190px minmax(0, 1fr);
+  }
+
+  .w1-todorail {
+    padding: 14px 10px 12px;
+  }
+
+  .w1-todomain {
+    padding: 16px 16px 0;
+  }
+
+  .w1-todotitle {
+    font-size: 26px;
+  }
+
+  .w1-todosearch {
+    flex-basis: 230px;
+    min-width: 160px;
+  }
+
+  .w1-todohead {
+    gap: 14px;
+  }
+
+  .w1-todoeditorwrap {
+    padding-left: 26px;
+  }
+
+  .w1-todoedit {
+    grid-template-columns: minmax(0, 1fr) 150px;
+    gap: 10px 14px;
   }
 }

@@ -140,54 +140,78 @@
 }
 
 
-/* ---------- all-notes view ---------- */
+/* ---------- all-notes workspace ---------- */
 
 .w1-notesview {
-  position: fixed;
-  inset: 0;
-  z-index: 54;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
   display: flex;
-  align-items: center;
   justify-content: center;
-  padding: 28px;
-  background: rgb(var(--scrim-rgb) / 0.62);
-  backdrop-filter: blur(6px);
+  padding: 24px 30px 26px;
+  overflow: hidden;
+  background-image:
+    linear-gradient(rgb(var(--ac-rgb) / 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--ac-rgb) / 0.035) 1px, transparent 1px),
+    linear-gradient(180deg, rgb(var(--panel-1-rgb) / 0.02), rgb(var(--panel-1-rgb) / 0.3));
+  background-size: 48px 48px, 48px 48px, 100% 100%;
 }
 
 .w1-nvbox {
-  width: min(820px, 100%);
-  height: min(720px, calc(100vh - 56px));
+  width: 100%;
+  max-width: 1120px;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 20px 22px 16px;
-  border: 1px solid rgb(var(--ac-rgb) / 0.26);
+  gap: 14px;
+  padding: 24px 28px 18px;
+  border: 1px solid rgb(var(--ac-rgb) / 0.24);
   background: linear-gradient(150deg, rgba(255, 255, 255, 0.07), transparent 42%),
-    linear-gradient(155deg, rgb(var(--panel-hi-rgb) / 0.94), rgb(var(--panel-lo-rgb) / 0.96));
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.08), 0 30px 70px rgb(var(--shadow-rgb) / 0.45);
+    linear-gradient(155deg, rgb(var(--panel-hi-rgb) / 0.82), rgb(var(--panel-lo-rgb) / 0.86));
+  backdrop-filter: blur(22px) saturate(150%);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.08), 0 24px 60px rgb(var(--shadow-rgb) / 0.3);
 }
 
 .w1-nvhead {
+  flex: none;
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.w1-nvtitle .w1-date {
+  font: 600 11.5px/1 var(--mono);
+}
+
+.w1-nvtitle h1 {
+  margin: 8px 0 0;
+  font: 700 30px/1 var(--disp);
+  letter-spacing: -0.03em;
+  color: var(--fg);
+}
+
+.w1-nvtitle h1 span {
+  font-size: 0.68em;
+  margin-left: 1px;
+  color: var(--ac2);
+  text-shadow: 0 0 18px rgb(var(--ac2-rgb) / 0.45);
 }
 
 .w1-nvcount {
-  font: 11.5px/1 var(--mono);
+  padding-bottom: 3px;
+  font: 12px/1 var(--mono);
   color: var(--su);
-}
-
-.w1-nvhead .w1-modalx {
-  margin-left: auto;
+  white-space: nowrap;
 }
 
 .w1-nvsearch {
+  flex: none;
   display: flex;
   align-items: center;
-  gap: 9px;
-  height: 40px;
-  padding: 0 10px;
+  gap: 10px;
+  height: 46px;
+  padding: 0 12px;
   border: 1px solid rgb(var(--ac-rgb) / 0.24);
   background: rgb(var(--field-rgb) / 0.6);
   color: var(--ac2);
@@ -199,7 +223,7 @@
   border: 0;
   background: transparent;
   color: var(--fg);
-  font: 14px/1 var(--sans);
+  font: 15px/1 var(--sans);
   outline: none;
 }
 
@@ -210,11 +234,11 @@
 .w1-nvsearch kbd,
 .w1-nvclear {
   flex: none;
-  padding: 2px 6px;
+  padding: 3px 7px;
   border: 1px solid rgb(var(--ac-rgb) / 0.24);
   background: transparent;
   color: var(--mu);
-  font: 10.5px/1.4 var(--mono);
+  font: 11px/1.4 var(--mono);
 }
 
 .w1-nvclear:hover {
@@ -223,11 +247,12 @@
 }
 
 .w1-nverror {
-  padding: 8px 10px;
+  flex: none;
+  padding: 9px 11px;
   border-left: 2px solid var(--dg);
   background: rgb(var(--dg-rgb) / 0.1);
   color: var(--dg-fg);
-  font-size: 12.5px;
+  font-size: 13px;
 }
 
 .w1-nvlist {
@@ -245,12 +270,12 @@
 }
 
 .w1-nvrow {
-  height: 64px;
+  height: 68px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 4px;
-  padding: 8px 6px;
+  gap: 5px;
+  padding: 8px 8px;
   border-bottom: 1px solid rgb(var(--ac-rgb) / 0.1);
 }
 
@@ -262,7 +287,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font: 10.5px/1 var(--mono);
+  font: 11.5px/1 var(--mono);
   color: var(--su);
 }
 
@@ -284,7 +309,7 @@
 
 .w1-nvtext {
   margin: 0;
-  font-size: 13.5px;
+  font-size: 15px;
   line-height: 1.5;
   color: var(--fs);
   overflow: hidden;
@@ -296,19 +321,19 @@
 
 .w1-nvempty,
 .w1-nvloading {
-  padding: 26px 6px;
+  padding: 30px 8px;
   text-align: center;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--mu);
 }
 
 .w1-nvmore {
   flex: none;
-  height: 34px;
+  height: 38px;
   border: 1px solid rgb(var(--ac-rgb) / 0.26);
   background: transparent;
   color: var(--fs);
-  font: 500 12.5px/1 var(--sans);
+  font: 500 13.5px/1 var(--sans);
 }
 
 .w1-nvmore:hover:not(:disabled) {
@@ -325,6 +350,6 @@
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  font: 10.5px/1.4 var(--mono);
+  font: 11.5px/1.4 var(--mono);
   color: var(--su);
 }

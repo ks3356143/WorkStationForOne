@@ -5,11 +5,14 @@ const { dirname, join, resolve } = require('node:path')
 const target = resolve(process.argv[2] ?? '.screenshots/shell.png')
 const width = Number(process.argv[3]) || 1440
 const height = Number(process.argv[4]) || 900
+const extras = process.argv.slice(5)
 const isTheme = (value) => value === 'dark' || value === 'light'
-const themeArg = process.argv.at(-1)
-const theme = isTheme(themeArg) ? themeArg : 'dark'
-const auditArg = isTheme(themeArg) ? (process.argv[6] ? process.argv[5] : undefined) : process.argv[5]
+const isView = (value) => value === 'today' || value === 'tasks' || value === 'agent' || value === 'notes'
+const theme = extras.filter(isTheme).at(-1) ?? 'dark'
+const view = extras.filter(isView).at(-1) ?? 'today'
+const auditArg = extras.find((value) => !isTheme(value) && !isView(value))
 const auditPath = auditArg ? resolve(auditArg) : null
+const VIEW_LABELS = { today: '今日', tasks: '任务', agent: 'Agent', notes: '笔记' }
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms))
 
@@ -42,6 +45,19 @@ async function run() {
   win.focus()
   await sleep(2600)
 
+  if (view !== 'today') {
+    const switched = await win.webContents.executeJavaScript(`(() => {
+      const target = ${JSON.stringify(VIEW_LABELS[view])}
+      const item = [...document.querySelectorAll('.w1-navitem')].find(
+        (node) => node.querySelector('.w1-navtext b')?.textContent?.trim() === target
+      )
+      item?.click()
+      return Boolean(item)
+    })()`)
+    if (!switched) throw new Error(`找不到导航项：${VIEW_LABELS[view]}`)
+    await sleep(650)
+  }
+
   await mkdir(dirname(target), { recursive: true })
   const image = await win.webContents.capturePage()
   await writeFile(target, image.toPNG())
@@ -54,15 +70,27 @@ async function run() {
         const r = el.getBoundingClientRect()
         return { x: +r.x.toFixed(1), y: +r.y.toFixed(1), w: +r.width.toFixed(1), h: +r.height.toFixed(1), sw: el.scrollWidth, sh: el.scrollHeight, cw: el.clientWidth, ch: el.clientHeight }
       }
-      const overflows = [...document.querySelectorAll('*')].filter((el) => {
+      const name = (el) => [el.tagName.toLowerCase(), el.className?.toString?.().trim().slice(0, 80)].filter(Boolean).join('.')
+      const outsideViewport = [...document.querySelectorAll('.w1 *')].filter((el) => {
+        const r = el.getBoundingClientRect()
+        const s = getComputedStyle(el)
+        return s.visibility !== 'hidden' && s.display !== 'none' && r.width > 0 &&
+          (r.right > innerWidth + 1 || r.left < -1)
+      }).slice(0, 20).map((el) => {
+        const r = el.getBoundingClientRect()
+        return { el: name(el), left: +r.left.toFixed(1), right: +r.right.toFixed(1) }
+      })
+      const overflowX = [...document.querySelectorAll('.w1 *')].filter((el) => {
         const s = getComputedStyle(el)
         return el.scrollWidth > el.clientWidth + 1 && s.overflowX !== 'visible' && el.clientWidth > 0
-      }).slice(0, 20).map((el) => ({ cls: el.className?.toString().slice(0, 90), sw: el.scrollWidth, cw: el.clientWidth }))
-      const verticalOverflows = [...document.querySelectorAll('.w1-card, .w1-card *')].filter((el) => {
-        const s = getComputedStyle(el)
-        return el.scrollHeight > el.clientHeight + 1 && s.overflowY !== 'visible' && el.clientHeight > 0
-      }).slice(0, 20).map((el) => ({ cls: el.className?.toString().slice(0, 90), sh: el.scrollHeight, ch: el.clientHeight }))
+      }).slice(0, 20).map((el) => ({ el: name(el), sw: el.scrollWidth, cw: el.clientWidth }))
+      const scrollables = ['.w1-nav', '.w1-main', '.w1-rail', '.w1-railscroll', '.w1-thread', '.w1-nvlist'].map((selector) => {
+        const el = document.querySelector(selector)
+        if (!el) return null
+        return { selector, top: el.scrollTop, sw: el.scrollWidth, cw: el.clientWidth, sh: el.scrollHeight, ch: el.clientHeight }
+      }).filter(Boolean)
       return {
+        view: ${JSON.stringify(view)},
         theme: document.documentElement.dataset.theme,
         palette: {
           bg: getComputedStyle(document.querySelector('.w1')).backgroundColor,
@@ -71,10 +99,16 @@ async function run() {
         },
         inner: [innerWidth, innerHeight], dpr: devicePixelRatio,
         doc: [document.documentElement.scrollWidth, document.documentElement.scrollHeight],
-        rects: Object.fromEntries(['.w1', '.w1-bar', '.w1-body', '.w1-rail', '.w1-main', '.w1-dock', '.w1-bento', '.w1-tasks', '.w1-card.w1-tasks', '.w1-bento > .w1-card:nth-child(2)', '.w1-bento > .w1-card:nth-child(3)', '.w1-card.w1-note', '.w1-thread', '.w1-compose', '.w1-status', '.w1-nfoot', '.w1-heat', '.w1-rbtn', '.w1-nlist'].map((s) => [s, rect(s)])),
+        nav: [...document.querySelectorAll('.w1-navitem')].map((el) => ({
+          label: el.querySelector('.w1-navtext b')?.textContent?.trim() ?? '',
+          active: el.classList.contains('on')
+        })),
+        headings: [...document.querySelectorAll('h1, h2, h3')].map((el) => el.textContent.trim().slice(0, 40)),
+        rects: Object.fromEntries(['.w1', '.w1-bar', '.w1-body', '.w1-nav', '.w1-navitem.on', '.w1-stage', '.w1-view', '.w1-main', '.w1-workspace', '.w1-agent', '.w1-rail', '.w1-railscroll', '.w1-dock', '.w1-thread', '.w1-compose', '.w1-notesview', '.w1-nvbox', '.w1-nvlist', '.w1-nvrow', '.w1-bento', '.w1-tasks', '.w1-todos', '.w1-todorail', '.w1-todomain', '.w1-todoscroll', '.w1-card.w1-note', '.w1-status', '.w1-rbtn', '.w1-nlist'].map((selector) => [selector, rect(selector)])),
         noteItems: [...document.querySelectorAll('.w1-nitem')].map((el) => ({ text: el.textContent.slice(0, 24), display: getComputedStyle(el).display })),
-        overflows,
-        verticalOverflows
+        outsideViewport,
+        overflowX,
+        scrollables
       }
     })()`)
     await mkdir(dirname(auditPath), { recursive: true })

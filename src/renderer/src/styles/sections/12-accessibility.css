@@ -6,6 +6,7 @@
     backdrop-filter: none;
   }
 
+  .w1-nav,
   .w1-rail {
     background: var(--panel-solid);
     backdrop-filter: none;
@@ -35,6 +36,7 @@
   .w1-modal,
   .w1-focus-box,
   .w1-palette,
+  .w1-nvbox,
   .w1-toast {
     background: var(--panel-solid);
     backdrop-filter: none;

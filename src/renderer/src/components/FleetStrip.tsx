@@ -6,9 +6,11 @@ interface FleetStripProps {
 }
 
 export function FleetStrip({ summary }: FleetStripProps) {
-  const setActiveSession = useWorkstation((state) => state.setActiveSession)
+  const openAgentSession = useWorkstation((state) => state.openAgentSession)
   const activeSessionId = useWorkstation((state) => state.activeSessionId)
-  const waitingActive = summary.waitingSessionId !== null && summary.waitingSessionId === activeSessionId
+  const activeView = useWorkstation((state) => state.activeView)
+  const waitingActive =
+    summary.waitingSessionId !== null && summary.waitingSessionId === activeSessionId && activeView === 'agent'
 
   return (
     <div className="w1-fleet" role="group" aria-label="Agent 舰队状态">
@@ -34,10 +36,10 @@ export function FleetStrip({ summary }: FleetStripProps) {
         <button
           className="w1-fjump"
           type="button"
-          onClick={() => setActiveSession(summary.waitingSessionId!)}
+          onClick={() => openAgentSession(summary.waitingSessionId!)}
         >
           <i />
-          {summary.waiting} 个会话待确认 · 去处理
+          {summary.waiting} 个待确认 · 去处理
         </button>
       ) : null}
     </div>

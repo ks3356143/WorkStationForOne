@@ -11,7 +11,10 @@ const api: WsApi = {
     bootstrap: (tasks) => ipcRenderer.invoke(IPC_CHANNELS.tasksBootstrap, tasks),
     setDone: (id, done) => ipcRenderer.invoke(IPC_CHANNELS.tasksSetDone, id, done),
     applySchedule: (changes: TaskScheduleChange[]) =>
-      ipcRenderer.invoke(IPC_CHANNELS.tasksApplySchedule, changes)
+      ipcRenderer.invoke(IPC_CHANNELS.tasksApplySchedule, changes),
+    create: (draft) => ipcRenderer.invoke(IPC_CHANNELS.tasksCreate, draft),
+    update: (id, patch) => ipcRenderer.invoke(IPC_CHANNELS.tasksUpdate, id, patch),
+    remove: (id) => ipcRenderer.invoke(IPC_CHANNELS.tasksRemove, id)
   },
   notes: {
     bootstrap: (notes) => ipcRenderer.invoke(IPC_CHANNELS.notesBootstrap, notes),

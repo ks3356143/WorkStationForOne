@@ -1,5 +1,7 @@
 export type TaskTone = 'agent' | 'hot'
 
+export type TaskPriority = 0 | 1 | 2 | 3
+
 export type Theme = 'dark' | 'light'
 
 export interface TaskRecord {
@@ -9,12 +11,40 @@ export interface TaskRecord {
   tag?: string
   tone?: TaskTone
   done: boolean
+  notes?: string
+  dueDate?: string
+  priority?: TaskPriority
+  list?: string
+  completedAt?: number
+}
+
+export interface TaskDraft {
+  title: string
+  time?: string
+  tag?: string
+  tone?: TaskTone
+  notes?: string
+  dueDate?: string
+  priority?: TaskPriority
+  list?: string
+}
+
+export interface TaskPatch {
+  title?: string
+  time?: string
+  tag?: string | null
+  tone?: TaskTone | null
+  notes?: string
+  dueDate?: string | null
+  priority?: TaskPriority
+  list?: string | null
 }
 
 export interface TaskScheduleChange {
   taskId: string
   toTime: string
   toTag: string
+  toDueDate?: string | null
 }
 
 export interface TaskApi {
@@ -22,6 +52,9 @@ export interface TaskApi {
   bootstrap: (tasks: TaskRecord[]) => Promise<void>
   setDone: (id: string, done: boolean) => Promise<void>
   applySchedule: (changes: TaskScheduleChange[]) => Promise<void>
+  create: (draft: TaskDraft) => Promise<TaskRecord>
+  update: (id: string, patch: TaskPatch) => Promise<void>
+  remove: (id: string) => Promise<void>
 }
 
 export interface NoteRecord {
@@ -64,6 +97,9 @@ export const IPC_CHANNELS = {
   tasksBootstrap: 'tasks:bootstrap',
   tasksSetDone: 'tasks:set-done',
   tasksApplySchedule: 'tasks:apply-schedule',
+  tasksCreate: 'tasks:create',
+  tasksUpdate: 'tasks:update',
+  tasksRemove: 'tasks:remove',
   notesBootstrap: 'notes:bootstrap',
   notesPage: 'notes:page',
   notesSearch: 'notes:search',

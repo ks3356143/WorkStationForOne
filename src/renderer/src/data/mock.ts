@@ -6,11 +6,16 @@ import { createSeedSessions, createSeedThreads } from './seed/sessions'
 import { createSeedTasks } from './seed/tasks'
 
 export function createInitialData(): WorkstationData {
+  const notes = createSeedNotes()
   return {
+    activeView: 'today',
     tasks: createSeedTasks(),
     taskFilter: 'all',
+    taskScope: 'today',
+    taskComposerRequest: 0,
     habits: createSeedHabits(),
-    notes: createSeedNotes(),
+    notes,
+    noteTotal: notes.length,
     sessions: createSeedSessions(),
     activeSessionId: 's-c1',
     threads: createSeedThreads(),
@@ -21,7 +26,6 @@ export function createInitialData(): WorkstationData {
     motionOn: true,
     theme: 'dark',
     focus: null,
-    quickNoteOpen: false,
-    notesViewOpen: false
+    quickNoteOpen: false
   }
 }

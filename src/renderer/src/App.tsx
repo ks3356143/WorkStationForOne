@@ -8,21 +8,24 @@ import { NotesView } from './components/NotesView'
 import { QuickNoteModal } from './components/QuickNoteModal'
 import { SessionRail } from './components/SessionRail'
 import { StatusBar } from './components/StatusBar'
+import { TasksView } from './components/tasks/TasksView'
 import { TodayDashboard } from './components/TodayDashboard'
 import { TopBar } from './components/TopBar'
+import { WorkspaceNav } from './components/WorkspaceNav'
 import { useWorkstation } from './store/useWorkstation'
 import { hydrateTasks } from './lib/persistence'
 import { hydrateNotes } from './lib/notes-persistence'
+import { useDemoReply } from './lib/useDemoReply'
 
 export default function App() {
   const motionOn = useWorkstation((state) => state.motionOn)
+  const activeView = useWorkstation((state) => state.activeView)
   const focus = useWorkstation((state) => state.focus)
   const quickNoteOpen = useWorkstation((state) => state.quickNoteOpen)
-  const notesViewOpen = useWorkstation((state) => state.notesViewOpen)
   const openQuickNote = useWorkstation((state) => state.openQuickNote)
   const closeQuickNote = useWorkstation((state) => state.closeQuickNote)
   const closeFocus = useWorkstation((state) => state.closeFocus)
-  const closeNotesView = useWorkstation((state) => state.closeNotesView)
+  const composeTask = useWorkstation((state) => state.composeTask)
 
   const [booting, setBooting] = useState(true)
   const [commandOpen, setCommandOpen] = useState(false)
@@ -31,6 +34,8 @@ export default function App() {
   const noticeTimer = useRef<number | null>(null)
   const paletteTriggerRef = useRef<HTMLElement | null>(null)
   const reducedMotion = useReducedMotion()
+
+  useDemoReply()
 
   const notify = useCallback((text: string) => {
     setNotice(text)
@@ -55,11 +60,11 @@ export default function App() {
   }, [])
 
   const openPalette = useCallback(() => {
-    if (focus || quickNoteOpen || notesViewOpen || commandOpen) return
+    if (focus || quickNoteOpen || commandOpen) return
     paletteTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     setPaletteSeq((seq) => seq + 1)
     setCommandOpen(true)
-  }, [commandOpen, focus, notesViewOpen, quickNoteOpen])
+  }, [commandOpen, focus, quickNoteOpen])
 
   const closePalette = useCallback(() => {
     setCommandOpen(false)
@@ -77,21 +82,23 @@ export default function App() {
       const mod = event.ctrlKey || event.metaKey
       if (mod && event.key.toLowerCase() === 'k') {
         event.preventDefault()
-        if (focus || quickNoteOpen || notesViewOpen) return
+        if (focus || quickNoteOpen) return
         if (commandOpen) closePalette()
         else openPalette()
         return
       }
       if (mod && event.key.toLowerCase() === 'n') {
         event.preventDefault()
-        if (!focus && !commandOpen && !notesViewOpen) openQuickNote()
+        if (!focus && !commandOpen && !quickNoteOpen) {
+          if (event.shiftKey) composeTask()
+          else openQuickNote()
+        }
         return
       }
       if (event.key === 'Escape') {
         if (event.isComposing || event.keyCode === 229) return
         if (commandOpen) closePalette()
         else if (quickNoteOpen) closeQuickNote()
-        else if (notesViewOpen) closeNotesView()
         else if (focus) closeFocus()
       }
     }
@@ -100,12 +107,11 @@ export default function App() {
   }, [
     booting,
     closeFocus,
-    closeNotesView,
     closePalette,
     closeQuickNote,
     commandOpen,
+    composeTask,
     focus,
-    notesViewOpen,
     openPalette,
     openQuickNote,
     quickNoteOpen
@@ -122,9 +128,26 @@ export default function App() {
           <div className={`w1-scan${booting ? '' : ' run'}`} aria-hidden="true" />
           <TopBar onCommand={openPalette} />
           <div className="w1-body">
-            <SessionRail notify={notify} />
-            <TodayDashboard />
-            <AgentDock />
+            <WorkspaceNav notify={notify} />
+            <main className="w1-stage">
+              <m.div
+                key={activeView}
+                className="w1-view"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              >
+                {activeView === 'today' ? <TodayDashboard /> : null}
+                {activeView === 'tasks' ? <TasksView notify={notify} /> : null}
+                {activeView === 'agent' ? (
+                  <section className="w1-workspace w1-agent" aria-label="Agent 工作区">
+                    <SessionRail notify={notify} />
+                    <AgentDock />
+                  </section>
+                ) : null}
+                {activeView === 'notes' ? <NotesView /> : null}
+              </m.div>
+            </main>
           </div>
           <StatusBar notify={notify} />
 
@@ -135,8 +158,6 @@ export default function App() {
           </AnimatePresence>
 
           <AnimatePresence>{quickNoteOpen ? <QuickNoteModal /> : null}</AnimatePresence>
-
-          <AnimatePresence>{notesViewOpen ? <NotesView /> : null}</AnimatePresence>
 
           <AnimatePresence>
             {commandOpen ? (

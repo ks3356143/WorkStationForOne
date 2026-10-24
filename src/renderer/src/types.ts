@@ -2,8 +2,11 @@ import type { TaskRecord, Theme } from '../../shared/ipc'
 
 export type AgentId = 'claude' | 'codex'
 export type TaskFilter = 'all' | 'todo' | 'done'
+export type TaskViewMode = 'inbox' | 'today' | 'upcoming' | 'all' | 'done'
+export type TaskScope = TaskViewMode | `list:${string}`
 export type SessionStatus = 'run' | 'wait' | 'idle'
 export type Resolution = 'allowed' | 'denied'
+export type View = 'today' | 'tasks' | 'agent' | 'notes'
 
 export type Task = TaskRecord
 
@@ -50,6 +53,7 @@ export interface PermissionChange {
   toLabel: string
   toTime: string
   toTag: string
+  toDueDate?: string | null
 }
 
 export interface Permission {
@@ -67,10 +71,14 @@ export interface FocusSession {
 }
 
 export interface WorkstationData {
+  activeView: View
   tasks: Task[]
   taskFilter: TaskFilter
+  taskScope: TaskScope
+  taskComposerRequest: number
   habits: Habit[]
   notes: Note[]
+  noteTotal: number
   sessions: Session[]
   activeSessionId: string
   threads: Record<string, ChatMessage[]>
@@ -82,5 +90,4 @@ export interface WorkstationData {
   theme: Theme
   focus: FocusSession | null
   quickNoteOpen: boolean
-  notesViewOpen: boolean
 }

@@ -1,12 +1,14 @@
 import type { Theme } from '../../../shared/ipc'
-import type { Session, TaskFilter } from '../types'
+import type { Session, TaskFilter, View } from '../types'
 import { AGENT_META } from './agent'
 
-export type PaletteGroup = '会话' | '操作' | '交给 Agent'
+export type PaletteGroup = '会话' | '导航' | '操作' | '交给 Agent'
 
 export type PaletteAction =
   | { kind: 'session'; sessionId: string }
+  | { kind: 'view'; view: View }
   | { kind: 'new-note' }
+  | { kind: 'new-task' }
   | { kind: 'focus' }
   | { kind: 'filter'; filter: TaskFilter }
   | { kind: 'motion' }
@@ -65,12 +67,52 @@ export function buildPaletteCommands(input: PaletteInput): PaletteCommand[] {
 
   commands.push(
     {
+      id: 'view:today',
+      group: '导航',
+      label: '打开今日看板',
+      hint: '工作区',
+      value: '今日 看板 任务 习惯 today dashboard',
+      action: { kind: 'view', view: 'today' }
+    },
+    {
+      id: 'view:tasks',
+      group: '导航',
+      label: '打开任务工作区',
+      hint: '工作区',
+      value: '任务 工作区 清单 todo task',
+      action: { kind: 'view', view: 'tasks' }
+    },
+    {
+      id: 'view:agent',
+      group: '导航',
+      label: '打开 Agent 工作区',
+      hint: '工作区',
+      value: 'Agent 工作区 会话 对话 agent',
+      action: { kind: 'view', view: 'agent' }
+    },
+    {
+      id: 'view:notes',
+      group: '导航',
+      label: '打开全部笔记',
+      hint: '工作区',
+      value: '全部笔记 笔记 搜索 notes',
+      action: { kind: 'view', view: 'notes' }
+    },
+    {
       id: 'action:note',
       group: '操作',
       label: '新建快速笔记',
       hint: '^N',
       value: '新建快速笔记 记笔记 note',
       action: { kind: 'new-note' }
+    },
+    {
+      id: 'action:task',
+      group: '操作',
+      label: '新建任务',
+      hint: '^⇧N',
+      value: '新建任务 添加任务 捕获 todo task',
+      action: { kind: 'new-task' }
     },
     {
       id: 'action:focus',
@@ -137,7 +179,9 @@ export function visiblePaletteCommands(commands: PaletteCommand[], query: string
 
   const tokens = needle.split(/\s+/)
   return [
-    ...base.filter((command) => tokens.every((token) => command.value.toLowerCase().includes(token))),
+    ...base.filter((command) =>
+      tokens.every((token) => `${command.label} ${command.hint} ${command.value}`.toLowerCase().includes(token))
+    ),
     ...send
   ]
 }

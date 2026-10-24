@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { migrate, openDatabase, userVersion } from './database'
+import { MIGRATIONS, migrate, openDatabase, userVersion } from './database'
 import { NoteRepository, planSearch } from './notes'
 import type { NoteRecord } from '../../shared/ipc'
 
@@ -40,9 +40,9 @@ const notes: NoteRecord[] = [
 ]
 
 describe('迁移', () => {
-  it('笔记迁移把库版本推进到 2 并建立 FTS 表', () => {
+  it('笔记迁移建立 FTS 表并推进到最新版本', () => {
     const { db } = seedDb()
-    expect(userVersion(db)).toBe(2)
+    expect(userVersion(db)).toBe(MIGRATIONS.at(-1)!.version)
     const tables = db
       .prepare("SELECT name FROM sqlite_master WHERE type IN ('table','trigger') AND name LIKE 'notes%'")
       .all()

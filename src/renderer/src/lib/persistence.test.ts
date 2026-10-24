@@ -9,6 +9,9 @@ function deps(overrides: Partial<HydrateDeps> = {}): HydrateDeps {
     bootstrap: vi.fn().mockResolvedValue(undefined),
     setDone: vi.fn().mockResolvedValue(undefined),
     applySchedule: vi.fn().mockResolvedValue(undefined),
+    create: vi.fn().mockResolvedValue({ id: 'saved', title: '任务', time: '—', done: false }),
+    update: vi.fn().mockResolvedValue(undefined),
+    remove: vi.fn().mockResolvedValue(undefined),
     ...overrides
   }
 }
@@ -48,6 +51,42 @@ describe('hydrateTasks', () => {
     useWorkstation.getState().toggleTask('t3')
 
     expect(d.setDone).toHaveBeenCalledWith('t3', true)
+  })
+
+  it('hydrate 后新增任务写库并替换为数据库 id', async () => {
+    const saved = { id: 'saved', title: '买牛奶', time: '—', done: false, notes: '', priority: 0 }
+    const d = deps({ create: vi.fn().mockResolvedValue(saved) })
+    await hydrateTasks(d)
+
+    useWorkstation.getState().addTask({ title: '买牛奶' })
+
+    expect(d.create).toHaveBeenCalledWith({ title: '买牛奶' })
+    expect(useWorkstation.getState().tasks[0].title).toBe('买牛奶')
+    await vi.waitFor(() => expect(useWorkstation.getState().tasks[0].id).toBe('saved'))
+  })
+
+  it('hydrate 后更新与删除会写库', async () => {
+    const d = deps()
+    await hydrateTasks(d)
+
+    useWorkstation.getState().updateTask('t3', { title: '线代第 4 章' })
+    expect(d.update).toHaveBeenCalledWith('t3', { title: '线代第 4 章' })
+
+    useWorkstation.getState().removeTask('t3')
+    expect(d.remove).toHaveBeenCalledWith('t3')
+    expect(useWorkstation.getState().tasks.some((task) => task.id === 't3')).toBe(false)
+  })
+
+  it('新增写库失败时保留内存任务并记录错误', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const d = deps({ create: vi.fn().mockRejectedValue(new Error('disk full')) })
+    await hydrateTasks(d)
+
+    useWorkstation.getState().addTask({ title: '离线任务' })
+    await vi.waitFor(() => expect(spy).toHaveBeenCalled())
+
+    expect(useWorkstation.getState().tasks[0].title).toBe('离线任务')
+    spy.mockRestore()
   })
 
   it('读库失败时保留种子数据并记录错误', async () => {

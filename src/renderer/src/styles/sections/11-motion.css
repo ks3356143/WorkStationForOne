@@ -22,28 +22,6 @@
   }
 }
 
-@keyframes shellInUp {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes shellInRight {
-  from {
-    opacity: 0;
-    transform: translateX(10px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
 @keyframes shellFade {
   from {
     opacity: 0;
@@ -53,64 +31,16 @@
   }
 }
 
-@keyframes cardIn {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes growX {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
-  }
-}
-
 .w1.is-booted .w1-bar {
   animation: shellInDown 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
-.w1.is-booted .w1-rail {
+.w1.is-booted .w1-nav {
   animation: shellInLeft 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.06s backwards;
-}
-
-.w1.is-booted .w1-main {
-  animation: shellInUp 0.65s cubic-bezier(0.22, 1, 0.36, 1) 0.12s backwards;
-}
-
-.w1.is-booted .w1-dock {
-  animation: shellInRight 0.65s cubic-bezier(0.22, 1, 0.36, 1) 0.18s backwards;
 }
 
 .w1.is-booted .w1-status {
   animation: shellFade 0.5s ease 0.34s backwards;
-}
-
-.w1.is-booted .w1-bento > .w1-card:nth-child(1) {
-  animation: cardIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.22s backwards;
-}
-
-.w1.is-booted .w1-bento > .w1-card:nth-child(2) {
-  animation: cardIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.3s backwards;
-}
-
-.w1.is-booted .w1-bento > .w1-card:nth-child(3) {
-  animation: cardIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.38s backwards;
-}
-
-.w1.is-booted .w1-bento > .w1-card:nth-child(4) {
-  animation: cardIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.46s backwards;
-}
-
-.w1.is-booted .w1-rbar i {
-  animation: growX 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.5s backwards;
 }
 
 /* ---------- ambient loops ---------- */

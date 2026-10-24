@@ -51,8 +51,8 @@ Agent 通过本地 MCP 读取和写入看板数据，写入受分区授权约束
 | 场景 | 行为 | 成功标准 |
 | --- | --- | --- |
 | 早晨规划 | 打开看板，看今日任务、习惯进度、到期复习 | 3 秒内看清今天要做什么 |
-| 开始工作 | 选项目目录，启动 Claude Code 或 Codex | 会话出现在左栏，首条消息可发送 |
-| 处理审批 | Agent 请求执行敏感操作 | 右栏出现权限卡，允许 / 本会话允许 / 拒绝都立即生效 |
+| 开始工作 | 选项目目录，启动 Claude Code 或 Codex | 会话出现在 Agent 工作区会话栏，首条消息可发送 |
+| 处理审批 | Agent 请求执行敏感操作 | Agent 工作区出现权限卡，允许 / 本会话允许 / 拒绝都立即生效 |
 | Agent 更新看板 | Agent 通过 MCP 创建任务、勾选习惯、写笔记 | 按域授权；写入成功即出现在界面；审计可查 |
 | 晚上复盘 | 勾习惯、做复习、写快速笔记 | 不离开看板即可完成，数据次日仍在 |
 
@@ -62,9 +62,12 @@ Agent 通过本地 MCP 读取和写入看板数据，写入受分区授权约束
 
 | 模块 | 内容 |
 | --- | --- |
-| 看板 | 任务与日程、习惯打卡、学习与复习、快速笔记；时间轴时间块可直接开始专注；日期切换；进度展示；全部笔记浏览页（分页 + 虚拟滚动 + FTS 搜索） |
-| 会话 | 会话列表、舰队状态总览（运行/待确认/空闲/总数）、运行时长、只读/可写标记、恢复、Fork（按 SDK 能力）、停止 |
+| 工作区 | 左侧一级导航切换今日 / 任务 / Agent / 笔记，同一时刻只渲染一个全宽视图；新增应用以导航项扩展，不挤进顶栏 |
+| 今日 | 任务摘要、习惯打卡、学习与复习、快速笔记；时间轴时间块可直接开始专注；日期切换；进度展示 |
+| 任务 | 独立全宽工作区：收集箱 / 今天 / 即将到来 / 全部 / 已完成、自定义清单、自然语言快速添加、任务详情、搜索与删除 |
+| Agent | 会话列表、舰队状态总览（运行/待确认/空闲/总数）、运行时长、只读/可写标记、恢复、Fork（按 SDK 能力）、停止 |
 | 对话 | 流式文本、工具调用行、错误提示、权限卡逐行 diff、输入区、上下文用量 |
+| 笔记 | 独立全宽工作区：FTS5 搜索、分页 + 固定行高虚拟滚动、置顶与标签 |
 | 启动器 | Claude Code、Codex、Qoder、DeepSeek Harness；前两者新建会话，后两者仅启动 |
 | 命令面板 | `Ctrl K`：启动会话、切换会话、新建任务/笔记、打开设置 |
 | 设置 | 分区授权、动效开关、诊断（版本/兼容性）、数据备份与恢复说明 |
@@ -83,7 +86,7 @@ Agent 通过本地 MCP 读取和写入看板数据，写入受分区授权约束
 
 ```
 ┌──────────────────────────── Renderer（React 19） ────────────────────────────┐
-│ 看板 / 会话坞 / 设置 / 审计 / 命令面板        Zustand · Motion · CSS          │
+│ 导航 / 今日 / Agent / 笔记 / 浮层             Zustand · Motion · CSS          │
 └───────────────▲───────────────────────────────────────────────┬──────────────┘
                 │ typed IPC（contextBridge + Zod）               │
 ┌───────────────┴───────────────────────────────────────────────▼──────────────┐
@@ -173,7 +176,7 @@ type AgentEvent =
 
 - 使用 SDK 的流式查询与会话恢复；开启 partial message 以获得增量文本。
 - 会话模型默认继承 CLI 配置；新建会话时可选 CLI 暴露的模型别名（如 Sonnet）。
-- 权限通过 SDK 的 `canUseTool` 回调接到右栏权限卡；60 秒超时拒绝。
+- 权限通过 SDK 的 `canUseTool` 回调接到 Agent 工作区的权限卡；60 秒超时拒绝。
 - Resume 使用 SDK 会话 ID；Fork 仅在 SDK 支持时显示入口。
 - 工作目录由目录选择器确定；启动前校验目录存在且可写。
 
@@ -258,7 +261,7 @@ server 名称：`workstation`。
 
 无论哪种模式，所有 MCP 调用与权限决策都写审计；写操作与业务数据同事务，读操作单独记录。
 
-权限卡展示：域、工具、人类可读动作、目标对象、变更预览。MCP 写入审批复用右栏权限卡组件，卡头标记来源（Agent 审批 / 数据写入）；两者共用同一个全局队列，避免同时弹多张卡。
+权限卡展示：域、工具、人类可读动作、目标对象、变更预览。MCP 写入审批复用 Agent 权限卡组件，卡头标记来源（Agent 审批 / 数据写入）；两者共用同一个全局队列，避免同时弹多张卡。任务时间变更可同时携带 `toDueDate`：允许后同步移动或清空截止日期，今日卡与任务视图立即按新日期重算。
 
 选项：
 
@@ -319,7 +322,7 @@ server 名称：`workstation`。
 | `sessions` | id, agent, title, cwd, sdk_session_id, model, status, created_at, updated_at, last_activity_at, archived_at |
 | `messages` | id, session_id, turn_id, role, kind, content_json, seq, created_at |
 | `tool_calls` | id, message_id, name, input_json, output_json, status, started_at, finished_at, permission_decision |
-| `tasks` | id, title, details, status, priority, due_at, scheduled_start, duration_min, created_by, created_at, updated_at, completed_at |
+| `tasks` | id, title, time_label, tag, tone, done, notes, due_date, priority, list, sort_order, created_at, updated_at, completed_at。v0.1 的字段；后续再引入 status、details、scheduled_start、duration_min |
 | `habits` | id, name, target_text, target_value, unit, schedule_json, active, sort_order, created_at |
 | `habit_logs` | id, habit_id, date, value, completed_at；`UNIQUE(habit_id, date)` |
 | `learning_items` | id, title, source, notes, next_review_at, interval_days, ease, last_reviewed_at, created_at, updated_at |
@@ -333,8 +336,8 @@ server 名称：`workstation`。
 ### 8.3 索引与查询
 
 - `messages(session_id, seq)`、`sessions(status, last_activity_at)`。
-- `tasks(status, due_at)`、`tasks(scheduled_start)`。
-- `habit_logs(habit_id, date)`、`learning_items(next_review_at)`。
+- `tasks(done, due_date, sort_order)`、`tasks(done, list)`、`tasks(sort_order)`。
+- `habits` 以 `UNIQUE(habit_id, date)` 保证每日一条打卡记录；`learning_items(next_review_at)`。
 - `audit_events(ts)`、`audit_events(session_id, ts)`、`audit_events(domain, ts)`。
 - 笔记搜索走 FTS5；`notes_search` 的用户输入必须参数化并按 FTS5 语法转义/引号包裹，语法错误返回可读错误，不中断服务。
 - FTS5 使用 `trigram` 分词器：默认 `unicode61` 无法检索中文（实测命中 0）。trigram 要求关键词至少 3 个字符，因此**少于 3 字符的查询回退 `LIKE` 模糊匹配**（转义 `%` `_` `\`），保证「登录」「检索」这类两字关键词可用。
@@ -358,14 +361,17 @@ B‴ 极光 HUD：深靛黑背景上的紫→青极光，每张卡片玻璃，�
 
 - 默认 1440 × 900；最小 1180 × 720；单窗口。
 - 使用隐藏标题栏 + 原生窗口按钮覆盖层（`titleBarStyle: 'hidden'` + `titleBarOverlay`），顶栏高度 52px；空白区域可拖动，按钮区域不可拖动。
-- 四区结构（另加底部状态栏）：
+- 外壳为「左侧主导航 + 单个全宽工作区」，加底部状态栏。今日、任务、Agent、笔记四视图互斥，不存在常驻右栏：
   - 顶栏：品牌、命令条、SYS 状态、时钟。
-  - 左栏：舰队状态总览（运行 / 待确认 / 空闲 / 总数 + 待确认直达）、会话列表、启动区、设置。
-  - 中央：可滚动的模块流——日期条与时间轴（时间块可点击开始专注）、任务与日程（全宽）、习惯打卡与学习复习（两列并排）、快速笔记（全宽）。
-  - 右栏：会话头部、上下文用量、消息流、工具调用、权限卡（逐行 diff：旧值划线、新值高亮）、输入区。
+  - 左侧主导航（224px）：今日 / 任务 / Agent / 笔记四个一级入口，每项显示名称、实时计数与序号；下方依次是舰队状态总览（运行 / 待确认 / 空闲 / 总数 + 待确认直达）、外部启动器（Qoder、DeepSeek Harness）与设置。新增应用加到这里，不挤进顶栏。
+  - 工作区（1fr）：一次只渲染一个视图，切换时对单个视图做淡入上移。
+    - 今日：可滚动的模块流——日期条与时间轴（时间块可点击开始专注）、任务摘要（只含今天与逾期，提供进入任务工作区的入口）、习惯打卡与学习复习（两列并排）、快速笔记（全宽）。
+    - 任务：232px 次级栏（智能清单、自定义清单、新建入口）+ 主列表。主列表含 `> ` 快速添加、搜索框、按日期分组与行内详情；快速添加识别今天 / 明天 / 后天 / 周X / `M月D日` / `YYYY-MM-DD`、`HH:MM`、中文时段、`!高/中/低` 与 `#清单`，提交后提示任务去向。行内详情含备注、日期/时间、今天/明天/清除快捷日期、优先级与清单；中文输入法组合期间 Enter 不提交。
+    - Agent：会话栏（286px，按 Agent 分组的会话列表与新建入口）+ 聊天区（会话头部、上下文用量、消息流、工具调用、权限卡逐行 diff、输入区）。
+    - 笔记：全宽工作区（标题、搜索框、虚拟滚动列表、页脚），不是弹窗；有查询时 Esc 清空搜索，不关闭页面。
   - 底部状态栏：MCP 状态、会话数、待审批数、快捷键提示；数字来自真实数据，不使用视觉稿里的装饰性技能/插件计数。
-- 中央区域通过纵向滚动换取字号与留白，不强行把四张卡片压进一屏。
-- 列宽：≥1366px 时 248 / 1fr / 376；1180–1365px 时 224 / 1fr / 352；≤1279px 时 216 / 1fr / 340，模块流改为单列。
+- 工作区通过纵向滚动换取字号与留白，不强行把内容压进一屏。
+- 列宽：≥1366px 时导航 224 / 1fr，Agent 视图内 286 / 1fr，任务视图内 232 / 1fr；1180–1365px 时 208 / 1fr，Agent 内 264 / 1fr，任务内 208 / 1fr；≤1279px 时 196 / 1fr，Agent 内 242 / 1fr，任务内 190 / 1fr，并隐藏启动器副标签。
 - 低于 1180px 不提供适配，窗口不允许缩到更小。
 
 ### 9.3 设计令牌
@@ -404,18 +410,19 @@ B‴ 极光 HUD：深靛黑背景上的紫→青极光，每张卡片玻璃，�
 ### 9.5 排版与中文优先
 
 - 基础字号 15px / 1.6；卡片标题中文使用无衬线 600 16px/1，不用等宽大写。
+- 左侧导航标签 15.5px、计数 12.5px；聊天正文 15px / 1.65–1.72；笔记列表正文 15px；任务标题 15px、任务视图页标题 30px。1180×720 只压缩间距与展示数字，不压缩这些字号。
 - 正文 13.5–15px；辅助文字 11–12px；等宽遥测 10.5–11.5px，最小不低于 10.5px。
 - 展示型数字：页面标题 38px、复习大数 64px、专注计时 82px；窄窗口只压缩间距与展示数字，不压缩正文与控件字号。
 - 中文标签 `letter-spacing` 控制在 0.01–0.06em；英文全大写元信息可用 0.08–0.12em。
 - 功能文案全部中文。仅保留：
   - 品牌名：WorkStationForOne、Claude Code、Codex、Qoder、DeepSeek Harness、Sonnet。
   - 技术缩写：MCP、CLI、SYS、HUD、API。
-  - 快捷键：`Ctrl K`、`^N`、`^,`。
+  - 快捷键：`Ctrl K`、`^N`、`^⇧N`、`^,`。
   - HUD 骨架：`//`、`v0.1.0`、`>` 提示符、命令行片段。
 
 ### 9.6 组件
 
-- `TopBar`、`SessionRail`、`TodayHeader`、`Timeline`、`DashboardCard`、`TaskRow`、`HabitRow`、`ReviewCard`、`QuickNote`、`AgentDock`、`MessageList`、`ToolCallRow`、`PermissionCard`、`Composer`、`StatusBar`、`CommandPalette`、`AuditView`、`SettingsView`。
+- `TopBar`、`WorkspaceNav`、`TodayDashboard`、`TodayHeader`、`Timeline`、`DashboardCard`、`TaskRow`、`HabitRow`、`ReviewCard`、`QuickNote`、`TasksView`、`QuickAdd`、`TaskItem`、`TaskEditor`、`SessionRail`、`AgentDock`、`MessageList`、`ToolCallRow`、`PermissionCard`、`Composer`、`NotesView`、`NoteList`、`StatusBar`、`CommandPalette`、`AuditView`、`SettingsView`。
 - 交互原语自绘；命令面板使用 cmdk。不引入 UI 组件库或 Tailwind。
 - 图标使用内联 SVG（`components/Glyphs.tsx`），线宽统一；HUD 装饰符号仍用文本。
 
@@ -423,6 +430,8 @@ B‴ 极光 HUD：深靛黑背景上的紫→青极光，每张卡片玻璃，�
 
 - 每个数据区必须定义加载、空、错误三态；加载用扫描线/骨架，不用整屏 spinner。
 - 键盘可达：所有操作有可见 `focus-visible`（青色 1px 外框 + 2px 偏移）；命令面板支持上下选择与 Esc 关闭。
+- 主导航用 `aria-current="page"` 标记当前视图；任一时刻只有一个工作区挂载，切走的视图不保留隐藏 DOM。笔记搜索框内有查询时，Esc 清空搜索，不关闭页面。
+- 任务视图：清单项用 `aria-pressed`；任务完成框为 `role="checkbox"` + `aria-checked`；行标题按钮用 `aria-expanded` 指向详情；详情内 Esc 只收起，不离开工作区，并将焦点还给行标题；搜索框 Esc 清空；中文输入法组合期间的 Enter 不提交；`Ctrl+Shift+N` 在任意视图切到任务并聚焦快速添加。
 - 正文对比度 ≥ 4.5:1，大号文字 ≥ 3:1；渐变/实底按钮的文字颜色必须按主题实测。
 - `prefers-reduced-transparency` 或不支持 `backdrop-filter` 时，玻璃降级为实色背景，文字与边框对比度不变（降级色同样走主题令牌）。
 - 双主题：默认夜间，状态栏与命令面板都可切换白天模式；选择写入 `localStorage`，重启后保留。
@@ -459,7 +468,7 @@ B‴ 极光 HUD：深靛黑背景上的紫→青极光，每张卡片玻璃，�
 | 时间 | 内容 |
 | --- | --- |
 | 0–340ms | 窗口淡入，扫描线从顶部扫过 |
-| 340–620ms | 顶栏下落、左右栏滑入 |
+| 340–620ms | 顶栏下落、左侧导航滑入 |
 | 620–1000ms | 日期条、时间轴、四张卡片错峰上浮（70ms 步进） |
 | 900–1300ms | 任务行、习惯行、图表、消息错峰入场 |
 | 1300–1600ms | 状态栏、输入区落位 |
@@ -650,7 +659,7 @@ TypeScript 开启 `strict`；ESLint + Prettier 统一格式。v1 不引入 React
 
 ## 16. 验收标准
 
-1. 全新 Windows 用户环境安装后，离线可打开看板，四张卡片可增删改查。
+1. 全新 Windows 用户环境安装后，离线可打开看板，四张卡片可增删改查；任务工作区可快速添加、编辑、完成与删除，重启后数据仍在。
 2. Claude Code 可新建会话、流式输出、展示工具调用、弹出权限卡、允许/拒绝生效、恢复历史会话。
 3. Codex 可新建会话、流式输出、恢复；审批能力按 P3 结论工作，且全程无危险绕过参数。
 4. 任务/习惯/学习/笔记四个域的模式真实生效；只读不可写、询问必弹卡、可写有审计。

@@ -1,20 +1,26 @@
 # WorkStationForOne
 
-Windows 上的个人 AI 工作站。把「看板 + Agent 控制面」放进一个窗口：左边调度 Claude Code / Codex 会话，中间是任务、习惯、学习与笔记，右边与 Agent 对话并审批它对数据的写入。
+Windows 上的个人 AI 工作站。把「今日看板 + 任务清单 + Agent 工作区 + 笔记库」收进一个窗口：左侧导航一次只打开一个全宽工作区，Agent 视图里调度 Claude Code / Codex 会话、对话并审批它对数据的写入。
 
-> 当前处于开发早期（v0.1.0）。任务与笔记已落库；真实 Agent 适配器、MCP、审计与打包尚未实现。
-
-![主界面](docs/screenshots/home.webp)
+> 当前处于开发早期（v0.1.0）。任务（含清单）与笔记已落库；真实 Agent 适配器、MCP、审计与打包尚未实现。
 
 ## 特点
 
-- **一个窗口完成一天的调度**：任务与日程、习惯打卡、学习复习、快速笔记四块看板，配时间轴与会话舰队状态。
-- **权限可见、可审**：Agent 想改任务时间，会弹出一张逐行 diff 的权限卡（旧值划线、新值高亮），你点「允许一次」才写入。
+- **一个窗口完成一天的调度**：左侧一级导航在今日 / 任务 / Agent / 笔记之间切换；今日聚合任务摘要、习惯打卡、学习与复习、快速笔记四块看板，配时间轴与舰队状态。
+- **完整的任务工作区**：收集箱、今天、即将到来、全部、已完成与自定义清单；快速添加支持「明天 15:00 提交周报 !高 #工作」这类中文输入，输入时预览解析结果、提交后提示去向；行内详情支持今天/明天/清除快捷日期、备注与优先级，勾选、编辑与删除都写入 SQLite。
+- **Agent 是独立工作区**：会话列表 + 宽聊天区；Agent 想改任务时间时，弹出逐行 diff 的权限卡（旧值划线、新值高亮），你点「允许一次」才写入。
+- **可扩展的外壳**：新应用作为一级导航项接入，各自拥有全宽工作区；看板与 Agent 不同屏，也不存在常驻右栏。
 - **本地优先**：数据只存在本机 SQLite；不使用云同步、不上传遥测、不保存 API Key。
 - **中文优先的 HUD 界面**：极光玻璃、直角、终端式元素；夜色与白天双主题，动效可整体关闭，也尊重系统的「减少动效」设置。
 - **笔记全文搜索**：SQLite FTS5 + trigram 分词，中文与英文都能检索，两字短词自动回退模糊匹配。
 
-![全部笔记](docs/screenshots/notes.webp)
+![今日工作区](docs/screenshots/home.jpg)
+
+![任务工作区](docs/screenshots/tasks.jpg)
+
+![Agent 工作区](docs/screenshots/agent.jpg)
+
+![全部笔记](docs/screenshots/notes.jpg)
 
 ## 技术栈
 
@@ -46,10 +52,10 @@ npm run dev
 | `npm run build` | 生产构建，输出到 `out/` |
 | `npm start` | 预览上一次构建 |
 | `npm run typecheck` | 类型检查（main/preload 与 renderer 各一套配置） |
-| `npm test` | 运行全部单元测试（113 项） |
-| `npm run smoke` | 构建后跑 UI 交互冒烟测试（59 项检查） |
+| `npm test` | 运行全部单元测试（172 项） |
+| `npm run smoke` | 构建后跑 UI 交互冒烟测试（102 项检查） |
 | `npm run capture -- .screenshots/home.png 1440 900 .screenshots/audit.json` | 截图并输出布局审计 |
-| `npm run capture -- .screenshots/day.png 1440 900 light` | 以白天模式截图（末位参数为主题） |
+| `npm run capture -- .screenshots/notes-1180.png 1180 720 .screenshots/audit-notes.json dark notes` | 指定主题 `dark|light` 与视图 `today|tasks|agent|notes` 截图 |
 | `npm run icon` | 从 `resources/icon.svg` 重新生成 PNG 与多尺寸 ICO |
 
 请始终通过上述封装脚本启动 Electron：开发环境可能设置了 `ELECTRON_RUN_AS_NODE=1`，脚本会清除它并正确解析 electron-vite。
@@ -63,10 +69,11 @@ src/
     ipc/                IPC handler 与入参校验
   preload/              暴露 window.ws 的窄类型化桥
   renderer/             界面（无 Node、无数据库、无文件系统权限）
-    src/components/     看板卡片、会话坞、浮层
-    src/lib/            纯函数规则（日程、命令、舰队统计、虚拟滚动）
+    src/components/     左侧导航、今日看板、任务工作区、Agent 工作区、笔记工作区、浮层
+    src/lib/            纯函数规则（日程、任务筛选、快速添加解析、命令、舰队统计、虚拟滚动）
     src/store/          Zustand 状态
   shared/ipc.ts         IPC 通道常量与跨进程类型契约
+  shared/date-key.ts    本地日期键与日期运算
 resources/              应用图标源文件与产物
 scripts/                开发、构建、冒烟、截图、图标生成脚本
 docs/superpowers/specs/ 产品与架构设计规格
@@ -75,7 +82,7 @@ docs/superpowers/specs/ 产品与架构设计规格
 ## 数据
 
 - 位置：`%APPDATA%\WorkStationForOne\data\workstation.db`
-- 已落库：任务（含完成状态、时间变更）、笔记（含全文索引）
+- 已落库：任务（含清单、截止日期、优先级、备注、完成状态与时间变更）、笔记（含全文索引）
 - 尚未落库：习惯、学习复习、会话与消息——这些目前仍是内存种子数据，重启会重置
 
 删除该目录即可回到初始状态。
@@ -90,6 +97,7 @@ docs/superpowers/specs/ 产品与架构设计规格
 
 - 尚未接入真实 Agent：对话区回复是固定演示数据，不会真正调用 Claude 或 Codex。
 - 设置、审计、MCP 服务端、每日备份与安装包均未实现。
+- 任务暂不支持子任务、循环任务、系统提醒、拖拽排序与清单重命名。
 - 仅支持 Windows；默认夜间主题，可在状态栏或命令面板切换到白天模式。
 
 ## 文档

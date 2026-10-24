@@ -23,7 +23,7 @@ export async function hydrateNotes(deps: HydrateNoteDeps | undefined = bridgeNot
       await deps.bootstrap(useWorkstation.getState().notes)
       return
     }
-    replaceNotes(first.items satisfies Note[])
+    replaceNotes(first.items satisfies Note[], first.total)
   } catch (error) {
     console.error('[persistence] 笔记读取失败，使用内存种子数据', error)
   }

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { addDaysKey, dateKey } from '../../../shared/date-key'
 import { createInitialData } from '../data/mock'
 import { getTodayIndex } from '../lib/date'
 import { bindTaskPersistence, selectPreviewNotes, selectVisibleTasks, useWorkstation } from './useWorkstation'
@@ -49,6 +50,22 @@ describe('习惯', () => {
     expect(after.days.filter((_, index) => index !== todayIndex)).toEqual(
       before.days.filter((_, index) => index !== todayIndex)
     )
+  })
+})
+
+describe('任务完成时间', () => {
+  it('勾选时记录完成时间，取消时清除', () => {
+    const before = Date.now()
+
+    useWorkstation.getState().toggleTask('t2')
+    const done = useWorkstation.getState().tasks.find((task) => task.id === 't2')!
+    expect(done.done).toBe(true)
+    expect(done.completedAt).toBeGreaterThanOrEqual(before)
+
+    useWorkstation.getState().toggleTask('t2')
+    const undone = useWorkstation.getState().tasks.find((task) => task.id === 't2')!
+    expect(undone.done).toBe(false)
+    expect(undone.completedAt).toBeUndefined()
   })
 })
 
@@ -132,30 +149,53 @@ describe('对话', () => {
 describe('持久化', () => {
   it('勾选任务时写入数据库', () => {
     const setDone = vi.fn().mockResolvedValue(undefined)
-    bindTaskPersistence({ setDone, applySchedule: vi.fn().mockResolvedValue(undefined) })
+    bindTaskPersistence({
+      setDone,
+      applySchedule: vi.fn().mockResolvedValue(undefined),
+      create: vi.fn(),
+      update: vi.fn(),
+      remove: vi.fn()
+    })
 
     useWorkstation.getState().toggleTask('t2')
 
     expect(setDone).toHaveBeenCalledWith('t2', true)
   })
 
-  it('允许权限变更时批量写入新时间', () => {
+  it('允许权限变更时批量写入新时间与日期', () => {
     const applySchedule = vi.fn().mockResolvedValue(undefined)
-    bindTaskPersistence({ setDone: vi.fn().mockResolvedValue(undefined), applySchedule })
+    bindTaskPersistence({
+      setDone: vi.fn().mockResolvedValue(undefined),
+      applySchedule,
+      create: vi.fn(),
+      update: vi.fn(),
+      remove: vi.fn()
+    })
 
     useWorkstation.getState().resolvePermission('allow')
 
+    const tomorrow = addDaysKey(dateKey(), 1)
     expect(applySchedule).toHaveBeenCalledTimes(1)
     expect(applySchedule.mock.calls[0][0]).toEqual([
-      { taskId: 't8', toTime: '09:00', toTag: '明天' },
+      { taskId: 't8', toTime: '09:00', toTag: '明天', toDueDate: tomorrow },
       { taskId: 't6', toTime: '22:00', toTag: '已顺延' },
-      { taskId: 't7', toTime: '20:00', toTag: '明天' }
+      { taskId: 't7', toTime: '20:00', toTag: '明天', toDueDate: tomorrow }
     ])
+    const tasks = useWorkstation.getState().tasks
+    expect(tasks.find((task) => task.id === 't8')?.dueDate).toBe(tomorrow)
+    expect(tasks.find((task) => task.id === 't7')?.dueDate).toBe(tomorrow)
+    expect(tasks.find((task) => task.id === 't6')?.dueDate).toBe(dateKey())
   })
 
   it('拒绝权限变更时不写库', () => {
     const applySchedule = vi.fn().mockResolvedValue(undefined)
-    bindTaskPersistence({ setDone: vi.fn().mockResolvedValue(undefined), applySchedule })
+    bindTaskPersistence({
+      setDone: vi.fn().mockResolvedValue(undefined),
+      applySchedule,
+      create: vi.fn(),
+      update: vi.fn(),
+      remove: vi.fn()
+    })
 
     useWorkstation.getState().resolvePermission('deny')
 
@@ -164,7 +204,13 @@ describe('持久化', () => {
 
   it('写库失败不阻断界面状态', async () => {
     const setDone = vi.fn().mockRejectedValue(new Error('disk full'))
-    bindTaskPersistence({ setDone, applySchedule: vi.fn().mockResolvedValue(undefined) })
+    bindTaskPersistence({
+      setDone,
+      applySchedule: vi.fn().mockResolvedValue(undefined),
+      create: vi.fn(),
+      update: vi.fn(),
+      remove: vi.fn()
+    })
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     expect(() => useWorkstation.getState().toggleTask('t2')).not.toThrow()
@@ -204,6 +250,54 @@ describe('笔记预览选择', () => {
 
     expect(result.pinned?.id).toBe('n2000')
     expect(result.rest.map((item) => item.id)).toEqual(['n0', 'n1'])
+  })
+})
+
+describe('视图导航', () => {
+  it('默认进入今日看板', () => {
+    expect(useWorkstation.getState().activeView).toBe('today')
+  })
+
+  it('可在三个工作区之间切换', () => {
+    useWorkstation.getState().setView('agent')
+    expect(useWorkstation.getState().activeView).toBe('agent')
+
+    useWorkstation.getState().setView('notes')
+    expect(useWorkstation.getState().activeView).toBe('notes')
+
+    useWorkstation.getState().setView('today')
+    expect(useWorkstation.getState().activeView).toBe('today')
+  })
+
+  it('打开会话时同时切换到 Agent 工作区', () => {
+    useWorkstation.getState().setView('notes')
+    useWorkstation.getState().openAgentSession('s-x1')
+
+    const state = useWorkstation.getState()
+    expect(state.activeSessionId).toBe('s-x1')
+    expect(state.activeView).toBe('agent')
+  })
+
+  it('忽略不存在的会话', () => {
+    useWorkstation.getState().openAgentSession('missing')
+
+    const state = useWorkstation.getState()
+    expect(state.activeSessionId).toBe('s-c1')
+    expect(state.activeView).toBe('today')
+  })
+
+  it('在 Agent 工作区内切换会话不改变工作区', () => {
+    useWorkstation.getState().setView('agent')
+    useWorkstation.getState().setActiveSession('s-x1')
+
+    const state = useWorkstation.getState()
+    expect(state.activeSessionId).toBe('s-x1')
+    expect(state.activeView).toBe('agent')
+  })
+
+  it('打开全部笔记切换到笔记工作区', () => {
+    useWorkstation.getState().openNotesView()
+    expect(useWorkstation.getState().activeView).toBe('notes')
   })
 })
 

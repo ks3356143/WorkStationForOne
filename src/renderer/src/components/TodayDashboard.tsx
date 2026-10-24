@@ -1,6 +1,8 @@
+import { dateKey } from '../../../shared/date-key'
 import { formatDateLine, formatHM, getTimeMarkerPercent } from '../lib/date'
 import { summarizeFleet } from '../lib/fleet'
 import { blockMinutes, findNextBlock, findNextTask } from '../lib/schedule'
+import { tasksForTodayCard } from '../lib/todo'
 import { useNow } from '../lib/useNow'
 import { useWorkstation } from '../store/useWorkstation'
 import { HabitCard } from './HabitCard'
@@ -25,14 +27,15 @@ export function TodayDashboard() {
   const now = useNow(30_000)
 
   const fleet = summarizeFleet(sessions)
-  const todo = tasks.filter((task) => !task.done).length
+  const todayTasks = tasksForTodayCard(tasks, dateKey(now))
+  const todo = todayTasks.filter((task) => !task.done).length
   const nowMinutes = now.getHours() * 60 + now.getMinutes()
-  const next = findNextTask(tasks, nowMinutes)
+  const next = findNextTask(todayTasks, nowMinutes)
   const nextBlockTime = findNextBlock(TIMELINE, nowMinutes)?.time
   const marker = getTimeMarkerPercent(now)
 
   return (
-    <main className="w1-main">
+    <div className="w1-main">
       <div className="w1-thead">
         <div>
           <div className="w1-date">
@@ -110,6 +113,6 @@ export function TodayDashboard() {
         <ReviewCard />
         <NoteCard />
       </div>
-    </main>
+    </div>
   )
 }

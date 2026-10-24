@@ -1,7 +1,5 @@
-import { summarizeFleet } from '../lib/fleet'
 import { useWorkstation } from '../store/useWorkstation'
-import { FleetStrip } from './FleetStrip'
-import { ClaudeGlyph, CodexGlyph, PlusIcon, SettingsIcon } from './Glyphs'
+import { ClaudeGlyph, CodexGlyph, PlusIcon } from './Glyphs'
 
 interface SessionRailProps {
   notify: (text: string) => void
@@ -14,13 +12,12 @@ export function SessionRail({ notify }: SessionRailProps) {
 
   const claudeSessions = sessions.filter((session) => session.agent === 'claude')
   const codexSessions = sessions.filter((session) => session.agent === 'codex')
-  const fleet = summarizeFleet(sessions)
 
   const renderGroup = (agent: 'claude' | 'codex', list: typeof sessions) => (
     <div className="w1-agroup">
       <div className="w1-ahead">
         <span className="w1-aglyph">
-          {agent === 'claude' ? <ClaudeGlyph width={10} height={10} /> : <CodexGlyph width={10} height={10} />}
+          {agent === 'claude' ? <ClaudeGlyph width={11} height={11} /> : <CodexGlyph width={11} height={11} />}
         </span>
         <span className="w1-aname">{agent === 'claude' ? 'Claude Code' : 'Codex'}</span>
         <span className="w1-acount">[{list.length}]</span>
@@ -48,9 +45,10 @@ export function SessionRail({ notify }: SessionRailProps) {
   )
 
   return (
-    <aside className="w1-rail">
+    <aside className="w1-rail" aria-label="会话列表">
       <div className="w1-rhead">
         <span className="w1-eyebrow">// 会话</span>
+        <span className="w1-acount">{sessions.length}</span>
         <button
           className="w1-plus"
           type="button"
@@ -62,37 +60,9 @@ export function SessionRail({ notify }: SessionRailProps) {
         </button>
       </div>
 
-      <FleetStrip summary={fleet} />
-
-      {renderGroup('claude', claudeSessions)}
-      {renderGroup('codex', codexSessions)}
-
-      <div className="w1-spacer" />
-
-      <div className="w1-launch">
-        <div className="w1-rhead">
-          <span className="w1-eyebrow">// 启动</span>
-          <span className="w1-acount">外部</span>
-        </div>
-        <button className="w1-lrow" type="button" onClick={() => notify('Qoder 启动器将在 P2 接入')}>
-          Qoder
-          <span className="w1-lmeta">独立窗口</span>
-        </button>
-        <button
-          className="w1-lrow"
-          type="button"
-          onClick={() => notify('DeepSeek Harness 启动器将在 P2 接入')}
-        >
-          DeepSeek Harness
-          <span className="w1-lmeta">独立窗口</span>
-        </button>
-      </div>
-
-      <div className="w1-rfoot">
-        <button className="w1-settings" type="button" onClick={() => notify('设置面板将在 P1 接入')}>
-          <SettingsIcon width={12} height={12} />
-          设置
-        </button>
+      <div className="w1-railscroll">
+        {renderGroup('claude', claudeSessions)}
+        {renderGroup('codex', codexSessions)}
       </div>
     </aside>
   )

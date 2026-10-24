@@ -3,6 +3,7 @@ import { PinIcon } from './Glyphs'
 
 export function NoteCard() {
   const notes = useWorkstation((state) => state.notes)
+  const noteTotal = useWorkstation((state) => state.noteTotal)
   const openQuickNote = useWorkstation((state) => state.openQuickNote)
   const openNotesView = useWorkstation((state) => state.openNotesView)
   const { pinned, rest } = selectPreviewNotes(notes)
@@ -43,7 +44,7 @@ export function NoteCard() {
       </div>
 
       <div className="w1-nfoot">
-        <b>{notes.length} 条笔记</b>
+        <b>{noteTotal} 条笔记</b>
         <button className="w1-nall" type="button" onClick={openNotesView}>
           全部 →
         </button>

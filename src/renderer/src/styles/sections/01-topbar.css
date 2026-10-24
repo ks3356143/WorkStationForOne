@@ -80,7 +80,7 @@
   background: rgb(var(--field-rgb) / 0.48);
   backdrop-filter: blur(14px);
   color: var(--mu);
-  font-size: 13.5px;
+  font-size: 14px;
   text-align: left;
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.055);
   transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.24s, background-color 0.24s,

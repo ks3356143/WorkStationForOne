@@ -1,5 +1,6 @@
+import { randomUUID } from 'node:crypto'
 import type { DatabaseSync, StatementSync } from 'node:sqlite'
-import type { TaskRecord, TaskScheduleChange } from '../../shared/ipc'
+import type { TaskDraft, TaskPatch, TaskPriority, TaskRecord, TaskScheduleChange } from '../../shared/ipc'
 
 interface TaskRow {
   id: string
@@ -8,18 +9,41 @@ interface TaskRow {
   tag: string | null
   tone: 'agent' | 'hot' | null
   done: number
+  notes: string
+  due_date: string | null
+  priority: number
+  list: string | null
+  completed_at: number | null
 }
 
-const LIST_SQL = `SELECT id, title, time_label, tag, tone, done
+const COLUMNS = `id, title, time_label, tag, tone, done, notes, due_date, priority, list, completed_at`
+
+const LIST_SQL = `SELECT ${COLUMNS}
   FROM tasks
   ORDER BY sort_order ASC, created_at ASC`
 
+const FIND_SQL = `SELECT ${COLUMNS} FROM tasks WHERE id = ?`
+
 const INSERT_SQL = `INSERT INTO tasks
-  (id, title, time_label, tag, tone, done, sort_order, created_at, updated_at, completed_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  (id, title, time_label, tag, tone, done, notes, due_date, priority, list, completed_at, sort_order, created_at, updated_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 const SET_DONE_SQL = 'UPDATE tasks SET done = ?, completed_at = ?, updated_at = ? WHERE id = ?'
 const APPLY_SCHEDULE_SQL = 'UPDATE tasks SET time_label = ?, tag = ?, updated_at = ? WHERE id = ?'
+const APPLY_SCHEDULE_DUE_SQL = 'UPDATE tasks SET time_label = ?, tag = ?, due_date = ?, updated_at = ? WHERE id = ?'
+const NEXT_SORT_SQL = 'SELECT COALESCE(MIN(sort_order), 0) - 1 AS n FROM tasks'
+const DELETE_SQL = 'DELETE FROM tasks WHERE id = ?'
+
+const PATCH_COLUMNS: Record<keyof TaskPatch, string> = {
+  title: 'title',
+  time: 'time_label',
+  tag: 'tag',
+  tone: 'tone',
+  notes: 'notes',
+  dueDate: 'due_date',
+  priority: 'priority',
+  list: 'list'
+}
 
 function toRecord(row: TaskRow): TaskRecord {
   return {
@@ -28,7 +52,12 @@ function toRecord(row: TaskRow): TaskRecord {
     time: row.time_label,
     tag: row.tag ?? undefined,
     tone: row.tone ?? undefined,
-    done: row.done === 1
+    done: row.done === 1,
+    notes: row.notes,
+    dueDate: row.due_date ?? undefined,
+    priority: row.priority as TaskPriority,
+    list: row.list ?? undefined,
+    completedAt: row.completed_at ?? undefined
   }
 }
 
@@ -63,6 +92,11 @@ export class TaskRepository {
     return rows.map(toRecord)
   }
 
+  find(id: string): TaskRecord | undefined {
+    const row = this.sql(FIND_SQL).get(id) as TaskRow | undefined
+    return row ? toRecord(row) : undefined
+  }
+
   bootstrap(tasks: TaskRecord[]): void {
     const row = this.sql('SELECT COUNT(*) AS n FROM tasks').get() as { n: number }
     if (Number(row.n) > 0) return
@@ -79,13 +113,62 @@ export class TaskRepository {
           task.tag ?? null,
           task.tone ?? null,
           task.done ? 1 : 0,
+          task.notes ?? '',
+          task.dueDate ?? null,
+          task.priority ?? 0,
+          task.list ?? null,
+          task.done ? now : null,
           index,
           now,
-          now,
-          task.done ? now : null
+          now
         )
       })
     })
+  }
+
+  create(draft: TaskDraft): TaskRecord {
+    const id = randomUUID()
+    const now = Date.now()
+    const next = this.sql(NEXT_SORT_SQL).get() as { n: number }
+
+    this.sql(INSERT_SQL).run(
+      id,
+      draft.title,
+      draft.time ?? '—',
+      draft.tag ?? null,
+      draft.tone ?? null,
+      0,
+      draft.notes ?? '',
+      draft.dueDate ?? null,
+      draft.priority ?? 0,
+      draft.list ?? null,
+      null,
+      Number(next.n),
+      now,
+      now
+    )
+
+    const created = this.find(id)
+    if (!created) throw new Error('任务写入失败')
+    return created
+  }
+
+  update(id: string, patch: TaskPatch): void {
+    const entries = (Object.keys(PATCH_COLUMNS) as (keyof TaskPatch)[])
+      .filter((key) => patch[key] !== undefined)
+      .map((key) => [PATCH_COLUMNS[key], patch[key] as string | number | null] as const)
+    if (entries.length === 0) return
+
+    const assignments = entries.map(([column]) => `${column} = ?`).join(', ')
+    this.sql(`UPDATE tasks SET ${assignments}, updated_at = ? WHERE id = ?`).run(
+      ...entries.map(([, value]) => value),
+      Date.now(),
+      id
+    )
+  }
+
+  remove(id: string): void {
+    this.sql(DELETE_SQL).run(id)
   }
 
   setDone(id: string, done: boolean): void {
@@ -98,8 +181,15 @@ export class TaskRepository {
 
     const now = Date.now()
     const update = this.sql(APPLY_SCHEDULE_SQL)
+    const updateDue = this.sql(APPLY_SCHEDULE_DUE_SQL)
     this.transaction(() => {
-      for (const change of changes) update.run(change.toTime, change.toTag, now, change.taskId)
+      for (const change of changes) {
+        if (change.toDueDate === undefined) {
+          update.run(change.toTime, change.toTag, now, change.taskId)
+        } else {
+          updateDue.run(change.toTime, change.toTag, change.toDueDate, now, change.taskId)
+        }
+      }
     })
   }
 }

@@ -32,29 +32,59 @@ async function run() {
     const all = (sel) => [...document.querySelectorAll(sel)]
     const one = (sel) => document.querySelector(sel)
     const byText = (sel, text) => all(sel).find((el) => el.textContent.includes(text))
+    const activeNav = () => one('.w1-navitem.on .w1-navtext b')?.textContent?.trim() ?? ''
+    const navTo = async (label) => {
+      const item = all('.w1-navitem').find((el) => el.querySelector('.w1-navtext b')?.textContent?.trim() === label)
+      item?.click()
+      await sleep(600)
+      return item
+    }
+    const taskScopeTo = async (label) => {
+      const item = all('.w1-todorow').find(
+        (el) => el.querySelector('.w1-todolabel')?.textContent?.trim() === label
+      )
+      item?.click()
+      await sleep(400)
+      return Boolean(item)
+    }
+    const taskRow = (text) => all('.w1-todorowwrap').find((el) => el.textContent?.includes(text))
     const setValue = (el, value) => {
+      if (!el) throw new Error('setValue target missing')
       const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype
       Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value)
       el.dispatchEvent(new Event('input', { bubbles: true }))
     }
+    const openPalette = async (wait = 600) => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', code: 'KeyK', ctrlKey: true, bubbles: true }))
+      await sleep(wait)
+    }
     const checks = []
-    const check = (name, ok, detail = '') => checks.push({ name, ok, detail })
+    const check = (name, ok, detail = '') => {
+      checks.push({ name, ok, detail })
+      window.__smokeProgress = checks.map((item) => item.name)
+    }
 
+    check('左侧导航四个入口', all('.w1-navitem').length === 4, String(all('.w1-navitem').length))
+    check(
+      '导航顺序为今日任务 Agent 笔记',
+      all('.w1-navitem .w1-navtext b')
+        .map((el) => el.textContent?.trim())
+        .join('/') === '今日/任务/Agent/笔记',
+      all('.w1-navitem .w1-navtext b')
+        .map((el) => el.textContent?.trim())
+        .join('/')
+    )
+    check('默认停在今日', activeNav() === '今日', activeNav())
+    check('今日看板可见', !!one('.w1-main'))
+    check('看板与 Agent 不同时可见', !one('.w1-dock') && !one('.w1-agent'))
     check('初始任务 8 项', all('.w1-task').length === 8, String(all('.w1-task').length))
     check('初始完成 2 项', all('.w1-task.done').length === 2, String(all('.w1-task.done').length))
-    check('初始权限卡存在', !!one('.w1-perm'))
     check('状态栏待审批 1', byText('.w1-sbtn.pending', '待审批 1') !== undefined)
     check(
       '舰队总览统计会话',
       one('.w1-fleet .w1-frow')?.textContent?.includes('5') &&
         one('.w1-fleet .w1-frow')?.textContent?.includes('待确认'),
       one('.w1-fleet .w1-frow')?.textContent ?? ''
-    )
-    check(
-      '权限变更逐行可扫读',
-      all('.w1-dchange').length === 3 &&
-        all('.w1-dchange')[0]?.querySelector('.w1-dline.ins')?.textContent === '明天 09:00',
-      String(all('.w1-dchange').length)
     )
 
     const themeBefore = document.documentElement.dataset.theme
@@ -81,30 +111,191 @@ async function run() {
     check('主题可切回', document.documentElement.dataset.theme === themeBefore, document.documentElement.dataset.theme)
     one('.w1-theme')?.blur()
 
-    const undone = one('.w1-task:not(.done)')
-    const undoneTitle = undone?.querySelector('.w1-ttext')?.textContent ?? ''
-    undone?.click()
-    await sleep(200)
-    check('勾选任务后完成数 +1', all('.w1-task.done').length === 3, String(all('.w1-task.done').length))
-    check('任务进度同步', one('.w1-tprog b')?.textContent?.includes('3 / 8'), one('.w1-tprog b')?.textContent ?? '')
-
-    byText('.w1-filter', '已完成')?.click()
-    await sleep(200)
-    check('筛选已完成', all('.w1-task').length === 3, String(all('.w1-task').length))
-    byText('.w1-filter', '全部')?.click()
-    await sleep(200)
-    check('筛选恢复全部', all('.w1-task').length === 8, String(all('.w1-task').length))
-
-    const habitBefore = one('.w1-card:nth-child(2) .w1-ct span')?.textContent ?? ''
-    one('.w1-hdot.today:not(.on)')?.click()
-    await sleep(250)
-    const habitAfter = one('.w1-card:nth-child(2) .w1-ct span')?.textContent ?? ''
-    const habitCount = (text) => Number.parseInt(text, 10)
+    await navTo('任务')
+    check('导航切换到任务', activeNav() === '任务' && !!one('.w1-todos'), activeNav())
     check(
-      '今日习惯可打卡',
-      habitCount(habitAfter) === habitCount(habitBefore) + 1,
-      habitBefore + ' -> ' + habitAfter
+      '任务工作区与其他视图互斥',
+      !one('.w1-main') && !one('.w1-agent') && !one('.w1-notesview'),
+      activeNav()
     )
+    check(
+      '任务默认停在今天',
+      all('.w1-todorow').find((el) => el.classList.contains('on'))?.textContent?.includes('今天'),
+      all('.w1-todorow').find((el) => el.classList.contains('on'))?.textContent ?? ''
+    )
+    check('今天清单 6 项', all('.w1-todorowwrap').length === 6, String(all('.w1-todorowwrap').length))
+    check(
+      '任务行显示清单与优先级',
+      taskRow('重构 auth 模块')?.textContent?.includes('#工作') &&
+        taskRow('重构 auth 模块')?.textContent?.includes('高'),
+      taskRow('重构 auth 模块')?.textContent ?? ''
+    )
+
+    const quickInput = one('.w1-todoinput')
+    setValue(quickInput, '明天 15:00 提交周报 !高 #工作')
+    await sleep(250)
+    check(
+      '快速添加解析预览',
+      ['明天', '15:00', '高', '#工作'].every((part) =>
+        one('.w1-todoquickhint')?.textContent?.includes(part)
+      ),
+      one('.w1-todoquickhint')?.textContent ?? ''
+    )
+    quickInput.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', isComposing: true, bubbles: true })
+    )
+    await sleep(200)
+    check(
+      '输入法组合中的 Enter 不提交',
+      quickInput.value !== '' && taskRow('提交周报') === undefined,
+      quickInput.value
+    )
+    quickInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }))
+    await sleep(500)
+    check('快速添加后清空输入', quickInput.value === '')
+    check(
+      '快速添加提示去向',
+      one('.w1-toast')?.textContent?.includes('已添加「提交周报」'),
+      one('.w1-toast')?.textContent ?? ''
+    )
+    await taskScopeTo('即将到来')
+    check(
+      '新任务进入即将到来并带日期',
+      taskRow('提交周报') !== undefined && taskRow('提交周报')?.textContent?.includes('明天 15:00'),
+      taskRow('提交周报')?.textContent ?? ''
+    )
+
+    taskRow('提交周报')?.querySelector('.w1-todobody')?.click()
+    await sleep(300)
+    check('任务详情可展开', !!one('.w1-todoedit') && !!one('.w1-tododatequick'))
+    setValue(one('.w1-todoedit input[id^="todo-title-"]'), '提交周报 v2')
+    setValue(one('.w1-todoedit textarea[id^="todo-notes-"]'), '补充备注')
+    setValue(one('.w1-todoedit input[id^="todo-list-"]'), '验证二')
+    byText('.w1-todopriopt', '中')?.click()
+    await sleep(150)
+    one('.w1-todosave')?.click()
+    await sleep(400)
+    check(
+      '任务标题与详情可编辑保存',
+      taskRow('提交周报 v2') !== undefined &&
+        taskRow('提交周报 v2')?.textContent?.includes('#验证二') &&
+        taskRow('提交周报 v2')?.textContent?.includes('中') &&
+        taskRow('提交周报 v2')?.textContent?.includes('备注') &&
+        !one('.w1-todoedit') &&
+        document.activeElement?.classList.contains('w1-todobody'),
+      taskRow('提交周报 v2')?.textContent ?? ''
+    )
+
+    taskRow('提交周报 v2')?.querySelector('.w1-todocb')?.click()
+    await sleep(400)
+    check('完成后离开即将到来', taskRow('提交周报 v2') === undefined, all('.w1-todorowwrap').length)
+    await taskScopeTo('已完成')
+    check('已完成包含刚完成的任务', taskRow('提交周报 v2') !== undefined)
+
+    taskRow('提交周报 v2')?.querySelector('.w1-todobody')?.click()
+    await sleep(300)
+    one('.w1-tododelete')?.click()
+    await sleep(150)
+    check('删除需要二次确认', byText('.w1-tododelete', '再次点击确认删除') !== undefined)
+    one('.w1-tododelete')?.click()
+    await sleep(400)
+    check('删除任务后列表移除', taskRow('提交周报 v2') === undefined)
+
+    await taskScopeTo('全部任务')
+    const taskSearch = one('.w1-todosearch input')
+    setValue(taskSearch, 'auth')
+    await sleep(300)
+    check(
+      '任务搜索命中标题',
+      all('.w1-todorowwrap').length === 1 && taskRow('重构 auth 模块') !== undefined,
+      String(all('.w1-todorowwrap').length)
+    )
+    one('.w1-todosearch button')?.click()
+    await sleep(300)
+    check('清空任务搜索恢复', all('.w1-todorowwrap').length === 6, String(all('.w1-todorowwrap').length))
+    setValue(taskSearch, 'auth')
+    await sleep(250)
+    taskSearch.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
+    await sleep(300)
+    check(
+      '任务搜索 Esc 清空',
+      taskSearch.value === '' && all('.w1-todorowwrap').length === 6,
+      taskSearch.value + ' · ' + all('.w1-todorowwrap').length
+    )
+    setValue(taskSearch, 'auth')
+    await sleep(250)
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'n', code: 'KeyN', ctrlKey: true, shiftKey: true, bubbles: true })
+    )
+    await sleep(400)
+    check(
+      '搜索中新建任务会清空搜索并聚焦',
+      taskSearch.value === '' && document.activeElement === one('.w1-todoinput'),
+      document.activeElement?.className?.toString?.() ?? ''
+    )
+
+    taskRow('周报收尾')?.querySelector('.w1-todobody')?.click()
+    await sleep(250)
+    one('.w1-todoedit input[id^="todo-title-"]')?.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true })
+    )
+    await sleep(300)
+    check(
+      'Esc 收起任务详情但不离开视图',
+      !one('.w1-todoedit') &&
+        activeNav() === '任务' &&
+        document.activeElement?.classList.contains('w1-todobody'),
+      document.activeElement?.className?.toString?.() ?? activeNav()
+    )
+
+    await navTo('今日')
+    one('.w1-ctlink')?.click()
+    await sleep(500)
+    check('今日卡可进入任务工作区', activeNav() === '任务' && !!one('.w1-todos'), activeNav())
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'n', code: 'KeyN', ctrlKey: true, shiftKey: true, bubbles: true })
+    )
+    await sleep(350)
+    check(
+      'Ctrl+Shift+N 聚焦任务输入',
+      document.activeElement === one('.w1-todoinput') && activeNav() === '任务',
+      document.activeElement?.className?.toString?.() ?? ''
+    )
+    await navTo('今日')
+
+    one('.w1-motion')?.focus()
+    await openPalette()
+    const taskCommandInput = one('.w1-paletteinput')
+    setValue(taskCommandInput, '新建任务')
+    await sleep(300)
+    taskCommandInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }))
+    await sleep(600)
+    check(
+      '命令面板新建任务聚焦输入',
+      activeNav() === '任务' && document.activeElement === one('.w1-todoinput'),
+      document.activeElement?.className?.toString?.() ?? ''
+    )
+    await navTo('今日')
+
+    await navTo('Agent')
+    check('导航切换到 Agent', activeNav() === 'Agent', activeNav())
+    check('Agent 工作区出现', !!one('.w1-agent') && !!one('.w1-dock') && !!one('.w1-rail'))
+    check('切换后今日看板隐藏', !one('.w1-main'))
+    check('Agent 会话列表完整', all('.w1-sess').length === 5, String(all('.w1-sess').length))
+    check('初始权限卡存在', !!one('.w1-perm'))
+    check(
+      '权限变更逐行可扫读',
+      all('.w1-dchange').length === 3 &&
+        all('.w1-dchange')[0]?.querySelector('.w1-dline.ins')?.textContent === '明天 09:00',
+      String(all('.w1-dchange').length)
+    )
+
+    await navTo('今日')
+    check('导航可回到今日', activeNav() === '今日' && !!one('.w1-main'))
+    check('回看板后 Agent 工作区隐藏', !one('.w1-dock') && !one('.w1-agent'))
+    one('.w1-sbtn.pending')?.click()
+    await sleep(600)
+    check('状态栏待审批跳到 Agent', activeNav() === 'Agent' && !!one('.w1-perm'), activeNav())
 
     byText('.w1-sess', '修复登录 500')?.click()
     await sleep(600)
@@ -117,9 +308,8 @@ async function run() {
     one('.w1-perm .w1-pb.pri')?.click()
     await sleep(700)
     check('允许后权限卡消失', !one('.w1-perm'))
-    check('允许后任务提示完成', one('.w1-anote')?.textContent?.includes('已顺延 3 项任务'), one('.w1-anote')?.textContent ?? '')
+    check('允许后有结果提示', one('.w1-resolved')?.textContent?.includes('已允许'), one('.w1-resolved')?.textContent ?? '')
     check('允许后状态栏无待审批', one('.w1-status')?.textContent?.includes('无待审批'))
-    check('允许后任务时间写入', byText('.w1-task', '周报收尾')?.textContent?.includes('22:00'), byText('.w1-task', '周报收尾')?.textContent ?? '')
 
     const input = one('#composer-input')
     setValue(input, '测一下多会话回复')
@@ -127,9 +317,49 @@ async function run() {
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }))
     await sleep(250)
     check('发送后出现等待动画', !!one('.w1-typing'))
-    await sleep(1400)
-    check('收到助手回复', one('.w1-thread')?.querySelectorAll('.w1-amsg').length >= 2, String(one('.w1-thread')?.querySelectorAll('.w1-amsg').length))
+    await navTo('今日')
+    await sleep(1300)
+    await navTo('Agent')
+    check('切换视图后仍收到助手回复', all('.w1-amsg').length >= 2, String(all('.w1-amsg').length))
     check('等待动画结束', !one('.w1-typing'))
+
+    await navTo('今日')
+    check(
+      '允许后任务时间写入',
+      byText('.w1-task', '周报收尾')?.textContent?.includes('22:00'),
+      byText('.w1-task', '周报收尾')?.textContent ?? ''
+    )
+    check('返回今日后仅保留今日任务', all('.w1-task').length === 6, String(all('.w1-task').length))
+    check(
+      '顺延任务离开今日',
+      byText('.w1-task', '整理本周资料') === undefined && byText('.w1-task', '给妈妈回电话') === undefined
+    )
+    check('允许后任务提示完成', one('.w1-anote')?.textContent?.includes('已顺延 3 项任务'), one('.w1-anote')?.textContent ?? '')
+
+    const undone = one('.w1-task:not(.done)')
+    const undoneTitle = undone?.querySelector('.w1-ttext')?.textContent ?? ''
+    undone?.click()
+    await sleep(200)
+    check('勾选任务后完成数 +1', all('.w1-task.done').length === 3, String(all('.w1-task.done').length))
+    check('任务进度同步', one('.w1-tprog b')?.textContent?.includes('3 / 6'), one('.w1-tprog b')?.textContent ?? '')
+
+    byText('.w1-filter', '已完成')?.click()
+    await sleep(200)
+    check('筛选已完成', all('.w1-task').length === 3, String(all('.w1-task').length))
+    byText('.w1-filter', '全部')?.click()
+    await sleep(200)
+    check('筛选恢复全部', all('.w1-task').length === 6, String(all('.w1-task').length))
+
+    const habitBefore = one('.w1-card:nth-child(2) .w1-ct span')?.textContent ?? ''
+    one('.w1-hdot.today:not(.on)')?.click()
+    await sleep(250)
+    const habitAfter = one('.w1-card:nth-child(2) .w1-ct span')?.textContent ?? ''
+    const habitCount = (text) => Number.parseInt(text, 10)
+    check(
+      '今日习惯可打卡',
+      habitCount(habitAfter) === habitCount(habitBefore) + 1,
+      habitBefore + ' -> ' + habitAfter
+    )
 
     byText('.w1-btn', '快速笔记')?.click()
     await sleep(350)
@@ -138,7 +368,7 @@ async function run() {
     setValue(textarea, '来自自动化冒烟测试的笔记')
     await sleep(80)
     byText('.w1-modalacts .w1-pb', '保存笔记')?.click()
-    await sleep(600)
+    await sleep(650)
     check('笔记弹窗关闭', !one('.w1-modal'))
     check('笔记写入列表', one('.w1-nlist')?.textContent?.includes('来自自动化冒烟测试的笔记'), one('.w1-nlist')?.textContent ?? '')
 
@@ -168,8 +398,7 @@ async function run() {
     check('动效可恢复', !one('.w1')?.classList.contains('motion-off'))
     one('.w1-motion')?.focus()
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', code: 'KeyK', ctrlKey: true, bubbles: true }))
-    await sleep(650)
+    await openPalette()
     check('Ctrl K 打开命令面板', !!one('.w1-palette'))
     check(
       '命令面板输入自动聚焦',
@@ -187,11 +416,11 @@ async function run() {
       selectedSession
     )
     paletteInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }))
-    await sleep(650)
+    await sleep(700)
     check(
-      '命令面板关闭并跳转会话',
-      !one('.w1-palette') && one('.w1-tdiv')?.textContent?.includes('修复登录 500'),
-      one('.w1-tdiv')?.textContent ?? ''
+      '命令面板跳转会话并切换视图',
+      !one('.w1-palette') && activeNav() === 'Agent' && one('.w1-tdiv')?.textContent?.includes('修复登录 500'),
+      activeNav() + ' · ' + (one('.w1-tdiv')?.textContent ?? '')
     )
     check(
       '命令面板关闭后焦点归位',
@@ -199,8 +428,9 @@ async function run() {
       document.activeElement?.className?.toString?.() ?? ''
     )
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', code: 'KeyK', ctrlKey: true, bubbles: true }))
-    await sleep(650)
+    await navTo('今日')
+    one('.w1-motion')?.focus()
+    await openPalette()
     const filterInput = one('.w1-paletteinput')
     setValue(filterInput, '待办')
     await sleep(300)
@@ -211,15 +441,57 @@ async function run() {
       selectedFilter
     )
     filterInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }))
-    await sleep(650)
-    check('命令面板可执行筛选', all('.w1-task').length === 5, String(all('.w1-task').length))
+    await sleep(700)
+    check('命令面板可执行筛选', all('.w1-task').length === 3, String(all('.w1-task').length))
     byText('.w1-filter', '全部')?.click()
     await sleep(250)
-    check('筛选恢复全部', all('.w1-task').length === 8, String(all('.w1-task').length))
+    check('筛选恢复全部', all('.w1-task').length === 6, String(all('.w1-task').length))
     one('.w1-motion')?.focus()
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', code: 'KeyK', ctrlKey: true, bubbles: true }))
-    await sleep(650)
+    await openPalette()
+    const viewInput = one('.w1-paletteinput')
+    setValue(viewInput, '打开全部笔记')
+    await sleep(300)
+    viewInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }))
+    await sleep(700)
+    check(
+      '命令面板可切换工作区',
+      !one('.w1-palette') && activeNav() === '笔记' && !!one('.w1-notesview'),
+      activeNav()
+    )
+    check('笔记页是独立工作区', !one('.w1-dock') && !one('.w1-main'))
+
+    const noteSearch = one('.w1-nvinput')
+    if (!noteSearch) {
+      throw new Error(JSON.stringify({
+        noteView: !!one('.w1-notesview'),
+        noteInputs: all('.w1-nvsearch input').length,
+        stage: one('.w1-stage')?.textContent?.slice(0, 200) ?? '',
+        active: one('.w1-navitem.on')?.textContent ?? ''
+      }))
+    }
+    setValue(noteSearch, '线代')
+    await sleep(400)
+    check('笔记页可搜索', one('.w1-nvlist')?.textContent?.includes('线代'), one('.w1-nvlist')?.textContent?.slice(0, 60) ?? '')
+    noteSearch.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
+    await sleep(400)
+    check(
+      'Esc 清空搜索但不离开笔记页',
+      noteSearch.value === '' && activeNav() === '笔记' && all('.w1-nvrow').length >= 4,
+      noteSearch.value + '|' + activeNav()
+    )
+    setValue(noteSearch, '线代')
+    await sleep(400)
+    one('.w1-nvclear')?.click()
+    await sleep(400)
+    check('清空搜索恢复列表', all('.w1-nvrow').length >= 4, String(all('.w1-nvrow').length))
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
+    await sleep(400)
+    check('Esc 不关闭笔记工作区', activeNav() === '笔记' && !!one('.w1-notesview'), activeNav())
+
+    await navTo('今日')
+    one('.w1-motion')?.focus()
+    await openPalette()
     const sendInput = one('.w1-paletteinput')
     setValue(sendInput, '帮我拟一条周报提醒')
     await sleep(300)
@@ -230,18 +502,17 @@ async function run() {
       selectedSend
     )
     sendInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }))
-    await sleep(150)
+    await sleep(350)
     check(
-      '命令面板可发送消息',
-      one('.w1-thread')?.textContent?.includes('帮我拟一条周报提醒') && !!one('.w1-typing'),
-      one('.w1-thread')?.textContent?.slice(-80) ?? ''
+      '命令面板发送后切到 Agent',
+      activeNav() === 'Agent' && one('.w1-thread')?.textContent?.includes('帮我拟一条周报提醒') && !!one('.w1-typing'),
+      activeNav()
     )
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', code: 'KeyK', ctrlKey: true, bubbles: true }))
-    await sleep(400)
+    await openPalette(350)
     const busyInput = one('.w1-paletteinput')
     setValue(busyInput, '再发一条')
-    await sleep(150)
+    await sleep(120)
     const sendItem = byText('.w1-paletteitem', '发送给')
     check(
       '等待回复时禁用发送',
@@ -256,11 +527,12 @@ async function run() {
       document.activeElement?.classList.contains('w1-motion'),
       document.activeElement?.className?.toString?.() ?? ''
     )
-    await sleep(400)
+    await sleep(1000)
     check('命令面板发送后收到回复', !one('.w1-typing'), one('.w1-typing') ? '等待动画未结束' : '')
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', code: 'KeyK', ctrlKey: true, bubbles: true }))
-    await sleep(650)
+    await navTo('今日')
+    one('.w1-motion')?.focus()
+    await openPalette()
     const noteCommand = one('.w1-paletteinput')
     setValue(noteCommand, '新建快速笔记')
     await sleep(300)
@@ -280,26 +552,19 @@ async function run() {
       document.activeElement?.className?.toString?.() ?? ''
     )
 
+    await navTo('Agent')
     byText('.w1-sess', '重构 auth 模块')?.click()
     await sleep(300)
     byText('.w1-tab', 'Codex')?.click()
     await sleep(350)
     check('切换到 Codex 会话', one('.w1-tdiv')?.textContent?.includes('周报草稿'), one('.w1-tdiv')?.textContent ?? '')
 
-    byText('.w1-sess', '重构 auth 模块')?.click()
-    await sleep(300)
+    await navTo('今日')
     one('.w1-nall')?.click()
     await sleep(600)
-    check('全部笔记页打开', !!one('.w1-notesview'))
-    check(
-      '未接数据库时笔记页给出空态而非崩溃',
-      !!one('.w1-nvempty') || all('.w1-nvrow').length >= 0,
-      one('.w1-nvempty')?.textContent ?? String(all('.w1-nvrow').length)
-    )
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
-    await sleep(500)
-    check('Esc 关闭全部笔记页', !one('.w1-notesview'))
+    check('全部笔记入口切换工作区', activeNav() === '笔记' && !!one('.w1-notesview'))
 
+    await navTo('今日')
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', code: 'KeyN', ctrlKey: true, bubbles: true }))
     await sleep(350)
     check('Ctrl+N 打开笔记', !!one('.w1-modal'))
@@ -307,13 +572,13 @@ async function run() {
     await sleep(600)
     check('弹窗可关闭', !one('.w1-modal'))
 
-    return { checks, title: document.title, size: [innerWidth, innerHeight] }
+    return { checks, title: document.title, size: [innerWidth, innerHeight], activeView: activeNav() }
   })()`)
   } catch (error) {
     console.error(`[smoke] renderer script failed: ${error}`)
     const snapshot = await win.webContents
       .executeJavaScript(
-        '({ root: document.getElementById("root")?.textContent?.slice(0, 120) ?? null, scripts: [...document.scripts].map((s) => s.src) })'
+        '({ progress: window.__smokeProgress ?? [], root: document.getElementById("root")?.textContent?.slice(0, 120) ?? null, scripts: [...document.scripts].map((s) => s.src) })'
       )
       .catch((snapshotError) => String(snapshotError))
     console.error(JSON.stringify({ consoleErrors, snapshot }, null, 2))

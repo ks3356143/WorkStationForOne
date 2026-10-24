@@ -84,6 +84,41 @@ export function SettingsIcon(props: GlyphProps) {
   )
 }
 
+export function TasksIcon(props: GlyphProps) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M2.5 4.2l1.1 1.1 2-2.2M8.5 4.2h5M2.5 9l1.1 1.1 2-2.2M8.5 9h5M2.5 13.2l1.1 1.1 2-2.2M8.5 13.2h5" />
+    </svg>
+  )
+}
+
+export function TodayIcon(props: GlyphProps) {  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" {...props}>
+      <rect x="2.5" y="3.5" width="11" height="10" />
+      <path d="M2.5 6.5h11M5.5 2v3M10.5 2v3" />
+      <path d="M5 9h2M9 9h2M5 11.5h2" />
+    </svg>
+  )
+}
+
+export function AgentIcon(props: GlyphProps) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" {...props}>
+      <rect x="2" y="3" width="12" height="10" />
+      <path d="M4.8 6.8l2 2-2 2M8.8 10.8h2.4" />
+    </svg>
+  )
+}
+
+export function NotesIcon(props: GlyphProps) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" {...props}>
+      <path d="M4 2.5h5.2L12.5 5.8V13.5H4z" />
+      <path d="M9 2.5v3.5h3.5M6 8h4.5M6 10.5h3.5" />
+    </svg>
+  )
+}
+
 export function TerminalIcon(props: GlyphProps) {
   return (
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" {...props}>

@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { dateKey } from '../../shared/date-key'
 import { MIGRATIONS, migrate, openDatabase, userVersion } from './database'
 import { TaskRepository } from './tasks'
 import type { TaskRecord } from '../../shared/ipc'
@@ -78,7 +79,7 @@ describe('TaskRepository', () => {
 
     repo.bootstrap(seed)
 
-    expect(repo.list()).toEqual(seed)
+    expect(repo.list()).toMatchObject(seed)
     db.close()
   })
 
@@ -125,6 +126,133 @@ describe('TaskRepository', () => {
     const tasks = repo.list()
     expect(tasks.find((task) => task.id === 't3')).toMatchObject({ time: '22:00', tag: '已顺延' })
     expect(tasks.find((task) => task.id === 't2')).toMatchObject({ time: '09:00', tag: '明天' })
+    db.close()
+  })
+})
+
+describe('TaskRepository · TODO 字段', () => {
+  it('新增任务写全字段并排在最前', () => {
+    const db = tempDb()
+    migrate(db)
+    const repo = new TaskRepository(db)
+    repo.bootstrap(seed)
+
+    const created = repo.create({
+      title: '交报告',
+      time: '15:00',
+      dueDate: '2026-10-30',
+      priority: 1,
+      list: '工作',
+      notes: '先写提纲'
+    })
+
+    expect(created).toMatchObject({
+      title: '交报告',
+      time: '15:00',
+      dueDate: '2026-10-30',
+      priority: 1,
+      list: '工作',
+      notes: '先写提纲',
+      done: false
+    })
+    expect(repo.list()[0].id).toBe(created.id)
+    db.close()
+  })
+
+  it('更新任务并支持清空可选字段', () => {
+    const db = tempDb()
+    migrate(db)
+    const repo = new TaskRepository(db)
+    repo.bootstrap(seed)
+
+    repo.update('t2', {
+      title: '重构 auth · 二期',
+      dueDate: '2026-10-26',
+      priority: 3,
+      list: '工作',
+      notes: '拆分 token 刷新'
+    })
+    expect(repo.list().find((task) => task.id === 't2')).toMatchObject({
+      title: '重构 auth · 二期',
+      dueDate: '2026-10-26',
+      priority: 3,
+      list: '工作',
+      notes: '拆分 token 刷新'
+    })
+
+    repo.update('t2', { dueDate: null, list: null, tag: null, tone: null })
+    expect(repo.list().find((task) => task.id === 't2')).toMatchObject({
+      dueDate: undefined,
+      list: undefined,
+      tag: undefined,
+      tone: undefined
+    })
+    db.close()
+  })
+
+  it('删除任务后不再返回', () => {
+    const db = tempDb()
+    migrate(db)
+    const repo = new TaskRepository(db)
+    repo.bootstrap(seed)
+
+    repo.remove('t3')
+
+    expect(repo.list().map((task) => task.id)).toEqual(['t1', 't2'])
+    db.close()
+  })
+
+  it('完成任务写入完成时间', () => {
+    const db = tempDb()
+    migrate(db)
+    const repo = new TaskRepository(db)
+    repo.bootstrap(seed)
+
+    repo.setDone('t2', true)
+
+    expect(typeof repo.list().find((task) => task.id === 't2')?.completedAt).toBe('number')
+    db.close()
+  })
+
+  it('权限顺延写入新日期，也可清空日期', () => {
+    const db = tempDb()
+    migrate(db)
+    const repo = new TaskRepository(db)
+    repo.bootstrap(seed)
+    const created = repo.create({ title: '顺延任务', dueDate: '2026-10-24' })
+
+    repo.applySchedule([
+      { taskId: created.id, toTime: '09:00', toTag: '明天', toDueDate: '2026-10-25' }
+    ])
+    expect(repo.list().find((task) => task.id === created.id)).toMatchObject({
+      dueDate: '2026-10-25',
+      time: '09:00',
+      tag: '明天'
+    })
+
+    repo.applySchedule([{ taskId: created.id, toTime: '09:00', toTag: '', toDueDate: null }])
+    expect(repo.list().find((task) => task.id === created.id)?.dueDate).toBeUndefined()
+    db.close()
+  })
+})
+
+describe('migrate v3', () => {
+  it('旧任务回填今天并带默认字段', () => {
+    const db = tempDb()
+    migrate(db, MIGRATIONS.slice(0, 2))
+    db.prepare('INSERT INTO tasks (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)').run(
+      'legacy',
+      '旧任务',
+      1,
+      1
+    )
+
+    migrate(db)
+
+    const row = db
+      .prepare('SELECT due_date, priority, notes, list FROM tasks WHERE id = ?')
+      .get('legacy') as { due_date: string; priority: number; notes: string; list: string | null }
+    expect(row).toEqual({ due_date: dateKey(), priority: 0, notes: '', list: null })
     db.close()
   })
 })

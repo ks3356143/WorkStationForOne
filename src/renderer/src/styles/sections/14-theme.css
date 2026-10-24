@@ -80,9 +80,15 @@
   box-shadow: inset 0 1px rgb(255 255 255 / 0.7);
 }
 
+:root[data-theme="light"] .w1-nav,
 :root[data-theme="light"] .w1-rail,
 :root[data-theme="light"] .w1-dock {
   box-shadow: inset 0 1px rgb(255 255 255 / 0.75);
+}
+
+:root[data-theme="light"] .w1-navitem.on,
+:root[data-theme="light"] .w1-sess.on {
+  box-shadow: inset 0 1px rgb(255 255 255 / 0.8), 0 6px 20px rgb(var(--vio-rgb) / 0.14);
 }
 
 :root[data-theme="light"] .w1-tl,
@@ -94,10 +100,6 @@
 :root[data-theme="light"] .w1-card:hover {
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.95), 0 16px 38px rgb(var(--shadow-rgb) / 0.12),
     0 0 28px rgb(var(--ac-rgb) / 0.09);
-}
-
-:root[data-theme="light"] .w1-sess.on {
-  box-shadow: inset 0 1px rgb(255 255 255 / 0.8), 0 6px 20px rgb(var(--vio-rgb) / 0.14);
 }
 
 :root[data-theme="light"] .w1-perm {

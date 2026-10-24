@@ -15,7 +15,7 @@ interface NoteListProps {
   mode: 'browse' | 'search'
 }
 
-export const ROW_HEIGHT = 64
+export const ROW_HEIGHT = 68
 const OVERSCAN = 6
 
 export interface WindowRange {

@@ -1,0 +1,733 @@
+/* ---------- task workspace ---------- */
+
+.w1-todos {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  overflow: hidden;
+  background-image:
+    linear-gradient(rgb(var(--ac-rgb) / 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--ac-rgb) / 0.03) 1px, transparent 1px),
+    linear-gradient(180deg, rgb(var(--panel-1-rgb) / 0.02), rgb(var(--panel-1-rgb) / 0.26));
+  background-size: 48px 48px, 48px 48px, 100% 100%;
+}
+
+.w1-todorail {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px 14px 16px;
+  overflow-y: auto;
+  border-right: 1px solid rgb(var(--ac-rgb) / 0.14);
+  background: rgb(var(--panel-1-rgb) / 0.36);
+  backdrop-filter: blur(18px) saturate(145%);
+}
+
+.w1-todorailhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.w1-todonew {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid rgb(var(--ac-rgb) / 0.28);
+  background: rgb(var(--vio-rgb) / 0.12);
+  color: var(--ac-fg);
+  font: 500 11px/1 var(--mono);
+  letter-spacing: 0.04em;
+  transition: border-color 0.2s, background-color 0.2s, color 0.2s;
+}
+
+.w1-todonew:hover {
+  border-color: rgb(var(--ac-rgb) / 0.48);
+  background: rgb(var(--vio-rgb) / 0.2);
+}
+
+.w1-todonav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.w1-todorow {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--mu);
+  text-align: left;
+  transition: border-color 0.2s, background-color 0.2s, color 0.2s;
+}
+
+.w1-todorow:hover {
+  color: var(--fg);
+  border-color: rgb(var(--ac-rgb) / 0.2);
+}
+
+.w1-todorow.on {
+  border-color: rgb(var(--ac-rgb) / 0.34);
+  background: linear-gradient(90deg, rgb(var(--vio-rgb) / 0.17), rgb(var(--vio-rgb) / 0.04));
+  color: var(--fg-strong);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.w1-todokey {
+  font: 10.5px/1 var(--mono);
+  color: var(--su);
+  letter-spacing: 0.06em;
+}
+
+.w1-todorow.on .w1-todokey {
+  color: var(--ac);
+}
+
+.w1-todolabel {
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.w1-todocount {
+  font: 11.5px/1 var(--mono);
+  color: var(--su);
+  font-variant-numeric: tabular-nums;
+}
+
+.w1-todorow.on .w1-todocount {
+  color: var(--ac-fg);
+}
+
+.w1-todogroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.w1-todogrouplabel {
+  padding: 2px 8px 6px;
+  font: 10px/1 var(--mono);
+  letter-spacing: 0.09em;
+  color: var(--su);
+}
+
+.w1-todorailfoot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--bd);
+  font: 11px/1.5 var(--mono);
+  color: var(--su);
+}
+
+.w1-todomain {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 26px 0;
+  overflow: hidden;
+}
+
+.w1-todohead {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--bd);
+}
+
+.w1-todohead .w1-date {
+  font: 600 11.5px/1 var(--mono);
+}
+
+.w1-todotitle {
+  margin: 8px 0 0;
+  font: 700 30px/1 var(--disp);
+  letter-spacing: -0.03em;
+  color: var(--fg);
+}
+
+.w1-todotitle span {
+  margin-left: 1px;
+  font-size: 0.68em;
+  color: var(--ac2);
+  text-shadow: 0 0 18px rgb(var(--ac2-rgb) / 0.45);
+}
+
+.w1-todosub {
+  margin-top: 10px;
+  font: 12px/1.5 var(--mono);
+  color: var(--mu);
+}
+
+.w1-todosub b {
+  font-weight: 500;
+  color: var(--fg-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.w1-todosearch {
+  flex: 0 1 300px;
+  min-width: 180px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 2px;
+  border-bottom: 1px solid rgb(var(--ac-rgb) / 0.26);
+  transition: border-color 0.2s;
+}
+
+.w1-todosearch:focus-within {
+  border-color: rgb(var(--ac2-rgb) / 0.62);
+}
+
+.w1-todosearch > span {
+  flex: none;
+  font: 11px/1 var(--mono);
+  color: var(--ac);
+}
+
+.w1-todosearch input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--fg);
+  font: 13.5px/1.4 var(--sans);
+}
+
+.w1-todosearch input::placeholder {
+  color: var(--su);
+}
+
+.w1-todosearch button {
+  flex: none;
+  padding: 3px 0 3px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--mu);
+  font: 10.5px/1 var(--mono);
+}
+
+.w1-todosearch button:hover {
+  color: var(--ac-fg);
+}
+
+.w1-todoquick {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgb(var(--ac-rgb) / 0.22);
+  background: linear-gradient(100deg, rgb(var(--vio-rgb) / 0.1), transparent 70%),
+    rgb(var(--panel-1-rgb) / 0.3);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.w1-todoquickrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.w1-todoquickprompt {
+  flex: none;
+  font: 13px/1 var(--mono);
+  color: var(--ac);
+}
+
+.w1-todoinput {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--fg);
+  font: 14.5px/1.4 var(--sans);
+}
+
+.w1-todoinput::placeholder {
+  color: var(--su);
+}
+
+.w1-todoadd {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgb(var(--ac-rgb) / 0.4);
+  background: rgb(var(--vio-rgb) / 0.18);
+  color: var(--ac-fg);
+  font: 500 11px/1 var(--mono);
+  transition: border-color 0.2s, background-color 0.2s, opacity 0.2s;
+}
+
+.w1-todoadd:hover {
+  border-color: rgb(var(--ac-rgb) / 0.62);
+  background: rgb(var(--vio-rgb) / 0.26);
+}
+
+.w1-todoadd:disabled {
+  opacity: 0.36;
+  cursor: default;
+}
+
+.w1-todoquickhint {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  min-height: 18px;
+  font: 10.5px/1.3 var(--mono);
+  color: var(--su);
+}
+
+.w1-todochip {
+  padding: 3px 6px;
+  border: 1px solid var(--bd);
+  color: var(--mu);
+  background: rgb(var(--panel-2-rgb) / 0.5);
+}
+
+.w1-todochip.date {
+  border-color: rgb(var(--ac2-rgb) / 0.34);
+  color: var(--ac2-fg);
+}
+
+.w1-todochip.list {
+  border-color: rgb(var(--ac-rgb) / 0.3);
+  color: var(--ac-fg);
+}
+
+.w1-todochip.pri.p1 {
+  border-color: rgb(var(--dg-rgb) / 0.4);
+  color: var(--dg);
+}
+
+.w1-todochip.pri.p2 {
+  border-color: rgb(var(--wn-rgb) / 0.4);
+  color: var(--wn);
+}
+
+.w1-todochip.pri.p3 {
+  border-color: rgb(var(--ac2-rgb) / 0.4);
+  color: var(--ac2-fg);
+}
+
+.w1-todopreview {
+  color: var(--fg-strong);
+}
+
+.w1-todoscroll {
+  flex: 1;
+  min-height: 0;
+  padding: 8px 0 24px;
+  overflow-y: auto;
+  animation: todoIn 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes todoIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.w1-todogroupblock + .w1-todogroupblock {
+  margin-top: 8px;
+}
+
+.w1-todogroupdate {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 4px 7px;
+  background: linear-gradient(180deg, rgb(var(--panel-1-rgb) / 0.92), rgb(var(--panel-1-rgb) / 0.7) 70%, transparent);
+  font: 10.5px/1 var(--mono);
+  letter-spacing: 0.06em;
+  color: var(--mu);
+}
+
+.w1-todogroupdate small {
+  color: var(--su);
+  font-size: 10px;
+}
+
+.w1-todogroupdate::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--bd);
+}
+
+.w1-todorowwrap {
+  border-bottom: 1px solid rgb(var(--ac-rgb) / 0.09);
+}
+
+.w1-todorowmain {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 4px;
+  transition: background-color 0.2s;
+}
+
+.w1-todorowmain:hover {
+  background: linear-gradient(90deg, rgb(var(--vio-rgb) / 0.07), transparent 80%);
+}
+
+.w1-todocb {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--ctl);
+  background: transparent;
+  color: transparent;
+  transition: border-color 0.2s, background-color 0.2s, color 0.2s;
+}
+
+.w1-todocb:hover {
+  border-color: var(--ac);
+}
+
+.w1-todocb.on {
+  border-color: rgb(var(--ok-rgb) / 0.56);
+  background: rgb(var(--ok-rgb) / 0.14);
+  color: var(--ok);
+}
+
+.w1-todobody {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.w1-todotitletext {
+  min-width: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.w1-todobody:hover .w1-todotitletext {
+  color: var(--fg-strong);
+}
+
+.w1-todorowwrap.done .w1-todotitletext {
+  color: var(--su);
+  text-decoration: line-through;
+  text-decoration-color: var(--su);
+}
+
+.w1-todolisttag {
+  flex: none;
+  padding: 3px 6px;
+  border: 1px solid rgb(var(--ac-rgb) / 0.26);
+  background: rgb(var(--vio-rgb) / 0.1);
+  color: var(--ac-fg);
+  font: 11px/1 var(--mono);
+  white-space: nowrap;
+}
+
+.w1-todopri {
+  flex: none;
+  padding: 3px 5px;
+  border: 1px solid var(--bd);
+  font: 11px/1 var(--mono);
+  letter-spacing: 0.04em;
+}
+
+.w1-todopri.p1 {
+  border-color: rgb(var(--dg-rgb) / 0.42);
+  background: rgb(var(--dg-rgb) / 0.08);
+  color: var(--dg);
+}
+
+.w1-todopri.p2 {
+  border-color: rgb(var(--wn-rgb) / 0.4);
+  background: rgb(var(--wn-rgb) / 0.07);
+  color: var(--wn);
+}
+
+.w1-todopri.p3 {
+  border-color: rgb(var(--ac2-rgb) / 0.38);
+  background: rgb(var(--ac2-rgb) / 0.06);
+  color: var(--ac2-fg);
+}
+
+.w1-todonote {
+  flex: none;
+  padding: 2px 4px;
+  border: 1px solid var(--bd);
+  color: var(--su);
+  font: 9.5px/1 var(--mono);
+}
+
+.w1-tododue {
+  justify-self: end;
+  font: 11.5px/1 var(--mono);
+  color: var(--mu);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.w1-tododue.today {
+  color: var(--ac-fg);
+}
+
+.w1-tododue.overdue {
+  color: var(--dg);
+}
+
+.w1-todoeditorwrap {
+  padding: 0 6px 16px 32px;
+  background: linear-gradient(90deg, rgb(var(--vio-rgb) / 0.055), transparent 64%);
+}
+
+.w1-todoedit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 170px;
+  gap: 12px 18px;
+  padding-top: 10px;
+  border-top: 1px dashed rgb(var(--ac-rgb) / 0.18);
+}
+
+.w1-todoeditmain,
+.w1-todoeditside {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.w1-todofield {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.w1-todofield label,
+.w1-todofieldlabel {
+  font: 10px/1 var(--mono);
+  letter-spacing: 0.08em;
+  color: var(--su);
+}
+
+.w1-todofield input,
+.w1-todofield textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid rgb(var(--ac-rgb) / 0.18);
+  background: rgb(var(--panel-2-rgb) / 0.42);
+  color: var(--fg);
+  font: 13.5px/1.5 var(--sans);
+  outline: none;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.w1-todofield input:focus,
+.w1-todofield textarea:focus {
+  border-color: rgb(var(--ac2-rgb) / 0.58);
+  background: rgb(var(--panel-2-rgb) / 0.58);
+}
+
+.w1-todofield textarea {
+  min-height: 78px;
+  resize: vertical;
+}
+
+.w1-todoprirow {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.w1-tododatequick {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.w1-tododatequick button {
+  height: 24px;
+  padding: 0 7px;
+  border: 1px solid var(--bd);
+  background: transparent;
+  color: var(--mu);
+  font: 10.5px/1 var(--mono);
+  transition: border-color 0.2s, background-color 0.2s, color 0.2s;
+}
+
+.w1-tododatequick button:hover {
+  border-color: rgb(var(--ac-rgb) / 0.4);
+  color: var(--fg);
+}
+
+.w1-tododatequick button.on {
+  border-color: rgb(var(--ac2-rgb) / 0.46);
+  background: rgb(var(--ac2-rgb) / 0.08);
+  color: var(--ac2-fg);
+}
+
+.w1-todopriopt {
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--bd);
+  background: transparent;
+  color: var(--mu);
+  font: 11px/1 var(--mono);
+  transition: border-color 0.2s, background-color 0.2s, color 0.2s;
+}
+
+.w1-todopriopt:hover {
+  border-color: rgb(var(--ac-rgb) / 0.4);
+  color: var(--fg);
+}
+
+.w1-todopriopt.on {
+  border-color: rgb(var(--ac-rgb) / 0.44);
+  background: rgb(var(--vio-rgb) / 0.16);
+  color: var(--ac-fg);
+}
+
+.w1-todopriopt.p1.on {
+  border-color: rgb(var(--dg-rgb) / 0.5);
+  background: rgb(var(--dg-rgb) / 0.1);
+  color: var(--dg);
+}
+
+.w1-todopriopt.p2.on {
+  border-color: rgb(var(--wn-rgb) / 0.48);
+  background: rgb(var(--wn-rgb) / 0.09);
+  color: var(--wn);
+}
+
+.w1-todopriopt.p3.on {
+  border-color: rgb(var(--ac2-rgb) / 0.46);
+  background: rgb(var(--ac2-rgb) / 0.09);
+  color: var(--ac2-fg);
+}
+
+.w1-todoactions {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.w1-todosave,
+.w1-todocancel,
+.w1-tododelete {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid rgb(var(--ac-rgb) / 0.24);
+  background: rgb(var(--panel-2-rgb) / 0.34);
+  color: var(--fs);
+  font: 500 11.5px/1 var(--mono);
+  transition: border-color 0.2s, background-color 0.2s, color 0.2s;
+}
+
+.w1-todosave {
+  border-color: transparent;
+  background: linear-gradient(100deg, var(--ac), var(--ac2));
+  color: var(--on-accent);
+  font-weight: 700;
+  box-shadow: 0 6px 18px rgb(var(--vio-rgb) / 0.24);
+}
+
+.w1-todosave:hover {
+  filter: brightness(1.06);
+  box-shadow: 0 8px 22px rgb(var(--vio-rgb) / 0.34);
+}
+
+.w1-todosave:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.w1-todocancel:hover {
+  border-color: rgb(var(--ac-rgb) / 0.4);
+  color: var(--fg-strong);
+}
+
+.w1-tododelete {
+  margin-left: auto;
+  border-color: rgb(var(--dg-rgb) / 0.3);
+  color: var(--dg);
+}
+
+.w1-tododelete:hover,
+.w1-tododelete.confirming {
+  border-color: rgb(var(--dg-rgb) / 0.6);
+  background: rgb(var(--dg-rgb) / 0.1);
+}
+
+.w1-todoempty {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  align-items: center;
+  margin-top: 20px;
+  padding: 34px 18px;
+  border: 1px dashed rgb(var(--ac-rgb) / 0.16);
+  text-align: center;
+  color: var(--su);
+}
+
+.w1-todoempty b {
+  font: 500 13px/1.4 var(--sans);
+  color: var(--mu);
+}
+
+.w1-todoempty span {
+  font: 11px/1.6 var(--mono);
+}

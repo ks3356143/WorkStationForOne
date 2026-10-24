@@ -46,12 +46,26 @@ describe('buildPaletteCommands', () => {
     expect(sessionCommands[1].hint).not.toContain('当前')
   })
 
-  it('操作命令包含笔记、专注、动效、主题与三种筛选', () => {
+  it('导航命令覆盖四个工作区', () => {
+    const navigation = buildPaletteCommands(base).filter((command) => command.group === '导航')
+
+    expect(navigation.map((command) => command.id)).toEqual(['view:today', 'view:tasks', 'view:agent', 'view:notes'])
+    expect(navigation.map((command) => command.action)).toEqual([
+      { kind: 'view', view: 'today' },
+      { kind: 'view', view: 'tasks' },
+      { kind: 'view', view: 'agent' },
+      { kind: 'view', view: 'notes' }
+    ])
+    expect(navigation.every((command) => command.hint === '工作区')).toBe(true)
+  })
+
+  it('操作命令包含笔记、任务、专注、动效、主题与三种筛选', () => {
     const ids = buildPaletteCommands(base).map((command) => command.id)
 
     expect(ids).toEqual(
       expect.arrayContaining([
         'action:note',
+        'action:task',
         'action:focus',
         'action:motion',
         'action:theme',
@@ -146,6 +160,16 @@ describe('visiblePaletteCommands', () => {
 
     expect(visible[0].id).toBe('filter:todo')
     expect(visible[visible.length - 1].id).toBe('action:send')
+  })
+
+  it('命令标题也可用于检索', () => {
+    const visible = visiblePaletteCommands(
+      buildPaletteCommands({ ...base, query: '打开全部笔记' }),
+      '打开全部笔记'
+    )
+
+    expect(visible[0].id).toBe('view:notes')
+    expect(visible.at(-1)?.id).toBe('action:send')
   })
 
   it('无匹配时只保留发送项', () => {

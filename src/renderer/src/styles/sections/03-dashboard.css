@@ -3,10 +3,12 @@
 .w1-main {
   position: relative;
   z-index: 1;
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 22px 26px 24px;
+  padding: 24px 30px 26px;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: rgb(var(--ac-rgb) / 0.32) transparent;
@@ -361,6 +363,20 @@
 
 .w1-ct > span {
   flex: none;
+  font: 11px/1 var(--mono);
+  letter-spacing: 0.03em;
+  color: var(--mu);
+  font-variant-numeric: tabular-nums;
+}
+
+.w1-ctmeta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+
+.w1-ctmeta > span {
   font: 11px/1 var(--mono);
   letter-spacing: 0.03em;
   color: var(--mu);

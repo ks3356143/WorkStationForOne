@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { m } from 'motion/react'
 import type { NoteRecord, NoteSearchHit } from '../../../shared/ipc'
 import { useWorkstation } from '../store/useWorkstation'
 import { NoteList, NoteListFooter, type NoteListRow } from './NoteList'
@@ -32,7 +31,6 @@ export function hitsToRows(hits: NoteSearchHit[]): NoteListRow[] {
 
 export function NotesView() {
   const api = typeof window === 'undefined' ? undefined : window.ws?.notes
-  const closeNotesView = useWorkstation((state) => state.closeNotesView)
   const memoryNotes = useWorkstation((state) => state.notes)
 
   const [query, setQuery] = useState('')
@@ -123,37 +121,24 @@ export function NotesView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query])
 
-  const close = () => closeNotesView()
-
   const hasMore = mode === 'browse' && rows.length < total
 
   return (
-    <m.div
-      className="w1-notesview"
-      role="dialog"
-      aria-modal="true"
-      aria-label="全部笔记"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.2 }}
-    >
-      <m.div
-        className="w1-nvbox"
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 8 }}
-        transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
-      >
-        <div className="w1-nvhead">
-          <span className="w1-eyebrow">// 全部笔记</span>
+    <section className="w1-notesview" aria-label="全部笔记">
+      <div className="w1-nvbox">
+        <header className="w1-nvhead">
+          <div className="w1-nvtitle">
+            <div className="w1-date">
+              <i>//</i> 笔记库
+            </div>
+            <h1>
+              全部笔记<span>.</span>
+            </h1>
+          </div>
           <span className="w1-nvcount">
             {mode === 'search' ? `命中 ${total}${total >= SEARCH_LIMIT ? '+' : ''}` : `共 ${total} 条 · 已载入 ${rows.length}`}
           </span>
-          <button className="w1-modalx" type="button" aria-label="关闭全部笔记" onClick={close}>
-            ×
-          </button>
-        </div>
+        </header>
 
         <div className="w1-nvsearch">
           <span>&gt;</span>
@@ -163,6 +148,9 @@ export function NotesView() {
             placeholder="搜索笔记内容，支持中文与英文…"
             aria-label="搜索笔记"
             onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && query) setQuery('')
+            }}
           />
           {query ? (
             <button className="w1-nvclear" type="button" onClick={() => setQuery('')}>
@@ -190,7 +178,7 @@ export function NotesView() {
           <span>本地 SQLite · trigram 全文索引</span>
           <span>{mode === 'search' ? '两字以内自动回退模糊匹配' : '置顶优先 · 按更新时间排序'}</span>
         </div>
-      </m.div>
-    </m.div>
+      </div>
+    </section>
   )
 }

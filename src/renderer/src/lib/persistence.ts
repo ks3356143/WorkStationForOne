@@ -1,18 +1,32 @@
 import { replaceTasks, bindTaskPersistence, useWorkstation } from '../store/useWorkstation'
-import type { TaskRecord } from '../../../shared/ipc'
+import type { TaskDraft, TaskPatch, TaskRecord } from '../../../shared/ipc'
 import type { Task } from '../types'
 
 export interface HydrateDeps {
   list: () => Promise<TaskRecord[]>
   bootstrap: (tasks: TaskRecord[]) => Promise<void>
   setDone: (id: string, done: boolean) => Promise<void>
-  applySchedule: (changes: { taskId: string; toTime: string; toTag: string }[]) => Promise<void>
+  applySchedule: (changes: {
+    taskId: string
+    toTime: string
+    toTag: string
+    toDueDate?: string | null
+  }[]) => Promise<void>
+  create: (draft: TaskDraft) => Promise<TaskRecord>
+  update: (id: string, patch: TaskPatch) => Promise<void>
+  remove: (id: string) => Promise<void>
 }
 
 export async function hydrateTasks(deps: HydrateDeps | undefined = bridgeTasks()): Promise<void> {
   if (!deps) return
 
-  bindTaskPersistence({ setDone: deps.setDone, applySchedule: deps.applySchedule })
+  bindTaskPersistence({
+    setDone: deps.setDone,
+    applySchedule: deps.applySchedule,
+    create: deps.create,
+    update: deps.update,
+    remove: deps.remove
+  })
 
   try {
     const initial = useWorkstation.getState().tasks

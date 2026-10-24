@@ -64,6 +64,20 @@ export const MIGRATIONS: Migration[] = [
         VALUES ('delete', old.rowid, old.title, old.body);
       END;
     `
+  },
+  {
+    version: 3,
+    sql: `
+      ALTER TABLE tasks ADD COLUMN notes TEXT NOT NULL DEFAULT '';
+      ALTER TABLE tasks ADD COLUMN due_date TEXT CHECK (due_date IS NULL OR due_date GLOB '????-??-??');
+      ALTER TABLE tasks ADD COLUMN priority INTEGER NOT NULL DEFAULT 0 CHECK (priority BETWEEN 0 AND 3);
+      ALTER TABLE tasks ADD COLUMN list TEXT;
+
+      UPDATE tasks SET due_date = date('now', 'localtime') WHERE due_date IS NULL;
+
+      CREATE INDEX idx_tasks_due ON tasks(done, due_date, sort_order);
+      CREATE INDEX idx_tasks_list ON tasks(done, list);
+    `
   }
 ]
 

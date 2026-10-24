@@ -1,4 +1,7 @@
+import { dateKey } from '../../../shared/date-key'
 import { filterTasks, useWorkstation } from '../store/useWorkstation'
+import { tasksForTodayCard } from '../lib/todo'
+import { useNow } from '../lib/useNow'
 import type { TaskFilter } from '../types'
 import { CheckIcon, SparkIcon } from './Glyphs'
 
@@ -16,17 +19,21 @@ export function TaskCard({ nextTaskId }: TaskCardProps) {
   const tasks = useWorkstation((state) => state.tasks)
   const filter = useWorkstation((state) => state.taskFilter)
   const setFilter = useWorkstation((state) => state.setFilter)
+  const setView = useWorkstation((state) => state.setView)
   const toggleTask = useWorkstation((state) => state.toggleTask)
   const resolution = useWorkstation((state) => state.resolution)
+  const now = useNow(60_000)
+  const today = dateKey(now)
+  const todayTasks = tasksForTodayCard(tasks, today)
 
-  const doneCount = tasks.filter((task) => task.done).length
-  const todoCount = tasks.length - doneCount
-  const visible = filterTasks(tasks, filter)
+  const doneCount = todayTasks.filter((task) => task.done).length
+  const todoCount = todayTasks.length - doneCount
+  const visible = filterTasks(todayTasks, filter)
   const half = Math.ceil(visible.length / 2)
   const columns = [visible.slice(0, half), visible.slice(half)]
 
   const countFor = (id: TaskFilter) =>
-    id === 'all' ? tasks.length : id === 'todo' ? todoCount : doneCount
+    id === 'all' ? todayTasks.length : id === 'todo' ? todoCount : doneCount
 
   return (
     <section className="w1-card w1-tasks">
@@ -34,9 +41,14 @@ export function TaskCard({ nextTaskId }: TaskCardProps) {
         <b>
           <em>//</em>任务与日程
         </b>
-        <span>
-          {tasks.length} 项 · {doneCount} 完成
-        </span>
+        <div className="w1-ctmeta">
+          <span>
+            {todayTasks.length} 项 · {doneCount} 完成
+          </span>
+          <button className="w1-ctlink" type="button" onClick={() => setView('tasks')}>
+            任务工作区 ›
+          </button>
+        </div>
       </div>
 
       <div className="w1-filters">
@@ -55,10 +67,10 @@ export function TaskCard({ nextTaskId }: TaskCardProps) {
       <div className="w1-tprog">
         <span>进度</span>
         <div className="w1-tbar">
-          <i style={{ transform: `scaleX(${doneCount / tasks.length})` }} />
+          <i style={{ transform: `scaleX(${todayTasks.length ? doneCount / todayTasks.length : 0})` }} />
         </div>
         <b>
-          {doneCount} / {tasks.length}
+          {doneCount} / {todayTasks.length}
         </b>
       </div>
 

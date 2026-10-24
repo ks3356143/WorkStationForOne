@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { AnimatePresence, m } from 'motion/react'
-import { AGENT_META, agentCommandPreview, demoReply } from '../../lib/agent'
+import { AGENT_META, agentCommandPreview } from '../../lib/agent'
 import { selectActiveSession, selectActiveThread, useWorkstation } from '../../store/useWorkstation'
 import type { AgentId, Task } from '../../types'
 import { Composer } from './Composer'
@@ -17,20 +17,16 @@ export function AgentDock() {
   const agent = activeSession.agent
   const thread = useWorkstation(selectActiveThread)
   const typing = useWorkstation((state) => state.typing)
-  const pendingAgent = useWorkstation((state) =>
-    state.sessions.find((session) => session.id === state.pendingReplyTo)?.agent
-  )
   const pendingReplyTo = useWorkstation((state) => state.pendingReplyTo)
   const permission = useWorkstation((state) => state.permission)
   const resolution = useWorkstation((state) => state.resolution)
   const taskCount = useWorkstation((state) => state.tasks.length)
-  const noteCount = useWorkstation((state) => state.notes.length)
+  const noteCount = useWorkstation((state) => state.noteTotal)
   const habitCount = useWorkstation((state) => state.habits.length)
   const permissionTasks = useWorkstation((state) =>
     state.permission?.sessionId === state.activeSessionId ? state.tasks : EMPTY_TASKS
   )
   const sendMessage = useWorkstation((state) => state.sendMessage)
-  const receiveReply = useWorkstation((state) => state.receiveReply)
   const resolvePermission = useWorkstation((state) => state.resolvePermission)
 
   const threadRef = useRef<HTMLDivElement>(null)
@@ -44,13 +40,6 @@ export function AgentDock() {
     const node = threadRef.current
     if (node) node.scrollTop = node.scrollHeight
   }, [thread.length, typingHere, permission, activeSession.id])
-
-  useEffect(() => {
-    if (!pendingAgent) return
-    const reply = demoReply(pendingAgent)
-    const timer = window.setTimeout(() => receiveReply(reply.text, reply.tools), 1100)
-    return () => window.clearTimeout(timer)
-  }, [pendingAgent, receiveReply])
 
   const switchAgent = (next: AgentId) => {
     if (agent === next) return

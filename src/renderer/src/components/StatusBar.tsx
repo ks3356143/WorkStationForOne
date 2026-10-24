@@ -15,7 +15,7 @@ export function StatusBar({ notify }: StatusBarProps) {
   const theme = useWorkstation((state) => state.theme)
   const toggleMotion = useWorkstation((state) => state.toggleMotion)
   const toggleTheme = useWorkstation((state) => state.toggleTheme)
-  const setActiveSession = useWorkstation((state) => state.setActiveSession)
+  const openAgentSession = useWorkstation((state) => state.openAgentSession)
   const now = useNow(30_000)
 
   const agentName = session.agent === 'claude' ? 'Claude Code' : 'Codex'
@@ -37,7 +37,7 @@ export function StatusBar({ notify }: StatusBarProps) {
       </button>
       <span>会话 {sessionCount}</span>
       {permission ? (
-        <button className="w1-sbtn pending" type="button" onClick={() => setActiveSession(permission.sessionId)}>
+        <button className="w1-sbtn pending" type="button" onClick={() => openAgentSession(permission.sessionId)}>
           待审批 1
         </button>
       ) : (

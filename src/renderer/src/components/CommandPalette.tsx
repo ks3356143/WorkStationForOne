@@ -15,11 +15,13 @@ interface CommandPaletteProps {
   notify: (text: string) => void
 }
 
-const GROUPS: readonly PaletteGroup[] = ['会话', '操作', '交给 Agent']
+const GROUPS: readonly PaletteGroup[] = ['会话', '导航', '操作', '交给 Agent']
 
 const ACTION_GLYPH: Record<PaletteCommand['action']['kind'], string> = {
   session: '›',
+  view: '▦',
   'new-note': '+',
+  'new-task': '+',
   focus: '▶',
   filter: '▤',
   motion: '◐',
@@ -35,8 +37,10 @@ export function CommandPalette({ onClose, notify }: CommandPaletteProps) {
   const motionOn = useWorkstation((state) => state.motionOn)
   const theme = useWorkstation((state) => state.theme)
   const typing = useWorkstation((state) => state.typing)
-  const setActiveSession = useWorkstation((state) => state.setActiveSession)
+  const setView = useWorkstation((state) => state.setView)
+  const openAgentSession = useWorkstation((state) => state.openAgentSession)
   const openQuickNote = useWorkstation((state) => state.openQuickNote)
+  const composeTask = useWorkstation((state) => state.composeTask)
   const startFocus = useWorkstation((state) => state.startFocus)
   const setFilter = useWorkstation((state) => state.setFilter)
   const toggleMotion = useWorkstation((state) => state.toggleMotion)
@@ -68,10 +72,18 @@ export function CommandPalette({ onClose, notify }: CommandPaletteProps) {
 
     switch (command.action.kind) {
       case 'session':
-        if (command.action.sessionId !== activeSessionId) setActiveSession(command.action.sessionId)
+        openAgentSession(command.action.sessionId)
+        break
+      case 'view':
+        setView(command.action.view)
+        notify(command.label)
         break
       case 'new-note':
         openQuickNote()
+        break
+      case 'new-task':
+        composeTask()
+        notify('任务输入已就绪')
         break
       case 'focus':
         startFocus('深度工作', 25)
@@ -90,6 +102,7 @@ export function CommandPalette({ onClose, notify }: CommandPaletteProps) {
         break
       case 'send':
         if (!activeSession) break
+        setView('agent')
         sendMessage(command.action.text)
         notify(`已交给 ${AGENT_META[activeSession.agent].shortName} · 演示回复`)
         break
