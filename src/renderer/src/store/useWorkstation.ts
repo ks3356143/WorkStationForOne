@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { createInitialData } from '../data/mock'
 import { getTodayIndex } from '../lib/date'
+import { browserStorage, otherTheme, persistTheme, readStoredTheme } from '../lib/theme'
 import type {
   ChatMessage,
   FocusSession,
@@ -47,6 +48,7 @@ interface WorkstationActions {
   receiveReply: (text: string, tools?: ToolCall[]) => void
   resolvePermission: (decision: 'allow' | 'deny') => void
   toggleMotion: () => void
+  toggleTheme: () => void
   startFocus: (label: string, minutes: number) => void
   closeFocus: () => void
   openQuickNote: () => void
@@ -67,6 +69,7 @@ function nextMessageId(prefix: string): string {
 
 export const useWorkstation = create<WorkstationState>()((set, get) => ({
   ...createInitialData(),
+  theme: readStoredTheme(browserStorage()),
 
   setFilter: (taskFilter) => set({ taskFilter }),
 
@@ -166,6 +169,12 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
   },
 
   toggleMotion: () => set((state) => ({ motionOn: !state.motionOn })),
+
+  toggleTheme: () => {
+    const theme = otherTheme(get().theme)
+    persistTheme(theme, browserStorage())
+    set({ theme })
+  },
 
   startFocus: (label, minutes) => set({ focus: { label, minutes } satisfies FocusSession }),
 

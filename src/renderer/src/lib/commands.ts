@@ -1,3 +1,4 @@
+import type { Theme } from '../../../shared/ipc'
 import type { Session, TaskFilter } from '../types'
 import { AGENT_META } from './agent'
 
@@ -9,6 +10,7 @@ export type PaletteAction =
   | { kind: 'focus' }
   | { kind: 'filter'; filter: TaskFilter }
   | { kind: 'motion' }
+  | { kind: 'theme' }
   | { kind: 'send'; text: string }
 
 export interface PaletteCommand {
@@ -27,6 +29,7 @@ interface PaletteInput {
   activeSessionId: string
   taskFilter: TaskFilter
   motionOn: boolean
+  theme: Theme
   query: string
   typing?: boolean
 }
@@ -84,6 +87,14 @@ export function buildPaletteCommands(input: PaletteInput): PaletteCommand[] {
       hint: '外观',
       value: `动效 motion ${input.motionOn ? '暂停 关闭' : '恢复 开启'}`,
       action: { kind: 'motion' }
+    },
+    {
+      id: 'action:theme',
+      group: '操作',
+      label: input.theme === 'light' ? '切换到夜间模式' : '切换到白天模式',
+      hint: '外观',
+      value: `主题 白天 夜间 浅色 深色 theme ${input.theme}`,
+      action: { kind: 'theme' }
     }
   )
 

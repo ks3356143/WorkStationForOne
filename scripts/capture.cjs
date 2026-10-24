@@ -5,7 +5,11 @@ const { dirname, join, resolve } = require('node:path')
 const target = resolve(process.argv[2] ?? '.screenshots/shell.png')
 const width = Number(process.argv[3]) || 1440
 const height = Number(process.argv[4]) || 900
-const auditPath = process.argv[5] ? resolve(process.argv[5]) : null
+const isTheme = (value) => value === 'dark' || value === 'light'
+const themeArg = process.argv.at(-1)
+const theme = isTheme(themeArg) ? themeArg : 'dark'
+const auditArg = isTheme(themeArg) ? (process.argv[6] ? process.argv[5] : undefined) : process.argv[5]
+const auditPath = auditArg ? resolve(auditArg) : null
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms))
 
@@ -29,6 +33,10 @@ async function run() {
   })
 
   await win.loadFile(join(__dirname, '../out/renderer/index.html'))
+  await win.webContents.executeJavaScript(`localStorage.setItem('workstation.theme', '${theme}')`)
+  const reloaded = new Promise((done) => win.webContents.once('did-finish-load', done))
+  win.webContents.reload()
+  await reloaded
   win.setAlwaysOnTop(true, 'screen-saver')
   win.show()
   win.focus()
@@ -55,6 +63,12 @@ async function run() {
         return el.scrollHeight > el.clientHeight + 1 && s.overflowY !== 'visible' && el.clientHeight > 0
       }).slice(0, 20).map((el) => ({ cls: el.className?.toString().slice(0, 90), sh: el.scrollHeight, ch: el.clientHeight }))
       return {
+        theme: document.documentElement.dataset.theme,
+        palette: {
+          bg: getComputedStyle(document.querySelector('.w1')).backgroundColor,
+          fg: getComputedStyle(document.querySelector('.w1')).color,
+          muted: getComputedStyle(document.querySelector('.w1-sub') ?? document.querySelector('.w1')).color
+        },
         inner: [innerWidth, innerHeight], dpr: devicePixelRatio,
         doc: [document.documentElement.scrollWidth, document.documentElement.scrollHeight],
         rects: Object.fromEntries(['.w1', '.w1-bar', '.w1-body', '.w1-rail', '.w1-main', '.w1-dock', '.w1-bento', '.w1-tasks', '.w1-card.w1-tasks', '.w1-bento > .w1-card:nth-child(2)', '.w1-bento > .w1-card:nth-child(3)', '.w1-card.w1-note', '.w1-thread', '.w1-compose', '.w1-status', '.w1-nfoot', '.w1-heat', '.w1-rbtn', '.w1-nlist'].map((s) => [s, rect(s)])),

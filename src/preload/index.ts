@@ -19,6 +19,9 @@ const api: WsApi = {
     search: (query, limit) => ipcRenderer.invoke(IPC_CHANNELS.notesSearch, query, limit),
     create: (text, tag) => ipcRenderer.invoke(IPC_CHANNELS.notesCreate, text, tag),
     togglePin: (id) => ipcRenderer.invoke(IPC_CHANNELS.notesTogglePin, id)
+  },
+  app: {
+    setTheme: (theme) => ipcRenderer.invoke(IPC_CHANNELS.appSetTheme, theme)
   }
 }
 

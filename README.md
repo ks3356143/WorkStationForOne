@@ -11,7 +11,7 @@ Windows 上的个人 AI 工作站。把「看板 + Agent 控制面」放进一�
 - **一个窗口完成一天的调度**：任务与日程、习惯打卡、学习复习、快速笔记四块看板，配时间轴与会话舰队状态。
 - **权限可见、可审**：Agent 想改任务时间，会弹出一张逐行 diff 的权限卡（旧值划线、新值高亮），你点「允许一次」才写入。
 - **本地优先**：数据只存在本机 SQLite；不使用云同步、不上传遥测、不保存 API Key。
-- **中文优先的 HUD 界面**：极光玻璃、直角、终端式元素；动效可整体关闭，也尊重系统的「减少动效」设置。
+- **中文优先的 HUD 界面**：极光玻璃、直角、终端式元素；夜色与白天双主题，动效可整体关闭，也尊重系统的「减少动效」设置。
 - **笔记全文搜索**：SQLite FTS5 + trigram 分词，中文与英文都能检索，两字短词自动回退模糊匹配。
 
 ![全部笔记](docs/screenshots/notes.webp)
@@ -46,9 +46,10 @@ npm run dev
 | `npm run build` | 生产构建，输出到 `out/` |
 | `npm start` | 预览上一次构建 |
 | `npm run typecheck` | 类型检查（main/preload 与 renderer 各一套配置） |
-| `npm test` | 运行全部单元测试（102 项） |
-| `npm run smoke` | 构建后跑 UI 交互冒烟测试（53 项检查） |
+| `npm test` | 运行全部单元测试（113 项） |
+| `npm run smoke` | 构建后跑 UI 交互冒烟测试（60 项检查） |
 | `npm run capture -- .screenshots/home.png 1440 900 .screenshots/audit.json` | 截图并输出布局审计 |
+| `npm run capture -- .screenshots/day.png 1440 900 light` | 以白天模式截图（末位参数为主题） |
 | `npm run icon` | 从 `resources/icon.svg` 重新生成 PNG 与多尺寸 ICO |
 
 请始终通过上述封装脚本启动 Electron：开发环境可能设置了 `ELECTRON_RUN_AS_NODE=1`，脚本会清除它并正确解析 electron-vite。
@@ -89,7 +90,7 @@ docs/superpowers/specs/ 产品与架构设计规格
 
 - 尚未接入真实 Agent：对话区回复是固定演示数据，不会真正调用 Claude 或 Codex。
 - 设置、审计、MCP 服务端、每日备份与安装包均未实现。
-- 仅支持 Windows；界面只有暗色。
+- 仅支持 Windows；默认夜间主题，可在状态栏或命令面板切换到白天模式。
 
 ## 文档
 

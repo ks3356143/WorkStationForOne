@@ -57,6 +57,30 @@ async function run() {
       String(all('.w1-dchange').length)
     )
 
+    const themeBefore = document.documentElement.dataset.theme
+    const fgBefore = getComputedStyle(one('.w1')).getPropertyValue('--fg').trim()
+    check('状态栏有主题按钮', !!one('.w1-theme'), one('.w1-theme')?.textContent ?? '')
+    one('.w1-theme')?.click()
+    await sleep(350)
+    const themeAfter = document.documentElement.dataset.theme
+    const fgAfter = getComputedStyle(one('.w1')).getPropertyValue('--fg').trim()
+    check(
+      '主题可切换',
+      themeAfter === (themeBefore === 'light' ? 'dark' : 'light'),
+      themeBefore + ' -> ' + themeAfter
+    )
+    check('主题令牌生效', themeAfter !== themeBefore && fgAfter !== fgBefore && fgAfter.length > 0, fgBefore + ' -> ' + fgAfter)
+    check(
+      '主题写入本地存储',
+      localStorage.getItem('workstation.theme') === themeAfter,
+      String(localStorage.getItem('workstation.theme'))
+    )
+    check('主题切换有提示', one('.w1-toast')?.textContent?.includes('模式'), one('.w1-toast')?.textContent ?? '')
+    one('.w1-theme')?.click()
+    await sleep(350)
+    check('主题可切回', document.documentElement.dataset.theme === themeBefore, document.documentElement.dataset.theme)
+    one('.w1-theme')?.blur()
+
     const undone = one('.w1-task:not(.done)')
     const undoneTitle = undone?.querySelector('.w1-ttext')?.textContent ?? ''
     undone?.click()

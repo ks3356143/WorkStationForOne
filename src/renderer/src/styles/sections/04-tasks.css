@@ -23,14 +23,14 @@
 }
 
 .w1-filter:hover {
-  color: #f2f0ff;
-  border-color: rgba(167, 139, 250, 0.3);
+  color: var(--fg-strong);
+  border-color: rgb(var(--ac-rgb) / 0.3);
 }
 
 .w1-filter.on {
-  border-color: rgba(167, 139, 250, 0.34);
-  background: rgba(124, 92, 255, 0.16);
-  color: #f2f0ff;
+  border-color: rgb(var(--ac-rgb) / 0.34);
+  background: rgb(var(--vio-rgb) / 0.16);
+  color: var(--fg-strong);
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.06);
 }
 
@@ -55,10 +55,10 @@
   display: block;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, #7c5cff, #2de2e6);
+  background: linear-gradient(90deg, var(--vio), var(--ac2));
   transform-origin: left;
   transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
-  box-shadow: 0 0 8px rgba(124, 92, 255, 0.45);
+  box-shadow: 0 0 8px rgb(var(--vio-rgb) / 0.45);
 }
 
 .w1-tbar i::after {
@@ -109,7 +109,7 @@
   min-height: 40px;
   padding: 8px 3px 8px 0;
   border: 0;
-  border-bottom: 1px solid rgba(167, 139, 250, 0.1);
+  border-bottom: 1px solid rgb(var(--ac-rgb) / 0.1);
   background: transparent;
   color: inherit;
   text-align: left;
@@ -117,7 +117,7 @@
 }
 
 .w1-task:hover {
-  background: linear-gradient(90deg, rgba(124, 92, 255, 0.08), transparent 80%);
+  background: linear-gradient(90deg, rgb(var(--vio-rgb) / 0.08), transparent 80%);
 }
 
 .w1-task:focus-visible {
@@ -150,8 +150,8 @@
 }
 
 .w1-cb.on {
-  border-color: rgba(69, 194, 155, 0.56);
-  background: rgba(69, 194, 155, 0.14);
+  border-color: rgb(var(--ok-rgb) / 0.56);
+  background: rgb(var(--ok-rgb) / 0.14);
   color: var(--ok);
 }
 
@@ -197,15 +197,15 @@
 }
 
 .w1-tag.agent {
-  border-color: rgba(167, 139, 250, 0.32);
-  background: rgba(124, 92, 255, 0.1);
-  color: #c4b5fd;
+  border-color: rgb(var(--ac-rgb) / 0.32);
+  background: rgb(var(--vio-rgb) / 0.1);
+  color: var(--ac-fg);
 }
 
 .w1-tag.hot {
-  border-color: rgba(224, 175, 90, 0.34);
-  background: rgba(224, 175, 90, 0.065);
-  color: #d7b273;
+  border-color: rgb(var(--wn-rgb) / 0.34);
+  background: rgb(var(--wn-rgb) / 0.065);
+  color: var(--wn-fg);
 }
 
 .w1-tempty {
@@ -235,7 +235,7 @@
 
 .w1-anote b {
   font-weight: 500;
-  color: #f2f0ff;
+  color: var(--fg-strong);
 }
 
 .w1-anote-status {

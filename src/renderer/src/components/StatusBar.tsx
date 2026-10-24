@@ -1,6 +1,7 @@
 import { selectActiveSession, useWorkstation } from '../store/useWorkstation'
 import { useNow } from '../lib/useNow'
 import { formatHM } from '../lib/date'
+import { themeLabel } from '../lib/theme'
 
 interface StatusBarProps {
   notify: (text: string) => void
@@ -11,7 +12,9 @@ export function StatusBar({ notify }: StatusBarProps) {
   const session = useWorkstation(selectActiveSession)
   const permission = useWorkstation((state) => state.permission)
   const motionOn = useWorkstation((state) => state.motionOn)
+  const theme = useWorkstation((state) => state.theme)
   const toggleMotion = useWorkstation((state) => state.toggleMotion)
+  const toggleTheme = useWorkstation((state) => state.toggleTheme)
   const setActiveSession = useWorkstation((state) => state.setActiveSession)
   const now = useNow(30_000)
 
@@ -50,6 +53,20 @@ export function StatusBar({ notify }: StatusBarProps) {
       >
         <i />
         {motionOn ? '动效 开' : '动效 关'}
+      </button>
+      <button
+        className="w1-motion w1-theme"
+        type="button"
+        aria-pressed={theme === 'light'}
+        aria-label={`当前${themeLabel(theme)}模式，切换主题`}
+        onClick={() => {
+          toggleTheme()
+          notify(theme === 'dark' ? '已切换到白天模式' : '已切换到夜间模式')
+        }}
+        title="切换白天与夜间模式"
+      >
+        <i />
+        {themeLabel(theme)}
       </button>
       <span>v0.1.0</span>
       <span className="w1-st-key">^K 聚焦</span>

@@ -2,6 +2,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { app, BrowserWindow, session, shell } from 'electron'
 import { initDatabase, type DatabaseContext } from './db'
+import { registerAppHandlers, TITLE_BAR_HEIGHT, WINDOW_PALETTE } from './ipc/app'
 import { registerNoteHandlers } from './ipc/notes'
 import { registerTaskHandlers } from './ipc/tasks'
 
@@ -39,14 +40,14 @@ function createWindow(): void {
     minWidth: 1180,
     minHeight: 720,
     show: false,
-    backgroundColor: '#070812',
+    backgroundColor: WINDOW_PALETTE.dark.background,
     title: 'WorkStationForOne',
     icon: join(__dirname, '../../resources/icon.ico'),
     titleBarStyle: 'hidden',
     titleBarOverlay: {
-      color: '#070812',
-      symbolColor: '#B7C9DC',
-      height: 52
+      color: WINDOW_PALETTE.dark.background,
+      symbolColor: WINDOW_PALETTE.dark.symbol,
+      height: TITLE_BAR_HEIGHT
     },
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -93,6 +94,7 @@ if (!gotTheLock) {
     session.defaultSession.setPermissionCheckHandler(() => false)
 
     database = initDatabase()
+    registerAppHandlers()
     registerTaskHandlers(database.tasks)
     registerNoteHandlers(database.notes)
 

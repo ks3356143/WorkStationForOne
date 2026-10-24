@@ -1,5 +1,7 @@
 export type TaskTone = 'agent' | 'hot'
 
+export type Theme = 'dark' | 'light'
+
 export interface TaskRecord {
   id: string
   title: string
@@ -47,9 +49,14 @@ export interface NoteApi {
   togglePin: (id: string) => Promise<void>
 }
 
+export interface AppApi {
+  setTheme: (theme: Theme) => Promise<void>
+}
+
 export interface WsApi {
   tasks: TaskApi
   notes: NoteApi
+  app: AppApi
 }
 
 export const IPC_CHANNELS = {
@@ -61,5 +68,6 @@ export const IPC_CHANNELS = {
   notesPage: 'notes:page',
   notesSearch: 'notes:search',
   notesCreate: 'notes:create',
-  notesTogglePin: 'notes:toggle-pin'
+  notesTogglePin: 'notes:toggle-pin',
+  appSetTheme: 'app:set-theme'
 } as const

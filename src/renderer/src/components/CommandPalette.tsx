@@ -23,6 +23,7 @@ const ACTION_GLYPH: Record<PaletteCommand['action']['kind'], string> = {
   focus: '▶',
   filter: '▤',
   motion: '◐',
+  theme: '◑',
   send: '↵'
 }
 
@@ -32,12 +33,14 @@ export function CommandPalette({ onClose, notify }: CommandPaletteProps) {
   const activeSession = useWorkstation(selectActiveSession)
   const taskFilter = useWorkstation((state) => state.taskFilter)
   const motionOn = useWorkstation((state) => state.motionOn)
+  const theme = useWorkstation((state) => state.theme)
   const typing = useWorkstation((state) => state.typing)
   const setActiveSession = useWorkstation((state) => state.setActiveSession)
   const openQuickNote = useWorkstation((state) => state.openQuickNote)
   const startFocus = useWorkstation((state) => state.startFocus)
   const setFilter = useWorkstation((state) => state.setFilter)
   const toggleMotion = useWorkstation((state) => state.toggleMotion)
+  const toggleTheme = useWorkstation((state) => state.toggleTheme)
   const sendMessage = useWorkstation((state) => state.sendMessage)
 
   const [query, setQuery] = useState('')
@@ -49,6 +52,7 @@ export function CommandPalette({ onClose, notify }: CommandPaletteProps) {
     activeSessionId,
     taskFilter,
     motionOn,
+    theme,
     query,
     typing
   })
@@ -79,6 +83,10 @@ export function CommandPalette({ onClose, notify }: CommandPaletteProps) {
       case 'motion':
         toggleMotion()
         notify(motionOn ? '动效已暂停' : '动效已恢复')
+        break
+      case 'theme':
+        toggleTheme()
+        notify(theme === 'dark' ? '已切换到白天模式' : '已切换到夜间模式')
         break
       case 'send':
         if (!activeSession) break

@@ -52,10 +52,10 @@
   margin-top: auto;
   padding: 0 14px;
   border: 1px solid transparent;
-  background: linear-gradient(100deg, #a78bfa, #2de2e6);
-  color: #0b1020;
+  background: linear-gradient(100deg, var(--ac), var(--ac2));
+  color: var(--on-accent);
   font: 700 13px/1 var(--sans);
-  box-shadow: 0 10px 26px rgba(124, 92, 255, 0.24);
+  box-shadow: 0 10px 26px rgb(var(--vio-rgb) / 0.24);
   transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), filter 0.24s, box-shadow 0.24s;
 }
 
@@ -63,14 +63,14 @@
   display: inline-block;
   font: 10.5px/1 var(--mono);
   font-weight: 600;
-  color: #1e2d3a;
+  color: var(--on-accent-dim);
   transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .w1-rbtn:hover {
   transform: translateY(-1px);
   filter: brightness(1.05);
-  box-shadow: 0 14px 32px rgba(124, 92, 255, 0.34);
+  box-shadow: 0 14px 32px rgb(var(--vio-rgb) / 0.34);
 }
 
 .w1-rbtn:hover span {

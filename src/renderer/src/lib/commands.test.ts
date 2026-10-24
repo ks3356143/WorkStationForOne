@@ -26,6 +26,7 @@ const base = {
   activeSessionId: 's-c1',
   taskFilter: 'all' as const,
   motionOn: true,
+  theme: 'dark' as const,
   query: ''
 }
 
@@ -45,7 +46,7 @@ describe('buildPaletteCommands', () => {
     expect(sessionCommands[1].hint).not.toContain('当前')
   })
 
-  it('操作命令包含笔记、专注、动效与三种筛选', () => {
+  it('操作命令包含笔记、专注、动效、主题与三种筛选', () => {
     const ids = buildPaletteCommands(base).map((command) => command.id)
 
     expect(ids).toEqual(
@@ -53,11 +54,22 @@ describe('buildPaletteCommands', () => {
         'action:note',
         'action:focus',
         'action:motion',
+        'action:theme',
         'filter:all',
         'filter:todo',
         'filter:done'
       ])
     )
+  })
+
+  it('主题命令文案跟随当前模式', () => {
+    const dark = buildPaletteCommands(base).find((command) => command.id === 'action:theme')
+    const light = buildPaletteCommands({ ...base, theme: 'light' }).find(
+      (command) => command.id === 'action:theme'
+    )
+
+    expect(dark).toMatchObject({ label: '切换到白天模式', action: { kind: 'theme' } })
+    expect(light).toMatchObject({ label: '切换到夜间模式', action: { kind: 'theme' } })
   })
 
   it('动效命令文案跟随开关状态', () => {

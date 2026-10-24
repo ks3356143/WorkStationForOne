@@ -32,10 +32,39 @@ button {
   --su: #7f94ab;
   --ac: #a78bfa;
   --ac2: #2de2e6;
-  --ink: #081522;
   --ok: #45c29b;
   --wn: #e0af5a;
   --dg: #f07886;
+  --vio: #7c5cff;
+  --ctl-hover: #8f84c6;
+  --on-accent: #0b1020;
+  --on-accent-dim: #1e2d3a;
+  --fg-strong: #f2f0ff;
+  --ac-fg: #c4b5fd;
+  --ac-fg-strong: #ddd6fe;
+  --ac-fg-dim: #b9aee6;
+  --ac2-fg: #7fe9f0;
+  --wn-fg: #d7b273;
+  --wn-fg-strong: #f0cd92;
+  --ok-fg: #6fe0b8;
+  --dg-fg: #f2a1aa;
+  --panel-solid: #0d0c1e;
+  --field-solid: #0b0a1c;
+  --ring-bg: #0a0a1c;
+  --ac-rgb: 167 139 250;
+  --vio-rgb: 124 92 255;
+  --ac2-rgb: 45 226 230;
+  --wn-rgb: 224 175 90;
+  --ok-rgb: 69 194 155;
+  --dg-rgb: 240 120 134;
+  --mu-rgb: 142 166 190;
+  --bd-rgb: 46 42 74;
+  --panel-hi-rgb: 38 34 72;
+  --panel-lo-rgb: 14 20 40;
+  --panel-1-rgb: 8 7 18;
+  --field-rgb: 10 10 26;
+  --shadow-rgb: 0 0 0;
+  --scrim-rgb: 5 6 14;
   --mono: "Cascadia Code", "Cascadia Mono", Consolas, monospace;
   --sans: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", sans-serif;
   --disp: "Segoe UI Variable Display", "Segoe UI", "Microsoft YaHei UI", sans-serif;
@@ -52,8 +81,8 @@ button {
     radial-gradient(640px 520px at 98% 64%, rgba(45, 226, 230, 0.2), transparent 64%),
     radial-gradient(540px 460px at 4% 108%, rgba(255, 94, 196, 0.13), transparent 64%),
     radial-gradient(700px 560px at 34% 44%, rgba(80, 122, 164, 0.1), transparent 70%),
-    #070812;
-  color: #e8f2fd;
+    var(--bg0);
+  color: var(--fg);
   font: 15px/1.6 var(--sans);
   -webkit-font-smoothing: antialiased;
   user-select: none;
@@ -112,7 +141,7 @@ button {
 
 .w1 button:focus-visible,
 .w1 textarea:focus-visible {
-  outline: 1px solid rgba(45, 226, 230, 0.75);
+  outline: 1px solid rgb(var(--ac2-rgb) / 0.75);
   outline-offset: 2px;
 }
 
@@ -129,9 +158,9 @@ button {
   background: linear-gradient(
     180deg,
     transparent 0%,
-    rgba(45, 226, 230, 0.03) 58%,
-    rgba(45, 226, 230, 0.14) 92%,
-    rgba(45, 226, 230, 0.55) 100%
+    rgb(var(--ac2-rgb) / 0.03) 58%,
+    rgb(var(--ac2-rgb) / 0.14) 92%,
+    rgb(var(--ac2-rgb) / 0.55) 100%
   );
 }
 

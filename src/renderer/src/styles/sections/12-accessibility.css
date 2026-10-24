@@ -2,33 +2,33 @@
 
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   .w1-bar {
-    background: #070812;
+    background: var(--bg0);
     backdrop-filter: none;
   }
 
   .w1-rail {
-    background: #0a0918;
+    background: var(--panel-solid);
     backdrop-filter: none;
   }
 
   .w1-card,
   .w1-tl {
-    background: #141229;
+    background: var(--s1);
     backdrop-filter: none;
   }
 
   .w1-dock {
-    background: #0c0b1c;
+    background: var(--panel-solid);
     backdrop-filter: none;
   }
 
   .w1-compose {
-    background: #0b0a1c;
+    background: var(--field-solid);
     backdrop-filter: none;
   }
 
   .w1-perm {
-    background: rgba(224, 175, 90, 0.09);
+    background: rgb(var(--wn-rgb) / 0.09);
     backdrop-filter: none;
   }
 
@@ -36,12 +36,12 @@
   .w1-focus-box,
   .w1-palette,
   .w1-toast {
-    background: #0d0c1e;
+    background: var(--panel-solid);
     backdrop-filter: none;
   }
 
   .w1-paletteback {
-    background: rgba(4, 5, 12, 0.92);
+    background: rgb(var(--scrim-rgb) / 0.92);
     backdrop-filter: none;
   }
 }

@@ -19,6 +19,7 @@ export function createInitialData(): WorkstationData {
     permission: createSeedPermission(),
     resolution: null,
     motionOn: true,
+    theme: 'dark',
     focus: null,
     quickNoteOpen: false,
     notesViewOpen: false

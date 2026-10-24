@@ -16,13 +16,13 @@
   flex-direction: column;
   min-height: 0;
   padding: 12px 10px 9px;
-  border-right: 1px solid rgba(167, 139, 250, 0.14);
-  background: rgba(8, 7, 18, 0.54);
+  border-right: 1px solid rgb(var(--ac-rgb) / 0.14);
+  background: rgb(var(--panel-1-rgb) / 0.54);
   backdrop-filter: blur(26px) saturate(150%);
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.045);
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: rgba(167, 139, 250, 0.28) transparent;
+  scrollbar-color: rgb(var(--ac-rgb) / 0.28) transparent;
 }
 
 /* ---------- fleet overview ---------- */
@@ -30,8 +30,8 @@
 .w1-fleet {
   flex: none;
   margin: 0 0 10px;
-  border: 1px solid rgba(167, 139, 250, 0.18);
-  background: linear-gradient(150deg, rgba(124, 92, 255, 0.1), transparent 62%);
+  border: 1px solid rgb(var(--ac-rgb) / 0.18);
+  background: linear-gradient(150deg, rgb(var(--vio-rgb) / 0.1), transparent 62%);
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.05);
 }
 
@@ -53,7 +53,7 @@
 }
 
 .w1-fcell + .w1-fcell {
-  border-left: 1px solid rgba(167, 139, 250, 0.12);
+  border-left: 1px solid rgb(var(--ac-rgb) / 0.12);
 }
 
 .w1-fcell b {
@@ -77,9 +77,9 @@
   gap: 7px;
   padding: 8px 9px;
   border: 0;
-  border-top: 1px solid rgba(167, 139, 250, 0.12);
-  background: rgba(224, 175, 90, 0.08);
-  color: #d7b273;
+  border-top: 1px solid rgb(var(--ac-rgb) / 0.12);
+  background: rgb(var(--wn-rgb) / 0.08);
+  color: var(--wn-fg);
   font: 500 11px/1.3 var(--sans);
   text-align: left;
   white-space: nowrap;
@@ -92,13 +92,13 @@
   height: 5px;
   flex: none;
   background: var(--wn);
-  box-shadow: 0 0 8px rgba(224, 175, 90, 0.6);
+  box-shadow: 0 0 8px rgb(var(--wn-rgb) / 0.6);
   animation: ledPulse 1.7s ease-in-out infinite;
 }
 
 .w1-fjump:hover {
-  background: rgba(224, 175, 90, 0.15);
-  color: #f0cd92;
+  background: rgb(var(--wn-rgb) / 0.15);
+  color: var(--wn-fg-strong);
 }
 
 .w1-rhead {
@@ -129,7 +129,7 @@
 
 .w1-plus:hover {
   transform: rotate(90deg);
-  border-color: rgba(167, 139, 250, 0.45);
+  border-color: rgb(var(--ac-rgb) / 0.45);
   color: var(--fg);
 }
 
@@ -151,9 +151,9 @@
   flex: none;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(167, 139, 250, 0.28);
-  background: rgba(124, 92, 255, 0.12);
-  color: #c4b5fd;
+  border: 1px solid rgb(var(--ac-rgb) / 0.28);
+  background: rgb(var(--vio-rgb) / 0.12);
+  color: var(--ac-fg);
   font: 600 11px/1 var(--mono);
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.06);
 }
@@ -191,7 +191,7 @@
   top: 0;
   bottom: 0;
   width: 1px;
-  background: rgba(167, 139, 250, 0.16);
+  background: rgb(var(--ac-rgb) / 0.16);
 }
 
 .w1-sess::after {
@@ -203,44 +203,44 @@
   height: 6px;
   margin-top: -3px;
   background: var(--su);
-  box-shadow: 0 0 0 3px #0a0a1c;
+  box-shadow: 0 0 0 3px var(--ring-bg);
 }
 
 .w1-sess.run::after {
   background: var(--ac2);
-  box-shadow: 0 0 0 3px #0a0a1c, 0 0 10px rgba(45, 226, 230, 0.55);
+  box-shadow: 0 0 0 3px var(--ring-bg), 0 0 10px rgb(var(--ac2-rgb) / 0.55);
 }
 
 .w1-sess.wait::after {
   background: var(--wn);
-  box-shadow: 0 0 0 3px #0a0a1c;
+  box-shadow: 0 0 0 3px var(--ring-bg);
 }
 
 .w1-sess.on {
-  background: linear-gradient(90deg, rgba(124, 92, 255, 0.22), rgba(45, 226, 230, 0.055) 78%, transparent);
-  border-color: rgba(167, 139, 250, 0.32);
-  color: #f2f0ff;
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.1), 0 0 28px rgba(124, 92, 255, 0.24);
+  background: linear-gradient(90deg, rgb(var(--vio-rgb) / 0.22), rgb(var(--ac2-rgb) / 0.055) 78%, transparent);
+  border-color: rgb(var(--ac-rgb) / 0.32);
+  color: var(--fg-strong);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.1), 0 0 28px rgb(var(--vio-rgb) / 0.24);
 }
 
 .w1-sess.on::before {
   left: 8.5px;
   width: 2px;
-  background: linear-gradient(180deg, #7c5cff, #2de2e6);
-  box-shadow: 0 0 10px rgba(124, 92, 255, 0.6);
+  background: linear-gradient(180deg, var(--vio), var(--ac2));
+  box-shadow: 0 0 10px rgb(var(--vio-rgb) / 0.6);
   animation: sessBreathe 5s ease-in-out infinite;
 }
 
 .w1-sess.on::after {
   background: var(--ac2);
-  box-shadow: 0 0 0 3px rgba(22, 20, 42, 0.9), 0 0 10px rgba(45, 226, 230, 0.65);
+  box-shadow: 0 0 0 3px rgb(var(--panel-1-rgb) / 0.9), 0 0 10px rgb(var(--ac2-rgb) / 0.65);
 }
 
 .w1-sess:not(.on):hover {
   transform: translateX(2px);
-  background: rgba(124, 92, 255, 0.08);
-  border-color: rgba(167, 139, 250, 0.22);
-  color: #f2f0ff;
+  background: rgb(var(--vio-rgb) / 0.08);
+  border-color: rgb(var(--ac-rgb) / 0.22);
+  color: var(--fg-strong);
 }
 
 .w1-sess.on:hover {
@@ -264,7 +264,7 @@
 }
 
 .w1-sess.wait .w1-sm {
-  color: #c9a568;
+  color: var(--wn-fg);
 }
 
 .w1-spacer {
@@ -295,8 +295,8 @@
 
 .w1-lrow:hover {
   transform: translateX(2px);
-  background: rgba(124, 92, 255, 0.08);
-  color: #f2f0ff;
+  background: rgb(var(--vio-rgb) / 0.08);
+  color: var(--fg-strong);
 }
 
 .w1-lmeta {

@@ -214,6 +214,16 @@ describe('周边状态', () => {
     expect(useWorkstation.getState().motionOn).toBe(false)
   })
 
+  it('切换白天与夜间主题', () => {
+    expect(useWorkstation.getState().theme).toBe('dark')
+
+    useWorkstation.getState().toggleTheme()
+    expect(useWorkstation.getState().theme).toBe('light')
+
+    useWorkstation.getState().toggleTheme()
+    expect(useWorkstation.getState().theme).toBe('dark')
+  })
+
   it('新增笔记并置顶', () => {
     const before = useWorkstation.getState().notes.length
     useWorkstation.getState().addNote('把权限队列做成全局的')
