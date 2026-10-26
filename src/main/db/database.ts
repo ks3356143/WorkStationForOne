@@ -73,10 +73,16 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE tasks ADD COLUMN priority INTEGER NOT NULL DEFAULT 0 CHECK (priority BETWEEN 0 AND 3);
       ALTER TABLE tasks ADD COLUMN list TEXT;
 
-      UPDATE tasks SET due_date = date('now', 'localtime') WHERE due_date IS NULL;
-
       CREATE INDEX idx_tasks_due ON tasks(done, due_date, sort_order);
       CREATE INDEX idx_tasks_list ON tasks(done, list);
+    `
+  },
+  {
+    // 软删：删除先打 deleted_at，撤销只需清空该列。
+    version: 4,
+    sql: `
+      ALTER TABLE tasks ADD COLUMN deleted_at INTEGER;
+      CREATE INDEX idx_tasks_live ON tasks(deleted_at, sort_order);
     `
   }
 ]
@@ -97,6 +103,10 @@ export function userVersion(db: DatabaseSync): number {
 export function migrate(db: DatabaseSync, migrations: Migration[] = MIGRATIONS): number {
   let current = userVersion(db)
   const pending = migrations.filter((migration) => migration.version > current).sort((a, b) => a.version - b.version)
+  if (pending.length === 0) return current
+
+  // 迁移前留一份快照：本地库没有服务端兜底，schema 变更出错就是数据事故。
+  backupBeforeMigrate(db, current)
 
   for (const migration of pending) {
     db.exec('BEGIN')
@@ -112,4 +122,18 @@ export function migrate(db: DatabaseSync, migrations: Migration[] = MIGRATIONS):
   }
 
   return current
+}
+
+function backupBeforeMigrate(db: DatabaseSync, version: number): void {
+  try {
+    const row = db.prepare('PRAGMA database_list').all() as { name: string; file: string }[]
+    const main = row.find((entry) => entry.name === 'main')
+    if (!main?.file) return
+    // 保留最近 3 份，避免备份无限增长。
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+    db.exec(`VACUUM INTO '${main.file.replace(/'/g, "''")}.v${version}-${stamp}.bak'`)
+  } catch (error) {
+    // 备份失败不应阻断迁移，但要在日志里留痕。
+    console.error('[db] 迁移前备份失败', error)
+  }
 }

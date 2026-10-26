@@ -14,6 +14,7 @@ export function createInitialData(): WorkstationData {
     taskScope: 'today',
     taskComposerRequest: 0,
     lastAddedTaskId: null,
+    lastRemovedTask: null,
     habits: createSeedHabits(),
     notes,
     noteTotal: notes.length,

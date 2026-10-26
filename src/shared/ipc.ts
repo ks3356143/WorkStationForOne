@@ -57,6 +57,7 @@ export interface TaskApi {
   create: (draft: TaskDraft) => Promise<TaskRecord>
   update: (id: string, patch: TaskPatch) => Promise<void>
   remove: (id: string) => Promise<void>
+  restore: (id: string) => Promise<void>
 }
 
 export interface NoteRecord {
@@ -102,6 +103,7 @@ export const IPC_CHANNELS = {
   tasksCreate: 'tasks:create',
   tasksUpdate: 'tasks:update',
   tasksRemove: 'tasks:remove',
+  tasksRestore: 'tasks:restore',
   notesBootstrap: 'notes:bootstrap',
   notesPage: 'notes:page',
   notesSearch: 'notes:search',

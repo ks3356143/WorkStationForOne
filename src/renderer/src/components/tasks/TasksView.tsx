@@ -49,7 +49,7 @@ function dueDestination(key: string | undefined, today: string): string {
 }
 
 interface TasksViewProps {
-  notify: (text: string) => void
+  notify: (text: string, action?: { label: string; run: () => void }, duration?: number) => void
 }
 
 let lastHandledComposeRequest = 0
@@ -66,6 +66,7 @@ export function TasksView({ notify }: TasksViewProps) {
   const addTask = useWorkstation((state) => state.addTask)
   const updateTask = useWorkstation((state) => state.updateTask)
   const removeTask = useWorkstation((state) => state.removeTask)
+  const undoRemoveTask = useWorkstation((state) => state.undoRemoveTask)
 
   const [query, setQuery] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -268,6 +269,7 @@ export function TasksView({ notify }: TasksViewProps) {
                   onDelete={() => {
                     removeTask(task.id)
                     setExpandedId(null)
+                    notify(`已删除「${task.title}」`, { label: '撤销', run: undoRemoveTask }, 6000)
                     requestAnimationFrame(() =>
                       document.querySelector<HTMLInputElement>('.w1-todosearch input')?.focus()
                     )

@@ -35,6 +35,7 @@ interface TaskPersistence {
   create: (draft: TaskDraft) => Promise<Task>
   update: (id: string, patch: TaskPatch) => Promise<void>
   remove: (id: string) => Promise<void>
+  restore: (id: string) => Promise<void>
 }
 
 interface NotePersistence {
@@ -66,6 +67,8 @@ interface WorkstationActions {
   addTask: (draft: TaskDraft) => void
   updateTask: (taskId: string, patch: TaskPatch) => void
   removeTask: (taskId: string) => void
+  undoRemoveTask: () => void
+  clearRemovedTask: () => void
   composeTask: () => void
   clearLastAddedTask: () => void
   toggleHabitToday: (habitId: string) => void
@@ -190,12 +193,32 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
   },
 
   removeTask: (taskId) => {
-    set((state) => ({
-      tasks: state.tasks.filter((task) => task.id !== taskId),
-      lastAddedTaskId: state.lastAddedTaskId === taskId ? null : state.lastAddedTaskId
+    // 记住被删任务及其位置，撤销时原位放回。
+    const state = get()
+    const index = state.tasks.findIndex((task) => task.id === taskId)
+    const task = index >= 0 ? state.tasks[index] : undefined
+    set((current) => ({
+      tasks: current.tasks.filter((item) => item.id !== taskId),
+      lastAddedTaskId: current.lastAddedTaskId === taskId ? null : current.lastAddedTaskId,
+      lastRemovedTask: task ? { task, index } : null
     }))
     persistQuietly(() => persistence?.remove(taskId) ?? Promise.resolve())
   },
+
+  undoRemoveTask: () => {
+    const removed = get().lastRemovedTask
+    if (!removed) return
+    const { task, index } = removed
+    set((state) => {
+      if (state.tasks.some((item) => item.id === task.id)) return { lastRemovedTask: null }
+      const tasks = [...state.tasks]
+      tasks.splice(Math.min(Math.max(index, 0), tasks.length), 0, task)
+      return { tasks, lastRemovedTask: null }
+    })
+    persistQuietly(() => persistence?.restore(task.id) ?? Promise.resolve())
+  },
+
+  clearRemovedTask: () => set({ lastRemovedTask: null }),
 
   toggleHabitToday: (habitId) =>
     set((state) => {

@@ -179,4 +179,8 @@ export function registerTaskHandlers(repository: TaskRepository): void {
   ipcMain.handle(IPC.tasksRemove, (_event, id: unknown) => {
     repository.remove(assertTaskId(id))
   })
+
+  ipcMain.handle(IPC.tasksRestore, (_event, id: unknown) => {
+    repository.restore(assertTaskId(id))
+  })
 }

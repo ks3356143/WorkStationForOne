@@ -20,9 +20,10 @@ const COLUMNS = `id, title, time_label, tag, tone, done, notes, due_date, priori
 
 const LIST_SQL = `SELECT ${COLUMNS}
   FROM tasks
+  WHERE deleted_at IS NULL
   ORDER BY sort_order ASC, created_at ASC`
 
-const FIND_SQL = `SELECT ${COLUMNS} FROM tasks WHERE id = ?`
+const FIND_SQL = `SELECT ${COLUMNS} FROM tasks WHERE id = ? AND deleted_at IS NULL`
 
 const INSERT_SQL = `INSERT INTO tasks
   (id, title, time_label, tag, tone, done, notes, due_date, priority, list, completed_at, sort_order, created_at, updated_at)
@@ -32,7 +33,9 @@ const SET_DONE_SQL = 'UPDATE tasks SET done = ?, completed_at = ?, updated_at = 
 const APPLY_SCHEDULE_SQL = 'UPDATE tasks SET time_label = ?, tag = ?, updated_at = ? WHERE id = ?'
 const APPLY_SCHEDULE_DUE_SQL = 'UPDATE tasks SET time_label = ?, tag = ?, due_date = ?, updated_at = ? WHERE id = ?'
 const NEXT_SORT_SQL = 'SELECT COALESCE(MIN(sort_order), 0) - 1 AS n FROM tasks'
-const DELETE_SQL = 'DELETE FROM tasks WHERE id = ?'
+const SOFT_DELETE_SQL = 'UPDATE tasks SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
+const RESTORE_SQL = 'UPDATE tasks SET deleted_at = NULL, updated_at = ? WHERE id = ?'
+const PURGE_SQL = 'DELETE FROM tasks WHERE deleted_at IS NOT NULL AND deleted_at < ?'
 
 const PATCH_COLUMNS: Record<keyof TaskPatch, string> = {
   title: 'title',
@@ -168,7 +171,18 @@ export class TaskRepository {
   }
 
   remove(id: string): void {
-    this.sql(DELETE_SQL).run(id)
+    const now = Date.now()
+    this.sql(SOFT_DELETE_SQL).run(now, now, id)
+  }
+
+  restore(id: string): void {
+    this.sql(RESTORE_SQL).run(Date.now(), id)
+  }
+
+  /** 清理过了保留期的已删任务，返回清理条数。 */
+  purgeDeleted(olderThan: number): number {
+    const result = this.sql(PURGE_SQL).run(olderThan)
+    return Number(result.changes ?? 0)
   }
 
   setDone(id: string, done: boolean): void {

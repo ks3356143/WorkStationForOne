@@ -154,7 +154,8 @@ describe('持久化', () => {
       applySchedule: vi.fn().mockResolvedValue(undefined),
       create: vi.fn(),
       update: vi.fn(),
-      remove: vi.fn()
+      remove: vi.fn(),
+      restore: vi.fn()
     })
 
     useWorkstation.getState().toggleTask('t2')
@@ -169,7 +170,8 @@ describe('持久化', () => {
       applySchedule,
       create: vi.fn(),
       update: vi.fn(),
-      remove: vi.fn()
+      remove: vi.fn(),
+      restore: vi.fn()
     })
 
     useWorkstation.getState().resolvePermission('allow')
@@ -194,7 +196,8 @@ describe('持久化', () => {
       applySchedule,
       create: vi.fn(),
       update: vi.fn(),
-      remove: vi.fn()
+      remove: vi.fn(),
+      restore: vi.fn()
     })
 
     useWorkstation.getState().resolvePermission('deny')
@@ -209,7 +212,8 @@ describe('持久化', () => {
       applySchedule: vi.fn().mockResolvedValue(undefined),
       create: vi.fn(),
       update: vi.fn(),
-      remove: vi.fn()
+      remove: vi.fn(),
+      restore: vi.fn()
     })
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
@@ -332,5 +336,57 @@ describe('周边状态', () => {
     expect(useWorkstation.getState().focus).toEqual({ label: '复习 · 12 张卡', minutes: 18 })
     useWorkstation.getState().closeFocus()
     expect(useWorkstation.getState().focus).toBeNull()
+  })
+})
+
+describe('删除与撤销', () => {
+  it('删除后记住被删任务与位置', () => {
+    const state = useWorkstation.getState()
+    const target = state.tasks[2]
+    state.removeTask(target.id)
+
+    const after = useWorkstation.getState()
+    expect(after.tasks.some((task) => task.id === target.id)).toBe(false)
+    expect(after.lastRemovedTask).toMatchObject({ index: 2, task: { id: target.id } })
+  })
+
+  it('撤销后原位放回并调用持久化 restore', () => {
+    const restore = vi.fn().mockResolvedValue(undefined)
+    bindTaskPersistence({
+      setDone: vi.fn().mockResolvedValue(undefined),
+      applySchedule: vi.fn().mockResolvedValue(undefined),
+      create: vi.fn(),
+      update: vi.fn(),
+      remove: vi.fn(),
+      restore
+    })
+
+    const before = useWorkstation.getState().tasks.map((task) => task.id)
+    const target = before[2]
+    useWorkstation.getState().removeTask(target)
+    useWorkstation.getState().undoRemoveTask()
+
+    const after = useWorkstation.getState()
+    expect(after.tasks.map((task) => task.id)).toEqual(before)
+    expect(after.lastRemovedTask).toBeNull()
+    expect(restore).toHaveBeenCalledWith(target)
+  })
+
+  it('没有可撤销任务时撤销是空操作', () => {
+    const restore = vi.fn().mockResolvedValue(undefined)
+    bindTaskPersistence({
+      setDone: vi.fn().mockResolvedValue(undefined),
+      applySchedule: vi.fn().mockResolvedValue(undefined),
+      create: vi.fn(),
+      update: vi.fn(),
+      remove: vi.fn(),
+      restore
+    })
+
+    const before = useWorkstation.getState().tasks.map((task) => task.id)
+    useWorkstation.getState().undoRemoveTask()
+
+    expect(useWorkstation.getState().tasks.map((task) => task.id)).toEqual(before)
+    expect(restore).not.toHaveBeenCalled()
   })
 })

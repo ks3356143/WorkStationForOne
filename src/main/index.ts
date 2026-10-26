@@ -94,6 +94,8 @@ if (!gotTheLock) {
     session.defaultSession.setPermissionCheckHandler(() => false)
 
     database = initDatabase()
+    // 软删任务保留 30 天后清掉，避免已删行无限堆积。
+    database.tasks.purgeDeleted(Date.now() - 30 * 24 * 60 * 60 * 1000)
     registerAppHandlers()
     registerTaskHandlers(database.tasks)
     registerNoteHandlers(database.notes)

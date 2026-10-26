@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { AnimatePresence, LazyMotion, MotionConfig, domAnimation, m, useReducedMotion } from 'motion/react'
 import { AgentDock } from './components/agent/AgentDock'
 import { BootOverlay } from './components/BootOverlay'
@@ -31,7 +31,12 @@ export default function App() {
   const [booting, setBooting] = useState(true)
   const [commandOpen, setCommandOpen] = useState(false)
   const [paletteSeq, setPaletteSeq] = useState(0)
-  const [notice, setNotice] = useState<{ id: number; text: string } | null>(null)
+  const [notice, setNotice] = useState<{
+    id: number
+    text: string
+    action?: { label: string; run: () => void }
+    duration: number
+  } | null>(null)
   const noticeTimer = useRef<number | null>(null)
   const noticeSeq = useRef(0)
   const paletteTriggerRef = useRef<HTMLElement | null>(null)
@@ -39,11 +44,11 @@ export default function App() {
 
   useDemoReply()
 
-  const notify = useCallback((text: string) => {
+  const notify = useCallback((text: string, action?: { label: string; run: () => void }, duration = 2400) => {
     noticeSeq.current += 1
-    setNotice({ id: noticeSeq.current, text })
+    setNotice({ id: noticeSeq.current, text, action, duration })
     if (noticeTimer.current) window.clearTimeout(noticeTimer.current)
-    noticeTimer.current = window.setTimeout(() => setNotice(null), 2400)
+    noticeTimer.current = window.setTimeout(() => setNotice(null), duration)
   }, [])
 
   useEffect(() => {
@@ -175,7 +180,25 @@ export default function App() {
               >
                 <i />
                 {notice.text}
-                <span className="w1-toastbar" key={notice.id} aria-hidden="true" />
+                {notice.action ? (
+                  <button
+                    className="w1-toastact"
+                    type="button"
+                    onClick={() => {
+                      notice.action?.run()
+                      setNotice(null)
+                      if (noticeTimer.current) window.clearTimeout(noticeTimer.current)
+                    }}
+                  >
+                    {notice.action.label}
+                  </button>
+                ) : null}
+                <span
+                  className="w1-toastbar"
+                  key={notice.id}
+                  style={{ '--toast-life': `${notice.duration}ms` } as CSSProperties}
+                  aria-hidden="true"
+                />
               </m.div>
             ) : null}
           </AnimatePresence>

@@ -99,7 +99,7 @@ export function QuickAdd({ scope, today, focusSignal, onAdd }: QuickAddProps) {
             )}
           </>
         ) : (
-          <span>识别 今天 / 明天 / 周X、15:00、!高 / !中 / !低、#清单</span>
+          <span>识别 今天 / 明天 / 周五 / 3天后 / 10月30日、15:00 / 下午三点、!高 / !中 / !低、#清单</span>
         )}
       </div>
     </div>

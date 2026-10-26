@@ -12,6 +12,7 @@ function deps(overrides: Partial<HydrateDeps> = {}): HydrateDeps {
     create: vi.fn().mockResolvedValue({ id: 'saved', title: '任务', time: '—', done: false }),
     update: vi.fn().mockResolvedValue(undefined),
     remove: vi.fn().mockResolvedValue(undefined),
+    restore: vi.fn().mockResolvedValue(undefined),
     ...overrides
   }
 }

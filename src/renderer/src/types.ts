@@ -77,6 +77,7 @@ export interface WorkstationData {
   taskScope: TaskScope
   taskComposerRequest: number
   lastAddedTaskId: string | null
+  lastRemovedTask: { task: Task; index: number } | null
   habits: Habit[]
   notes: Note[]
   noteTotal: number

@@ -769,6 +769,24 @@
   box-shadow: 0 0 8px rgb(var(--prism-1-rgb) / 0.6);
 }
 
+.w1-toastact {
+  flex: none;
+  margin-left: 4px;
+  padding: 3px 8px;
+  border: 1px solid rgb(var(--ac2-rgb) / 0.4);
+  background: rgb(var(--ac2-rgb) / 0.1);
+  color: var(--ac2);
+  font: 600 12px/1 var(--mono);
+  white-space: nowrap;
+  transition: border-color var(--dur-ui), background-color var(--dur-ui), color var(--dur-ui);
+}
+
+.w1-toastact:hover {
+  border-color: rgb(var(--ac2-rgb) / 0.7);
+  background: rgb(var(--ac2-rgb) / 0.18);
+  color: var(--fg);
+}
+
 .w1-toastbar {
   position: absolute;
   left: 0;
@@ -778,7 +796,8 @@
   pointer-events: none;
   background: linear-gradient(90deg, var(--ac2), rgb(var(--ac-rgb) / 0.55));
   transform-origin: left;
-  animation: toastLife 2.4s linear forwards;
+  /* 由组件按实际停留时长写入 --toast-life，撤销提示比普通提示停留更久 */
+  animation: toastLife var(--toast-life, 2.4s) linear forwards;
 }
 
 @keyframes toastLife {

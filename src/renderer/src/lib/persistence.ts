@@ -15,6 +15,7 @@ export interface HydrateDeps {
   create: (draft: TaskDraft) => Promise<TaskRecord>
   update: (id: string, patch: TaskPatch) => Promise<void>
   remove: (id: string) => Promise<void>
+  restore: (id: string) => Promise<void>
 }
 
 export async function hydrateTasks(deps: HydrateDeps | undefined = bridgeTasks()): Promise<void> {
@@ -25,7 +26,8 @@ export async function hydrateTasks(deps: HydrateDeps | undefined = bridgeTasks()
     applySchedule: deps.applySchedule,
     create: deps.create,
     update: deps.update,
-    remove: deps.remove
+    remove: deps.remove,
+    restore: deps.restore
   })
 
   try {

@@ -1,8 +1,7 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { dateKey } from '../../shared/date-key'
 import { MIGRATIONS, migrate, openDatabase, userVersion } from './database'
 import { TaskRepository } from './tasks'
 import type { TaskRecord } from '../../shared/ipc'
@@ -237,7 +236,7 @@ describe('TaskRepository · TODO 字段', () => {
 })
 
 describe('migrate v3', () => {
-  it('旧任务回填今天并带默认字段', () => {
+  it('旧任务不伪造截止日期，只带默认字段', () => {
     const db = tempDb()
     migrate(db, MIGRATIONS.slice(0, 2))
     db.prepare('INSERT INTO tasks (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)').run(
@@ -251,8 +250,136 @@ describe('migrate v3', () => {
 
     const row = db
       .prepare('SELECT due_date, priority, notes, list FROM tasks WHERE id = ?')
-      .get('legacy') as { due_date: string; priority: number; notes: string; list: string | null }
-    expect(row).toEqual({ due_date: dateKey(), priority: 0, notes: '', list: null })
+      .get('legacy') as { due_date: string | null; priority: number; notes: string; list: string | null }
+    // 旧任务从未设定截止日期；迁移不能替用户编造一个「今天」。
+    expect(row).toEqual({ due_date: null, priority: 0, notes: '', list: null })
+    db.close()
+  })
+})
+
+describe('软删除', () => {
+  it('删除后不再出现在 list 与 find 中，但数据仍在表里', () => {
+    const db = tempDb()
+    migrate(db)
+    const repo = new TaskRepository(db)
+    repo.bootstrap(seed)
+
+    repo.remove('t2')
+
+    expect(repo.list().map((task) => task.id)).toEqual(['t1', 't3'])
+    expect(repo.find('t2')).toBeUndefined()
+    const row = db.prepare('SELECT deleted_at FROM tasks WHERE id = ?').get('t2') as { deleted_at: number | null }
+    expect(row.deleted_at).toBeTypeOf('number')
+    db.close()
+  })
+
+  it('撤销后任务回到列表并保留原字段', () => {
+    const db = tempDb()
+    migrate(db)
+    const repo = new TaskRepository(db)
+    repo.bootstrap(seed)
+
+    repo.remove('t2')
+    repo.restore('t2')
+
+    const restored = repo.find('t2')
+    expect(restored).toMatchObject({ id: 't2', title: '重构 auth', tag: 'Claude', tone: 'agent' })
+    expect(repo.list().map((task) => task.id)).toEqual(['t1', 't2', 't3'])
+    db.close()
+  })
+
+  it('重复删除是幂等的，不会覆盖首次删除时间', () => {
+    const db = tempDb()
+    migrate(db)
+    const repo = new TaskRepository(db)
+    repo.bootstrap(seed)
+
+    repo.remove('t1')
+    const first = (db.prepare('SELECT deleted_at FROM tasks WHERE id = ?').get('t1') as { deleted_at: number }).deleted_at
+    repo.remove('t1')
+    const second = (db.prepare('SELECT deleted_at FROM tasks WHERE id = ?').get('t1') as { deleted_at: number }).deleted_at
+    expect(second).toBe(first)
+    db.close()
+  })
+
+  it('只清掉超过保留期的已删任务，不碰存活任务', () => {
+    const db = tempDb()
+    migrate(db)
+    const repo = new TaskRepository(db)
+    repo.bootstrap(seed)
+
+    repo.remove('t1')
+    repo.remove('t2')
+
+    const purged = repo.purgeDeleted(Date.now() + 1000)
+    expect(purged).toBe(2)
+    expect(repo.list().map((task) => task.id)).toEqual(['t3'])
+    const alive = (db.prepare('SELECT COUNT(*) AS n FROM tasks').get() as { n: number }).n
+    expect(alive).toBe(1)
+
+    repo.restore('t1')
+    expect(repo.find('t1')).toBeUndefined()
+    db.close()
+  })
+
+  it('未到保留期的已删任务不会被清理', () => {
+    const db = tempDb()
+    migrate(db)
+    const repo = new TaskRepository(db)
+    repo.bootstrap(seed)
+
+    repo.remove('t1')
+    expect(repo.purgeDeleted(Date.now() - 30 * 24 * 60 * 60 * 1000)).toBe(0)
+    repo.restore('t1')
+    expect(repo.find('t1')).toBeTruthy()
+    db.close()
+  })
+})
+
+describe('migrate v4', () => {
+  it('新增 deleted_at 列且默认不删除任何任务', () => {
+    const db = tempDb()
+    migrate(db, MIGRATIONS.slice(0, 3))
+    db.prepare('INSERT INTO tasks (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)').run('legacy', '旧任务', 1, 1)
+
+    migrate(db)
+
+    expect(userVersion(db)).toBe(4)
+    const row = db.prepare('SELECT deleted_at FROM tasks WHERE id = ?').get('legacy') as { deleted_at: number | null }
+    expect(row.deleted_at).toBeNull()
+    const repo = new TaskRepository(db)
+    expect(repo.list().map((task) => task.id)).toEqual(['legacy'])
+    db.close()
+  })
+})
+
+describe('迁移前备份', () => {
+  it('迁移前在库旁写出一份快照，且快照可独立打开', () => {
+    const dir = tempDir()
+    const file = join(dir, 'workstation.db')
+    const db = openDatabase(file)
+    migrate(db, MIGRATIONS.slice(0, 2))
+    db.prepare('INSERT INTO tasks (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)').run('legacy', '旧任务', 1, 1)
+
+    migrate(db)
+
+    const backups = readdirSync(dir).filter((name) => name.includes('.v2-') && name.endsWith('.bak'))
+    expect(backups.length).toBe(1)
+    const snapshot = openDatabase(join(dir, backups[0]))
+    expect(userVersion(snapshot)).toBe(2)
+    const rows = snapshot.prepare('SELECT id FROM tasks').all() as { id: string }[]
+    expect(rows.map((row) => row.id)).toEqual(['legacy'])
+    snapshot.close()
+    db.close()
+  })
+
+  it('没有待执行迁移时不产生备份', () => {
+    const dir = tempDir()
+    const db = openDatabase(join(dir, 'workstation.db'))
+    migrate(db)
+    const before = readdirSync(dir).filter((name) => name.endsWith('.bak')).length
+    migrate(db)
+    expect(readdirSync(dir).filter((name) => name.endsWith('.bak')).length).toBe(before)
     db.close()
   })
 })

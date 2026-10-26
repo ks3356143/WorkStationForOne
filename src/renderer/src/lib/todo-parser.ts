@@ -27,6 +27,59 @@ const PRIORITIES: Record<string, ParsedPriority> = {
   低: 3
 }
 
+// 数词片段：阿拉伯数字或中文数字（含「两」「零」）。
+const NUM = '(?:\\d{1,2}|[零一二两三四五六七八九十]{1,3})'
+
+// 截止语后缀：「前/之前/以前」，且「前」后不能再接字，避免吞掉「前台」「前面」。
+const DEADLINE_SUFFIX = '(之前|以前|前(?![台面往后边]))?'
+
+const CHINESE_DIGITS: Record<string, number> = {
+  零: 0,
+  一: 1,
+  二: 2,
+  两: 2,
+  三: 3,
+  四: 4,
+  五: 5,
+  六: 6,
+  七: 7,
+  八: 8,
+  九: 9
+}
+
+/** 把「三」「十五」「二十三」这类数词转成整数；无法转成 0–99 时返回 null。 */
+export function parseNumberToken(token: string): number | null {
+  if (/^\d+$/.test(token)) {
+    const value = Number(token)
+    return Number.isInteger(value) ? value : null
+  }
+  if (!/^[零一二两三四五六七八九十]+$/.test(token)) return null
+
+  const tenIndex = token.indexOf('十')
+  if (tenIndex === -1) {
+    // 纯个位：可能是「零」「三」这样的一位数。
+    if (token.length !== 1) return null
+    return CHINESE_DIGITS[token] ?? null
+  }
+  // 只处理一个「十」：十五、二十、二十三、十。
+  if (token.lastIndexOf('十') !== tenIndex) return null
+  const head = token.slice(0, tenIndex)
+  const tail = token.slice(tenIndex + 1)
+  if (head.length > 1 || tail.length > 1) return null
+  const tens = head ? CHINESE_DIGITS[head] : 1
+  const ones = tail ? CHINESE_DIGITS[tail] : 0
+  if (tens === undefined || ones === undefined) return null
+  return tens * 10 + ones
+}
+
+/**
+ * 「一点」「两点」在中文里更常是量词（有一点问题、两点意见），
+ * 只有带时段前缀、或跟在明确的时间单位后，才当作钟点。
+ */
+function isAmbiguousHour(token: string): boolean {
+  return token === '一' || token === '两' || token === '二'
+}
+
 function pad(value: number): string {
   return String(value).padStart(2, '0')
 }
@@ -59,7 +112,9 @@ export function parseTaskInput(input: string, today = dateKey()): ParsedTaskInpu
   }
 
   if (!dueDate) {
-    const chineseDate = /(\d{1,2})月(\d{1,2})日/.exec(rest)
+    // 日期后紧跟的「前/之前/以前」是截止语，需一并吃掉，否则会残留在标题里；
+    // 「前」后不能再接字，避免吞掉「前台」「前面」这类词。
+    const chineseDate = /(\d{1,2})月(\d{1,2})日(之前|以前|前(?![台面往后边]))?/.exec(rest)
     if (chineseDate) {
       let year = Number(today.slice(0, 4))
       let candidate = validKey(year, Number(chineseDate[1]), Number(chineseDate[2]))
@@ -74,7 +129,25 @@ export function parseTaskInput(input: string, today = dateKey()): ParsedTaskInpu
   }
 
   if (!dueDate) {
-    const relative = /(今天|明天|后天)/.exec(rest)
+    // 「N 天后 / N 周后」：中文数字与阿拉伯数字都接受，前面必须是独立的数词，
+    // 避免「关注天后现象」这类标题被误判。
+    const offsetDate = new RegExp(
+      `(?<![\\d零一二两三四五六七八九十])(${NUM})\\s*(天|周|星期)后${DEADLINE_SUFFIX}`
+    ).exec(rest)
+    if (offsetDate) {
+      const count = parseNumberToken(offsetDate[1])
+      if (count !== null) {
+        const days = offsetDate[2] === '天' ? count : count * 7
+        dueDate = addDaysKey(today, days)
+        rest = remove(rest, offsetDate)
+      }
+    }
+  }
+
+  if (!dueDate) {
+    // 日期后紧跟的「前/之前/以前」是截止语，需一并吃掉，否则会残留在标题里；
+    // 用「前」后不能再接字的边界，避免吞掉「前台」「前面」这类词。
+    const relative = /(今天|明天|后天)(之前|以前|前(?![台面往后边]))?/.exec(rest)
     if (relative) {
       const offset = relative[1] === '今天' ? 0 : relative[1] === '明天' ? 1 : 2
       dueDate = addDaysKey(today, offset)
@@ -83,7 +156,7 @@ export function parseTaskInput(input: string, today = dateKey()): ParsedTaskInpu
   }
 
   if (!dueDate) {
-    const weekday = /(下周|周|星期)([一二三四五六日天])/.exec(rest)
+    const weekday = /(下周|周|星期)([一二三四五六日天])(之前|以前|前(?![台面往后边]))?/.exec(rest)
     if (weekday) {
       const target = WEEKDAYS[weekday[2]]
       const index = weekdayIndex(today)
@@ -104,17 +177,31 @@ export function parseTaskInput(input: string, today = dateKey()): ParsedTaskInpu
   }
 
   if (!time) {
-    const chineseTime = /(上午|早上|中午|下午|晚上|今晚)?\s*(\d{1,2})点(半|(\d{1,2})分?)?/.exec(rest)
+    // 数字与「点」「分」之间、时段与数字之间都允许空格：中文输入时常会打空格。
+    // 分钟同样接受中文数字（九点十五分）。
+    const chineseTime = new RegExp(
+      `(凌晨|早上|上午|中午|下午|傍晚|晚上|今晚)?\\s*(${NUM})\\s*点\\s*(半|一刻|三刻|(${NUM})\\s*分?)?`
+    ).exec(rest)
     if (chineseTime) {
       const period = chineseTime[1]
-      let hour = Number(chineseTime[2])
-      const minute = chineseTime[3] === '半' ? 30 : chineseTime[4] ? Number(chineseTime[4]) : 0
-      if ((period === '下午' || period === '晚上' || period === '今晚') && hour < 12) hour += 12
-      if (period === '中午' && hour < 11) hour += 12
-      if ((period === '上午' || period === '早上') && hour === 12) hour = 0
-      if (hour < 24 && minute < 60) {
-        time = `${pad(hour)}:${pad(minute)}`
-        rest = remove(rest, chineseTime)
+      const hourToken = chineseTime[2]
+      const parsedHour = parseNumberToken(hourToken)
+      const minuteText = chineseTime[3]
+      const parsedMinute = chineseTime[4] ? parseNumberToken(chineseTime[4]) : 0
+      const minute = minuteText === '半' ? 30 : minuteText === '一刻' ? 15 : minuteText === '三刻' ? 45 : parsedMinute
+      // 无时段前缀时，「一点」「两点」多半是量词（有一点问题、两点意见），不当时钟。
+      const ambiguous = !period && isAmbiguousHour(hourToken)
+      if (parsedHour !== null && minute !== null && !ambiguous) {
+        let hour = parsedHour
+        // 「晚上/今晚的 12 点」口语指零点；中午与下午的 12 点仍是中午。
+        if ((period === '晚上' || period === '今晚') && hour === 12) hour = 0
+        else if ((period === '下午' || period === '晚上' || period === '今晚' || period === '傍晚') && hour < 12) hour += 12
+        if (period === '中午' && hour < 11) hour += 12
+        if ((period === '上午' || period === '早上') && hour === 12) hour = 0
+        if (hour < 24 && minute < 60) {
+          time = `${pad(hour)}:${pad(minute)}`
+          rest = remove(rest, chineseTime)
+        }
       }
     }
   }
