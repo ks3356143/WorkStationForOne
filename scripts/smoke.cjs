@@ -1,5 +1,11 @@
 const { app, BrowserWindow } = require('electron')
 const { join } = require('node:path')
+const { mkdtempSync, rmSync } = require('node:fs')
+const { tmpdir } = require('node:os')
+
+// 冒烟用例会勾选与删除任务；指向临时库，避免改写真实用户数据。
+const dataDir = mkdtempSync(join(tmpdir(), 'ws-smoke-'))
+process.env.WS_DATA_DIR = dataDir
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -597,7 +603,17 @@ async function run() {
   app.quit()
 }
 
+function cleanup() {
+  try {
+    rmSync(dataDir, { recursive: true, force: true })
+  } catch {
+    // 临时目录清理失败不影响冒烟结论。
+  }
+}
+
 app.whenReady().then(run).catch((error) => {
   console.error(error)
   app.exit(1)
 })
+
+app.on('will-quit', cleanup)

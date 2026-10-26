@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { AnimatePresence, m } from 'motion/react'
 import { AGENT_META, agentCommandPreview } from '../../lib/agent'
+import { DURATION, EASE_OUT } from '../../lib/motion'
 import { selectActiveSession, selectActiveThread, useWorkstation } from '../../store/useWorkstation'
 import type { AgentId, Task } from '../../types'
 import { Composer } from './Composer'
@@ -47,7 +48,7 @@ export function AgentDock() {
     threadMeta.current = { sessionId: activeSession.id, length: thread.length, initialized: true }
   }, [activeSession.id, thread.length])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const node = threadRef.current
     if (node) node.scrollTop = node.scrollHeight
   }, [thread.length, typingHere, permission, activeSession.id])
@@ -73,51 +74,59 @@ export function AgentDock() {
       </div>
 
       <div className="w1-thread" ref={threadRef}>
-        <div className="w1-tdiv">// {activeSession.threadDate} · {activeSession.title}</div>
-        <div className="w1-ctx">
-          <span>上下文</span>
-          <i>任务 {taskCount}</i>
-          <i>笔记 {noteCount}</i>
-          <i>习惯 {habitCount}</i>
-          <b>只读</b>
-        </div>
-
-        {thread.map((message) => (
-          <MessageRow key={message.id} message={message} agent={agent} animate={message.id === animateId} />
-        ))}
-
-        {typingHere ? (
-          <div className="w1-typing" aria-label={`${meta.name} 正在处理`}>
-            <span className="w1-av">{meta.badge}</span>
-            <span className="w1-typing-dots">
-              <i />
-              <i />
-              <i />
-            </span>
-            <span>正在读取上下文</span>
+        <m.div
+          key={activeSession.id}
+          className="w1-threadpad"
+          initial={{ opacity: 0, transform: 'translateY(6px)' }}
+          animate={{ opacity: 1, transform: 'translateY(0px)' }}
+          transition={{ duration: DURATION.view, ease: EASE_OUT }}
+        >
+          <div className="w1-tdiv">// {activeSession.threadDate} · {activeSession.title}</div>
+          <div className="w1-ctx">
+            <span>上下文</span>
+            <i>任务 {taskCount}</i>
+            <i>笔记 {noteCount}</i>
+            <i>习惯 {habitCount}</i>
+            <b>只读</b>
           </div>
-        ) : null}
 
-        <AnimatePresence initial={false}>
-          {permission && permission.sessionId === activeSession.id ? (
-            <PermissionCard
-              key={permission.id}
-              permission={permission}
-              tasks={permissionTasks}
-              onResolve={resolvePermission}
-            />
+          {thread.map((message) => (
+            <MessageRow key={message.id} message={message} agent={agent} animate={message.id === animateId} />
+          ))}
+
+          {typingHere ? (
+            <div className="w1-typing" aria-label={`${meta.name} 正在处理`}>
+              <span className="w1-av">{meta.badge}</span>
+              <span className="w1-typing-dots">
+                <i />
+                <i />
+                <i />
+              </span>
+              <span>正在读取上下文</span>
+            </div>
           ) : null}
-        </AnimatePresence>
 
-        {agent === 'claude' && resolution ? (
-          <m.div
-            className={`w1-resolved ${resolution === 'allowed' ? 'ok' : 'deny'}`}
-            initial={{ opacity: 0, transform: 'translateY(6px)' }}
-            animate={{ opacity: 1, transform: 'translateY(0px)' }}
-          >
-            // {resolution === 'allowed' ? '已允许 · 3 项任务已顺延' : '已拒绝 · 任务保持原样'}
-          </m.div>
-        ) : null}
+          <AnimatePresence initial={false}>
+            {permission && permission.sessionId === activeSession.id ? (
+              <PermissionCard
+                key={permission.id}
+                permission={permission}
+                tasks={permissionTasks}
+                onResolve={resolvePermission}
+              />
+            ) : null}
+          </AnimatePresence>
+
+          {agent === 'claude' && resolution ? (
+            <m.div
+              className={`w1-resolved ${resolution === 'allowed' ? 'ok' : 'deny'}`}
+              initial={{ opacity: 0, transform: 'translateY(6px)' }}
+              animate={{ opacity: 1, transform: 'translateY(0px)' }}
+            >
+              // {resolution === 'allowed' ? '已允许 · 3 项任务已顺延' : '已拒绝 · 任务保持原样'}
+            </m.div>
+          ) : null}
+        </m.div>
       </div>
 
       {agent === 'codex' && permission && permission.sessionId !== activeSession.id ? (

@@ -7,9 +7,10 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  background: rgb(var(--panel-1-rgb) / 0.74);
-  backdrop-filter: blur(28px) saturate(150%);
-  box-shadow: inset 1px 0 rgba(255, 255, 255, 0.045);
+  background-image: var(--glass-spec),
+    linear-gradient(170deg, rgb(var(--glass-tint-rgb) / 0.34), rgb(var(--glass-deep-rgb) / 0.44));
+  backdrop-filter: blur(28px) saturate(165%);
+  box-shadow: var(--neu-in), inset 1px 0 rgb(var(--prism-1-rgb) / 0.12);
 }
 
 .w1-dhead {
@@ -154,6 +155,14 @@
 
 .w1-thread::-webkit-scrollbar {
   display: none;
+}
+
+/* 会话正文作为整体过渡，切换会话时不再让首屏元素被滚动分两次带出 */
+.w1-threadpad {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: none;
 }
 
 .w1-tdiv {
@@ -597,18 +606,22 @@
   position: relative;
   flex: none;
   margin: 0 20px 20px;
-  border: 1px solid rgb(var(--ac-rgb) / 0.26);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.07), transparent 44%), rgb(var(--field-rgb) / 0.82);
-  backdrop-filter: blur(26px) saturate(150%);
-  box-shadow: 0 0 36px rgb(var(--vio-rgb) / 0.16), 0 16px 40px rgb(var(--shadow-rgb) / 0.36),
-    inset 0 1px rgba(255, 255, 255, 0.09);
-  transition: border-color var(--dur-base), box-shadow var(--dur-base);
+  border: 1px solid transparent;
+  background-image: var(--glass-spec), var(--glass-body);
+  background-origin: padding-box;
+  background-clip: padding-box, padding-box;
+  border-image: var(--glass-rim) 1;
+  backdrop-filter: blur(28px) saturate(170%);
+  box-shadow: var(--neu-in), 0 18px 42px rgb(var(--shadow-rgb) / 0.42),
+    0 0 38px rgb(var(--prism-1-rgb) / 0.1);
+  transition: box-shadow var(--dur-base), background-color var(--dur-base);
 }
 
 .w1-compose:focus-within {
-  border-color: rgb(var(--ac2-rgb) / 0.4);
-  box-shadow: 0 0 42px rgb(var(--vio-rgb) / 0.2), 0 16px 40px rgb(var(--shadow-rgb) / 0.36),
-    inset 0 1px rgba(255, 255, 255, 0.09);
+  border-image: var(--glass-rim-hot) 1;
+  background-image: var(--glass-spec), var(--glass-body);
+  box-shadow: var(--neu-in), 0 18px 44px rgb(var(--shadow-rgb) / 0.44),
+    0 0 46px rgb(var(--prism-1-rgb) / 0.2);
 }
 
 .w1-compose::before {
@@ -620,7 +633,7 @@
   height: 2px;
   z-index: 2;
   pointer-events: none;
-  background: linear-gradient(90deg, var(--vio), var(--ac2), transparent);
+  background: linear-gradient(90deg, rgb(var(--prism-2-rgb)), rgb(var(--prism-1-rgb)), transparent);
 }
 
 .w1-perms {
@@ -669,6 +682,9 @@
 }
 
 .w1-iprompt {
+  height: 44px;
+  display: flex;
+  align-items: center;
   font: 600 15px/1.6 var(--mono);
   color: var(--ac2);
   margin-right: 6px;

@@ -2,7 +2,15 @@ import { create } from 'zustand'
 import type { TaskDraft, TaskPatch } from '../../../shared/ipc'
 import { createInitialData } from '../data/mock'
 import { getTodayIndex } from '../lib/date'
-import { browserStorage, otherTheme, persistTheme, readStoredTheme } from '../lib/theme'
+import {
+  browserStorage,
+  otherSkin,
+  otherTheme,
+  persistSkin,
+  persistTheme,
+  readStoredSkin,
+  readStoredTheme
+} from '../lib/theme'
 import type {
   ChatMessage,
   FocusSession,
@@ -68,6 +76,7 @@ interface WorkstationActions {
   resolvePermission: (decision: 'allow' | 'deny') => void
   toggleMotion: () => void
   toggleTheme: () => void
+  toggleSkin: () => void
   startFocus: (label: string, minutes: number) => void
   closeFocus: () => void
   openQuickNote: () => void
@@ -94,6 +103,7 @@ function nextTaskId(): string {
 export const useWorkstation = create<WorkstationState>()((set, get) => ({
   ...createInitialData(),
   theme: readStoredTheme(browserStorage()),
+  skin: readStoredSkin(browserStorage()),
   setView: (activeView) => set({ activeView }),
 
   setFilter: (taskFilter) => set({ taskFilter }),
@@ -288,6 +298,12 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     const theme = otherTheme(get().theme)
     persistTheme(theme, browserStorage())
     set({ theme })
+  },
+
+  toggleSkin: () => {
+    const skin = otherSkin(get().skin)
+    persistSkin(skin, browserStorage())
+    set({ skin })
   },
 
   startFocus: (label, minutes) => set({ focus: { label, minutes } satisfies FocusSession }),

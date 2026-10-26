@@ -9,8 +9,11 @@
   align-items: center;
   gap: 14px;
   padding: 0 14px;
-  border-top: 1px solid rgb(var(--ac-rgb) / 0.14);
-  background: rgb(var(--panel-1-rgb) / 0.88);
+  border-top: 1px solid rgb(var(--prism-1-rgb) / 0.16);
+  background-image: var(--glass-spec),
+    linear-gradient(180deg, rgb(var(--glass-deep-rgb) / 0.72), rgb(var(--glass-deep-rgb) / 0.86));
+  backdrop-filter: blur(22px) saturate(160%);
+  box-shadow: 0 -8px 24px rgb(var(--shadow-rgb) / 0.22);
   font: 12px/1 var(--mono);
   color: var(--su);
   white-space: nowrap;
@@ -152,5 +155,15 @@
 .w1-theme[aria-pressed="false"] i {
   background: var(--ac2);
   box-shadow: 0 0 6px rgb(var(--ac2-rgb) / 0.55);
+}
+
+.w1-skin[aria-pressed="true"] i {
+  background: rgb(var(--prism-4-rgb));
+  box-shadow: 0 0 6px rgb(var(--prism-4-rgb) / 0.5);
+}
+
+.w1-skin[aria-pressed="false"] i {
+  background: rgb(var(--prism-2-rgb));
+  box-shadow: 0 0 6px rgb(var(--prism-2-rgb) / 0.55);
 }
 

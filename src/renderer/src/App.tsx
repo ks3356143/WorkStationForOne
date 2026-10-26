@@ -129,6 +129,7 @@ export default function App() {
           }`}
         >
           <div className={`w1-scan${booting ? '' : ' run'}`} aria-hidden="true" />
+          <div className="w1-ambient" aria-hidden="true" />
           <TopBar onCommand={openPalette} />
           <div className="w1-body">
             <WorkspaceNav notify={notify} />

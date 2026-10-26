@@ -12,7 +12,8 @@ export interface DatabaseContext {
 }
 
 export function initDatabase(): DatabaseContext {
-  const dir = join(app.getPath('appData'), 'WorkStationForOne', 'data')
+  // 自动化测试通过 WS_DATA_DIR 指向临时目录，避免改写用户的真实数据。
+  const dir = process.env.WS_DATA_DIR || join(app.getPath('appData'), 'WorkStationForOne', 'data')
   mkdirSync(dir, { recursive: true })
   const db = openDatabase(join(dir, 'workstation.db'))
   migrate(db)

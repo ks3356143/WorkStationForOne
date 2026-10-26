@@ -21,9 +21,11 @@
   gap: 16px;
   padding: 18px 14px 16px;
   overflow-y: auto;
-  border-right: 1px solid rgb(var(--ac-rgb) / 0.14);
-  background: rgb(var(--panel-1-rgb) / 0.36);
-  backdrop-filter: blur(18px) saturate(145%);
+  border-right: 1px solid rgb(var(--prism-1-rgb) / 0.18);
+  background-image: var(--glass-spec),
+    linear-gradient(180deg, rgb(var(--glass-tint-rgb) / 0.3), rgb(var(--glass-deep-rgb) / 0.38));
+  backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: var(--neu-in), inset -1px 0 rgb(var(--prism-2-rgb) / 0.1);
 }
 
 .w1-todorailhead {
@@ -244,17 +246,22 @@
   gap: 7px;
   margin-top: 14px;
   padding: 10px 12px;
-  border: 1px solid rgb(var(--ac-rgb) / 0.22);
-  background: linear-gradient(100deg, rgb(var(--vio-rgb) / 0.1), transparent 70%),
-    rgb(var(--panel-1-rgb) / 0.3);
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.05);
-  transition: border-color var(--dur-base), box-shadow var(--dur-base);
+  border: 1px solid transparent;
+  background-image: var(--glass-spec),
+    linear-gradient(100deg, rgb(var(--prism-2-rgb) / 0.12), transparent 70%), var(--glass-body);
+  background-origin: padding-box;
+  background-clip: padding-box, padding-box, padding-box;
+  border-image: var(--glass-rim) 1;
+  box-shadow: inset 0 -2px 2px rgb(var(--glass-deep-rgb) / 0.5), 0 10px 24px rgb(var(--shadow-rgb) / 0.22);
+  transition: box-shadow var(--dur-base);
 }
 
 .w1-todoquick:focus-within {
-  border-color: rgb(var(--ac-rgb) / 0.38);
-  box-shadow: inset 2px 0 rgb(var(--ac2-rgb) / 0.5), inset 0 1px rgba(255, 255, 255, 0.07),
-    0 10px 26px -24px rgb(var(--vio-rgb) / 0.9);
+  border-image: var(--glass-rim-hot) 1;
+  background-image: var(--glass-spec),
+    linear-gradient(100deg, rgb(var(--prism-2-rgb) / 0.16), transparent 70%), var(--glass-body);
+  box-shadow: inset 0 -2px 2px rgb(var(--glass-deep-rgb) / 0.5), 0 14px 32px rgb(var(--shadow-rgb) / 0.3),
+    0 0 26px rgb(var(--prism-1-rgb) / 0.14);
 }
 
 .w1-todoquickrow {

@@ -16,8 +16,8 @@
   --s3: #e1e8f6;
   --bd: #d3daea;
   --bd-rgb: 211 218 234;
-  --ctl: #aab5ca;
-  --ctl-hover: #8b98b3;
+  --ctl: #74819b;
+  --ctl-hover: #5f6c86;
   --fg: #111a33;
   --fs: #35415c;
   --mu: #5b6683;
@@ -56,35 +56,72 @@
   --panel-solid: #fbfcff;
   --field-solid: #f4f6fc;
   --ring-bg: #ffffff;
+  --prism-1-rgb: 10 149 170;
+  --prism-2-rgb: 107 76 245;
+  --prism-3-rgb: 120 140 170;
+  --prism-4-rgb: 176 122 12;
+  --glass-hi-rgb: 255 255 255;
+  --glass-tint-rgb: 255 255 255;
+  --glass-deep-rgb: 234 240 250;
+  --glass-tint-a: 0.86;
+  --glass-deep-a: 0.7;
+  --glass-spec-a: 0.55;
+  --glass-shadow-a: 0.14;
+  --neu-hi-rgb: 255 255 255;
+  --neu-lo-rgb: 45 56 85;
+  --neu-hi-a: 0.95;
+  --neu-lo-a: 0.14;
   color: var(--fg);
   background:
-    radial-gradient(900px 640px at 82% -10%, rgb(124 92 255 / 0.2), transparent 66%),
-    radial-gradient(720px 540px at 99% 66%, rgb(45 190 220 / 0.16), transparent 66%),
-    radial-gradient(600px 470px at 3% 110%, rgb(255 120 200 / 0.14), transparent 66%),
-    radial-gradient(760px 580px at 34% 44%, rgb(80 122 164 / 0.08), transparent 72%),
+    radial-gradient(680px 560px at 80% -8%, rgb(var(--prism-2-rgb) / 0.1), transparent 64%),
+    radial-gradient(600px 500px at 4% 92%, rgb(var(--prism-1-rgb) / 0.09), transparent 66%),
+    radial-gradient(480px 420px at 99% 84%, rgb(var(--prism-4-rgb) / 0.06), transparent 68%),
     var(--bg0);
 }
 
 :root[data-theme="light"] .w1::before {
-  background:
-    radial-gradient(46% 42% at 70% 24%, rgb(124 92 255 / 0.16), transparent 70%),
-    radial-gradient(40% 38% at 28% 76%, rgb(45 190 220 / 0.14), transparent 70%),
-    radial-gradient(32% 30% at 88% 88%, rgb(255 120 200 / 0.12), transparent 70%);
-  filter: blur(30px);
+  background-image:
+    linear-gradient(
+      104deg,
+      transparent 12%,
+      rgb(var(--prism-1-rgb) / 0.09) 30%,
+      transparent 34%,
+      transparent 52%,
+      rgb(var(--prism-2-rgb) / 0.08) 62%,
+      transparent 67%,
+      transparent 84%,
+      rgb(var(--prism-1-rgb) / 0.05) 92%,
+      transparent 97%
+    ),
+    repeating-linear-gradient(104deg, rgb(var(--prism-2-rgb) / 0.045) 0 1px, transparent 1px 168px),
+    repeating-linear-gradient(14deg, rgb(var(--prism-2-rgb) / 0.03) 0 1px, transparent 1px 168px),
+    radial-gradient(30% 26% at 84% 10%, rgb(var(--prism-1-rgb) / 0.12), transparent 72%),
+    radial-gradient(26% 24% at 14% 92%, rgb(var(--prism-2-rgb) / 0.1), transparent 74%);
 }
 
 :root[data-theme="light"] .w1::after {
   opacity: 0.022;
 }
 
-:root[data-theme="light"] .w1-bar {
-  box-shadow: inset 0 1px rgb(255 255 255 / 0.7);
-}
-
-:root[data-theme="light"] .w1-nav,
-:root[data-theme="light"] .w1-rail,
-:root[data-theme="light"] .w1-dock {
-  box-shadow: inset 0 1px rgb(255 255 255 / 0.75);
+:root[data-theme="light"] .w1-ambient {
+  mix-blend-mode: multiply;
+  opacity: 0.4;
+  background:
+    linear-gradient(
+      104deg,
+      transparent 16%,
+      rgb(var(--prism-1-rgb) / 0.07) 34%,
+      rgb(var(--prism-2-rgb) / 0.05) 41%,
+      rgb(var(--prism-1-rgb) / 0.07) 48%,
+      transparent 66%
+    ),
+    linear-gradient(
+      76deg,
+      transparent 40%,
+      rgb(var(--prism-2-rgb) / 0.05) 56%,
+      rgb(var(--prism-1-rgb) / 0.045) 62%,
+      transparent 78%
+    );
 }
 
 :root[data-theme="light"] .w1-navitem.on,
@@ -92,41 +129,15 @@
   box-shadow: inset 0 1px rgb(255 255 255 / 0.8), 0 6px 20px rgb(var(--vio-rgb) / 0.14);
 }
 
-:root[data-theme="light"] .w1-tl,
-:root[data-theme="light"] .w1-card {
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.92), 0 10px 28px rgb(var(--shadow-rgb) / 0.08),
-    0 0 22px rgb(var(--ac-rgb) / 0.04);
-}
-
-:root[data-theme="light"] .w1-card:hover {
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.95), 0 16px 38px rgb(var(--shadow-rgb) / 0.12),
-    0 0 28px rgb(var(--ac-rgb) / 0.09);
-}
-
 :root[data-theme="light"] .w1-perm {
   box-shadow: inset 0 1px rgb(255 255 255 / 0.75), 0 8px 24px rgb(var(--wn-rgb) / 0.12);
 }
 
-:root[data-theme="light"] .w1-compose {
-  box-shadow: 0 10px 28px rgb(var(--shadow-rgb) / 0.1), 0 0 24px rgb(var(--vio-rgb) / 0.08),
-    inset 0 1px rgb(255 255 255 / 0.85);
-}
-
-:root[data-theme="light"] .w1-compose:focus-within {
-  box-shadow: 0 12px 30px rgb(var(--shadow-rgb) / 0.12), 0 0 28px rgb(var(--ac2-rgb) / 0.14),
-    inset 0 1px rgb(255 255 255 / 0.85);
-}
-
-:root[data-theme="light"] .w1-modal,
-:root[data-theme="light"] .w1-palette,
-:root[data-theme="light"] .w1-focus-box,
-:root[data-theme="light"] .w1-nvbox {
-  box-shadow: inset 0 1px rgb(255 255 255 / 0.95), 0 24px 60px rgb(var(--shadow-rgb) / 0.18),
-    0 0 40px rgb(var(--vio-rgb) / 0.08);
-}
-
-:root[data-theme="light"] .w1-toast {
-  box-shadow: 0 12px 32px rgb(var(--shadow-rgb) / 0.14), 0 0 22px rgb(var(--vio-rgb) / 0.08);
+:root[data-theme="light"] .w1-cmd,
+:root[data-theme="light"] .w1-nvsearch {
+  border-color: rgb(var(--prism-2-rgb) / 0.26);
+  background: rgb(255 255 255 / 0.7);
+  box-shadow: inset 0 1px rgb(255 255 255 / 0.9), inset 0 -1px rgb(var(--neu-lo-rgb) / 0.06);
 }
 
 :root[data-theme="light"] .w1-pb.pri,
@@ -151,61 +162,61 @@
   );
 }
 
-/* ---------- day mode glass depth ---------- */
+/* ---------- day mode glass depth (light neumorphism) ---------- */
 
 :root[data-theme="light"] .w1-nav,
 :root[data-theme="light"] .w1-rail,
 :root[data-theme="light"] .w1-todorail,
 :root[data-theme="light"] .w1-dock {
-  background:
-    radial-gradient(130% 80% at 6% 0%, rgb(var(--vio-rgb) / 0.075), transparent 64%),
-    linear-gradient(180deg, rgb(255 255 255 / 0.88), rgb(247 249 254 / 0.8));
-  border-color: rgb(var(--ac-rgb) / 0.2);
-  box-shadow: inset 0 1px rgb(255 255 255 / 0.92), inset -1px 0 rgb(var(--ac-rgb) / 0.04);
+  background-image: var(--glass-spec),
+    linear-gradient(180deg, rgb(var(--glass-tint-rgb) / 0.84), rgb(var(--glass-deep-rgb) / 0.74));
+  backdrop-filter: blur(26px) saturate(150%);
+  box-shadow: var(--neu-in), 8px 0 26px rgb(var(--neu-lo-rgb) / 0.08),
+    inset -1px 0 rgb(var(--prism-2-rgb) / 0.08);
+}
+
+:root[data-theme="light"] .w1-bar,
+:root[data-theme="light"] .w1-status {
+  background-image: var(--glass-spec),
+    linear-gradient(180deg, rgb(255 255 255 / 0.9), rgb(238 243 251 / 0.86));
+  box-shadow: var(--neu-in), 0 8px 22px rgb(var(--neu-lo-rgb) / 0.07);
 }
 
 :root[data-theme="light"] .w1-main,
 :root[data-theme="light"] .w1-todos,
 :root[data-theme="light"] .w1-notesview {
   background-image:
-    linear-gradient(rgb(var(--ac-rgb) / 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(var(--ac-rgb) / 0.05) 1px, transparent 1px),
-    radial-gradient(120% 82% at 84% -18%, rgb(var(--vio-rgb) / 0.09), transparent 62%),
-    linear-gradient(180deg, rgb(var(--panel-1-rgb) / 0.02), rgb(var(--panel-1-rgb) / 0.34));
+    linear-gradient(rgb(var(--prism-2-rgb) / 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--prism-2-rgb) / 0.045) 1px, transparent 1px),
+    radial-gradient(120% 82% at 84% -18%, rgb(var(--prism-2-rgb) / 0.07), transparent 62%),
+    linear-gradient(180deg, rgb(255 255 255 / 0.1), rgb(255 255 255 / 0.34));
   background-size: 48px 48px, 48px 48px, 100% 100%, 100% 100%;
 }
 
 :root[data-theme="light"] .w1-card,
 :root[data-theme="light"] .w1-tl,
 :root[data-theme="light"] .w1-nvbox,
-:root[data-theme="light"] .w1-todoquick,
 :root[data-theme="light"] .w1-compose {
-  background:
-    radial-gradient(120% 90% at 100% 0%, rgb(var(--ac2-rgb) / 0.06), transparent 58%),
-    radial-gradient(90% 70% at 0% 0%, rgb(var(--vio-rgb) / 0.075), transparent 62%),
-    linear-gradient(155deg, rgb(255 255 255 / 0.9), rgb(245 247 253 / 0.92));
-}
-
-:root[data-theme="light"] .w1-card,
-:root[data-theme="light"] .w1-tl,
-:root[data-theme="light"] .w1-nvbox {
-  border-color: rgb(var(--ac-rgb) / 0.26);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.96), 0 12px 30px rgb(var(--shadow-rgb) / 0.09),
-    0 0 24px rgb(var(--ac-rgb) / 0.05);
+  box-shadow: var(--neu-in), -10px -10px 26px rgb(var(--neu-hi-rgb) / 0.95),
+    12px 14px 32px rgb(var(--neu-lo-rgb) / 0.12), inset 0 0 32px rgb(var(--prism-1-rgb) / 0.035);
 }
 
 :root[data-theme="light"] .w1-card:hover {
-  border-color: rgb(var(--ac-rgb) / 0.34);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.98), 0 18px 42px rgb(var(--shadow-rgb) / 0.13),
-    0 0 30px rgb(var(--ac-rgb) / 0.1);
+  box-shadow: var(--neu-in), -12px -12px 30px rgb(var(--neu-hi-rgb) / 1),
+    16px 20px 40px rgb(var(--neu-lo-rgb) / 0.16), inset 0 0 40px rgb(var(--prism-1-rgb) / 0.06);
 }
 
 :root[data-theme="light"] .w1-modal,
 :root[data-theme="light"] .w1-palette,
 :root[data-theme="light"] .w1-focus-box {
-  background:
-    radial-gradient(120% 90% at 100% 0%, rgb(var(--ac2-rgb) / 0.055), transparent 58%),
-    linear-gradient(155deg, rgb(255 255 255 / 0.94), rgb(246 248 254 / 0.96));
+  background-image: var(--glass-spec),
+    linear-gradient(155deg, rgb(255 255 255 / 0.96), rgb(244 247 253 / 0.94));
+  box-shadow: var(--neu-in), -12px -12px 30px rgb(var(--neu-hi-rgb) / 0.9),
+    18px 24px 56px rgb(var(--neu-lo-rgb) / 0.2), inset 0 0 40px rgb(var(--prism-1-rgb) / 0.04);
+}
+
+:root[data-theme="light"] .w1-toast {
+  box-shadow: 10px 14px 34px rgb(var(--neu-lo-rgb) / 0.16), inset 0 0 22px rgb(var(--prism-1-rgb) / 0.05);
 }
 
 :root[data-theme="light"] .w1-navitem.on,
@@ -222,6 +233,13 @@
   border-color: rgb(var(--ac-rgb) / 0.34);
   background: rgb(var(--vio-rgb) / 0.1);
   color: var(--ac-fg-strong);
+}
+
+:root[data-theme="light"] .w1-todoquick {
+  background-image: var(--glass-spec),
+    linear-gradient(100deg, rgb(var(--prism-2-rgb) / 0.08), transparent 70%), var(--glass-body);
+  box-shadow: inset 0 -2px 2px rgb(var(--glass-deep-rgb) / 0.5),
+    -8px -8px 22px rgb(var(--neu-hi-rgb) / 0.9), 10px 12px 28px rgb(var(--neu-lo-rgb) / 0.1);
 }
 
 :root[data-theme="light"] .w1-tlblk {
@@ -264,7 +282,11 @@
   :root[data-theme="light"] .w1-tl,
   :root[data-theme="light"] .w1-nvbox,
   :root[data-theme="light"] .w1-todoquick {
+    border-color: rgb(var(--ac-rgb) / 0.28);
     background: var(--s1);
+    background-image: none;
+    backdrop-filter: none;
+    box-shadow: 0 10px 26px rgb(var(--neu-lo-rgb) / 0.1);
   }
 
   :root[data-theme="light"] .w1-nav,
@@ -276,9 +298,22 @@
   :root[data-theme="light"] .w1-focus-box,
   :root[data-theme="light"] .w1-toast {
     background: var(--panel-solid);
+    background-image: none;
+    backdrop-filter: none;
+  }
+
+  :root[data-theme="light"] .w1-bar,
+  :root[data-theme="light"] .w1-status {
+    background: var(--bg0);
+    background-image: none;
+    backdrop-filter: none;
+    box-shadow: none;
   }
 
   :root[data-theme="light"] .w1-compose {
+    border-color: rgb(var(--ac-rgb) / 0.28);
     background: var(--field-solid);
+    background-image: none;
+    backdrop-filter: none;
   }
 }

@@ -1,4 +1,4 @@
-import type { TaskRecord, Theme } from '../../shared/ipc'
+import type { Skin, TaskRecord, Theme } from '../../shared/ipc'
 
 export type AgentId = 'claude' | 'codex'
 export type TaskFilter = 'all' | 'todo' | 'done'
@@ -90,6 +90,7 @@ export interface WorkstationData {
   resolution: Resolution | null
   motionOn: boolean
   theme: Theme
+  skin: Skin
   focus: FocusSession | null
   quickNoteOpen: boolean
 }

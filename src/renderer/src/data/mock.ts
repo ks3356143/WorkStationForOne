@@ -27,6 +27,7 @@ export function createInitialData(): WorkstationData {
     resolution: null,
     motionOn: true,
     theme: 'dark',
+    skin: 'prism',
     focus: null,
     quickNoteOpen: false
   }

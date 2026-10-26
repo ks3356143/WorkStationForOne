@@ -2,6 +2,12 @@
   color-scheme: dark;
 }
 
+@property --edge-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
 html,
 body,
 #root {
@@ -66,6 +72,43 @@ button {
   --field-rgb: 10 10 26;
   --shadow-rgb: 0 0 0;
   --scrim-rgb: 5 6 14;
+  --prism-1-rgb: 111 231 242;
+  --prism-2-rgb: 167 139 250;
+  --prism-3-rgb: 199 213 227;
+  --prism-4-rgb: 224 175 90;
+  --glass-hi-rgb: 255 255 255;
+  --edge-hi-rgb: 255 255 255;
+  --edge-lo-rgb: 124 92 255;
+  --neu-hi-rgb: 199 213 227;
+  --neu-lo-rgb: 0 0 0;
+  --glass-tint-rgb: 30 36 50;
+  --glass-deep-rgb: 6 8 14;
+  --glass-tint-a: 0.62;
+  --glass-deep-a: 0.72;
+  --glass-spec-a: 0.1;
+  --neu-hi-a: 0.05;
+  --neu-lo-a: 0.4;
+  --glass-shadow-a: 0.4;
+  --edge-angle: 0deg;
+  --glass-spec: linear-gradient(152deg, rgb(var(--glass-hi-rgb) / var(--glass-spec-a)), transparent 38%);
+  --glass-body: linear-gradient(
+    155deg,
+    rgb(var(--glass-tint-rgb) / var(--glass-tint-a)),
+    rgb(var(--glass-deep-rgb) / var(--glass-deep-a))
+  );
+  --glass-edge: rgb(var(--edge-lo-rgb) / 0.5),
+    rgb(var(--prism-1-rgb) / 0.75) 16%, rgb(var(--edge-hi-rgb) / 0.9) 32%,
+    rgb(var(--prism-2-rgb) / 0.7) 48%, rgb(var(--edge-lo-rgb) / 0.4) 62%,
+    rgb(var(--prism-4-rgb) / 0.55) 78%, rgb(var(--prism-1-rgb) / 0.6) 90%,
+    rgb(var(--edge-lo-rgb) / 0.5);
+  --glass-edge-hot: rgb(var(--prism-1-rgb) / 0.9), rgb(var(--edge-hi-rgb) / 1) 22%,
+    rgb(var(--prism-2-rgb) / 0.95) 44%, rgb(var(--prism-4-rgb) / 0.8) 66%,
+    rgb(var(--prism-1-rgb) / 0.95) 84%, rgb(var(--prism-1-rgb) / 0.9);
+  --glass-drop: 0 22px 48px rgb(var(--shadow-rgb) / var(--glass-shadow-a));
+  --neu-out: -10px -10px 26px rgb(var(--neu-hi-rgb) / var(--neu-hi-a)),
+    10px 12px 28px rgb(var(--neu-lo-rgb) / var(--neu-lo-a));
+  --neu-in: inset 0 2px 1px rgb(var(--glass-hi-rgb) / calc(var(--glass-spec-a) * 1.35)),
+    inset 0 -2px 2px rgb(var(--glass-deep-rgb) / 0.5);
   --mono: "Cascadia Code", "Cascadia Mono", Consolas, monospace;
   --sans: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", sans-serif;
   --disp: "Segoe UI Variable Display", "Segoe UI", "Microsoft YaHei UI", sans-serif;
@@ -94,10 +137,10 @@ button {
   flex-direction: column;
   overflow: hidden;
   background:
-    radial-gradient(820px 620px at 80% -8%, rgba(124, 92, 255, 0.42), transparent 64%),
-    radial-gradient(640px 520px at 98% 64%, rgba(45, 226, 230, 0.2), transparent 64%),
-    radial-gradient(540px 460px at 4% 108%, rgba(255, 94, 196, 0.13), transparent 64%),
-    radial-gradient(700px 560px at 34% 44%, rgba(80, 122, 164, 0.1), transparent 70%),
+    radial-gradient(640px 540px at 78% -6%, rgb(var(--prism-1-rgb) / 0.16), transparent 62%),
+    radial-gradient(560px 480px at 6% 88%, rgb(var(--prism-2-rgb) / 0.15), transparent 64%),
+    radial-gradient(460px 400px at 99% 82%, rgb(var(--prism-4-rgb) / 0.08), transparent 66%),
+    radial-gradient(720px 520px at 42% 46%, rgb(var(--prism-3-rgb) / 0.05), transparent 72%),
     var(--bg0);
   color: var(--fg);
   font: 15px/1.6 var(--sans);
@@ -109,28 +152,40 @@ button {
   box-sizing: border-box;
 }
 
+/* static prism light-field: no drift, only refractable structure for the glass */
 .w1::before {
   content: "";
   position: absolute;
-  inset: -18%;
+  inset: 0;
   z-index: 0;
   pointer-events: none;
-  background:
-    radial-gradient(46% 42% at 70% 24%, rgba(124, 92, 255, 0.38), transparent 70%),
-    radial-gradient(40% 38% at 28% 76%, rgba(45, 226, 230, 0.16), transparent 70%),
-    radial-gradient(32% 30% at 88% 88%, rgba(255, 94, 196, 0.12), transparent 70%);
-  filter: blur(26px);
-  will-change: transform;
-  animation: auroraDrift 52s ease-in-out infinite alternate;
-}
-
-@keyframes auroraDrift {
-  from {
-    transform: translate3d(-1.5%, -1%, 0) scale(1);
-  }
-  to {
-    transform: translate3d(2.5%, 1.5%, 0) scale(1.07);
-  }
+  background-image:
+    linear-gradient(
+      104deg,
+      transparent 12%,
+      rgb(var(--prism-1-rgb) / 0.1) 30%,
+      transparent 34%,
+      transparent 52%,
+      rgb(var(--prism-2-rgb) / 0.09) 62%,
+      transparent 67%,
+      transparent 84%,
+      rgb(var(--prism-1-rgb) / 0.06) 92%,
+      transparent 97%
+    ),
+    repeating-linear-gradient(
+      104deg,
+      rgb(var(--prism-3-rgb) / 0.05) 0 1px,
+      transparent 1px 168px
+    ),
+    repeating-linear-gradient(
+      14deg,
+      rgb(var(--prism-3-rgb) / 0.035) 0 1px,
+      transparent 1px 168px
+    ),
+    radial-gradient(30% 26% at 84% 10%, rgb(var(--prism-1-rgb) / 0.14), transparent 72%),
+    radial-gradient(26% 24% at 14% 92%, rgb(var(--prism-2-rgb) / 0.13), transparent 74%);
+  -webkit-mask-image: radial-gradient(120% 100% at 50% 42%, #000 34%, rgb(0 0 0 / 0.5) 78%, transparent 100%);
+  mask-image: radial-gradient(120% 100% at 50% 42%, #000 34%, rgb(0 0 0 / 0.5) 78%, transparent 100%);
 }
 
 .w1::after {

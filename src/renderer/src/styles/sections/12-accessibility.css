@@ -1,30 +1,70 @@
 /* ---------- accessibility fallbacks ---------- */
 
+/*
+ * 浅色覆盖用 (0,3,0) 的 background-image 规则，这里的降级必须显式列出
+ * [data-theme="light"] 组合，否则特异性不足、毛玻璃会残留。
+ */
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  .w1-bar {
+  .w1-bar,
+  :root[data-theme="light"] .w1-bar {
     background: var(--bg0);
+    background-image: none;
     backdrop-filter: none;
   }
 
   .w1-nav,
-  .w1-rail {
+  .w1-rail,
+  .w1-todorail,
+  :root[data-theme="light"] .w1-nav,
+  :root[data-theme="light"] .w1-rail,
+  :root[data-theme="light"] .w1-todorail {
     background: var(--panel-solid);
+    background-image: none;
+    backdrop-filter: none;
+  }
+
+  .w1-status,
+  :root[data-theme="light"] .w1-status {
+    background: var(--bg0);
+    background-image: none;
     backdrop-filter: none;
   }
 
   .w1-card,
-  .w1-tl {
+  .w1-tl,
+  .w1-nvbox,
+  :root[data-theme="light"] .w1-card,
+  :root[data-theme="light"] .w1-tl,
+  :root[data-theme="light"] .w1-nvbox {
+    border-color: rgb(var(--ac-rgb) / 0.28);
+    border-image: none;
     background: var(--s1);
+    background-image: none;
     backdrop-filter: none;
   }
 
-  .w1-dock {
+  .w1-dock,
+  :root[data-theme="light"] .w1-dock {
     background: var(--panel-solid);
+    background-image: none;
     backdrop-filter: none;
   }
 
-  .w1-compose {
+  .w1-todoquick,
+  :root[data-theme="light"] .w1-todoquick {
+    border-color: rgb(var(--ac-rgb) / 0.28);
+    border-image: none;
+    background: var(--s1);
+    background-image: none;
+    backdrop-filter: none;
+  }
+
+  .w1-compose,
+  :root[data-theme="light"] .w1-compose {
+    border-color: rgb(var(--ac-rgb) / 0.28);
     background: var(--field-solid);
+    background-image: none;
+    border-image: none;
     backdrop-filter: none;
   }
 
@@ -36,9 +76,21 @@
   .w1-modal,
   .w1-focus-box,
   .w1-palette,
-  .w1-nvbox,
-  .w1-toast {
+  :root[data-theme="light"] .w1-modal,
+  :root[data-theme="light"] .w1-focus-box,
+  :root[data-theme="light"] .w1-palette {
+    border-color: rgb(var(--ac-rgb) / 0.28);
     background: var(--panel-solid);
+    background-image: none;
+    border-image: none;
+    backdrop-filter: none;
+  }
+
+  .w1-toast,
+  :root[data-theme="light"] .w1-toast {
+    background: var(--panel-solid);
+    background-image: none;
+    border-image: none;
     backdrop-filter: none;
   }
 

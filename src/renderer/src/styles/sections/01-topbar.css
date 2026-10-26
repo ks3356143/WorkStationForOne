@@ -10,10 +10,11 @@
   gap: 12px;
   padding-left: 16px;
   padding-right: 148px;
-  border-bottom: 1px solid rgb(var(--ac-rgb) / 0.16);
-  background: rgb(var(--panel-1-rgb) / 0.72);
-  backdrop-filter: blur(22px) saturate(150%);
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.055);
+  border-bottom: 1px solid rgb(var(--prism-1-rgb) / 0.16);
+  background-image: var(--glass-spec),
+    linear-gradient(180deg, rgb(var(--glass-tint-rgb) / 0.56), rgb(var(--glass-deep-rgb) / 0.62));
+  backdrop-filter: blur(24px) saturate(170%);
+  box-shadow: var(--neu-in), 0 10px 30px rgb(var(--shadow-rgb) / 0.28);
   -webkit-app-region: drag;
 }
 
@@ -24,7 +25,12 @@
   right: 0;
   bottom: -1px;
   height: 1px;
-  background: linear-gradient(90deg, rgb(var(--vio-rgb) / 0.65), rgb(var(--ac2-rgb) / 0.42) 46%, transparent 76%);
+  background: linear-gradient(
+    90deg,
+    rgb(var(--prism-2-rgb) / 0.7),
+    rgb(var(--prism-1-rgb) / 0.55) 46%,
+    transparent 76%
+  );
   pointer-events: none;
 }
 

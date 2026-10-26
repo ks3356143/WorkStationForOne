@@ -1,10 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  SKIN_STORAGE_KEY,
   THEME_STORAGE_KEY,
+  normalizeSkin,
   normalizeTheme,
+  otherSkin,
   otherTheme,
+  persistSkin,
   persistTheme,
+  readStoredSkin,
   readStoredTheme,
+  skinLabel,
   themeLabel
 } from './theme'
 
@@ -57,5 +63,61 @@ describe('本地存储', () => {
         }
       })
     ).not.toThrow()
+  })
+})
+
+describe('皮肤取值', () => {
+  it('只把 classic 视为经典皮肤，其余回退到棱镜', () => {
+    expect(normalizeSkin('classic')).toBe('classic')
+    expect(normalizeSkin('prism')).toBe('prism')
+    expect(normalizeSkin('aurora')).toBe('prism')
+    expect(normalizeSkin(null)).toBe('prism')
+    expect(normalizeSkin(undefined)).toBe('prism')
+  })
+
+  it('在两套皮肤之间互转', () => {
+    expect(otherSkin('prism')).toBe('classic')
+    expect(otherSkin('classic')).toBe('prism')
+  })
+
+  it('返回中文皮肤名', () => {
+    expect(skinLabel('prism')).toBe('棱镜')
+    expect(skinLabel('classic')).toBe('经典')
+  })
+})
+
+describe('皮肤本地存储', () => {
+  it('读取已保存的皮肤', () => {
+    expect(readStoredSkin({ getItem: () => 'classic' })).toBe('classic')
+    expect(readStoredSkin({ getItem: () => 'prism' })).toBe('prism')
+  })
+
+  it('没有存储或取值失败时回退棱镜', () => {
+    expect(readStoredSkin(undefined)).toBe('prism')
+    expect(
+      readStoredSkin({
+        getItem: () => {
+          throw new Error('blocked')
+        }
+      })
+    ).toBe('prism')
+  })
+
+  it('持久化皮肤并容忍写入失败', () => {
+    const setItem = vi.fn()
+    persistSkin('classic', { setItem })
+    expect(setItem).toHaveBeenCalledWith(SKIN_STORAGE_KEY, 'classic')
+
+    expect(() =>
+      persistSkin('prism', {
+        setItem: () => {
+          throw new Error('quota')
+        }
+      })
+    ).not.toThrow()
+  })
+
+  it('皮肤与主题使用不同的存储键', () => {
+    expect(SKIN_STORAGE_KEY).not.toBe(THEME_STORAGE_KEY)
   })
 })

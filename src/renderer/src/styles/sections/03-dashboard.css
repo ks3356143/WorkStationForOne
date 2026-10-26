@@ -135,12 +135,14 @@
   flex: none;
   height: 66px;
   margin-bottom: 16px;
-  border: 1px solid rgb(var(--ac-rgb) / 0.18);
-  background: linear-gradient(150deg, rgba(255, 255, 255, 0.07), transparent 42%),
-    linear-gradient(155deg, rgb(var(--panel-hi-rgb) / 0.55), rgb(var(--panel-lo-rgb) / 0.64));
-  backdrop-filter: blur(20px) saturate(145%);
+  border: 1px solid transparent;
+  background-image: var(--glass-spec), var(--glass-body);
+  background-origin: padding-box;
+  background-clip: padding-box, padding-box;
+  border-image: var(--glass-rim) 1;
+  backdrop-filter: blur(20px) saturate(160%);
   overflow: hidden;
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.08), 0 10px 26px rgb(var(--shadow-rgb) / 0.2);
+  box-shadow: var(--neu-in), var(--glass-drop), 0 0 26px rgb(var(--prism-2-rgb) / 0.07);
 }
 
 .w1-tl::before {
@@ -282,14 +284,18 @@
   flex-direction: column;
   min-height: 0;
   padding: 16px 20px;
-  border: 1px solid rgb(var(--ac-rgb) / 0.2);
-  background: linear-gradient(150deg, rgba(255, 255, 255, 0.075), transparent 40%),
-    linear-gradient(155deg, rgb(var(--panel-hi-rgb) / 0.58), rgb(var(--panel-lo-rgb) / 0.66));
-  backdrop-filter: blur(22px) saturate(150%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 14px 36px rgb(var(--shadow-rgb) / 0.26),
-    0 0 24px rgb(var(--vio-rgb) / 0.05);
-  transition: transform var(--dur-base) var(--ease-out), border-color var(--dur-base), background-color var(--dur-base),
-    color var(--dur-base), box-shadow var(--dur-base), opacity var(--dur-base);
+  border: 1px solid transparent;
+  background-image: var(--glass-spec), var(--glass-body);
+  background-origin: padding-box;
+  background-clip: padding-box, padding-box;
+  border-image: var(--glass-rim) 1;
+  backdrop-filter: blur(24px) saturate(165%);
+  box-shadow: var(--neu-in), var(--glass-drop), inset 0 0 32px rgb(var(--prism-1-rgb) / 0.03);
+  overflow: hidden;
+  transition: transform var(--dur-base) var(--ease-out), background-color var(--dur-base),
+    color var(--dur-base), box-shadow var(--dur-base), opacity var(--dur-base),
+    --edge-angle 1.5s var(--ease-out);
+  --edge-angle: 0deg;
 }
 
 .w1-card::before {
@@ -299,8 +305,9 @@
   top: 0;
   width: 100%;
   height: 2px;
+  z-index: 2;
   pointer-events: none;
-  background: linear-gradient(90deg, var(--vio), var(--ac2));
+  background: linear-gradient(90deg, rgb(var(--prism-2-rgb)), rgb(var(--prism-1-rgb)));
   opacity: 0.75;
   clip-path: inset(0 calc(100% - 52px) 0 0);
   transition: clip-path 0.45s var(--ease-out), opacity var(--dur-slow);
@@ -324,9 +331,10 @@
 
 .w1-card:hover {
   transform: translateY(-3px);
-  border-color: rgb(var(--ac-rgb) / 0.4);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 20px 46px rgb(var(--shadow-rgb) / 0.32),
-    0 0 30px rgb(var(--vio-rgb) / 0.1);
+  border-image: var(--glass-rim-hot) 1;
+  background-image: var(--glass-spec), var(--glass-body);
+  box-shadow: var(--neu-in), 0 26px 54px rgb(var(--shadow-rgb) / 0.48),
+    0 0 34px rgb(var(--prism-2-rgb) / 0.12), inset 0 0 40px rgb(var(--prism-1-rgb) / 0.05);
 }
 
 .w1-card:hover::before {

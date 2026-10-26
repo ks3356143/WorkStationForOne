@@ -279,8 +279,11 @@
   }
 
   .w1-thread {
-    gap: 10px;
     padding-top: 12px;
+  }
+
+  .w1-threadpad {
+    gap: 10px;
   }
 
   .w1-umsg {
@@ -297,6 +300,11 @@
   }
 
   .w1-ifield {
+    height: 36px;
+  }
+
+  /* 提示符高度必须跟随输入框，否则小高度窗口下文字基线错位 */
+  .w1-iprompt {
     height: 36px;
   }
 

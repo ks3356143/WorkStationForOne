@@ -4,6 +4,8 @@ export type TaskPriority = 0 | 1 | 2 | 3
 
 export type Theme = 'dark' | 'light'
 
+export type Skin = 'prism' | 'classic'
+
 export interface TaskRecord {
   id: string
   title: string

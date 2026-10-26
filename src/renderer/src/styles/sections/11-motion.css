@@ -5,6 +5,123 @@
   transition-duration: var(--dur-press) !important;
 }
 
+/* ---------- prism flow ---------- */
+
+.w1-ambient {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.32;
+  mix-blend-mode: screen;
+  background:
+    linear-gradient(
+      104deg,
+      transparent 22%,
+      rgb(var(--prism-1-rgb) / 0.06) 36%,
+      rgb(var(--glass-hi-rgb) / 0.08) 42%,
+      rgb(var(--prism-2-rgb) / 0.05) 48%,
+      transparent 62%
+    ),
+    linear-gradient(
+      76deg,
+      transparent 44%,
+      rgb(var(--prism-2-rgb) / 0.04) 57%,
+      rgb(var(--glass-hi-rgb) / 0.05) 62%,
+      transparent 74%
+    );
+  will-change: transform;
+  animation: prismFlow 19s var(--ease-soft) infinite;
+}
+
+@keyframes prismFlow {
+  0% {
+    transform: translate3d(-12%, -2%, 0);
+    opacity: 0.12;
+  }
+  22% {
+    opacity: 0.32;
+  }
+  62% {
+    opacity: 0.28;
+  }
+  100% {
+    transform: translate3d(12%, 2%, 0);
+    opacity: 0.12;
+  }
+}
+
+@keyframes edgeSpin {
+  from {
+    --edge-angle: 0deg;
+  }
+  to {
+    --edge-angle: 360deg;
+  }
+}
+
+/* resolve the prism edge on each surface so --edge-angle can flow */
+.w1-tl,
+.w1-card,
+.w1-nvbox,
+.w1-compose,
+.w1-todoquick,
+.w1-modal,
+.w1-palette,
+.w1-focus-box,
+.w1-toast {
+  --glass-rim: conic-gradient(from var(--edge-angle), var(--glass-edge));
+  --glass-rim-hot: conic-gradient(from var(--edge-angle), var(--glass-edge-hot));
+}
+
+.w1-tl {
+  animation: edgeSpin 18s linear infinite;
+}
+
+.w1-compose {
+  animation: edgeSpin 13s linear infinite;
+}
+
+.w1-modal,
+.w1-palette {
+  animation: edgeSpin 16s linear infinite;
+}
+
+.w1-card:hover {
+  --edge-angle: 220deg;
+}
+
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.w1.is-booted .w1-bento > .w1-card {
+  animation: cardIn 0.55s var(--ease-out) backwards;
+}
+
+.w1.is-booted .w1-bento > .w1-card:nth-child(1) {
+  animation-delay: 0.16s;
+}
+
+.w1.is-booted .w1-bento > .w1-card:nth-child(2) {
+  animation-delay: 0.23s;
+}
+
+.w1.is-booted .w1-bento > .w1-card:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.w1.is-booted .w1-bento > .w1-card:nth-child(4) {
+  animation-delay: 0.37s;
+}
+
 .w1-view {
   opacity: 1;
   transform: translateY(0);

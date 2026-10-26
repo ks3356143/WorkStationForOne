@@ -1,0 +1,407 @@
+/* ---------- classic skin: 5bf05ad 的旧外观 ---------- */
+
+/*
+ * 皮肤与明暗正交：data-skin 只管表面材质，data-theme 只管明暗取值。
+ * classic 还原棱镜改版之前的边框、背景与阴影，并关闭棱镜层的装饰与描边动画。
+ */
+
+/* ---------- 背景：还原漂移极光 ---------- */
+
+:root[data-skin="classic"] .w1-ambient {
+  display: none;
+}
+
+:root[data-skin="classic"] .w1::before {
+  inset: -18%;
+  background:
+    radial-gradient(46% 42% at 70% 24%, rgba(124, 92, 255, 0.38), transparent 70%),
+    radial-gradient(40% 38% at 28% 76%, rgba(45, 226, 230, 0.16), transparent 70%),
+    radial-gradient(32% 30% at 88% 88%, rgba(255, 94, 196, 0.12), transparent 70%);
+  filter: blur(26px);
+  will-change: transform;
+  animation: classicAuroraDrift 52s ease-in-out infinite alternate;
+}
+
+@keyframes classicAuroraDrift {
+  from {
+    transform: translate3d(-1.5%, -1%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(2.5%, 1.5%, 0) scale(1.07);
+  }
+}
+
+/* ---------- 表面：还原实色边框与叠层背景 ---------- */
+
+:root[data-skin="classic"] .w1-bar {
+  border-bottom-color: rgb(var(--ac-rgb) / 0.16);
+  background: rgb(var(--panel-1-rgb) / 0.72);
+  backdrop-filter: blur(22px) saturate(150%);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.055);
+}
+
+:root[data-skin="classic"] .w1-bar::after {
+  background: linear-gradient(90deg, rgb(var(--vio-rgb) / 0.65), rgb(var(--ac2-rgb) / 0.42) 46%, transparent 76%);
+}
+
+:root[data-skin="classic"] .w1-nav {
+  border-right-color: rgb(var(--ac-rgb) / 0.14);
+  background: rgb(var(--panel-1-rgb) / 0.54);
+  backdrop-filter: blur(26px) saturate(150%);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.045);
+}
+
+:root[data-skin="classic"] .w1-rail,
+:root[data-skin="classic"] .w1-todorail {
+  border-right-color: rgb(var(--ac-rgb) / 0.14);
+  background: rgb(var(--panel-1-rgb) / 0.44);
+  backdrop-filter: blur(26px) saturate(150%);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.045);
+}
+
+:root[data-skin="classic"] .w1-todorail {
+  background: rgb(var(--panel-1-rgb) / 0.36);
+  backdrop-filter: blur(18px) saturate(145%);
+  box-shadow: none;
+}
+
+:root[data-skin="classic"] .w1-dock {
+  background: rgb(var(--panel-1-rgb) / 0.74);
+  backdrop-filter: blur(28px) saturate(150%);
+  box-shadow: inset 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+:root[data-skin="classic"] .w1-status {
+  border-top-color: rgb(var(--ac-rgb) / 0.14);
+  background: rgb(var(--panel-1-rgb) / 0.88);
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+/* 棱镜表面统一回到「实色 1px 边框 + 叠层渐变背景」 */
+
+:root[data-skin="classic"] .w1-tl {
+  border: 1px solid rgb(var(--ac-rgb) / 0.18);
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.07), transparent 42%),
+    linear-gradient(155deg, rgb(var(--panel-hi-rgb) / 0.55), rgb(var(--panel-lo-rgb) / 0.64));
+  background-origin: border-box;
+  background-clip: border-box;
+  border-image: none;
+  backdrop-filter: blur(20px) saturate(145%);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.08), 0 10px 26px rgb(var(--shadow-rgb) / 0.2);
+  animation: none;
+}
+
+:root[data-skin="classic"] .w1-card {
+  border: 1px solid rgb(var(--ac-rgb) / 0.2);
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.075), transparent 40%),
+    linear-gradient(155deg, rgb(var(--panel-hi-rgb) / 0.58), rgb(var(--panel-lo-rgb) / 0.66));
+  background-origin: border-box;
+  background-clip: border-box;
+  border-image: none;
+  backdrop-filter: blur(22px) saturate(150%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 14px 36px rgb(var(--shadow-rgb) / 0.26),
+    0 0 24px rgb(var(--vio-rgb) / 0.05);
+  transition: transform var(--dur-base) var(--ease-out), border-color var(--dur-base),
+    background-color var(--dur-base), color var(--dur-base), box-shadow var(--dur-base),
+    opacity var(--dur-base);
+}
+
+:root[data-skin="classic"] .w1-card::before {
+  background: linear-gradient(90deg, var(--vio), var(--ac2));
+}
+
+:root[data-skin="classic"] .w1-card:hover {
+  border-color: rgb(var(--ac-rgb) / 0.4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 20px 46px rgb(var(--shadow-rgb) / 0.32),
+    0 0 30px rgb(var(--vio-rgb) / 0.1);
+}
+
+:root[data-skin="classic"] .w1-nvbox {
+  border: 1px solid rgb(var(--ac-rgb) / 0.24);
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.07), transparent 42%),
+    linear-gradient(155deg, rgb(var(--panel-hi-rgb) / 0.82), rgb(var(--panel-lo-rgb) / 0.86));
+  background-origin: border-box;
+  background-clip: border-box;
+  border-image: none;
+  backdrop-filter: blur(22px) saturate(150%);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.08), 0 24px 60px rgb(var(--shadow-rgb) / 0.3);
+}
+
+:root[data-skin="classic"] .w1-todoquick {
+  border: 1px solid rgb(var(--ac-rgb) / 0.22);
+  background: linear-gradient(100deg, rgb(var(--vio-rgb) / 0.1), transparent 70%),
+    rgb(var(--panel-1-rgb) / 0.3);
+  background-origin: border-box;
+  background-clip: border-box;
+  border-image: none;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.05);
+  transition: border-color var(--dur-base), box-shadow var(--dur-base);
+}
+
+:root[data-skin="classic"] .w1-todoquick:focus-within {
+  border-color: rgb(var(--ac-rgb) / 0.38);
+  box-shadow: inset 2px 0 rgb(var(--ac2-rgb) / 0.5), inset 0 1px rgba(255, 255, 255, 0.07),
+    0 10px 26px -24px rgb(var(--vio-rgb) / 0.9);
+}
+
+:root[data-skin="classic"] .w1-compose {
+  border: 1px solid rgb(var(--ac-rgb) / 0.26);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.07), transparent 44%), rgb(var(--field-rgb) / 0.82);
+  background-origin: border-box;
+  background-clip: border-box;
+  border-image: none;
+  backdrop-filter: blur(26px) saturate(150%);
+  box-shadow: 0 0 36px rgb(var(--vio-rgb) / 0.16), 0 16px 40px rgb(var(--shadow-rgb) / 0.36),
+    inset 0 1px rgba(255, 255, 255, 0.09);
+  transition: border-color var(--dur-base), box-shadow var(--dur-base);
+  animation: none;
+}
+
+:root[data-skin="classic"] .w1-compose:focus-within {
+  border-color: rgb(var(--ac2-rgb) / 0.4);
+  box-shadow: 0 0 42px rgb(var(--vio-rgb) / 0.2), 0 16px 40px rgb(var(--shadow-rgb) / 0.36),
+    inset 0 1px rgba(255, 255, 255, 0.09);
+}
+
+:root[data-skin="classic"] .w1-compose::before {
+  background: linear-gradient(90deg, var(--vio), var(--ac2), transparent);
+}
+
+:root[data-skin="classic"] .w1-modal {
+  border: 1px solid rgb(var(--ac-rgb) / 0.28);
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.08), transparent 42%),
+    linear-gradient(155deg, rgb(var(--panel-hi-rgb) / 0.86), rgb(var(--panel-lo-rgb) / 0.9));
+  background-origin: border-box;
+  background-clip: border-box;
+  border-image: none;
+  backdrop-filter: blur(26px) saturate(150%);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.1), 0 30px 70px rgb(var(--shadow-rgb) / 0.45),
+    0 0 44px rgb(var(--vio-rgb) / 0.12);
+  animation: none;
+}
+
+:root[data-skin="classic"] .w1-modal::before {
+  background: linear-gradient(90deg, var(--vio), var(--ac2), transparent);
+}
+
+:root[data-skin="classic"] .w1-palette {
+  border: 1px solid rgb(var(--ac-rgb) / 0.3);
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.08), transparent 42%),
+    linear-gradient(155deg, rgb(var(--panel-hi-rgb) / 0.88), rgb(var(--panel-lo-rgb) / 0.92));
+  background-origin: border-box;
+  background-clip: border-box;
+  border-image: none;
+  backdrop-filter: blur(28px) saturate(150%);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.1), 0 40px 90px rgb(var(--shadow-rgb) / 0.5),
+    0 0 60px rgb(var(--vio-rgb) / 0.14);
+  animation: none;
+}
+
+:root[data-skin="classic"] .w1-palette::before {
+  background: linear-gradient(90deg, var(--vio), var(--ac2), transparent);
+}
+
+:root[data-skin="classic"] .w1-palette::after {
+  border: 0;
+  border-left: 2px solid var(--ac2);
+  background: rgb(var(--field-rgb) / 0.92);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 14px 38px rgb(var(--shadow-rgb) / 0.4), 0 0 26px rgb(var(--vio-rgb) / 0.1);
+}
+
+:root[data-skin="classic"] .w1-focus-box {
+  border: 1px solid rgb(var(--ac-rgb) / 0.28);
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.08), transparent 42%),
+    linear-gradient(155deg, rgb(var(--panel-hi-rgb) / 0.68), rgb(var(--panel-lo-rgb) / 0.78));
+  background-origin: border-box;
+  background-clip: border-box;
+  border-image: none;
+  backdrop-filter: blur(26px) saturate(150%);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.1), 0 32px 80px rgb(var(--shadow-rgb) / 0.4),
+    0 0 50px rgb(var(--vio-rgb) / 0.12);
+  animation: none;
+}
+
+:root[data-skin="classic"] .w1-focus-box::before {
+  background: linear-gradient(90deg, var(--vio), var(--ac2), transparent);
+}
+
+:root[data-skin="classic"] .w1-focus-aurora {
+  inset: -20%;
+  background:
+    radial-gradient(38% 32% at 64% 34%, rgb(var(--vio-rgb) / 0.32), transparent 70%),
+    radial-gradient(30% 28% at 32% 68%, rgb(var(--ac2-rgb) / 0.16), transparent 70%);
+  -webkit-mask-image: none;
+  mask-image: none;
+  opacity: 1;
+  filter: blur(30px);
+  will-change: transform;
+  animation: classicAuroraDrift 36s ease-in-out infinite alternate;
+}
+
+:root[data-skin="classic"] .w1-toast {
+  border: 1px solid rgb(var(--ac-rgb) / 0.28);
+  border-left: 2px solid var(--ac2);
+  background: rgb(var(--field-rgb) / 0.92);
+  background-origin: border-box;
+  background-clip: border-box;
+  border-image: none;
+  backdrop-filter: blur(18px);
+  box-shadow: 0 14px 38px rgb(var(--shadow-rgb) / 0.4), 0 0 26px rgb(var(--vio-rgb) / 0.1);
+}
+
+:root[data-skin="classic"] .w1-toast i {
+  background: var(--ac2);
+  box-shadow: 0 0 8px rgb(var(--ac2-rgb) / 0.6);
+}
+
+/* ---------- 关闭棱镜装饰：描边动画与卡片入场错峰 ---------- */
+
+:root[data-skin="classic"] .w1-tl,
+:root[data-skin="classic"] .w1-card,
+:root[data-skin="classic"] .w1-nvbox,
+:root[data-skin="classic"] .w1-compose,
+:root[data-skin="classic"] .w1-todoquick,
+:root[data-skin="classic"] .w1-modal,
+:root[data-skin="classic"] .w1-palette,
+:root[data-skin="classic"] .w1-focus-box,
+:root[data-skin="classic"] .w1-toast {
+  --glass-rim: none;
+  --glass-rim-hot: none;
+}
+
+/* 棱镜版新增的卡片错峰入场不属于旧外观 */
+:root[data-skin="classic"] .w1.is-booted .w1-bento > .w1-card {
+  animation: none;
+}
+
+/* ---------- 白天：还原旧的浅色表面 ---------- */
+
+:root[data-skin="classic"][data-theme="light"] .w1-bar {
+  box-shadow: inset 0 1px rgb(255 255 255 / 0.7);
+}
+
+:root[data-skin="classic"][data-theme="light"] .w1-nav,
+:root[data-skin="classic"][data-theme="light"] .w1-rail,
+:root[data-skin="classic"][data-theme="light"] .w1-dock {
+  background:
+    radial-gradient(130% 80% at 6% 0%, rgb(var(--vio-rgb) / 0.075), transparent 64%),
+    linear-gradient(180deg, rgb(255 255 255 / 0.88), rgb(247 249 254 / 0.8));
+  border-color: rgb(var(--ac-rgb) / 0.2);
+  box-shadow: inset 0 1px rgb(255 255 255 / 0.75), inset -1px 0 rgb(var(--ac-rgb) / 0.04);
+}
+
+:root[data-skin="classic"][data-theme="light"] .w1-todorail {
+  background: rgb(var(--panel-1-rgb) / 0.36);
+  border-color: rgb(var(--ac-rgb) / 0.2);
+  box-shadow: none;
+}
+
+:root[data-skin="classic"][data-theme="light"] .w1-tl,
+:root[data-skin="classic"][data-theme="light"] .w1-card,
+:root[data-skin="classic"][data-theme="light"] .w1-nvbox {
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgb(var(--ac2-rgb) / 0.06), transparent 58%),
+    radial-gradient(90% 70% at 0% 0%, rgb(var(--vio-rgb) / 0.075), transparent 62%),
+    linear-gradient(155deg, rgb(255 255 255 / 0.9), rgb(245 247 253 / 0.92));
+  border-color: rgb(var(--ac-rgb) / 0.26);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.96), 0 12px 30px rgb(var(--shadow-rgb) / 0.09),
+    0 0 24px rgb(var(--ac-rgb) / 0.05);
+}
+
+:root[data-skin="classic"][data-theme="light"] .w1-todoquick {
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgb(var(--ac2-rgb) / 0.06), transparent 58%),
+    radial-gradient(90% 70% at 0% 0%, rgb(var(--vio-rgb) / 0.075), transparent 62%),
+    linear-gradient(155deg, rgb(255 255 255 / 0.9), rgb(245 247 253 / 0.92));
+}
+
+:root[data-skin="classic"][data-theme="light"] .w1-card:hover {
+  border-color: rgb(var(--ac-rgb) / 0.34);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.98), 0 18px 42px rgb(var(--shadow-rgb) / 0.13),
+    0 0 30px rgb(var(--ac-rgb) / 0.1);
+}
+
+:root[data-skin="classic"][data-theme="light"] .w1-compose {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.07), transparent 44%), rgb(var(--field-rgb) / 0.82);
+  box-shadow: 0 10px 28px rgb(var(--shadow-rgb) / 0.1), 0 0 24px rgb(var(--vio-rgb) / 0.08),
+    inset 0 1px rgb(255 255 255 / 0.85);
+}
+
+:root[data-skin="classic"][data-theme="light"] .w1-compose:focus-within {
+  box-shadow: 0 12px 30px rgb(var(--shadow-rgb) / 0.12), 0 0 28px rgb(var(--ac2-rgb) / 0.14),
+    inset 0 1px rgb(255 255 255 / 0.85);
+}
+
+:root[data-skin="classic"][data-theme="light"] .w1-modal,
+:root[data-skin="classic"][data-theme="light"] .w1-palette,
+:root[data-skin="classic"][data-theme="light"] .w1-focus-box {
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgb(var(--ac2-rgb) / 0.055), transparent 58%),
+    linear-gradient(155deg, rgb(255 255 255 / 0.94), rgb(246 248 254 / 0.96));
+  box-shadow: inset 0 1px rgb(255 255 255 / 0.95), 0 24px 60px rgb(var(--shadow-rgb) / 0.18),
+    0 0 40px rgb(var(--vio-rgb) / 0.08);
+}
+
+:root[data-skin="classic"][data-theme="light"] .w1-toast {
+  background: rgb(var(--field-rgb) / 0.92);
+  box-shadow: 0 12px 32px rgb(var(--shadow-rgb) / 0.14), 0 0 22px rgb(var(--vio-rgb) / 0.08);
+}
+
+/* ---------- 高对比 / 减少透明：classic 直接退回实色面板 ---------- */
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  /* [data-skin][data-theme] 的浅色覆盖特异性更高，这里两种组合都要显式降级 */
+  :root[data-skin="classic"] .w1-tl,
+  :root[data-skin="classic"] .w1-card,
+  :root[data-skin="classic"] .w1-nvbox,
+  :root[data-skin="classic"] .w1-todoquick,
+  :root[data-skin="classic"] .w1-compose,
+  :root[data-skin="classic"] .w1-modal,
+  :root[data-skin="classic"] .w1-palette,
+  :root[data-skin="classic"] .w1-focus-box,
+  :root[data-skin="classic"][data-theme="light"] .w1-tl,
+  :root[data-skin="classic"][data-theme="light"] .w1-card,
+  :root[data-skin="classic"][data-theme="light"] .w1-nvbox,
+  :root[data-skin="classic"][data-theme="light"] .w1-todoquick,
+  :root[data-skin="classic"][data-theme="light"] .w1-compose,
+  :root[data-skin="classic"][data-theme="light"] .w1-modal,
+  :root[data-skin="classic"][data-theme="light"] .w1-palette,
+  :root[data-skin="classic"][data-theme="light"] .w1-focus-box {
+    border-color: rgb(var(--ac-rgb) / 0.28);
+    border-image: none;
+    background: var(--s1);
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+
+  :root[data-skin="classic"] .w1-compose,
+  :root[data-skin="classic"][data-theme="light"] .w1-compose {
+    background: var(--field-solid);
+  }
+
+  :root[data-skin="classic"] .w1-bar,
+  :root[data-skin="classic"][data-theme="light"] .w1-bar {
+    background: var(--bg0);
+    backdrop-filter: none;
+  }
+
+  :root[data-skin="classic"] .w1-nav,
+  :root[data-skin="classic"] .w1-rail,
+  :root[data-skin="classic"] .w1-todorail,
+  :root[data-skin="classic"] .w1-dock,
+  :root[data-skin="classic"][data-theme="light"] .w1-nav,
+  :root[data-skin="classic"][data-theme="light"] .w1-rail,
+  :root[data-skin="classic"][data-theme="light"] .w1-todorail,
+  :root[data-skin="classic"][data-theme="light"] .w1-dock {
+    background: var(--panel-solid);
+    backdrop-filter: none;
+  }
+
+  :root[data-skin="classic"] .w1-status,
+  :root[data-skin="classic"][data-theme="light"] .w1-status {
+    background: var(--bg0);
+    backdrop-filter: none;
+  }
+}

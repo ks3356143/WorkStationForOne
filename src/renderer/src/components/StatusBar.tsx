@@ -1,7 +1,7 @@
 import { selectActiveSession, useWorkstation } from '../store/useWorkstation'
 import { useNow } from '../lib/useNow'
 import { formatHM } from '../lib/date'
-import { themeLabel } from '../lib/theme'
+import { skinLabel, themeLabel } from '../lib/theme'
 
 interface StatusBarProps {
   notify: (text: string) => void
@@ -13,8 +13,10 @@ export function StatusBar({ notify }: StatusBarProps) {
   const permission = useWorkstation((state) => state.permission)
   const motionOn = useWorkstation((state) => state.motionOn)
   const theme = useWorkstation((state) => state.theme)
+  const skin = useWorkstation((state) => state.skin)
   const toggleMotion = useWorkstation((state) => state.toggleMotion)
   const toggleTheme = useWorkstation((state) => state.toggleTheme)
+  const toggleSkin = useWorkstation((state) => state.toggleSkin)
   const openAgentSession = useWorkstation((state) => state.openAgentSession)
   const now = useNow(30_000)
 
@@ -68,6 +70,20 @@ export function StatusBar({ notify }: StatusBarProps) {
       >
         <i />
         {themeLabel(theme)}
+      </button>
+      <button
+        className="w1-motion w1-skin"
+        type="button"
+        aria-pressed={skin === 'classic'}
+        aria-label={`当前${skinLabel(skin)}皮肤，切换皮肤`}
+        onClick={() => {
+          toggleSkin()
+          notify(skin === 'prism' ? '已切换到经典皮肤' : '已切换到棱镜皮肤')
+        }}
+        title="切换棱镜与经典皮肤"
+      >
+        <i />
+        {skinLabel(skin)}
       </button>
       <i className="w1-sdiv" aria-hidden="true" />
       <span className="w1-status-ver">v0.1.0</span>
