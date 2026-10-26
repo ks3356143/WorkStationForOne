@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { m } from 'motion/react'
+import { DURATION, EASE_OUT } from '../lib/motion'
 import type { FocusSession } from '../types'
 
 interface FocusOverlayProps {
@@ -49,16 +50,16 @@ export function FocusOverlay({ focus, onClose }: FocusOverlayProps) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.35 }}
+      transition={{ duration: DURATION.focusBackdrop }}
     >
       <div className="w1-focus-aurora" aria-hidden="true" />
       <m.div
         ref={boxRef}
-        className="w1-focus-box"
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 8 }}
-        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        className={`w1-focus-box${done ? ' done' : ''}`}
+        initial={{ opacity: 0, transform: 'translateY(14px)' }}
+        animate={{ opacity: 1, transform: 'translateY(0px)' }}
+        exit={{ opacity: 0, transform: 'translateY(8px)' }}
+        transition={{ duration: DURATION.focus, ease: EASE_OUT }}
         onKeyDown={(event) => {
           if (event.key !== 'Tab') return
           const root = boxRef.current
@@ -84,6 +85,7 @@ export function FocusOverlay({ focus, onClose }: FocusOverlayProps) {
           }
         }}
       >
+        <span className="w1-focus-glow" aria-hidden="true" />
         <div className="w1-focus-head">
           <span>// 专注模式</span>
           <span>{paused ? 'PAUSED' : done ? 'DONE' : 'FOCUS'}</span>

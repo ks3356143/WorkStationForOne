@@ -13,6 +13,7 @@ interface NoteListProps {
   rows: NoteListRow[]
   loading: boolean
   mode: 'browse' | 'search'
+  endLabel?: string
 }
 
 export const ROW_HEIGHT = 68
@@ -45,7 +46,7 @@ function highlight(text: string, snippet?: string): string {
   return snippet && snippet.length > 0 ? snippet : text
 }
 
-export function NoteList({ rows, loading, mode }: NoteListProps) {
+export function NoteList({ rows, loading, mode, endLabel }: NoteListProps) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [height, setHeight] = useState(420)
@@ -62,11 +63,13 @@ export function NoteList({ rows, loading, mode }: NoteListProps) {
     return () => observer.disconnect()
   }, [])
 
+  const count = rows.length + (endLabel ? 1 : 0)
   const range = useMemo(
-    () => computeWindow(scrollTop, height, rows.length),
-    [scrollTop, height, rows.length]
+    () => computeWindow(scrollTop, height, count),
+    [scrollTop, height, count]
   )
-  const slice = rows.slice(range.start, range.end)
+  const slice = rows.slice(range.start, Math.min(range.end, rows.length))
+  const showEnd = Boolean(endLabel) && range.end > rows.length
 
   if (rows.length === 0 && !loading) {
     return (
@@ -96,6 +99,11 @@ export function NoteList({ rows, loading, mode }: NoteListProps) {
               <p className="w1-nvtext">{highlight(row.text, row.snippet)}</p>
             </article>
           ))}
+          {showEnd ? (
+            <div className="w1-nvend" aria-hidden="true">
+              <span>{endLabel}</span>
+            </div>
+          ) : null}
         </div>
       </div>
       {loading ? <div className="w1-nvloading">载入中…</div> : null}

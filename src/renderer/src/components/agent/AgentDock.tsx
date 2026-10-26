@@ -30,11 +30,22 @@ export function AgentDock() {
   const resolvePermission = useWorkstation((state) => state.resolvePermission)
 
   const threadRef = useRef<HTMLDivElement>(null)
+  const threadMeta = useRef({ sessionId: activeSession.id, length: thread.length, initialized: false })
   const counts = {
     claude: sessions.filter((session) => session.agent === 'claude').length,
     codex: sessions.filter((session) => session.agent === 'codex').length
   }
   const typingHere = typing && pendingReplyTo === activeSession.id
+  const animateId =
+    threadMeta.current.initialized &&
+    threadMeta.current.sessionId === activeSession.id &&
+    thread.length > threadMeta.current.length
+      ? thread[thread.length - 1]?.id
+      : undefined
+
+  useEffect(() => {
+    threadMeta.current = { sessionId: activeSession.id, length: thread.length, initialized: true }
+  }, [activeSession.id, thread.length])
 
   useEffect(() => {
     const node = threadRef.current
@@ -72,7 +83,7 @@ export function AgentDock() {
         </div>
 
         {thread.map((message) => (
-          <MessageRow key={message.id} message={message} agent={agent} />
+          <MessageRow key={message.id} message={message} agent={agent} animate={message.id === animateId} />
         ))}
 
         {typingHere ? (
@@ -101,8 +112,8 @@ export function AgentDock() {
         {agent === 'claude' && resolution ? (
           <m.div
             className={`w1-resolved ${resolution === 'allowed' ? 'ok' : 'deny'}`}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, transform: 'translateY(6px)' }}
+            animate={{ opacity: 1, transform: 'translateY(0px)' }}
           >
             // {resolution === 'allowed' ? '已允许 · 3 项任务已顺延' : '已拒绝 · 任务保持原样'}
           </m.div>

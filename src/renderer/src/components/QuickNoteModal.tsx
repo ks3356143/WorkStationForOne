@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { m } from 'motion/react'
+import { DURATION, EASE_OUT } from '../lib/motion'
 import { useWorkstation } from '../store/useWorkstation'
 
 export function QuickNoteModal() {
@@ -32,7 +33,7 @@ export function QuickNoteModal() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.25 }}
+      transition={{ duration: DURATION.modalBackdrop }}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) closeQuickNote()
       }}
@@ -43,10 +44,10 @@ export function QuickNoteModal() {
         role="dialog"
         aria-modal="true"
         aria-label="快速笔记"
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 8 }}
-        transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
+        initial={{ opacity: 0, transform: 'translateY(12px)' }}
+        animate={{ opacity: 1, transform: 'translateY(0px)' }}
+        exit={{ opacity: 0, transform: 'translateY(8px)' }}
+        transition={{ duration: DURATION.modal, ease: EASE_OUT }}
         onKeyDown={(event) => {
           if (event.key !== 'Tab') return
           const root = boxRef.current

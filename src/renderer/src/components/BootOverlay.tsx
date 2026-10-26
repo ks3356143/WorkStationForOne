@@ -1,4 +1,5 @@
 import { m } from 'motion/react'
+import { DURATION } from '../lib/motion'
 
 interface BootOverlayProps {
   onSkip: () => void
@@ -11,7 +12,7 @@ export function BootOverlay({ onSkip }: BootOverlayProps) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.3 }}
+      transition={{ duration: DURATION.boot }}
       onClick={onSkip}
       role="presentation"
     >

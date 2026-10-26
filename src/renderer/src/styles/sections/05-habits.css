@@ -35,15 +35,15 @@
   padding: 0;
   border: 1px solid var(--ctl);
   background: transparent;
-  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.2s, background-color 0.2s,
-    box-shadow 0.2s;
+  transition: transform var(--dur-ui) var(--ease-out), border-color var(--dur-ui), background-color var(--dur-ui),
+    box-shadow var(--dur-ui);
 }
 
 .w1-hdot.on {
   border-color: var(--ok);
   background: var(--ok);
   opacity: 0.82;
-  animation: dotPop 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: dotPop var(--dur-pop) var(--ease-out);
 }
 
 @keyframes dotPop {
@@ -51,7 +51,7 @@
     transform: scale(0.6);
   }
   65% {
-    transform: scale(1.25);
+    transform: scale(1.12);
   }
   100% {
     transform: scale(1);
@@ -72,6 +72,10 @@
   transform: scale(1.15);
   border-color: var(--ac2);
   box-shadow: 0 0 10px rgb(var(--ac2-rgb) / 0.4);
+}
+
+.w1 .w1-hdot:not(:disabled):active {
+  transform: scale(0.92);
 }
 
 .w1-hdot:disabled {

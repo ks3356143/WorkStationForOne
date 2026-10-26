@@ -76,9 +76,11 @@ export interface WorkstationData {
   taskFilter: TaskFilter
   taskScope: TaskScope
   taskComposerRequest: number
+  lastAddedTaskId: string | null
   habits: Habit[]
   notes: Note[]
   noteTotal: number
+  noteRevision: number
   sessions: Session[]
   activeSessionId: string
   threads: Record<string, ChatMessage[]>

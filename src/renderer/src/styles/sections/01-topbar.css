@@ -83,8 +83,8 @@
   font-size: 14px;
   text-align: left;
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.055);
-  transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.24s, background-color 0.24s,
-    box-shadow 0.24s;
+  transition: transform var(--dur-base) var(--ease-out), border-color var(--dur-base), background-color var(--dur-base),
+    box-shadow var(--dur-base);
 }
 
 .w1-cmd:hover {
@@ -92,10 +92,15 @@
   background: rgb(var(--field-rgb) / 0.62);
 }
 
-.w1-cmd > span:nth-child(2) {
+.w1-cmdtext {
+  min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.w1-cmdshort {
+  display: none;
 }
 
 .w1-prompt {

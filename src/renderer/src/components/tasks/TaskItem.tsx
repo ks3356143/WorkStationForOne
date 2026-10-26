@@ -1,6 +1,7 @@
 import { AnimatePresence, m } from 'motion/react'
 import type { TaskPatch } from '../../../../shared/ipc'
 import type { Task } from '../../types'
+import { DURATION, EASE_OUT } from '../../lib/motion'
 import { taskDueLabel } from '../../lib/todo'
 import { CheckIcon } from '../Glyphs'
 import { TaskEditor } from './TaskEditor'
@@ -12,6 +13,7 @@ interface TaskItemProps {
   today: string
   lists: string[]
   expanded: boolean
+  highlight?: boolean
   onToggle: () => void
   onExpand: () => void
   onSave: (patch: TaskPatch) => void
@@ -24,6 +26,7 @@ export function TaskItem({
   today,
   lists,
   expanded,
+  highlight = false,
   onToggle,
   onExpand,
   onSave,
@@ -36,7 +39,10 @@ export function TaskItem({
   const editorId = `todo-edit-${task.id}`
 
   return (
-    <div className={`w1-todorowwrap${task.done ? ' done' : ''}`} role="listitem">
+    <div
+      className={`w1-todorowwrap${task.done ? ' done' : ''}${highlight ? ' landing' : ''}`}
+      role="listitem"
+    >
       <div className="w1-todorowmain">
         <button
           className={`w1-todocb${task.done ? ' on' : ''}`}
@@ -79,19 +85,21 @@ export function TaskItem({
             key="editor"
             id={editorId}
             className="w1-todoeditorwrap"
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: DURATION.reveal, ease: EASE_OUT }}
           >
-            <TaskEditor
-              task={task}
-              lists={lists}
-              today={today}
-              onSave={onSave}
-              onDelete={onDelete}
-              onClose={onCollapse}
-            />
+            <div className="w1-todoeditorinner">
+              <TaskEditor
+                task={task}
+                lists={lists}
+                today={today}
+                onSave={onSave}
+                onDelete={onDelete}
+                onClose={onCollapse}
+              />
+            </div>
           </m.div>
         ) : null}
       </AnimatePresence>

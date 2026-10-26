@@ -51,15 +51,20 @@ export function Composer({ agent, typing, onSend }: ComposerProps) {
       </div>
       <div className="w1-icfoot">
         <span className="w1-model">{typing ? '等待回复 · 完成后可继续输入' : meta.cli}</span>
-        <button
-          className="w1-send"
-          type="button"
-          aria-label="发送"
-          disabled={!draft.trim() || typing}
-          onClick={submit}
-        >
-          <SendIcon width={12} height={12} />
-        </button>
+        <div className="w1-icright">
+          <span className="w1-ickey">
+            <kbd>Enter</kbd>发送
+          </span>
+          <button
+            className="w1-send"
+            type="button"
+            aria-label="发送"
+            disabled={!draft.trim() || typing}
+            onClick={submit}
+          >
+            <SendIcon width={12} height={12} />
+          </button>
+        </div>
       </div>
     </div>
   )

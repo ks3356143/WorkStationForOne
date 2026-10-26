@@ -350,10 +350,11 @@ async function run() {
     await sleep(200)
     check('筛选恢复全部', all('.w1-task').length === 6, String(all('.w1-task').length))
 
-    const habitBefore = one('.w1-card:nth-child(2) .w1-ct span')?.textContent ?? ''
+    const habitCard = all('.w1-card').find((card) => card.textContent?.includes('习惯打卡'))
+    const habitBefore = habitCard?.querySelector('.w1-ct span')?.textContent ?? ''
     one('.w1-hdot.today:not(.on)')?.click()
     await sleep(250)
-    const habitAfter = one('.w1-card:nth-child(2) .w1-ct span')?.textContent ?? ''
+    const habitAfter = habitCard?.querySelector('.w1-ct span')?.textContent ?? ''
     const habitCount = (text) => Number.parseInt(text, 10)
     check(
       '今日习惯可打卡',

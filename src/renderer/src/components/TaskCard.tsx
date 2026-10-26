@@ -74,7 +74,7 @@ export function TaskCard({ nextTaskId }: TaskCardProps) {
         </b>
       </div>
 
-      <div className="w1-taskgrid" key={filter}>
+      <div className="w1-taskgrid">
         {visible.length === 0 ? <div className="w1-tempty">没有符合条件的任务。享受空白。</div> : null}
         {columns.map((column, columnIndex) => (
           <div className="w1-taskcol" key={columnIndex}>

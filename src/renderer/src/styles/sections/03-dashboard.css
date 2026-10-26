@@ -10,25 +10,11 @@
   min-height: 0;
   padding: 24px 30px 26px;
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgb(var(--ac-rgb) / 0.32) transparent;
   background-image:
     linear-gradient(rgb(var(--ac-rgb) / 0.035) 1px, transparent 1px),
     linear-gradient(90deg, rgb(var(--ac-rgb) / 0.035) 1px, transparent 1px),
     linear-gradient(180deg, rgb(var(--panel-1-rgb) / 0.02), rgb(var(--panel-1-rgb) / 0.3));
   background-size: 48px 48px, 48px 48px, 100% 100%;
-}
-
-.w1-main::-webkit-scrollbar {
-  width: 8px;
-}
-
-.w1-main::-webkit-scrollbar-thumb {
-  background: rgb(var(--ac-rgb) / 0.28);
-}
-
-.w1-main::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--ac-rgb) / 0.42);
 }
 
 .w1-thead {
@@ -115,8 +101,8 @@
   background: transparent;
   color: var(--fs);
   font: 500 13.5px/1 var(--sans);
-  transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.24s, color 0.24s,
-    box-shadow 0.24s, filter 0.24s;
+  transition: transform var(--dur-base) var(--ease-out), border-color var(--dur-base), color var(--dur-base),
+    box-shadow var(--dur-base), filter var(--dur-base);
 }
 
 .w1-btn kbd {
@@ -197,7 +183,7 @@
   white-space: nowrap;
   overflow: hidden;
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.06);
-  transition: border-color 0.2s, background-color 0.2s, transform 0.2s;
+  transition: border-color var(--dur-ui), background-color var(--dur-ui), transform var(--dur-ui), opacity var(--dur-base), filter var(--dur-base);
 }
 
 .w1-tlblk:hover {
@@ -205,6 +191,21 @@
   border-left-color: var(--ac2);
   background: linear-gradient(90deg, rgb(var(--ac2-rgb) / 0.16), rgb(var(--vio-rgb) / 0.08));
   transform: translateY(-1px);
+}
+
+.w1-tlblk.past {
+  border-color: rgb(var(--bd-rgb) / 0.9);
+  border-left-color: rgb(var(--ctl) / 0.42);
+  background: rgb(var(--panel-1-rgb) / 0.3);
+  color: var(--mu);
+  box-shadow: none;
+}
+
+.w1-tlblk.past:hover {
+  border-color: rgb(var(--ac2-rgb) / 0.6);
+  border-left-color: var(--ac2);
+  background: linear-gradient(90deg, rgb(var(--ac2-rgb) / 0.16), rgb(var(--vio-rgb) / 0.08));
+  color: var(--fs);
 }
 
 .w1-tlblk.next {
@@ -287,8 +288,8 @@
   backdrop-filter: blur(22px) saturate(150%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 14px 36px rgb(var(--shadow-rgb) / 0.26),
     0 0 24px rgb(var(--vio-rgb) / 0.05);
-  transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.24s, background-color 0.24s,
-    color 0.24s, box-shadow 0.24s, opacity 0.24s;
+  transition: transform var(--dur-base) var(--ease-out), border-color var(--dur-base), background-color var(--dur-base),
+    color var(--dur-base), box-shadow var(--dur-base), opacity var(--dur-base);
 }
 
 .w1-card::before {
@@ -302,7 +303,7 @@
   background: linear-gradient(90deg, var(--vio), var(--ac2));
   opacity: 0.75;
   clip-path: inset(0 calc(100% - 52px) 0 0);
-  transition: clip-path 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s;
+  transition: clip-path 0.45s var(--ease-out), opacity var(--dur-slow);
 }
 
 .w1-card::after {
@@ -390,7 +391,7 @@
   color: var(--mu);
   font: 11px/1 var(--mono);
   letter-spacing: 0.03em;
-  transition: color 0.2s;
+  transition: color var(--dur-ui);
 }
 
 .w1-ctlink:hover {

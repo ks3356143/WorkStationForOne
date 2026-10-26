@@ -27,6 +27,7 @@ export function StatusBar({ notify }: StatusBarProps) {
         <i className={`w1-sdot${session.status === 'run' ? '' : ' idle'}`} />
         {agentName} {stateLabel} · {session.meta.split(' · ')[0]}
       </span>
+      <i className="w1-sdiv" aria-hidden="true" />
       <button
         className="w1-sbtn w1-st-mcp"
         type="button"
@@ -68,9 +69,16 @@ export function StatusBar({ notify }: StatusBarProps) {
         <i />
         {themeLabel(theme)}
       </button>
-      <span>v0.1.0</span>
-      <span className="w1-st-key">^K 聚焦</span>
-      <span className="w1-st-key">^N 笔记</span>
+      <i className="w1-sdiv" aria-hidden="true" />
+      <span className="w1-status-ver">v0.1.0</span>
+      <span className="w1-st-keys">
+        <span className="w1-st-key">
+          <kbd>^K</kbd>聚焦
+        </span>
+        <span className="w1-st-key">
+          <kbd>^N</kbd>笔记
+        </span>
+      </span>
       <span>{formatHM(now)} 本地</span>
     </footer>
   )

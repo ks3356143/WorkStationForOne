@@ -59,6 +59,7 @@ interface WorkstationActions {
   updateTask: (taskId: string, patch: TaskPatch) => void
   removeTask: (taskId: string) => void
   composeTask: () => void
+  clearLastAddedTask: () => void
   toggleHabitToday: (habitId: string) => void
   setActiveSession: (sessionId: string) => void
   openAgentSession: (sessionId: string) => void
@@ -93,7 +94,6 @@ function nextTaskId(): string {
 export const useWorkstation = create<WorkstationState>()((set, get) => ({
   ...createInitialData(),
   theme: readStoredTheme(browserStorage()),
-
   setView: (activeView) => set({ activeView }),
 
   setFilter: (taskFilter) => set({ taskFilter }),
@@ -102,6 +102,8 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
 
   composeTask: () =>
     set((state) => ({ activeView: 'tasks', taskComposerRequest: state.taskComposerRequest + 1 })),
+
+  clearLastAddedTask: () => set({ lastAddedTaskId: null }),
 
   toggleTask: (taskId) => {
     const task = get().tasks.find((item) => item.id === taskId)
@@ -130,14 +132,15 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       ...(draft.dueDate ? { dueDate: draft.dueDate } : {}),
       ...(draft.list ? { list: draft.list } : {})
     }
-    set((state) => ({ tasks: [local, ...state.tasks] }))
+    set((state) => ({ tasks: [local, ...state.tasks], lastAddedTaskId: local.id }))
 
     if (!persistence) return
     void persistence
       .create({ ...draft, title })
       .then((saved) => {
         set((state) => ({
-          tasks: state.tasks.map((task) => (task.id === local.id ? saved : task))
+          tasks: state.tasks.map((task) => (task.id === local.id ? saved : task)),
+          lastAddedTaskId: state.lastAddedTaskId === local.id ? saved.id : state.lastAddedTaskId
         }))
       })
       .catch((error) => {
@@ -177,7 +180,10 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
   },
 
   removeTask: (taskId) => {
-    set((state) => ({ tasks: state.tasks.filter((task) => task.id !== taskId) }))
+    set((state) => ({
+      tasks: state.tasks.filter((task) => task.id !== taskId),
+      lastAddedTaskId: state.lastAddedTaskId === taskId ? null : state.lastAddedTaskId
+    }))
     persistQuietly(() => persistence?.remove(taskId) ?? Promise.resolve())
   },
 
@@ -295,17 +301,24 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
   addNote: (text) => {
     const trimmed = text.trim()
     if (!trimmed) return
+    const persistence = notePersistence
     const local: Note = { id: `n-${Date.now()}`, text: trimmed, time: '刚刚', tag: '想法' }
-    set((state) => ({ notes: [local, ...state.notes], noteTotal: state.noteTotal + 1, quickNoteOpen: false }))
+    set((state) => ({
+      notes: [local, ...state.notes],
+      noteTotal: state.noteTotal + 1,
+      noteRevision: state.noteRevision + (persistence ? 0 : 1),
+      quickNoteOpen: false
+    }))
 
-    if (!notePersistence) return
-    void notePersistence
+    if (!persistence) return
+    void persistence
       .create(trimmed, '想法')
       .then((saved) => {
         set((state) => ({
           notes: state.notes.map((note) =>
             note.id === local.id ? { ...saved, text: note.text, time: note.time, tag: note.tag } : note
-          )
+          ),
+          noteRevision: state.noteRevision + 1
         }))
       })
       .catch((error) => {

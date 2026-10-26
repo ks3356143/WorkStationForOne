@@ -1,5 +1,5 @@
 import { dateKey } from '../../../shared/date-key'
-import { formatDateLine, formatHM, getTimeMarkerPercent } from '../lib/date'
+import { formatDateLine, formatHM, getTimeMarkerPercent, toMinutes } from '../lib/date'
 import { summarizeFleet } from '../lib/fleet'
 import { blockMinutes, findNextBlock, findNextTask } from '../lib/schedule'
 import { tasksForTodayCard } from '../lib/todo'
@@ -80,11 +80,13 @@ export function TodayDashboard() {
       >
         {TIMELINE.map((block, index) => {
           const minutes = blockMinutes(block, TIMELINE[index + 1])
+          const start = toMinutes(block.time)
+          const past = start !== null && start + minutes <= nowMinutes
           return (
             <button
               key={block.time}
               type="button"
-              className={`w1-tlblk${block.time === nextBlockTime ? ' next' : ''}`}
+              className={`w1-tlblk${block.time === nextBlockTime ? ' next' : ''}${past ? ' past' : ''}`}
               style={{ left: `${block.left}%`, width: `${block.width}%` }}
               title={`${block.time} · ${block.label} · ${minutes} 分钟，点击开始专注`}
               aria-label={`${block.time} ${block.label}，${minutes} 分钟，开始专注`}
@@ -109,9 +111,9 @@ export function TodayDashboard() {
 
       <div className="w1-bento">
         <TaskCard nextTaskId={next?.id} />
+        <NoteCard />
         <HabitCard />
         <ReviewCard />
-        <NoteCard />
       </div>
     </div>
   )

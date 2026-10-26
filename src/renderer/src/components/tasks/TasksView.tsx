@@ -60,6 +60,8 @@ export function TasksView({ notify }: TasksViewProps) {
   const setScope = useWorkstation((state) => state.setTaskScope)
   const composeTask = useWorkstation((state) => state.composeTask)
   const taskComposerRequest = useWorkstation((state) => state.taskComposerRequest)
+  const lastAddedTaskId = useWorkstation((state) => state.lastAddedTaskId)
+  const clearLastAddedTask = useWorkstation((state) => state.clearLastAddedTask)
   const toggleTask = useWorkstation((state) => state.toggleTask)
   const addTask = useWorkstation((state) => state.addTask)
   const updateTask = useWorkstation((state) => state.updateTask)
@@ -76,6 +78,7 @@ export function TasksView({ notify }: TasksViewProps) {
   const listNames = lists.map((item) => item.name)
   const searching = query.trim().length > 0
   const visible = searching ? searchTasks(tasks, query) : filterTasksByScope(tasks, scope, today)
+  const completedVisible = visible.reduce((count, task) => count + (task.done ? 1 : 0), 0)
   const title = activeList ?? SMART_LISTS.find((item) => item.scope === scope)?.label ?? '任务'
 
   useEffect(() => {
@@ -88,6 +91,12 @@ export function TasksView({ notify }: TasksViewProps) {
     setQuery('')
     if (scope === 'done') setScope('today')
   }, [taskComposerRequest, scope, setScope])
+
+  useEffect(() => {
+    if (!lastAddedTaskId) return
+    const timer = window.setTimeout(clearLastAddedTask, 900)
+    return () => window.clearTimeout(timer)
+  }, [lastAddedTaskId, clearLastAddedTask])
 
   const focusRow = (taskId: string) => {
     requestAnimationFrame(() => document.getElementById(`todo-row-${taskId}`)?.focus())
@@ -248,6 +257,7 @@ export function TasksView({ notify }: TasksViewProps) {
                   today={today}
                   lists={listNames}
                   expanded={expandedId === task.id}
+                  highlight={task.id === lastAddedTaskId}
                   onToggle={() => toggleTask(task.id)}
                   onExpand={() => setExpandedId((current) => (current === task.id ? null : task.id))}
                   onSave={(patch: TaskPatch) => {
@@ -282,7 +292,15 @@ export function TasksView({ notify }: TasksViewProps) {
                     : '在下方输入一行，Enter 即可添加。'}
               </span>
             </div>
-          ) : null}
+          ) : (
+            <div className="w1-todoend">
+              <span>// END</span>
+              <b>
+                {visible.length} 项
+                {completedVisible > 0 ? ` · ${completedVisible} 完成` : ''}
+              </b>
+            </div>
+          )}
         </div>
       </div>
     </section>

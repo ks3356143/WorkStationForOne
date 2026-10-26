@@ -88,8 +88,8 @@
   background: transparent;
   color: var(--fs);
   text-align: left;
-  transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.24s, color 0.24s,
-    background-color 0.24s, box-shadow 0.24s;
+  transition: transform var(--dur-base) var(--ease-out), border-color var(--dur-base), color var(--dur-base),
+    background-color var(--dur-base), box-shadow var(--dur-base);
 }
 
 .w1-navitem::before {
@@ -102,7 +102,7 @@
   background: linear-gradient(180deg, var(--vio), var(--ac2));
   opacity: 0;
   box-shadow: 0 0 12px rgb(var(--vio-rgb) / 0.6);
-  transition: opacity 0.24s;
+  transition: opacity var(--dur-base);
 }
 
 .w1-navitem:hover {
@@ -123,6 +123,10 @@
   opacity: 1;
 }
 
+.w1 .w1-navitem:active {
+  transform: translateX(2px) scale(0.985);
+}
+
 .w1-navicon {
   width: 34px;
   height: 34px;
@@ -131,7 +135,7 @@
   border: 1px solid rgb(var(--ac-rgb) / 0.22);
   background: rgb(var(--vio-rgb) / 0.08);
   color: var(--ac-fg);
-  transition: background 0.24s, border-color 0.24s, color 0.24s, box-shadow 0.24s;
+  transition: background-color var(--dur-base), border-color var(--dur-base), color var(--dur-base), box-shadow var(--dur-base);
 }
 
 .w1-navitem.on .w1-navicon {
@@ -243,7 +247,7 @@
   text-align: left;
   white-space: nowrap;
   overflow: hidden;
-  transition: background-color 0.2s, color 0.2s;
+  transition: background-color var(--dur-ui), color var(--dur-ui);
 }
 
 .w1-fjump i {
@@ -285,14 +289,18 @@
   display: grid;
   place-items: center;
   padding: 0;
-  transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.24s, color 0.24s,
-    background-color 0.24s;
+  transition: transform var(--dur-base) var(--ease-out), border-color var(--dur-base), color var(--dur-base),
+    background-color var(--dur-base);
 }
 
 .w1-plus:hover {
   transform: rotate(90deg);
   border-color: rgb(var(--ac-rgb) / 0.45);
   color: var(--fg);
+}
+
+.w1 .w1-plus:active {
+  transform: rotate(90deg) scale(0.95);
 }
 
 /* ---------- agent session rail ---------- */
@@ -371,8 +379,8 @@
   background: transparent;
   color: var(--fs);
   text-align: left;
-  transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.24s, background-color 0.24s,
-    color 0.24s, box-shadow 0.24s, opacity 0.24s;
+  transition: transform var(--dur-base) var(--ease-out), border-color var(--dur-base), background-color var(--dur-base),
+    color var(--dur-base), box-shadow var(--dur-base), opacity var(--dur-base);
 }
 
 .w1-sess::before {
@@ -419,7 +427,6 @@
   width: 2px;
   background: linear-gradient(180deg, var(--vio), var(--ac2));
   box-shadow: 0 0 10px rgb(var(--vio-rgb) / 0.6);
-  animation: sessBreathe 5s ease-in-out infinite;
 }
 
 .w1-sess.on::after {
@@ -436,6 +443,10 @@
 
 .w1-sess.on:hover {
   transform: translateX(2px);
+}
+
+.w1 .w1-sess:active {
+  transform: translateX(2px) scale(0.99);
 }
 
 .w1-st {
@@ -478,13 +489,17 @@
   color: var(--fs);
   font-size: 14px;
   text-align: left;
-  transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.24s, color 0.24s;
+  transition: transform var(--dur-base) var(--ease-out), background-color var(--dur-base), color var(--dur-base);
 }
 
 .w1-lrow:hover {
   transform: translateX(2px);
   background: rgb(var(--vio-rgb) / 0.08);
   color: var(--fg-strong);
+}
+
+.w1 .w1-lrow:active {
+  transform: translateX(2px) scale(0.99);
 }
 
 .w1-lmeta {
@@ -523,7 +538,7 @@
   color: var(--mu);
   font: 500 12px/1 var(--mono);
   letter-spacing: 0.06em;
-  transition: color 0.24s;
+  transition: color var(--dur-base);
 }
 
 .w1-settings:hover {

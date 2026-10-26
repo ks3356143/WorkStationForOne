@@ -1,5 +1,24 @@
 /* ---------- entrance choreography ---------- */
 
+.w1 :where(button):not(:disabled):active {
+  transform: scale(0.98);
+  transition-duration: var(--dur-press) !important;
+}
+
+.w1-view {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity var(--dur-view) var(--ease-out),
+    transform var(--dur-view) var(--ease-out);
+}
+
+@starting-style {
+  .w1-view {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
 @keyframes shellInDown {
   from {
     opacity: 0;
@@ -32,18 +51,18 @@
 }
 
 .w1.is-booted .w1-bar {
-  animation: shellInDown 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation: shellInDown 0.5s var(--ease-out) backwards;
 }
 
 .w1.is-booted .w1-nav {
-  animation: shellInLeft 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.06s backwards;
+  animation: shellInLeft 0.6s var(--ease-out) 0.06s backwards;
 }
 
 .w1.is-booted .w1-status {
   animation: shellFade 0.5s ease 0.34s backwards;
 }
 
-/* ---------- ambient loops ---------- */
+/* ---------- semantic ambient loops ---------- */
 
 @keyframes ledPulse {
   0%,
@@ -54,16 +73,6 @@
   50% {
     opacity: 0.45;
     transform: scale(0.78);
-  }
-}
-
-@keyframes sessBreathe {
-  0%,
-  100% {
-    opacity: 0.42;
-  }
-  50% {
-    opacity: 1;
   }
 }
 
@@ -84,16 +93,6 @@
   }
   50% {
     opacity: 0.9;
-  }
-}
-
-@keyframes barGlow {
-  0%,
-  100% {
-    opacity: 0.45;
-  }
-  50% {
-    opacity: 1;
   }
 }
 

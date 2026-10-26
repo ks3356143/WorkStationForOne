@@ -20,6 +20,40 @@
   margin-left: auto;
 }
 
+.w1-sdiv {
+  flex: none;
+  width: 1px;
+  height: 12px;
+  background: rgb(var(--bd-rgb) / 0.9);
+}
+
+.w1-status-ver {
+  color: var(--su);
+  opacity: 0.72;
+  letter-spacing: 0.04em;
+}
+
+.w1-st-keys {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.w1-st-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--su);
+}
+
+.w1-st-key kbd {
+  padding: 2px 4px;
+  border: 1px solid rgb(var(--ac-rgb) / 0.18);
+  background: rgb(var(--vio-rgb) / 0.07);
+  color: var(--mu);
+  font: 10px/1 var(--mono);
+}
+
 .w1-sdot {
   display: inline-block;
   width: 6px;
@@ -51,7 +85,7 @@
   background: transparent;
   color: var(--su);
   font: inherit;
-  transition: color 0.2s;
+  transition: color var(--dur-ui);
 }
 
 .w1-sbtn:hover {
@@ -77,7 +111,7 @@
   color: var(--fs);
   font: 500 11px/1 var(--mono);
   letter-spacing: 0.04em;
-  transition: border-color 0.2s, color 0.2s;
+  transition: border-color var(--dur-ui), color var(--dur-ui);
 }
 
 .w1-motion i {

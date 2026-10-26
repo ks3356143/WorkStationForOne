@@ -49,6 +49,7 @@
   --panel-hi-rgb: 255 255 255;
   --panel-lo-rgb: 244 247 253;
   --panel-1-rgb: 255 255 255;
+  --panel-2-rgb: 237 241 250;
   --field-rgb: 246 248 253;
   --shadow-rgb: 45 56 85;
   --scrim-rgb: 232 238 249;
@@ -148,4 +149,136 @@
     rgb(var(--ac2-rgb) / 0.16) 92%,
     rgb(var(--ac2-rgb) / 0.5) 100%
   );
+}
+
+/* ---------- day mode glass depth ---------- */
+
+:root[data-theme="light"] .w1-nav,
+:root[data-theme="light"] .w1-rail,
+:root[data-theme="light"] .w1-todorail,
+:root[data-theme="light"] .w1-dock {
+  background:
+    radial-gradient(130% 80% at 6% 0%, rgb(var(--vio-rgb) / 0.075), transparent 64%),
+    linear-gradient(180deg, rgb(255 255 255 / 0.88), rgb(247 249 254 / 0.8));
+  border-color: rgb(var(--ac-rgb) / 0.2);
+  box-shadow: inset 0 1px rgb(255 255 255 / 0.92), inset -1px 0 rgb(var(--ac-rgb) / 0.04);
+}
+
+:root[data-theme="light"] .w1-main,
+:root[data-theme="light"] .w1-todos,
+:root[data-theme="light"] .w1-notesview {
+  background-image:
+    linear-gradient(rgb(var(--ac-rgb) / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--ac-rgb) / 0.05) 1px, transparent 1px),
+    radial-gradient(120% 82% at 84% -18%, rgb(var(--vio-rgb) / 0.09), transparent 62%),
+    linear-gradient(180deg, rgb(var(--panel-1-rgb) / 0.02), rgb(var(--panel-1-rgb) / 0.34));
+  background-size: 48px 48px, 48px 48px, 100% 100%, 100% 100%;
+}
+
+:root[data-theme="light"] .w1-card,
+:root[data-theme="light"] .w1-tl,
+:root[data-theme="light"] .w1-nvbox,
+:root[data-theme="light"] .w1-todoquick,
+:root[data-theme="light"] .w1-compose {
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgb(var(--ac2-rgb) / 0.06), transparent 58%),
+    radial-gradient(90% 70% at 0% 0%, rgb(var(--vio-rgb) / 0.075), transparent 62%),
+    linear-gradient(155deg, rgb(255 255 255 / 0.9), rgb(245 247 253 / 0.92));
+}
+
+:root[data-theme="light"] .w1-card,
+:root[data-theme="light"] .w1-tl,
+:root[data-theme="light"] .w1-nvbox {
+  border-color: rgb(var(--ac-rgb) / 0.26);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.96), 0 12px 30px rgb(var(--shadow-rgb) / 0.09),
+    0 0 24px rgb(var(--ac-rgb) / 0.05);
+}
+
+:root[data-theme="light"] .w1-card:hover {
+  border-color: rgb(var(--ac-rgb) / 0.34);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.98), 0 18px 42px rgb(var(--shadow-rgb) / 0.13),
+    0 0 30px rgb(var(--ac-rgb) / 0.1);
+}
+
+:root[data-theme="light"] .w1-modal,
+:root[data-theme="light"] .w1-palette,
+:root[data-theme="light"] .w1-focus-box {
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgb(var(--ac2-rgb) / 0.055), transparent 58%),
+    linear-gradient(155deg, rgb(255 255 255 / 0.94), rgb(246 248 254 / 0.96));
+}
+
+:root[data-theme="light"] .w1-navitem.on,
+:root[data-theme="light"] .w1-sess.on,
+:root[data-theme="light"] .w1-todorow.on {
+  border-color: rgb(var(--ac-rgb) / 0.4);
+  background: linear-gradient(90deg, rgb(var(--vio-rgb) / 0.19), rgb(var(--ac2-rgb) / 0.06) 78%);
+  box-shadow: inset 0 1px rgb(255 255 255 / 0.95), inset 0 0 24px rgb(var(--vio-rgb) / 0.05),
+    0 8px 20px rgb(var(--vio-rgb) / 0.1);
+}
+
+:root[data-theme="light"] .w1-todonew,
+:root[data-theme="light"] .w1-todoadd {
+  border-color: rgb(var(--ac-rgb) / 0.34);
+  background: rgb(var(--vio-rgb) / 0.1);
+  color: var(--ac-fg-strong);
+}
+
+:root[data-theme="light"] .w1-tlblk {
+  border-color: rgb(var(--ac-rgb) / 0.34);
+  border-left-color: rgb(var(--vio-rgb) / 0.6);
+  background: linear-gradient(90deg, rgb(var(--vio-rgb) / 0.14), rgb(var(--ac2-rgb) / 0.055));
+  box-shadow: inset 0 1px rgb(255 255 255 / 0.72);
+}
+
+:root[data-theme="light"] .w1-tlblk.next {
+  border-color: rgb(var(--wn-rgb) / 0.42);
+  border-left-color: var(--wn);
+  background: rgb(var(--wn-rgb) / 0.1);
+}
+
+:root[data-theme="light"] .w1-tlblk.past {
+  border-color: rgb(var(--bd-rgb) / 0.9);
+  border-left-color: rgb(var(--ctl) / 0.55);
+  background: rgb(var(--panel-1-rgb) / 0.32);
+  color: var(--mu);
+  box-shadow: none;
+}
+
+:root[data-theme="light"] .w1-tlblk.past:hover {
+  border-color: rgb(var(--ac2-rgb) / 0.6);
+  border-left-color: var(--ac2);
+  background: linear-gradient(90deg, rgb(var(--ac2-rgb) / 0.16), rgb(var(--vio-rgb) / 0.08));
+  color: var(--fs);
+}
+
+:root[data-theme="light"] .w1-cmd,
+:root[data-theme="light"] .w1-nvsearch {
+  border-color: rgb(var(--ac-rgb) / 0.28);
+  background: rgb(255 255 255 / 0.7);
+  box-shadow: inset 0 1px rgb(255 255 255 / 0.9);
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  :root[data-theme="light"] .w1-card,
+  :root[data-theme="light"] .w1-tl,
+  :root[data-theme="light"] .w1-nvbox,
+  :root[data-theme="light"] .w1-todoquick {
+    background: var(--s1);
+  }
+
+  :root[data-theme="light"] .w1-nav,
+  :root[data-theme="light"] .w1-rail,
+  :root[data-theme="light"] .w1-todorail,
+  :root[data-theme="light"] .w1-dock,
+  :root[data-theme="light"] .w1-modal,
+  :root[data-theme="light"] .w1-palette,
+  :root[data-theme="light"] .w1-focus-box,
+  :root[data-theme="light"] .w1-toast {
+    background: var(--panel-solid);
+  }
+
+  :root[data-theme="light"] .w1-compose {
+    background: var(--field-solid);
+  }
 }

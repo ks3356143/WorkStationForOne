@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { NoteRecord, NoteSearchHit } from '../../../shared/ipc'
 import { useWorkstation } from '../store/useWorkstation'
+import { PlusIcon } from './Glyphs'
 import { NoteList, NoteListFooter, type NoteListRow } from './NoteList'
 
 type Mode = 'browse' | 'search'
@@ -32,15 +33,19 @@ export function hitsToRows(hits: NoteSearchHit[]): NoteListRow[] {
 export function NotesView() {
   const api = typeof window === 'undefined' ? undefined : window.ws?.notes
   const memoryNotes = useWorkstation((state) => state.notes)
+  const noteRevision = useWorkstation((state) => state.noteRevision)
+  const openQuickNote = useWorkstation((state) => state.openQuickNote)
 
   const [query, setQuery] = useState('')
   const [mode, setMode] = useState<Mode>('browse')
   const [rows, setRows] = useState<NoteListRow[]>(() => notesToRows(memoryNotes))
   const [total, setTotal] = useState(memoryNotes.length)
   const [loading, setLoading] = useState(false)
+  const [searchRefresh, setSearchRefresh] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const offsetRef = useRef(0)
   const searchSeq = useRef(0)
+  const revisionRef = useRef(noteRevision)
 
   const loadPage = useCallback(
     async (reset: boolean) => {
@@ -70,6 +75,17 @@ export function NotesView() {
     // 只在挂载时拉第一页
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (revisionRef.current === noteRevision) return
+    if (!api || loading) return
+    revisionRef.current = noteRevision
+    if (query.trim()) {
+      setSearchRefresh((value) => value + 1)
+      return
+    }
+    void loadPage(true)
+  }, [api, loading, noteRevision, query, loadPage])
 
   useEffect(() => {
     const trimmed = query.trim()
@@ -119,7 +135,7 @@ export function NotesView() {
     return () => window.clearTimeout(timer)
     // loadPage 依赖 loading，避免把搜索重复触发
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query])
+  }, [query, searchRefresh])
 
   const hasMore = mode === 'browse' && rows.length < total
 
@@ -135,9 +151,21 @@ export function NotesView() {
               全部笔记<span>.</span>
             </h1>
           </div>
-          <span className="w1-nvcount">
-            {mode === 'search' ? `命中 ${total}${total >= SEARCH_LIMIT ? '+' : ''}` : `共 ${total} 条 · 已载入 ${rows.length}`}
-          </span>
+          <div className="w1-nvheadright">
+            <span className="w1-nvcount">
+              {mode === 'search' ? `命中 ${total}${total >= SEARCH_LIMIT ? '+' : ''}` : `共 ${total} 条 · 已载入 ${rows.length}`}
+            </span>
+            <button
+              className="w1-nvnew"
+              type="button"
+              title="新建笔记（Ctrl+N）"
+              onClick={openQuickNote}
+            >
+              <PlusIcon width={10} height={10} />
+              新建笔记
+              <kbd>^N</kbd>
+            </button>
+          </div>
         </header>
 
         <div className="w1-nvsearch">
@@ -163,7 +191,16 @@ export function NotesView() {
 
         {error ? <div className="w1-nverror">{error}</div> : null}
 
-        <NoteList rows={rows} loading={loading} mode={mode} />
+        <NoteList
+          rows={rows}
+          loading={loading}
+          mode={mode}
+          endLabel={
+            !hasMore && rows.length > 0
+              ? `// END · ${mode === 'search' ? '命中' : '共'} ${total} 条`
+              : undefined
+          }
+        />
 
         {hasMore ? (
           <NoteListFooter

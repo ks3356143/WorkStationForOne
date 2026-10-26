@@ -35,6 +35,14 @@
 }
 
 @media (max-width: 1279px) {
+  .w1-cmdlong {
+    display: none;
+  }
+
+  .w1-cmdshort {
+    display: inline;
+  }
+
   .w1-body {
     grid-template-columns: 196px minmax(0, 1fr);
   }
@@ -105,7 +113,8 @@
   }
 
   .w1-st-mcp,
-  .w1-st-key {
+  .w1-st-key,
+  .w1-st-keys {
     display: none;
   }
 }
@@ -207,6 +216,10 @@
 
   .w1-nvsearch {
     height: 42px;
+  }
+
+  .w1-nvnew kbd {
+    display: none;
   }
 
   .w1-thead {
@@ -332,7 +345,7 @@
     gap: 14px;
   }
 
-  .w1-todoeditorwrap {
+  .w1-todoeditorinner {
     padding-left: 26px;
   }
 

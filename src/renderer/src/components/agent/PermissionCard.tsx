@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { m } from 'motion/react'
+import { AnimatePresence, m } from 'motion/react'
+import { DURATION, EASE_OUT } from '../../lib/motion'
 import type { Permission, Task } from '../../types'
 import { ArrowIcon } from '../Glyphs'
 
@@ -16,10 +17,10 @@ export function PermissionCard({ permission, tasks, onResolve }: PermissionCardP
     <m.section
       className="w1-perm"
       aria-label="权限请求"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -6 }}
-      transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+      initial={{ opacity: 0, transform: 'translateY(8px)' }}
+      animate={{ opacity: 1, transform: 'translateY(0px)' }}
+      exit={{ opacity: 0, transform: 'translateY(8px)', transition: { duration: DURATION.fast } }}
+      transition={{ duration: DURATION.permissionIn, ease: EASE_OUT }}
     >
       <span className="w1-permglow" aria-hidden="true" />
       <div className="w1-ph">
@@ -40,15 +41,25 @@ export function PermissionCard({ permission, tasks, onResolve }: PermissionCardP
           )
         })}
       </div>
-      {expanded ? (
-        <div className="w1-diffdetail">
-          <span>
-            <ArrowIcon width={8} height={8} /> patch tasks.set_schedule
-          </span>
-          <span>scope: domain=tasks · mode=write</span>
-          <span>target: {permission.changes.map((change) => change.taskId).join(' / ')}</span>
-        </div>
-      ) : null}
+      <AnimatePresence initial={false}>
+        {expanded ? (
+          <m.div
+            className="w1-diffreveal"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: DURATION.reveal, ease: EASE_OUT }}
+          >
+            <div className="w1-diffdetail">
+              <span>
+                <ArrowIcon width={8} height={8} /> patch tasks.set_schedule
+              </span>
+              <span>scope: domain=tasks · mode=write</span>
+              <span>target: {permission.changes.map((change) => change.taskId).join(' / ')}</span>
+            </div>
+          </m.div>
+        ) : null}
+      </AnimatePresence>
       <div className="w1-pacts">
         <button className="w1-pb" type="button" onClick={() => onResolve('deny')}>
           拒绝

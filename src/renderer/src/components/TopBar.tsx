@@ -18,9 +18,15 @@ export function TopBar({ onCommand }: TopBarProps) {
         </div>
       </div>
 
-      <button className="w1-cmd" type="button" onClick={onCommand}>
+      <button
+        className="w1-cmd"
+        type="button"
+        aria-label="搜索、跳转，或直接问 agent"
+        onClick={onCommand}
+      >
         <span className="w1-prompt">&gt;</span>
-        <span>搜索、跳转，或直接问 agent</span>
+        <span className="w1-cmdtext w1-cmdlong">搜索、跳转，或直接问 agent</span>
+        <span className="w1-cmdtext w1-cmdshort">搜索 / 跳转 / 问 Agent</span>
         <kbd>Ctrl K</kbd>
       </button>
 

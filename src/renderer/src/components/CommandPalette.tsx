@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Command } from 'cmdk'
 import { m } from 'motion/react'
+import { DURATION, EASE_OUT } from '../lib/motion'
 import { AGENT_META } from '../lib/agent'
 import {
   buildPaletteCommands,
@@ -118,7 +119,7 @@ export function CommandPalette({ onClose, notify }: CommandPaletteProps) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.22 }}
+      transition={{ duration: DURATION.paletteBackdrop }}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget && !closingRef.current) onClose()
       }}
@@ -128,10 +129,10 @@ export function CommandPalette({ onClose, notify }: CommandPaletteProps) {
         role="dialog"
         aria-modal="true"
         aria-label="命令面板"
-        initial={{ opacity: 0, y: -12 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -8 }}
-        transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+        initial={{ opacity: 0, transform: 'translateY(-12px)' }}
+        animate={{ opacity: 1, transform: 'translateY(0px)' }}
+        exit={{ opacity: 0, transform: 'translateY(-8px)' }}
+        transition={{ duration: DURATION.palette, ease: EASE_OUT }}
         onKeyDown={(event) => {
           if (event.key === 'Tab') event.preventDefault()
         }}

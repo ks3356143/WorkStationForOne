@@ -44,7 +44,7 @@
   color: var(--ac-fg);
   font: 500 11px/1 var(--mono);
   letter-spacing: 0.04em;
-  transition: border-color 0.2s, background-color 0.2s, color 0.2s;
+  transition: border-color var(--dur-ui), background-color var(--dur-ui), color var(--dur-ui);
 }
 
 .w1-todonew:hover {
@@ -69,7 +69,7 @@
   background: transparent;
   color: var(--mu);
   text-align: left;
-  transition: border-color 0.2s, background-color 0.2s, color 0.2s;
+  transition: border-color var(--dur-ui), background-color var(--dur-ui), color var(--dur-ui);
 }
 
 .w1-todorow:hover {
@@ -194,11 +194,12 @@
   gap: 8px;
   padding: 0 2px;
   border-bottom: 1px solid rgb(var(--ac-rgb) / 0.26);
-  transition: border-color 0.2s;
+  transition: border-color var(--dur-ui);
 }
 
 .w1-todosearch:focus-within {
   border-color: rgb(var(--ac2-rgb) / 0.62);
+  box-shadow: 0 10px 24px -18px rgb(var(--ac2-rgb) / 0.9);
 }
 
 .w1-todosearch > span {
@@ -247,6 +248,13 @@
   background: linear-gradient(100deg, rgb(var(--vio-rgb) / 0.1), transparent 70%),
     rgb(var(--panel-1-rgb) / 0.3);
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.05);
+  transition: border-color var(--dur-base), box-shadow var(--dur-base);
+}
+
+.w1-todoquick:focus-within {
+  border-color: rgb(var(--ac-rgb) / 0.38);
+  box-shadow: inset 2px 0 rgb(var(--ac2-rgb) / 0.5), inset 0 1px rgba(255, 255, 255, 0.07),
+    0 10px 26px -24px rgb(var(--vio-rgb) / 0.9);
 }
 
 .w1-todoquickrow {
@@ -288,7 +296,7 @@
   background: rgb(var(--vio-rgb) / 0.18);
   color: var(--ac-fg);
   font: 500 11px/1 var(--mono);
-  transition: border-color 0.2s, background-color 0.2s, opacity 0.2s;
+  transition: border-color var(--dur-ui), background-color var(--dur-ui), opacity var(--dur-ui);
 }
 
 .w1-todoadd:hover {
@@ -352,18 +360,6 @@
   min-height: 0;
   padding: 8px 0 24px;
   overflow-y: auto;
-  animation: todoIn 0.26s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-@keyframes todoIn {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
 }
 
 .w1-todogroupblock + .w1-todogroupblock {
@@ -398,6 +394,31 @@
 
 .w1-todorowwrap {
   border-bottom: 1px solid rgb(var(--ac-rgb) / 0.09);
+  transition: opacity var(--dur-base);
+}
+
+.w1-todorowwrap.done {
+  opacity: 0.74;
+}
+
+.w1-todorowwrap.done:hover,
+.w1-todorowwrap.done:focus-within {
+  opacity: 1;
+}
+
+.w1-todorowwrap.landing .w1-todorowmain {
+  animation: taskLanding 0.7s var(--ease-out);
+}
+
+@keyframes taskLanding {
+  0% {
+    background-color: rgb(var(--ac2-rgb) / 0.18);
+    box-shadow: inset 2px 0 var(--ac2);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: inset 2px 0 transparent;
+  }
 }
 
 .w1-todorowmain {
@@ -406,11 +427,13 @@
   align-items: center;
   gap: 10px;
   padding: 9px 4px;
-  transition: background-color 0.2s;
+  transition: background-color var(--dur-ui);
 }
 
-.w1-todorowmain:hover {
+.w1-todorowmain:hover,
+.w1-todorowmain:focus-within {
   background: linear-gradient(90deg, rgb(var(--vio-rgb) / 0.07), transparent 80%);
+  box-shadow: inset 2px 0 rgb(var(--ac2-rgb) / 0.5);
 }
 
 .w1-todocb {
@@ -421,17 +444,23 @@
   border: 1px solid var(--ctl);
   background: transparent;
   color: transparent;
-  transition: border-color 0.2s, background-color 0.2s, color 0.2s;
+  transition: border-color var(--dur-ui), background-color var(--dur-ui), color var(--dur-ui), transform var(--dur-ui),
+    box-shadow var(--dur-ui);
 }
 
 .w1-todocb:hover {
   border-color: var(--ac);
 }
 
+.w1 .w1-todocb:active {
+  transform: scale(0.9);
+}
+
 .w1-todocb.on {
   border-color: rgb(var(--ok-rgb) / 0.56);
   background: rgb(var(--ok-rgb) / 0.14);
   color: var(--ok);
+  box-shadow: 0 0 12px rgb(var(--ok-rgb) / 0.24);
 }
 
 .w1-todobody {
@@ -454,6 +483,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: color var(--dur-base), opacity var(--dur-base);
 }
 
 .w1-todobody:hover .w1-todotitletext {
@@ -527,8 +557,12 @@
 }
 
 .w1-todoeditorwrap {
-  padding: 0 6px 16px 32px;
+  overflow: hidden;
   background: linear-gradient(90deg, rgb(var(--vio-rgb) / 0.055), transparent 64%);
+}
+
+.w1-todoeditorinner {
+  padding: 0 6px 16px 32px;
 }
 
 .w1-todoedit {
@@ -571,7 +605,7 @@
   color: var(--fg);
   font: 13.5px/1.5 var(--sans);
   outline: none;
-  transition: border-color 0.2s, background-color 0.2s;
+  transition: border-color var(--dur-ui), background-color var(--dur-ui);
 }
 
 .w1-todofield input:focus,
@@ -604,7 +638,7 @@
   background: transparent;
   color: var(--mu);
   font: 10.5px/1 var(--mono);
-  transition: border-color 0.2s, background-color 0.2s, color 0.2s;
+  transition: border-color var(--dur-ui), background-color var(--dur-ui), color var(--dur-ui);
 }
 
 .w1-tododatequick button:hover {
@@ -625,7 +659,7 @@
   background: transparent;
   color: var(--mu);
   font: 11px/1 var(--mono);
-  transition: border-color 0.2s, background-color 0.2s, color 0.2s;
+  transition: border-color var(--dur-ui), background-color var(--dur-ui), color var(--dur-ui);
 }
 
 .w1-todopriopt:hover {
@@ -673,7 +707,7 @@
   background: rgb(var(--panel-2-rgb) / 0.34);
   color: var(--fs);
   font: 500 11.5px/1 var(--mono);
-  transition: border-color 0.2s, background-color 0.2s, color 0.2s;
+  transition: border-color var(--dur-ui), background-color var(--dur-ui), color var(--dur-ui);
 }
 
 .w1-todosave {
@@ -712,15 +746,37 @@
 }
 
 .w1-todoempty {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 7px;
   align-items: center;
   margin-top: 20px;
-  padding: 34px 18px;
-  border: 1px dashed rgb(var(--ac-rgb) / 0.16);
+  padding: 30px 18px 28px;
+  border: 1px solid rgb(var(--ac-rgb) / 0.14);
+  background: linear-gradient(150deg, rgb(var(--vio-rgb) / 0.05), transparent 62%);
   text-align: center;
   color: var(--su);
+  overflow: hidden;
+}
+
+.w1-todoempty::before {
+  content: "∅";
+  font: 600 32px/1 var(--mono);
+  color: rgb(var(--ac-rgb) / 0.26);
+  text-shadow: 0 0 24px rgb(var(--vio-rgb) / 0.22);
+}
+
+.w1-todoempty::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(rgb(var(--ac-rgb) / 0.38), rgb(var(--ac-rgb) / 0.38)) left top / 10px 1px no-repeat,
+    linear-gradient(rgb(var(--ac-rgb) / 0.38), rgb(var(--ac-rgb) / 0.38)) left top / 1px 10px no-repeat,
+    linear-gradient(rgb(var(--ac-rgb) / 0.38), rgb(var(--ac-rgb) / 0.38)) right bottom / 10px 1px no-repeat,
+    linear-gradient(rgb(var(--ac-rgb) / 0.38), rgb(var(--ac-rgb) / 0.38)) right bottom / 1px 10px no-repeat;
 }
 
 .w1-todoempty b {
@@ -730,4 +786,27 @@
 
 .w1-todoempty span {
   font: 11px/1.6 var(--mono);
+}
+
+.w1-todoend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 4px 4px;
+  font: 10.5px/1 var(--mono);
+  letter-spacing: 0.08em;
+  color: var(--su);
+}
+
+.w1-todoend b {
+  font-weight: 500;
+  color: var(--mu);
+  letter-spacing: 0.04em;
+}
+
+.w1-todoend::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, rgb(var(--ac-rgb) / 0.16), transparent);
 }

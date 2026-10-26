@@ -62,12 +62,29 @@ button {
   --panel-hi-rgb: 38 34 72;
   --panel-lo-rgb: 14 20 40;
   --panel-1-rgb: 8 7 18;
+  --panel-2-rgb: 27 24 56;
   --field-rgb: 10 10 26;
   --shadow-rgb: 0 0 0;
   --scrim-rgb: 5 6 14;
   --mono: "Cascadia Code", "Cascadia Mono", Consolas, monospace;
   --sans: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", sans-serif;
   --disp: "Segoe UI Variable Display", "Segoe UI", "Microsoft YaHei UI", sans-serif;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-press: 120ms;
+  --dur-check: 140ms;
+  --dur-feedback: 150ms;
+  --dur-fast: 160ms;
+  --dur-reveal: 180ms;
+  --dur-ui: 200ms;
+  --dur-pop: 220ms;
+  --dur-base: 240ms;
+  --dur-view: 280ms;
+  --dur-slow: 300ms;
+  --dur-palette: 320ms;
+  --dur-modal: 380ms;
+  --dur-focus: 500ms;
+  --dur-progress: 500ms;
   position: relative;
   isolation: isolate;
   width: 100%;
@@ -139,10 +156,83 @@ button {
   cursor: default;
 }
 
+.w1 ::selection {
+  background: rgb(var(--ac-rgb) / 0.34);
+  color: var(--fg-strong);
+}
+
+.w1 input,
+.w1 textarea {
+  caret-color: var(--ac2);
+}
+
 .w1 button:focus-visible,
 .w1 textarea:focus-visible {
   outline: 1px solid rgb(var(--ac2-rgb) / 0.75);
   outline-offset: 2px;
+}
+
+.w1-navitem:focus-visible,
+.w1-sess:focus-visible,
+.w1-todorow:focus-visible,
+.w1-lrow:focus-visible {
+  outline-offset: -2px;
+}
+
+.w1-main,
+.w1-nav,
+.w1-railscroll,
+.w1-todorail,
+.w1-todoscroll,
+.w1-nvlist,
+.w1-palettelist {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--ac-rgb) / 0.3) transparent;
+}
+
+.w1-main::-webkit-scrollbar,
+.w1-nav::-webkit-scrollbar,
+.w1-railscroll::-webkit-scrollbar,
+.w1-todorail::-webkit-scrollbar,
+.w1-todoscroll::-webkit-scrollbar,
+.w1-nvlist::-webkit-scrollbar,
+.w1-palettelist::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.w1-main::-webkit-scrollbar-thumb,
+.w1-nav::-webkit-scrollbar-thumb,
+.w1-railscroll::-webkit-scrollbar-thumb,
+.w1-todorail::-webkit-scrollbar-thumb,
+.w1-todoscroll::-webkit-scrollbar-thumb,
+.w1-nvlist::-webkit-scrollbar-thumb,
+.w1-palettelist::-webkit-scrollbar-thumb {
+  background: rgb(var(--ac-rgb) / 0.26);
+}
+
+.w1-main::-webkit-scrollbar-thumb:hover,
+.w1-nav::-webkit-scrollbar-thumb:hover,
+.w1-railscroll::-webkit-scrollbar-thumb:hover,
+.w1-todorail::-webkit-scrollbar-thumb:hover,
+.w1-todoscroll::-webkit-scrollbar-thumb:hover,
+.w1-nvlist::-webkit-scrollbar-thumb:hover,
+.w1-palettelist::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--ac-rgb) / 0.46);
+}
+
+.w1-btn:active,
+.w1-pb:active,
+.w1-rbtn:active {
+  transform: translateY(0);
+}
+
+.w1-btn.pri:active,
+.w1-pb.pri:active,
+.w1-rbtn:active,
+.w1-send:active:not(:disabled),
+.w1-todosave:active:not(:disabled) {
+  transform: translateY(0) scale(0.99);
 }
 
 .w1-scan {
@@ -165,7 +255,7 @@ button {
 }
 
 .w1-scan.run {
-  animation: scanSweep 1.05s cubic-bezier(0.4, 0, 0.2, 1) 0.05s forwards;
+  animation: scanSweep 1.05s var(--ease-soft) 0.05s forwards;
 }
 
 @keyframes scanSweep {

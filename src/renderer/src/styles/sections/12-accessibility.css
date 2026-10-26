@@ -49,18 +49,71 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .w1,
+  .w1::before,
+  .w1::after,
   .w1 *,
   .w1 *::before,
   .w1 *::after {
     animation: none !important;
-    transition: none !important;
+    transition-property: opacity, color, background-color, border-color, box-shadow, outline-color !important;
+    transition-duration: var(--dur-feedback) !important;
+    transition-timing-function: var(--ease-out) !important;
+    transition-delay: 0s !important;
+  }
+
+  .w1-toastbar {
+    display: none;
   }
 }
 
+.w1.motion-off,
+.w1.motion-off::before,
+.w1.motion-off::after,
 .w1.motion-off *,
 .w1.motion-off *::before,
 .w1.motion-off *::after {
   animation: none !important;
   transition-duration: 0s !important;
+}
+
+.w1.motion-off .w1-toastbar {
+  display: none;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .w1-navitem:hover:not(:active),
+  .w1-sess:not(.on):hover:not(:active),
+  .w1-sess.on:hover:not(:active),
+  .w1-lrow:hover:not(:active),
+  .w1-plus:hover:not(:active),
+  .w1-btn:hover:not(:active),
+  .w1-btn.pri:hover:not(:active),
+  .w1-tlblk:hover:not(:active),
+  .w1-card:hover,
+  .w1-hdot:not(:disabled):hover:not(:active),
+  .w1-rbtn:hover:not(:active),
+  .w1-nitem:hover:not(:active),
+  .w1-pb:hover:not(:active),
+  .w1-pb.pri:hover:not(:active),
+  .w1-send:hover:not(:active):not(:disabled) {
+    transform: none !important;
+  }
+
+  .w1-rbtn:hover:not(:active) span {
+    transform: none !important;
+  }
+
+  .w1-btn.pri:hover,
+  .w1-rbtn:hover,
+  .w1-pb.pri:hover,
+  .w1-send:hover:not(:disabled) {
+    filter: none !important;
+  }
+
+  .w1-card:hover::before {
+    clip-path: inset(0 calc(100% - 52px) 0 0);
+    opacity: 0.75;
+  }
 }
 

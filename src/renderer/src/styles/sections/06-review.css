@@ -56,7 +56,7 @@
   color: var(--on-accent);
   font: 700 13px/1 var(--sans);
   box-shadow: 0 10px 26px rgb(var(--vio-rgb) / 0.24);
-  transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), filter 0.24s, box-shadow 0.24s;
+  transition: transform var(--dur-base) var(--ease-out), filter var(--dur-base), box-shadow var(--dur-base);
 }
 
 .w1-rbtn span {
@@ -64,7 +64,7 @@
   font: 10.5px/1 var(--mono);
   font-weight: 600;
   color: var(--on-accent-dim);
-  transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform var(--dur-base) var(--ease-out);
 }
 
 .w1-rbtn:hover {

@@ -13,6 +13,7 @@ import { TodayDashboard } from './components/TodayDashboard'
 import { TopBar } from './components/TopBar'
 import { WorkspaceNav } from './components/WorkspaceNav'
 import { useWorkstation } from './store/useWorkstation'
+import { DURATION, EASE_OUT } from './lib/motion'
 import { hydrateTasks } from './lib/persistence'
 import { hydrateNotes } from './lib/notes-persistence'
 import { useDemoReply } from './lib/useDemoReply'
@@ -30,15 +31,17 @@ export default function App() {
   const [booting, setBooting] = useState(true)
   const [commandOpen, setCommandOpen] = useState(false)
   const [paletteSeq, setPaletteSeq] = useState(0)
-  const [notice, setNotice] = useState<string | null>(null)
+  const [notice, setNotice] = useState<{ id: number; text: string } | null>(null)
   const noticeTimer = useRef<number | null>(null)
+  const noticeSeq = useRef(0)
   const paletteTriggerRef = useRef<HTMLElement | null>(null)
   const reducedMotion = useReducedMotion()
 
   useDemoReply()
 
   const notify = useCallback((text: string) => {
-    setNotice(text)
+    noticeSeq.current += 1
+    setNotice({ id: noticeSeq.current, text })
     if (noticeTimer.current) window.clearTimeout(noticeTimer.current)
     noticeTimer.current = window.setTimeout(() => setNotice(null), 2400)
   }, [])
@@ -130,13 +133,7 @@ export default function App() {
           <div className="w1-body">
             <WorkspaceNav notify={notify} />
             <main className="w1-stage">
-              <m.div
-                key={activeView}
-                className="w1-view"
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-              >
+              <div key={activeView} className="w1-view">
                 {activeView === 'today' ? <TodayDashboard /> : null}
                 {activeView === 'tasks' ? <TasksView notify={notify} /> : null}
                 {activeView === 'agent' ? (
@@ -146,7 +143,7 @@ export default function App() {
                   </section>
                 ) : null}
                 {activeView === 'notes' ? <NotesView /> : null}
-              </m.div>
+              </div>
             </main>
           </div>
           <StatusBar notify={notify} />
@@ -170,13 +167,14 @@ export default function App() {
               <m.div
                 className="w1-toast"
                 role="status"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 6 }}
-                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                initial={{ opacity: 0, transform: 'translateY(8px)' }}
+                animate={{ opacity: 1, transform: 'translateY(0px)' }}
+                exit={{ opacity: 0, transform: 'translateY(6px)' }}
+                transition={{ duration: DURATION.toast, ease: EASE_OUT }}
               >
                 <i />
-                {notice}
+                {notice.text}
+                <span className="w1-toastbar" key={notice.id} aria-hidden="true" />
               </m.div>
             ) : null}
           </AnimatePresence>

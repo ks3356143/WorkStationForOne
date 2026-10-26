@@ -68,4 +68,16 @@ describe('hydrateNotes', () => {
 
     expect(d.create).toHaveBeenCalledWith('新笔记', '想法')
   })
+
+  it('新增笔记保存后递增 noteRevision，供笔记页刷新', async () => {
+    const d = deps({ create: vi.fn().mockResolvedValue({ id: 'saved', text: '新笔记', time: '刚刚' }) })
+    await hydrateNotes(d)
+    const before = useWorkstation.getState().noteRevision
+
+    useWorkstation.getState().addNote('新笔记')
+
+    await vi.waitFor(() => {
+      expect(useWorkstation.getState().noteRevision).toBe(before + 1)
+    })
+  })
 })
