@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TaskRecord } from '../../../shared/ipc'
 import { createInitialData } from '../data/mock'
 import { useWorkstation } from '../store/useWorkstation'
-import { hydrateTasks, type HydrateDeps } from './persistence'
+import { hydrateTasks, refreshTasks, type HydrateDeps } from './persistence'
 
 function deps(overrides: Partial<HydrateDeps> = {}): HydrateDeps {
   let stored: TaskRecord[] = []
@@ -109,6 +109,27 @@ describe('hydrateTasks', () => {
     await vi.waitFor(() => expect(spy).toHaveBeenCalled())
 
     expect(useWorkstation.getState().tasks[0].title).toBe('离线任务')
+    spy.mockRestore()
+  })
+
+  it('外部新增后刷新会用库内容覆盖界面', async () => {
+    await hydrateTasks(deps())
+    const stored = [{ id: 'x9', title: '来自捕获窗', time: '—', done: false }]
+
+    await refreshTasks({ list: vi.fn().mockResolvedValue(stored) })
+
+    expect(useWorkstation.getState().tasks).toEqual(stored)
+  })
+
+  it('刷新失败时保留当前任务', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await hydrateTasks(deps())
+    const before = useWorkstation.getState().tasks
+
+    await refreshTasks({ list: vi.fn().mockRejectedValue(new Error('db locked')) })
+
+    expect(useWorkstation.getState().tasks).toEqual(before)
+    expect(spy).toHaveBeenCalled()
     spy.mockRestore()
   })
 

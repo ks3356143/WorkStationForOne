@@ -52,9 +52,9 @@ npm run dev
 | `npm run build` | 生产构建，输出到 `out/` |
 | `npm start` | 预览上一次构建 |
 | `npm run typecheck` | 类型检查（main/preload 与 renderer 各一套配置） |
-| `npm test` | 运行全部单元测试（232 项） |
+| `npm test` | 运行全部单元测试（237 项） |
 | `npm run check` | Biome 检查格式与 lint（Rust 单二进制，不依赖 Prettier / ESLint） |
-| `npm run smoke` | 构建后跑 UI 交互冒烟（114 项，真实主进程 + 临时 SQLite） |
+| `npm run smoke` | 构建后跑 UI 交互冒烟（117 项，真实主进程 + 临时 SQLite） |
 | `npm run verify` | 启动真实主进程跑 228 项运行时断言（四视图、双主题/皮肤、跨重启） |
 | `npm run capture -- .screenshots/home.png 1440 900 .screenshots/audit.json` | 截图并输出布局审计 |
 | `npm run capture -- .screenshots/notes-1180.png 1180 720 .screenshots/audit-notes.json dark notes` | 指定主题 `dark|light` 与视图 `today|tasks|agent|notes` 截图 |
@@ -85,6 +85,7 @@ docs/superpowers/specs/ 产品与架构设计规格
 
 - 位置：`%APPDATA%\WorkStationForOne\data\workstation.db`
 - 已落库：任务（含清单、截止日期、计划日期、预计时长、优先级、备注、完成状态与时间变更）、笔记（含全文索引）
+- 全局快速捕获：`Ctrl+Alt+Space` 随时记一条，落库后主窗口即时刷新
 - 尚未落库：习惯、学习复习、会话与消息——这些目前仍是内存种子数据，重启会重置
 
 删除该目录即可回到初始状态。

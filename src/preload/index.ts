@@ -11,7 +11,14 @@ const api: WsApi = {
     create: (draft) => ipcRenderer.invoke(IPC_CHANNELS.tasksCreate, draft),
     update: (id, patch) => ipcRenderer.invoke(IPC_CHANNELS.tasksUpdate, id, patch),
     remove: (id) => ipcRenderer.invoke(IPC_CHANNELS.tasksRemove, id),
-    restore: (id) => ipcRenderer.invoke(IPC_CHANNELS.tasksRestore, id)
+    restore: (id) => ipcRenderer.invoke(IPC_CHANNELS.tasksRestore, id),
+    onChanged: (callback) => {
+      const handler = () => callback()
+      ipcRenderer.on(IPC_CHANNELS.tasksChanged, handler)
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.tasksChanged, handler)
+      }
+    }
   },
   notes: {
     bootstrap: (notes) => ipcRenderer.invoke(IPC_CHANNELS.notesBootstrap, notes),
@@ -19,6 +26,11 @@ const api: WsApi = {
     search: (query, limit) => ipcRenderer.invoke(IPC_CHANNELS.notesSearch, query, limit),
     create: (text, tag) => ipcRenderer.invoke(IPC_CHANNELS.notesCreate, text, tag),
     togglePin: (id) => ipcRenderer.invoke(IPC_CHANNELS.notesTogglePin, id)
+  },
+  capture: {
+    open: () => ipcRenderer.invoke(IPC_CHANNELS.captureOpen),
+    close: () => ipcRenderer.invoke(IPC_CHANNELS.captureClose),
+    create: (draft) => ipcRenderer.invoke(IPC_CHANNELS.captureCreate, draft)
   },
   app: {
     setTheme: (theme) => ipcRenderer.invoke(IPC_CHANNELS.appSetTheme, theme)

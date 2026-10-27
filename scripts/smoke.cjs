@@ -1,4 +1,4 @@
-const { app } = require('electron')
+const { app, BrowserWindow } = require('electron')
 const { join } = require('node:path')
 const { mkdirSync, mkdtempSync, readdirSync, rmSync, statSync } = require('node:fs')
 const { tmpdir } = require('node:os')
@@ -37,8 +37,6 @@ const consoleErrors = []
 let win = null
 
 app.on('browser-window-created', (_event, created) => {
-  if (win) return
-  win = created
   // 生产窗口默认允许节流；冒烟要按真实时间等待动画与 IPC 回包。
   created.webContents.setBackgroundThrottling(false)
   created.webContents.on('console-message', (event) => {
@@ -46,6 +44,7 @@ app.on('browser-window-created', (_event, created) => {
       consoleErrors.push(`${event.message} (${event.sourceId}:${event.lineNumber})`)
     }
   })
+  if (!win) win = created
 })
 
 // 加载真实入口：单实例锁、数据库、IPC 与 preload 都由它建立。
@@ -687,6 +686,8 @@ async function run() {
     return
   }
 
+  results.checks.push(...(await runCaptureChecks(win)))
+
   // 主进程侧的证据：这一轮 UI 操作必须真的落进 SQLite。
   const dbFile = join(dataDir, 'db', 'workstation.db')
   let dbStats = null
@@ -723,6 +724,54 @@ async function run() {
     return
   }
   app.quit()
+}
+
+async function runCaptureChecks(mainWin) {
+  const checks = []
+  const check = (name, ok, detail = '') => checks.push({ name, ok, detail })
+  const inboxCount = () =>
+    mainWin.webContents.executeJavaScript(`(() => {
+      const row = [...document.querySelectorAll('.w1-todorow')].find(
+        (el) => el.querySelector('.w1-todolabel')?.textContent?.trim() === '收集箱'
+      )
+      return Number(row?.querySelector('.w1-todocount')?.textContent ?? -1)
+    })()`)
+
+  await mainWin.webContents.executeJavaScript(`(() => {
+    const item = [...document.querySelectorAll('.w1-navitem')].find(
+      (node) => node.querySelector('.w1-navtext b')?.textContent?.trim() === '任务'
+    )
+    item?.click()
+  })()`)
+  await sleep(500)
+
+  const before = await inboxCount()
+  await mainWin.webContents.executeJavaScript('window.ws.capture.open()')
+  await sleep(900)
+
+  const captureWin = BrowserWindow.getAllWindows().find((window) =>
+    window.webContents.getURL().includes('#capture')
+  )
+  check('捕获窗打开', Boolean(captureWin))
+
+  if (captureWin) {
+    await captureWin.webContents.executeJavaScript(`(() => {
+      const input = document.querySelector('.cap-input')
+      if (!input) return false
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+      setter.call(input, '冒烟捕获任务')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      return true
+    })()`)
+    await sleep(900)
+    check('捕获后窗口隐藏', !captureWin.isVisible())
+    captureWin.destroy()
+  }
+
+  const after = await inboxCount()
+  check('捕获任务出现在主窗口', after === before + 1, `${before} -> ${after}`)
+  return checks
 }
 
 function cleanup() {

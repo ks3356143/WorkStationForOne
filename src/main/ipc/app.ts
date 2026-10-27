@@ -22,10 +22,14 @@ export function registerAppHandlers(): void {
     if (!win || win.isDestroyed()) return
     const palette = WINDOW_PALETTE[theme]
     win.setBackgroundColor(palette.background)
-    win.setTitleBarOverlay({
-      color: palette.background,
-      symbolColor: palette.symbol,
-      height: TITLE_BAR_HEIGHT
-    })
+    try {
+      win.setTitleBarOverlay({
+        color: palette.background,
+        symbolColor: palette.symbol,
+        height: TITLE_BAR_HEIGHT
+      })
+    } catch {
+      // 无边框窗口（快速捕获窗）没有标题栏叠加层，只同步背景色即可。
+    }
   })
 }

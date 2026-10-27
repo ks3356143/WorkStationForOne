@@ -1463,8 +1463,11 @@ async function main() {
   record('渲染进程无 Node require', security.require === 'undefined', security.require)
   record('渲染进程无 process', security.process === 'undefined', security.process)
   record(
-    'preload 桥仅暴露 app.setTheme 等窄接口',
-    security.invoke === 'function' && !security.dbAccess && security.wsKeys.length <= 3,
+    'preload 桥仅暴露窄接口（tasks/notes/capture/app.setTheme）',
+    security.invoke === 'function' &&
+      !security.dbAccess &&
+      [...security.wsKeys].sort().join() === 'app,capture,notes,tasks' &&
+      security.appKeys.join() === 'setTheme',
     security
   )
   phases[0].security = security

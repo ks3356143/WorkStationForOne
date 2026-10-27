@@ -1,0 +1,82 @@
+/* 全局快速捕获窗（独立 BrowserWindow，560×168） */
+.cap {
+  position: relative;
+  overflow: hidden;
+  height: 100vh;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px 20px;
+  background:
+    linear-gradient(180deg, rgb(var(--glass-tint-rgb) / 0.92), rgb(var(--panel-1-rgb) / 0.97)),
+    var(--bg0);
+  border: 1px solid rgb(var(--ac-rgb) / 0.35);
+  box-shadow: inset 0 1px rgb(var(--glass-hi-rgb) / 0.06);
+}
+
+.cap::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: linear-gradient(90deg, rgb(var(--ac2-rgb)), rgb(var(--ac-rgb)) 55%, transparent);
+}
+
+.cap-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font: 11px / 1 var(--mono);
+  letter-spacing: 0.1em;
+  color: var(--su);
+}
+
+.cap-head kbd {
+  padding: 1px 5px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.9);
+  font: 10px / 1 var(--mono);
+  color: var(--mu);
+}
+
+.cap-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgb(var(--ac-rgb) / 0.28);
+  background: rgb(var(--field-rgb) / 0.7);
+}
+
+.cap-prompt {
+  font: 600 13px / 1 var(--mono);
+  color: rgb(var(--ac2-rgb));
+}
+
+.cap-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font: 15px / 1.3 var(--sans);
+  outline: none;
+}
+
+.cap-input::placeholder {
+  color: var(--mu);
+  opacity: 0.75;
+}
+
+.cap-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 11px / 1 var(--mono);
+  color: var(--mu);
+}
+
+.cap-hint .sp {
+  flex: 1;
+}

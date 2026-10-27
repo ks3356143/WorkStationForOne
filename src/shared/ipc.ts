@@ -57,6 +57,7 @@ export interface TaskScheduleChange {
 
 export interface TaskApi {
   list: () => Promise<TaskRecord[]>
+  onChanged: (callback: () => void) => () => void
   bootstrap: (tasks: TaskRecord[]) => Promise<void>
   setDone: (id: string, done: boolean) => Promise<void>
   applySchedule: (changes: TaskScheduleChange[]) => Promise<void>
@@ -91,6 +92,12 @@ export interface NoteApi {
   togglePin: (id: string) => Promise<void>
 }
 
+export interface CaptureApi {
+  open: () => Promise<void>
+  close: () => Promise<void>
+  create: (draft: TaskDraft) => Promise<TaskRecord>
+}
+
 export interface AppApi {
   setTheme: (theme: Theme) => Promise<void>
 }
@@ -98,6 +105,7 @@ export interface AppApi {
 export interface WsApi {
   tasks: TaskApi
   notes: NoteApi
+  capture: CaptureApi
   app: AppApi
 }
 
@@ -115,5 +123,9 @@ export const IPC_CHANNELS = {
   notesSearch: 'notes:search',
   notesCreate: 'notes:create',
   notesTogglePin: 'notes:toggle-pin',
+  tasksChanged: 'tasks:changed',
+  captureOpen: 'capture:open',
+  captureClose: 'capture:close',
+  captureCreate: 'capture:create',
   appSetTheme: 'app:set-theme'
 } as const

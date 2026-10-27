@@ -21,7 +21,7 @@ import { TopBar } from './components/TopBar'
 import { WorkspaceNav } from './components/WorkspaceNav'
 import { useWorkstation } from './store/useWorkstation'
 import { DURATION, EASE_OUT } from './lib/motion'
-import { hydrateTasks } from './lib/persistence'
+import { hydrateTasks, refreshTasks } from './lib/persistence'
 import { hydrateNotes } from './lib/notes-persistence'
 import { useDemoReply } from './lib/useDemoReply'
 
@@ -78,6 +78,13 @@ export default function App() {
   useEffect(() => {
     void hydrateTasks()
     void hydrateNotes()
+  }, [])
+
+  useEffect(() => {
+    const unsubscribe = window.ws?.tasks?.onChanged?.(() => {
+      void refreshTasks()
+    })
+    return () => unsubscribe?.()
   }, [])
 
   useEffect(() => {

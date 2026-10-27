@@ -2,6 +2,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { app, BrowserWindow, session, shell } from 'electron'
 import { initDatabase, type DatabaseContext } from './db'
+import { disposeCaptureShortcut, registerCaptureHandlers, registerCaptureShortcut } from './capture'
 import { registerAppHandlers, TITLE_BAR_HEIGHT, WINDOW_PALETTE } from './ipc/app'
 import { registerNoteHandlers } from './ipc/notes'
 import { registerTaskHandlers } from './ipc/tasks'
@@ -101,6 +102,8 @@ if (!gotTheLock) {
     registerAppHandlers()
     registerTaskHandlers(database.tasks)
     registerNoteHandlers(database.notes)
+    registerCaptureHandlers(database.tasks)
+    registerCaptureShortcut()
 
     createWindow()
     app.on('activate', () => {
@@ -110,6 +113,7 @@ if (!gotTheLock) {
 }
 
 app.on('before-quit', () => {
+  disposeCaptureShortcut()
   database?.close()
   database = null
 })

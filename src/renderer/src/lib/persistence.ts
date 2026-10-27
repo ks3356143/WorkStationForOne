@@ -50,6 +50,18 @@ export async function hydrateTasks(deps: HydrateDeps | undefined = bridgeTasks()
   }
 }
 
+/** 捕获窗等外部写入后重新拉取任务，广播到达时调用。 */
+export async function refreshTasks(
+  deps: Pick<HydrateDeps, 'list'> | undefined = bridgeTasks()
+): Promise<void> {
+  if (!deps) return
+  try {
+    replaceTasks(await deps.list())
+  } catch (error) {
+    console.error('[persistence] 任务刷新失败', error)
+  }
+}
+
 function bridgeTasks(): HydrateDeps | undefined {
   return typeof window === 'undefined' ? undefined : window.ws?.tasks
 }
