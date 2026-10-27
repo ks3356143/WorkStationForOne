@@ -15,7 +15,7 @@
 - `npm run check` — Biome 检查格式与 lint（Rust 单二进制，不依赖 Prettier / ESLint）。
 - `npm run check:fix` — 自动修复格式与可安全修复的 lint 问题。
 - `npm run fmt` — 只格式化，不跑 lint。
-- `npm run smoke` — 先构建，再跑 111 项 UI 交互冒烟。加载真实主进程与 preload，UI 操作直接写进临时 SQLite（`userData`、`sessionData`、数据库都隔离到 `%TEMP%`），并断言「preload 桥可用」与「操作已落库」；跨重启持久化仍由 `npm run verify` 覆盖。
+- `npm run smoke` — 先构建，再跑 114 项 UI 交互冒烟。加载真实主进程与 preload，UI 操作直接写进临时 SQLite（`userData`、`sessionData`、数据库都隔离到 `%TEMP%`），并断言「preload 桥可用」与「操作已落库」；跨重启持久化仍由 `npm run verify` 覆盖。
 - `npm run verify` — 构建后启动真实主进程（临时 `WS_DATA_DIR`），运行 228 项运行时断言：四视图互斥、双主题/双皮肤持久化、跨重启数据。
 - `npm run capture -- .screenshots/shell-1440.png 1440 900 .screenshots/audit-1440.json` — 构建、保存截图并写入布局审计。
 - `npm run capture -- .screenshots/shell-1180.png 1180 720 .screenshots/audit-1180.json dark` — 在最小窗口尺寸下做同样的检查；主题参数为 `dark|light`，视图参数为 `today|tasks|agent|notes`，均可省略审计路径后按任意顺序追加（如 `... 1440 900 light tasks`）。
@@ -59,7 +59,7 @@
 - 任务视图：智能清单（收集箱 / 今天 / 即将到来 / 全部 / 已完成）与自定义清单都来自同一 `tasks` 数组；新增或删除任务必须同步 SQLite。快速添加的 Enter、`Ctrl+Shift+N` 聚焦、Esc 收起详情、搜索 Esc 清空、中文输入法组合期间不提交是既有契约。详情关闭后焦点回到行标题；日期支持今天/明天/清除快捷按钮。权限卡里的任务顺延可携带 `toDueDate`，允许后必须同时更新截止日期，不能只改时间与标签。
 - 新增应用入口加到 `WorkspaceNav` 的 `VIEWS`，并为其提供独立工作区与导航命令；不要挤进顶栏或状态栏。视图切换用 `aria-current="page"` 标记当前项。
 - 笔记是独立全宽工作区，不是弹窗；搜索框内有查询时 Esc 清空搜索，不关闭笔记页。Agent 与笔记的滚动容器各自独立，切换视图后保持原外壳尺寸。
-- 动效统一使用 `--ease-*` / `--dur-*`（`styles/sections/00-base.css`）与 `src/renderer/src/lib/motion.ts`；高频键盘动作保持即时，hover 位移在粗指针设备下关闭，可点击控件使用统一的 `:active` 缩放反馈。
+- 动效统一使用 `--ease-*` / `--dur-*`（`styles/sections/00-base.css`）与 `src/renderer/src/lib/motion.ts`；列表重排走 `withViewTransition`（`lib/view-transition.ts`），系统减少动效或 `motion-off` 时自动退回同步更新，不要绕过它直接调 `startViewTransition`；高频键盘动作保持即时，hover 位移在粗指针设备下关闭，可点击控件使用统一的 `:active` 缩放反馈。
 - 颜色一律走令牌：半透明色用 `rgb(var(--*-rgb) / α)`，不要在组件里写死 `rgba()` 或深浅主题分支；浅色覆盖集中在 `styles/sections/14-theme.css`。
 - 主题状态在 `lib/theme.ts`：读取/写入 `localStorage`、应用 `<html data-theme>`，并通过 `window.ws.app.setTheme` 同步窗口背景与标题栏。`src/renderer/public/theme-init.js` 在样式表之前同步写入 `data-theme`，避免重载/可见窗口的首帧闪色；它重复了存储键 `workstation.theme`，改键时两处一起改。新增主题相关逻辑复用这些函数。
 - 动效是预期要求，使用 `motion/react`（`m` + `LazyMotion`、`domAnimation`）。尊重 `prefers-reduced-motion` 与 `motion-off` 开关。

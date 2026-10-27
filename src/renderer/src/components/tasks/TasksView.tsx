@@ -13,6 +13,7 @@ import { useNow } from '../../lib/useNow'
 import { useWorkstation } from '../../store/useWorkstation'
 import { PlusIcon } from '../Glyphs'
 import { dayCapacity } from '../../lib/capacity'
+import { withViewTransition } from '../../lib/view-transition'
 import { CapacityBar } from './CapacityBar'
 import { PlanningPanel } from './PlanningPanel'
 import { SchedulePreview } from './SchedulePreview'
@@ -127,7 +128,7 @@ export function TasksView({ notify }: TasksViewProps) {
   }
 
   const handleAdd = (draft: TaskDraft) => {
-    addTask(draft)
+    withViewTransition(() => addTask(draft))
     const destination =
       [draft.list ? `#${draft.list}` : '', dueDestination(draft.dueDate, today), draft.time ?? '']
         .filter(Boolean)
@@ -299,19 +300,27 @@ export function TasksView({ notify }: TasksViewProps) {
                   lists={listNames}
                   expanded={expandedId === task.id}
                   highlight={task.id === lastAddedTaskId}
-                  onToggle={() => toggleTask(task.id)}
+                  onToggle={() => withViewTransition(() => toggleTask(task.id))}
                   onExpand={() =>
                     setExpandedId((current) => (current === task.id ? null : task.id))
                   }
                   onSave={(patch: TaskPatch) => {
-                    updateTask(task.id, patch)
-                    setExpandedId(null)
+                    withViewTransition(() => {
+                      updateTask(task.id, patch)
+                      setExpandedId(null)
+                    })
                     focusRow(task.id)
                   }}
                   onDelete={() => {
-                    removeTask(task.id)
-                    setExpandedId(null)
-                    notify(`已删除「${task.title}」`, { label: '撤销', run: undoRemoveTask }, 6000)
+                    withViewTransition(() => {
+                      removeTask(task.id)
+                      setExpandedId(null)
+                    })
+                    notify(
+                      `已删除「${task.title}」`,
+                      { label: '撤销', run: () => withViewTransition(undoRemoveTask) },
+                      6000
+                    )
                     requestAnimationFrame(() =>
                       document.querySelector<HTMLInputElement>('.w1-todosearch input')?.focus()
                     )

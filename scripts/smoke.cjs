@@ -291,6 +291,28 @@ async function run() {
     byText('.w1-schedfoot button', '取消')?.click()
     await sleep(300)
     check('排程预览可关闭', !one('.w1-sched'))
+
+    check('View Transitions API 可用', typeof document.startViewTransition === 'function')
+    const vtNames = all('.w1-todorowwrap').map(
+      (el) => getComputedStyle(el).viewTransitionName ?? ''
+    )
+    check(
+      '任务行有唯一过渡名',
+      vtNames.length > 0 && new Set(vtNames).size === vtNames.length && vtNames.every((name) => name.startsWith('task-')),
+      String(vtNames.length) + '/' + String(new Set(vtNames).size)
+    )
+    window.__vt = 0
+    const originalVt = document.startViewTransition?.bind(document)
+    document.startViewTransition = (callback) => {
+      window.__vt += 1
+      return originalVt(callback)
+    }
+    one('.w1-todorowwrap .w1-todobody')?.click()
+    await sleep(400)
+    one('.w1-todosave')?.click()
+    await sleep(500)
+    document.startViewTransition = originalVt
+    check('保存走 View Transition', window.__vt >= 1, String(window.__vt))
     setValue(taskSearch, 'auth')
     await sleep(250)
     taskSearch.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))

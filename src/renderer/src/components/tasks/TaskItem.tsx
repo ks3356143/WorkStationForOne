@@ -42,6 +42,7 @@ export function TaskItem({
     <div
       className={`w1-todorowwrap${task.done ? ' done' : ''}${highlight ? ' landing' : ''}`}
       role="listitem"
+      style={{ viewTransitionName: `task-${task.id}` }}
     >
       <div className="w1-todorowmain">
         <button
