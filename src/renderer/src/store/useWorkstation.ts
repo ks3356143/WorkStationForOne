@@ -297,9 +297,7 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     // 审批处理完，发起会话就不再是「待确认」，否则舰队与导航会一直显示有人等。
     const clearWaiting = (sessions: Session[]) =>
       sessions.map((session) =>
-        session.id === permission.sessionId
-          ? { ...session, status: 'run' as const, meta: session.meta.replace('待确认 · ', '') }
-          : session
+        session.id === permission.sessionId ? { ...session, status: 'run' as const } : session
       )
     if (decision === 'deny') {
       set((state) => ({

@@ -86,6 +86,7 @@ describe('权限请求', () => {
     expect(state.tasks.find((task) => task.id === 't8')?.time).toBe('09:00')
     expect(state.tasks.find((task) => task.id === 't8')?.tag).toBe('明天')
     expect(state.tasks.find((task) => task.id === 't6')?.time).toBe('22:00')
+    expect(state.sessions.find((session) => session.id === 's-c1')?.status).toBe('run')
   })
 
   it('拒绝后保持任务原样', () => {
@@ -97,6 +98,7 @@ describe('权限请求', () => {
     expect(state.permission).toBeNull()
     expect(state.resolution).toEqual({ sessionId: 's-c1', decision: 'denied' })
     expect(state.tasks).toEqual(before)
+    expect(state.sessions.find((session) => session.id === 's-c1')?.status).toBe('run')
   })
 })
 
