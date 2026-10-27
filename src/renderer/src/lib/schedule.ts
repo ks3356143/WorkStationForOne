@@ -17,12 +17,14 @@ export function blockMinutes(
   return Math.min(90, Math.max(5, end - start))
 }
 
-export function findNextTask(tasks: Task[], nowMinutes: number): Task | undefined {
+export function findNextTask(tasks: Task[], nowMinutes: number, today: string): Task | undefined {
   let nextTask: Task | undefined
   let nextMinutes = Number.POSITIVE_INFINITY
 
   for (const task of tasks) {
     if (task.done || task.tag?.includes('明天')) continue
+    // 逾期任务属于"要补的"，不是"下一段"，否则昨天的 23:00 会顶掉今天真正的下一项。
+    if (task.dueDate && task.dueDate !== today) continue
     const minutes = toMinutes(task.time)
     if (minutes === null || minutes <= nowMinutes || minutes >= nextMinutes) continue
     nextTask = task

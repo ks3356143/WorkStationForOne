@@ -14,6 +14,7 @@ interface NoteListProps {
   loading: boolean
   mode: 'browse' | 'search'
   endLabel?: string
+  resetKey?: string
 }
 
 export const ROW_HEIGHT = 68
@@ -46,10 +47,19 @@ function highlight(text: string, snippet?: string): string {
   return snippet && snippet.length > 0 ? snippet : text
 }
 
-export function NoteList({ rows, loading, mode, endLabel }: NoteListProps) {
+export function NoteList({ rows, loading, mode, endLabel, resetKey }: NoteListProps) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [height, setHeight] = useState(420)
+
+  // 换搜索词或切回浏览时必须回到顶部：列表被空态替换过，旧偏移会让首屏整片留白。
+  // biome-ignore lint/correctness/useExhaustiveDependencies: resetKey 只是触发器，作用是把列表滚回顶部
+  useEffect(() => {
+    const node = viewportRef.current
+    if (!node) return
+    node.scrollTop = 0
+    setScrollTop(0)
+  }, [resetKey])
 
   useEffect(() => {
     const node = viewportRef.current
@@ -64,10 +74,7 @@ export function NoteList({ rows, loading, mode, endLabel }: NoteListProps) {
   }, [])
 
   const count = rows.length + (endLabel ? 1 : 0)
-  const range = useMemo(
-    () => computeWindow(scrollTop, height, count),
-    [scrollTop, height, count]
-  )
+  const range = useMemo(() => computeWindow(scrollTop, height, count), [scrollTop, height, count])
   const slice = rows.slice(range.start, Math.min(range.end, rows.length))
   const showEnd = Boolean(endLabel) && range.end > rows.length
 
@@ -90,7 +97,12 @@ export function NoteList({ rows, loading, mode, endLabel }: NoteListProps) {
       <div className="w1-nvspacer" style={{ height: range.totalHeight }}>
         <div style={{ transform: `translateY(${range.offset}px)` }}>
           {slice.map((row, index) => (
-            <article className="w1-nvrow" role="listitem" key={row.id} data-index={range.start + index}>
+            <article
+              className="w1-nvrow"
+              role="listitem"
+              key={row.id}
+              data-index={range.start + index}
+            >
               <div className="w1-nvrowtop">
                 {row.pinned ? <span className="w1-nvpin">置顶</span> : null}
                 {row.tag ? <span className="w1-nvtag">{row.tag}</span> : null}

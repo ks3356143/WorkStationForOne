@@ -11,15 +11,23 @@ describe('IPC 入参校验', () => {
   })
 
   it('拒绝缺少字段的任务', () => {
-    expect(() => registerTaskHandlersIPC.assertTaskRecord({ id: '', title: 'a', time: '—', done: false })).toThrow(
-      TypeError
-    )
-    expect(() => registerTaskHandlersIPC.assertTaskRecord({ id: 'a', title: 'a', time: '—' })).toThrow(TypeError)
+    expect(() =>
+      registerTaskHandlersIPC.assertTaskRecord({ id: '', title: 'a', time: '—', done: false })
+    ).toThrow(TypeError)
+    expect(() =>
+      registerTaskHandlersIPC.assertTaskRecord({ id: 'a', title: 'a', time: '—' })
+    ).toThrow(TypeError)
   })
 
   it('拒绝非法色调', () => {
     expect(() =>
-      registerTaskHandlersIPC.assertTaskRecord({ id: 'a', title: 'a', time: '—', done: false, tone: 'evil' })
+      registerTaskHandlersIPC.assertTaskRecord({
+        id: 'a',
+        title: 'a',
+        time: '—',
+        done: false,
+        tone: 'evil'
+      })
     ).toThrow(TypeError)
   })
 
@@ -49,14 +57,18 @@ describe('IPC 入参校验', () => {
 
   it('拒绝非法变更列表', () => {
     expect(() => registerTaskHandlersIPC.assertChanges('x')).toThrow(TypeError)
-    expect(() => registerTaskHandlersIPC.assertChanges([{ taskId: '', toTime: '—', toTag: 'x' }])).toThrow(TypeError)
-    expect(() => registerTaskHandlersIPC.assertChanges([{ taskId: 'a', toTime: '—' }])).toThrow(TypeError)
+    expect(() =>
+      registerTaskHandlersIPC.assertChanges([{ taskId: '', toTime: '—', toTag: 'x' }])
+    ).toThrow(TypeError)
+    expect(() => registerTaskHandlersIPC.assertChanges([{ taskId: 'a', toTime: '—' }])).toThrow(
+      TypeError
+    )
   })
 
   it('接受合法变更列表', () => {
-    expect(registerTaskHandlersIPC.assertChanges([{ taskId: 'a', toTime: '22:00', toTag: '明天' }])).toEqual([
-      { taskId: 'a', toTime: '22:00', toTag: '明天' }
-    ])
+    expect(
+      registerTaskHandlersIPC.assertChanges([{ taskId: 'a', toTime: '22:00', toTag: '明天' }])
+    ).toEqual([{ taskId: 'a', toTime: '22:00', toTag: '明天' }])
   })
 
   it('接受顺延日期并拒绝非法日期', () => {
@@ -88,23 +100,37 @@ describe('任务草稿校验', () => {
   })
 
   it('接受缺省字段', () => {
-    expect(registerTaskHandlersIPC.assertTaskDraft({ title: '买牛奶' })).toEqual({ title: '买牛奶' })
+    expect(registerTaskHandlersIPC.assertTaskDraft({ title: '买牛奶' })).toEqual({
+      title: '买牛奶'
+    })
   })
 
   it('拒绝空标题与非法字段', () => {
     expect(() => registerTaskHandlersIPC.assertTaskDraft({ title: '   ' })).toThrow(TypeError)
-    expect(() => registerTaskHandlersIPC.assertTaskDraft({ title: 'x', dueDate: '2026-02-30' })).toThrow(TypeError)
-    expect(() => registerTaskHandlersIPC.assertTaskDraft({ title: 'x', time: '25:00' })).toThrow(TypeError)
-    expect(() => registerTaskHandlersIPC.assertTaskDraft({ title: 'x', priority: 4 })).toThrow(TypeError)
-    expect(() => registerTaskHandlersIPC.assertTaskDraft({ title: 'x', list: 1 })).toThrow(TypeError)
+    expect(() =>
+      registerTaskHandlersIPC.assertTaskDraft({ title: 'x', dueDate: '2026-02-30' })
+    ).toThrow(TypeError)
+    expect(() => registerTaskHandlersIPC.assertTaskDraft({ title: 'x', time: '25:00' })).toThrow(
+      TypeError
+    )
+    expect(() => registerTaskHandlersIPC.assertTaskDraft({ title: 'x', priority: 4 })).toThrow(
+      TypeError
+    )
+    expect(() => registerTaskHandlersIPC.assertTaskDraft({ title: 'x', list: 1 })).toThrow(
+      TypeError
+    )
   })
 
   it('拒绝超长文本', () => {
-    expect(() => registerTaskHandlersIPC.assertTaskDraft({ title: 'x'.repeat(501) })).toThrow(TypeError)
-    expect(() => registerTaskHandlersIPC.assertTaskDraft({ title: 'x', notes: 'y'.repeat(20_001) })).toThrow(
+    expect(() => registerTaskHandlersIPC.assertTaskDraft({ title: 'x'.repeat(501) })).toThrow(
       TypeError
     )
-    expect(() => registerTaskHandlersIPC.assertTaskDraft({ title: 'x', list: 'l'.repeat(81) })).toThrow(TypeError)
+    expect(() =>
+      registerTaskHandlersIPC.assertTaskDraft({ title: 'x', notes: 'y'.repeat(20_001) })
+    ).toThrow(TypeError)
+    expect(() =>
+      registerTaskHandlersIPC.assertTaskDraft({ title: 'x', list: 'l'.repeat(81) })
+    ).toThrow(TypeError)
   })
 })
 
@@ -132,7 +158,9 @@ describe('任务补丁校验', () => {
 
   it('拒绝空标题、非法值与没有已知字段的补丁', () => {
     expect(() => registerTaskHandlersIPC.assertTaskPatch({ title: ' ' })).toThrow(TypeError)
-    expect(() => registerTaskHandlersIPC.assertTaskPatch({ dueDate: '2026-13-01' })).toThrow(TypeError)
+    expect(() => registerTaskHandlersIPC.assertTaskPatch({ dueDate: '2026-13-01' })).toThrow(
+      TypeError
+    )
     expect(() => registerTaskHandlersIPC.assertTaskPatch({ tone: 'evil' })).toThrow(TypeError)
     expect(() => registerTaskHandlersIPC.assertTaskPatch({ priority: -1 })).toThrow(TypeError)
     expect(() => registerTaskHandlersIPC.assertTaskPatch({ extra: true })).toThrow(TypeError)

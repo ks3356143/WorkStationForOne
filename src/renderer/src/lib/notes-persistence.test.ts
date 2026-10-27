@@ -59,7 +59,9 @@ describe('hydrateNotes', () => {
   })
 
   it('hydrate 后新增笔记会调用数据库写入', async () => {
-    const d = deps({ create: vi.fn().mockResolvedValue({ id: 'saved', text: '新笔记', time: '刚刚' }) })
+    const d = deps({
+      create: vi.fn().mockResolvedValue({ id: 'saved', text: '新笔记', time: '刚刚' })
+    })
     await hydrateNotes(d)
 
     useWorkstation.getState().addNote('新笔记')
@@ -70,7 +72,9 @@ describe('hydrateNotes', () => {
   })
 
   it('新增笔记保存后递增 noteRevision，供笔记页刷新', async () => {
-    const d = deps({ create: vi.fn().mockResolvedValue({ id: 'saved', text: '新笔记', time: '刚刚' }) })
+    const d = deps({
+      create: vi.fn().mockResolvedValue({ id: 'saved', text: '新笔记', time: '刚刚' })
+    })
     await hydrateNotes(d)
     const before = useWorkstation.getState().noteRevision
 

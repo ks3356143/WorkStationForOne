@@ -64,7 +64,9 @@ describe('migrate', () => {
     ).toThrow()
 
     expect(userVersion(db)).toBe(1)
-    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='a'").all()
+    const tables = db
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='a'")
+      .all()
     expect(tables).toHaveLength(1)
     db.close()
   })
@@ -250,7 +252,12 @@ describe('migrate v3', () => {
 
     const row = db
       .prepare('SELECT due_date, priority, notes, list FROM tasks WHERE id = ?')
-      .get('legacy') as { due_date: string | null; priority: number; notes: string; list: string | null }
+      .get('legacy') as {
+      due_date: string | null
+      priority: number
+      notes: string
+      list: string | null
+    }
     // 旧任务从未设定截止日期；迁移不能替用户编造一个「今天」。
     expect(row).toEqual({ due_date: null, priority: 0, notes: '', list: null })
     db.close()
@@ -268,7 +275,9 @@ describe('软删除', () => {
 
     expect(repo.list().map((task) => task.id)).toEqual(['t1', 't3'])
     expect(repo.find('t2')).toBeUndefined()
-    const row = db.prepare('SELECT deleted_at FROM tasks WHERE id = ?').get('t2') as { deleted_at: number | null }
+    const row = db.prepare('SELECT deleted_at FROM tasks WHERE id = ?').get('t2') as {
+      deleted_at: number | null
+    }
     expect(row.deleted_at).toBeTypeOf('number')
     db.close()
   })
@@ -288,6 +297,21 @@ describe('软删除', () => {
     db.close()
   })
 
+  it('软删后的任务不会被勾选或改写', () => {
+    const db = tempDb()
+    migrate(db)
+    const repo = new TaskRepository(db)
+    repo.bootstrap(seed)
+
+    repo.remove('t2')
+    repo.setDone('t2', true)
+    repo.update('t2', { title: '被改掉' })
+    repo.restore('t2')
+
+    expect(repo.find('t2')).toMatchObject({ title: '重构 auth', done: false })
+    db.close()
+  })
+
   it('重复删除是幂等的，不会覆盖首次删除时间', () => {
     const db = tempDb()
     migrate(db)
@@ -295,9 +319,13 @@ describe('软删除', () => {
     repo.bootstrap(seed)
 
     repo.remove('t1')
-    const first = (db.prepare('SELECT deleted_at FROM tasks WHERE id = ?').get('t1') as { deleted_at: number }).deleted_at
+    const first = (
+      db.prepare('SELECT deleted_at FROM tasks WHERE id = ?').get('t1') as { deleted_at: number }
+    ).deleted_at
     repo.remove('t1')
-    const second = (db.prepare('SELECT deleted_at FROM tasks WHERE id = ?').get('t1') as { deleted_at: number }).deleted_at
+    const second = (
+      db.prepare('SELECT deleted_at FROM tasks WHERE id = ?').get('t1') as { deleted_at: number }
+    ).deleted_at
     expect(second).toBe(first)
     db.close()
   })
@@ -340,12 +368,19 @@ describe('migrate v4', () => {
   it('新增 deleted_at 列且默认不删除任何任务', () => {
     const db = tempDb()
     migrate(db, MIGRATIONS.slice(0, 3))
-    db.prepare('INSERT INTO tasks (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)').run('legacy', '旧任务', 1, 1)
+    db.prepare('INSERT INTO tasks (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)').run(
+      'legacy',
+      '旧任务',
+      1,
+      1
+    )
 
     migrate(db)
 
-    expect(userVersion(db)).toBe(4)
-    const row = db.prepare('SELECT deleted_at FROM tasks WHERE id = ?').get('legacy') as { deleted_at: number | null }
+    expect(userVersion(db)).toBe(MIGRATIONS.at(-1)!.version)
+    const row = db.prepare('SELECT deleted_at FROM tasks WHERE id = ?').get('legacy') as {
+      deleted_at: number | null
+    }
     expect(row.deleted_at).toBeNull()
     const repo = new TaskRepository(db)
     expect(repo.list().map((task) => task.id)).toEqual(['legacy'])
@@ -359,11 +394,18 @@ describe('迁移前备份', () => {
     const file = join(dir, 'workstation.db')
     const db = openDatabase(file)
     migrate(db, MIGRATIONS.slice(0, 2))
-    db.prepare('INSERT INTO tasks (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)').run('legacy', '旧任务', 1, 1)
+    db.prepare('INSERT INTO tasks (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)').run(
+      'legacy',
+      '旧任务',
+      1,
+      1
+    )
 
     migrate(db)
 
-    const backups = readdirSync(dir).filter((name) => name.includes('.v2-') && name.endsWith('.bak'))
+    const backups = readdirSync(dir).filter(
+      (name) => name.includes('.v2-') && name.endsWith('.bak')
+    )
     expect(backups.length).toBe(1)
     const snapshot = openDatabase(join(dir, backups[0]))
     expect(userVersion(snapshot)).toBe(2)

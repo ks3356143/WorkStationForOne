@@ -116,10 +116,11 @@ export function parseTaskInput(input: string, today = dateKey()): ParsedTaskInpu
     // 「前」后不能再接字，避免吞掉「前台」「前面」这类词。
     const chineseDate = /(\d{1,2})月(\d{1,2})日(之前|以前|前(?![台面往后边]))?/.exec(rest)
     if (chineseDate) {
-      let year = Number(today.slice(0, 4))
+      const year = Number(today.slice(0, 4))
       let candidate = validKey(year, Number(chineseDate[1]), Number(chineseDate[2]))
       if (candidate) {
-        if (candidate < today) candidate = validKey(year + 1, Number(chineseDate[1]), Number(chineseDate[2]))
+        if (candidate < today)
+          candidate = validKey(year + 1, Number(chineseDate[1]), Number(chineseDate[2]))
         if (candidate) {
           dueDate = candidate
           rest = remove(rest, chineseDate)
@@ -188,14 +189,25 @@ export function parseTaskInput(input: string, today = dateKey()): ParsedTaskInpu
       const parsedHour = parseNumberToken(hourToken)
       const minuteText = chineseTime[3]
       const parsedMinute = chineseTime[4] ? parseNumberToken(chineseTime[4]) : 0
-      const minute = minuteText === '半' ? 30 : minuteText === '一刻' ? 15 : minuteText === '三刻' ? 45 : parsedMinute
+      const minute =
+        minuteText === '半'
+          ? 30
+          : minuteText === '一刻'
+            ? 15
+            : minuteText === '三刻'
+              ? 45
+              : parsedMinute
       // 无时段前缀时，「一点」「两点」多半是量词（有一点问题、两点意见），不当时钟。
       const ambiguous = !period && isAmbiguousHour(hourToken)
       if (parsedHour !== null && minute !== null && !ambiguous) {
         let hour = parsedHour
-        // 「晚上/今晚的 12 点」口语指零点；中午与下午的 12 点仍是中午。
-        if ((period === '晚上' || period === '今晚') && hour === 12) hour = 0
-        else if ((period === '下午' || period === '晚上' || period === '今晚' || period === '傍晚') && hour < 12) hour += 12
+        // 「晚上/今晚/凌晨的 12 点」口语指零点；中午与下午的 12 点仍是中午。
+        if ((period === '晚上' || period === '今晚' || period === '凌晨') && hour === 12) hour = 0
+        else if (
+          (period === '下午' || period === '晚上' || period === '今晚' || period === '傍晚') &&
+          hour < 12
+        )
+          hour += 12
         if (period === '中午' && hour < 11) hour += 12
         if ((period === '上午' || period === '早上') && hour === 12) hour = 0
         if (hour < 24 && minute < 60) {

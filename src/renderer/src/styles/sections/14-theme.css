@@ -128,18 +128,24 @@
 
 :root[data-theme="light"] .w1-navitem.on,
 :root[data-theme="light"] .w1-sess.on {
-  box-shadow: inset 0 1px rgb(255 255 255 / 0.22), 0 6px 20px rgb(var(--vio-rgb) / 0.14);
+  box-shadow:
+    inset 0 1px rgb(255 255 255 / 0.22),
+    0 6px 20px rgb(var(--vio-rgb) / 0.14);
 }
 
 :root[data-theme="light"] .w1-perm {
-  box-shadow: inset 0 1px rgb(255 255 255 / 0.2), 0 8px 24px rgb(var(--wn-rgb) / 0.12);
+  box-shadow:
+    inset 0 1px rgb(255 255 255 / 0.2),
+    0 8px 24px rgb(var(--wn-rgb) / 0.12);
 }
 
 :root[data-theme="light"] .w1-cmd,
 :root[data-theme="light"] .w1-nvsearch {
   border-color: rgb(var(--prism-2-rgb) / 0.26);
   background: rgb(255 255 255 / 0.7);
-  box-shadow: inset 0 1px rgb(255 255 255 / 0.28), inset 0 -1px rgb(var(--neu-lo-rgb) / 0.06);
+  box-shadow:
+    inset 0 1px rgb(255 255 255 / 0.28),
+    inset 0 -1px rgb(var(--neu-lo-rgb) / 0.06);
 }
 
 :root[data-theme="light"] .w1-pb.pri,
@@ -150,8 +156,7 @@
 :root[data-theme="light"] .w1-boot {
   background:
     radial-gradient(620px 420px at 74% 18%, rgb(124 92 255 / 0.14), transparent 66%),
-    radial-gradient(520px 380px at 22% 84%, rgb(45 190 220 / 0.12), transparent 68%),
-    #eef2fb;
+    radial-gradient(520px 380px at 22% 84%, rgb(45 190 220 / 0.12), transparent 68%), #eef2fb;
 }
 
 :root[data-theme="light"] .w1-scan {
@@ -170,18 +175,23 @@
 :root[data-theme="light"] .w1-rail,
 :root[data-theme="light"] .w1-todorail,
 :root[data-theme="light"] .w1-dock {
-  background-image: var(--glass-spec),
+  background-image:
+    var(--glass-spec),
     linear-gradient(180deg, rgb(var(--glass-tint-rgb) / 0.84), rgb(var(--glass-deep-rgb) / 0.74));
   backdrop-filter: blur(26px) saturate(150%);
-  box-shadow: var(--neu-in), 8px 0 26px rgb(var(--neu-lo-rgb) / 0.08),
+  box-shadow:
+    var(--neu-in),
+    8px 0 26px rgb(var(--neu-lo-rgb) / 0.08),
     inset -1px 0 rgb(var(--prism-2-rgb) / 0.08);
 }
 
 :root[data-theme="light"] .w1-bar,
 :root[data-theme="light"] .w1-status {
-  background-image: var(--glass-spec),
-    linear-gradient(180deg, rgb(255 255 255 / 0.9), rgb(238 243 251 / 0.86));
-  box-shadow: var(--neu-in), 0 8px 22px rgb(var(--neu-lo-rgb) / 0.07);
+  background-image:
+    var(--glass-spec), linear-gradient(180deg, rgb(255 255 255 / 0.9), rgb(238 243 251 / 0.86));
+  box-shadow:
+    var(--neu-in),
+    0 8px 22px rgb(var(--neu-lo-rgb) / 0.07);
 }
 
 :root[data-theme="light"] .w1-main,
@@ -192,33 +202,48 @@
     linear-gradient(90deg, rgb(var(--prism-2-rgb) / 0.045) 1px, transparent 1px),
     radial-gradient(120% 82% at 84% -18%, rgb(var(--prism-2-rgb) / 0.07), transparent 62%),
     linear-gradient(180deg, rgb(255 255 255 / 0.1), rgb(255 255 255 / 0.34));
-  background-size: 48px 48px, 48px 48px, 100% 100%, 100% 100%;
+  background-size:
+    48px 48px,
+    48px 48px,
+    100% 100%,
+    100% 100%;
 }
 
 :root[data-theme="light"] .w1-card,
 :root[data-theme="light"] .w1-tl,
 :root[data-theme="light"] .w1-nvbox,
 :root[data-theme="light"] .w1-compose {
-  box-shadow: var(--neu-in), -10px -10px 26px rgb(var(--neu-hi-rgb) / 0.95),
-    12px 14px 32px rgb(var(--neu-lo-rgb) / 0.12), inset 0 0 32px rgb(var(--prism-1-rgb) / 0.035);
+  box-shadow:
+    var(--neu-in),
+    -10px -10px 26px rgb(var(--neu-hi-rgb) / 0.95),
+    12px 14px 32px rgb(var(--neu-lo-rgb) / 0.12),
+    inset 0 0 32px rgb(var(--prism-1-rgb) / 0.035);
 }
 
 :root[data-theme="light"] .w1-card:hover {
-  box-shadow: var(--neu-in), -12px -12px 30px rgb(var(--neu-hi-rgb) / 1),
-    16px 20px 40px rgb(var(--neu-lo-rgb) / 0.16), inset 0 0 40px rgb(var(--prism-1-rgb) / 0.06);
+  box-shadow:
+    var(--neu-in),
+    -12px -12px 30px rgb(var(--neu-hi-rgb) / 1),
+    16px 20px 40px rgb(var(--neu-lo-rgb) / 0.16),
+    inset 0 0 40px rgb(var(--prism-1-rgb) / 0.06);
 }
 
 :root[data-theme="light"] .w1-modal,
 :root[data-theme="light"] .w1-palette,
 :root[data-theme="light"] .w1-focus-box {
-  background-image: var(--glass-spec),
-    linear-gradient(155deg, rgb(255 255 255 / 0.96), rgb(244 247 253 / 0.94));
-  box-shadow: var(--neu-in), -12px -12px 30px rgb(var(--neu-hi-rgb) / 0.9),
-    18px 24px 56px rgb(var(--neu-lo-rgb) / 0.2), inset 0 0 40px rgb(var(--prism-1-rgb) / 0.04);
+  background-image:
+    var(--glass-spec), linear-gradient(155deg, rgb(255 255 255 / 0.96), rgb(244 247 253 / 0.94));
+  box-shadow:
+    var(--neu-in),
+    -12px -12px 30px rgb(var(--neu-hi-rgb) / 0.9),
+    18px 24px 56px rgb(var(--neu-lo-rgb) / 0.2),
+    inset 0 0 40px rgb(var(--prism-1-rgb) / 0.04);
 }
 
 :root[data-theme="light"] .w1-toast {
-  box-shadow: 10px 14px 34px rgb(var(--neu-lo-rgb) / 0.16), inset 0 0 22px rgb(var(--prism-1-rgb) / 0.05);
+  box-shadow:
+    10px 14px 34px rgb(var(--neu-lo-rgb) / 0.16),
+    inset 0 0 22px rgb(var(--prism-1-rgb) / 0.05);
 }
 
 /* 内高光只做"边缘起光"，不做白描边：浅色底本来就亮，接近纯白会变成一道白线。 */
@@ -227,7 +252,9 @@
 :root[data-theme="light"] .w1-todorow.on {
   border-color: rgb(var(--ac-rgb) / 0.4);
   background: linear-gradient(90deg, rgb(var(--vio-rgb) / 0.19), rgb(var(--ac2-rgb) / 0.06) 78%);
-  box-shadow: inset 0 1px rgb(255 255 255 / 0.22), inset 0 0 24px rgb(var(--vio-rgb) / 0.05),
+  box-shadow:
+    inset 0 1px rgb(255 255 255 / 0.22),
+    inset 0 0 24px rgb(var(--vio-rgb) / 0.05),
     0 8px 20px rgb(var(--vio-rgb) / 0.1);
 }
 
@@ -239,10 +266,13 @@
 }
 
 :root[data-theme="light"] .w1-todoquick {
-  background-image: var(--glass-spec),
-    linear-gradient(100deg, rgb(var(--prism-2-rgb) / 0.08), transparent 70%), var(--glass-body);
-  box-shadow: inset 0 -2px 2px rgb(var(--glass-deep-rgb) / 0.5),
-    -8px -8px 22px rgb(var(--neu-hi-rgb) / 0.9), 10px 12px 28px rgb(var(--neu-lo-rgb) / 0.1);
+  background-image:
+    var(--glass-spec), linear-gradient(100deg, rgb(var(--prism-2-rgb) / 0.08), transparent 70%),
+    var(--glass-body);
+  box-shadow:
+    inset 0 -2px 2px rgb(var(--glass-deep-rgb) / 0.5),
+    -8px -8px 22px rgb(var(--neu-hi-rgb) / 0.9),
+    10px 12px 28px rgb(var(--neu-lo-rgb) / 0.1);
 }
 
 :root[data-theme="light"] .w1-tlblk {

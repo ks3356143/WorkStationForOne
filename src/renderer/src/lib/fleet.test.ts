@@ -19,7 +19,11 @@ describe('summarizeFleet', () => {
   })
 
   it('返回第一个待确认会话供跳转', () => {
-    const summary = summarizeFleet([session('a', 'idle'), session('b', 'wait'), session('c', 'wait')])
+    const summary = summarizeFleet([
+      session('a', 'idle'),
+      session('b', 'wait'),
+      session('c', 'wait')
+    ])
 
     expect(summary.waiting).toBe(2)
     expect(summary.waitingSessionId).toBe('b')

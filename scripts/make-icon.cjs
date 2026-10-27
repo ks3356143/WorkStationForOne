@@ -85,7 +85,10 @@ async function run() {
   const images = []
   for (const size of sizes) {
     const source = size <= SMALL_MAX ? smallMaster : master
-    images.push({ size, png: source.resize({ width: size, height: size, quality: 'best' }).toPNG() })
+    images.push({
+      size,
+      png: source.resize({ width: size, height: size, quality: 'best' }).toPNG()
+    })
   }
 
   await writeFile(pngPath, master.resize({ width: 512, height: 512, quality: 'best' }).toPNG())
@@ -94,7 +97,10 @@ async function run() {
   app.quit()
 }
 
-app.whenReady().then(run).catch((error) => {
-  console.error(error)
-  app.exit(1)
-})
+app
+  .whenReady()
+  .then(run)
+  .catch((error) => {
+    console.error(error)
+    app.exit(1)
+  })

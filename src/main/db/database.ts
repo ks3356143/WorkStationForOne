@@ -1,3 +1,5 @@
+import { readdirSync, unlinkSync } from 'node:fs'
+import { basename, dirname, join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 
 export interface Migration {
@@ -84,6 +86,44 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE tasks ADD COLUMN deleted_at INTEGER;
       CREATE INDEX idx_tasks_live ON tasks(deleted_at, sort_order);
     `
+  },
+  {
+    // 标签也进全文索引：否则同一个词因字数不同走 FTS 或 LIKE，结果会不一致。
+    version: 5,
+    sql: `
+      DROP TRIGGER notes_fts_insert;
+      DROP TRIGGER notes_fts_update;
+      DROP TRIGGER notes_fts_delete;
+      DROP TABLE notes_fts;
+
+      CREATE VIRTUAL TABLE notes_fts USING fts5(
+        title,
+        body,
+        tag,
+        content='notes',
+        content_rowid='rowid',
+        tokenize='trigram'
+      );
+
+      CREATE TRIGGER notes_fts_insert AFTER INSERT ON notes BEGIN
+        INSERT INTO notes_fts(rowid, title, body, tag)
+        VALUES (new.rowid, new.title, new.body, new.tag);
+      END;
+
+      CREATE TRIGGER notes_fts_update AFTER UPDATE ON notes BEGIN
+        INSERT INTO notes_fts(notes_fts, rowid, title, body, tag)
+        VALUES ('delete', old.rowid, old.title, old.body, old.tag);
+        INSERT INTO notes_fts(rowid, title, body, tag)
+        VALUES (new.rowid, new.title, new.body, new.tag);
+      END;
+
+      CREATE TRIGGER notes_fts_delete AFTER DELETE ON notes BEGIN
+        INSERT INTO notes_fts(notes_fts, rowid, title, body, tag)
+        VALUES ('delete', old.rowid, old.title, old.body, old.tag);
+      END;
+
+      INSERT INTO notes_fts(notes_fts) VALUES('rebuild');
+    `
   }
 ]
 
@@ -102,7 +142,9 @@ export function userVersion(db: DatabaseSync): number {
 
 export function migrate(db: DatabaseSync, migrations: Migration[] = MIGRATIONS): number {
   let current = userVersion(db)
-  const pending = migrations.filter((migration) => migration.version > current).sort((a, b) => a.version - b.version)
+  const pending = migrations
+    .filter((migration) => migration.version > current)
+    .sort((a, b) => a.version - b.version)
   if (pending.length === 0) return current
 
   // 迁移前留一份快照：本地库没有服务端兜底，schema 变更出错就是数据事故。
@@ -132,8 +174,20 @@ function backupBeforeMigrate(db: DatabaseSync, version: number): void {
     // 保留最近 3 份，避免备份无限增长。
     const stamp = new Date().toISOString().replace(/[:.]/g, '-')
     db.exec(`VACUUM INTO '${main.file.replace(/'/g, "''")}.v${version}-${stamp}.bak'`)
+    pruneBackups(main.file)
   } catch (error) {
     // 备份失败不应阻断迁移，但要在日志里留痕。
     console.error('[db] 迁移前备份失败', error)
+  }
+}
+
+function pruneBackups(file: string): void {
+  const dir = dirname(file)
+  const prefix = `${basename(file)}.v`
+  const backups = readdirSync(dir)
+    .filter((name) => name.startsWith(prefix) && name.endsWith('.bak'))
+    .sort()
+  for (const name of backups.slice(0, Math.max(0, backups.length - 3))) {
+    unlinkSync(join(dir, name))
   }
 }

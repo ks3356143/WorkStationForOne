@@ -5,7 +5,6 @@
 ## 命令
 
 在仓库根目录运行。
-
 - `npm install` — 安装依赖。
 - `npm run dev` — 启动 electron-vite 开发服务器，支持 HMR。
 - `npm run build` — 生产构建，输出到 `out/`。
@@ -13,7 +12,11 @@
 - `npm run typecheck` — 类型检查 main/preload 与 renderer 配置。
 - `npm test` — 运行全部 Vitest 单元测试。
 - `npm test -- src/renderer/src/lib/schedule.test.ts` — 运行单个测试文件。
-- `npm run smoke` — 先构建，再运行 UI 交互冒烟测试套件。
+- `npm run check` — Biome 检查格式与 lint（Rust 单二进制，不依赖 Prettier / ESLint）。
+- `npm run check:fix` — 自动修复格式与可安全修复的 lint 问题。
+- `npm run fmt` — 只格式化，不跑 lint。
+- `npm run smoke` — 先构建，再运行 UI 交互冒烟测试套件。冒烟不挂 preload，只验证渲染层与内存种子；数据库、preload 与跨重启持久化由 `npm run verify` 覆盖。
+- `npm run verify` — 构建后启动真实主进程（临时 `WS_DATA_DIR`），运行 228 项运行时断言：四视图互斥、双主题/双皮肤持久化、跨重启数据。
 - `npm run capture -- .screenshots/shell-1440.png 1440 900 .screenshots/audit-1440.json` — 构建、保存截图并写入布局审计。
 - `npm run capture -- .screenshots/shell-1180.png 1180 720 .screenshots/audit-1180.json dark` — 在最小窗口尺寸下做同样的检查；主题参数为 `dark|light`，视图参数为 `today|tasks|agent|notes`，均可省略审计路径后按任意顺序追加（如 `... 1440 900 light tasks`）。
 - `npm run capture -- .screenshots/tasks-1180.png 1180 720 dark tasks` — 只截某个视图并省略审计路径。
@@ -43,6 +46,7 @@
 - 会话状态按 session ID 限定作用域：`threads` 以它为键，`pendingReplyTo` / `permission.sessionId` 用于选择当前会话。新增会话或审批流程时保持这一约定。
 - 种子数据由 `data/mock.ts` 的 `createInitialData()` 从 `data/seed/*` 组合。测试用它重置 Zustand；必须返回全新对象，并保持这个门面是唯一入口。
 - CSS 入口是 `styles/index.css`，按顺序导入各分节。新规则加到对应分节并保持导入顺序；层叠顺序是有意设计的。
+- 格式与 lint 统一走 Biome（`biome.json`，Rust 单二进制）。不要引入 Prettier / ESLint。配置里关掉的规则都是与项目设计冲突的：`<i>//</i>` 是终端风格装饰而非注释、带 `role` 的 div 是虚拟列表容器、无障碍降级必须用 `!important` 压过后导入的分节、跨分节特异性倒置是导入顺序的结果。新增例外优先写 `// biome-ignore <rule>: 原因`，不要全局关规则。
 - main 与 preload 以 CJS 构建（没有 `"type": "module"`）。未验证 Electron preload 与 sandbox 行为前，不要切换模块格式。
 - Vitest 覆盖 `src/**/*.test.ts` 与 `scripts/**/*.test.mjs`，运行在 Node 环境。添加 `.tsx` 测试前，先有意识地配置 DOM/组件测试环境。
 
@@ -63,10 +67,10 @@
 
 ## 验证
 
-- 代码改动：运行 `npm run typecheck` 与 `npm test`。
+- 代码改动：运行 `npm run typecheck`、`npm run check` 与 `npm test`。
 - UI 或布局改动：还要运行 `npm run smoke`，并在 1440×900 与 1180×720 下截图，覆盖 `today|tasks|agent|notes` 四视图。渲染进程控制台报错即视为失败。
 - 主题改动：暗色与白天各截一套（`dark` / `light` 参数），检查两套的对比度、玻璃质感与横向/纵向溢出；双主题 × 双尺寸 × 四视图共 16 套。变体截图脚本会通过 `localStorage` 固定主题后重载，避免主题残留互相污染。
-- 外壳或导航改动：运行 `.screenshots/runtime-verify.mjs`，确认四视图互斥、`aria-current`、无页面横向溢出、命令面板跳转、双主题持久化与任务跨重启持久化仍通过。
+- 外壳或导航改动：运行 `npm run verify`（`scripts/runtime-verify.mjs`），确认四视图互斥、`aria-current`、无页面横向溢出、命令面板跳转、双主题持久化与任务跨重启持久化仍通过。
 
 ## 当前状态
 
@@ -84,7 +88,6 @@
 ## 知识库取用规则
 
 做界面设计前，先查知识库，不要凭空发挥：
-
 1. 入口：`E:\1.工作相关内容\★陈叫叫个人知识库\1-开发技术\前端\美观设计\README.md`
 2. 先按「按任务找」表定位到 1 篇最贴近的笔记，只读这一篇，不要整目录通读。
 3. 需要成体系时按「按颗粒度拼装」取用：基础定规则 → 页面定整屏 → 组件定手感 → 模式定反馈。
@@ -94,7 +97,6 @@
 ## 知识库采集规则
 
 当本项目出现值得沉淀的内容（用户确认的设计理念、精巧方案、重要踩坑）：
-
 1. 在 `E:\1.工作相关内容\★陈叫叫个人知识库\0-收件箱\` 新建 md 文件，文件名 = 主题短语。
 2. 内容只写三段：来源（项目名 + 日期）、场景、想法（完整描述，含关键代码）。
 3. 不要自己分类，不要写到收件箱以外的目录，不要修改知识库其他文件。

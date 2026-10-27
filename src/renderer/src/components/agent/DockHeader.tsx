@@ -25,7 +25,8 @@ export function DockHeader({ agent, counts, status, onSwitch }: DockHeaderProps)
           onClick={() => onSwitch('claude')}
         >
           <ClaudeGlyph width={10} height={10} />
-          {AGENT_META.claude.name}<i>[{counts.claude}]</i>
+          {AGENT_META.claude.name}
+          <i>[{counts.claude}]</i>
         </button>
         <button
           className={`w1-tab${agent === 'codex' ? ' on' : ''}`}
@@ -33,7 +34,8 @@ export function DockHeader({ agent, counts, status, onSwitch }: DockHeaderProps)
           onClick={() => onSwitch('codex')}
         >
           <CodexGlyph width={10} height={10} />
-          {AGENT_META.codex.name}<i>[{counts.codex}]</i>
+          {AGENT_META.codex.name}
+          <i>[{counts.codex}]</i>
         </button>
       </div>
       <span className={`w1-live${status === 'run' ? '' : ' idle'}`}>

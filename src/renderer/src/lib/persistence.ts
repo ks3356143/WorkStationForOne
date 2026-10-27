@@ -6,12 +6,14 @@ export interface HydrateDeps {
   list: () => Promise<TaskRecord[]>
   bootstrap: (tasks: TaskRecord[]) => Promise<void>
   setDone: (id: string, done: boolean) => Promise<void>
-  applySchedule: (changes: {
-    taskId: string
-    toTime: string
-    toTag: string
-    toDueDate?: string | null
-  }[]) => Promise<void>
+  applySchedule: (
+    changes: {
+      taskId: string
+      toTime: string
+      toTag: string
+      toDueDate?: string | null
+    }[]
+  ) => Promise<void>
   create: (draft: TaskDraft) => Promise<TaskRecord>
   update: (id: string, patch: TaskPatch) => Promise<void>
   remove: (id: string) => Promise<void>
@@ -36,6 +38,9 @@ export async function hydrateTasks(deps: HydrateDeps | undefined = bridgeTasks()
 
     if (stored.length === 0) {
       await deps.bootstrap(initial)
+      // bootstrap 可能因为库里还有软删行而跳过写入；界面必须回到库的真实状态，
+      // 否则删光任务后重启会把内存种子当成"还在"的任务显示出来。
+      replaceTasks(await deps.list())
       return
     }
 

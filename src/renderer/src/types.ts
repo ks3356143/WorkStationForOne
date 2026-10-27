@@ -70,6 +70,11 @@ export interface FocusSession {
   minutes: number
 }
 
+export interface ResolutionRecord {
+  sessionId: string
+  decision: Resolution
+}
+
 export interface WorkstationData {
   activeView: View
   tasks: Task[]
@@ -88,10 +93,11 @@ export interface WorkstationData {
   typing: boolean
   pendingReplyTo: string | null
   permission: Permission | null
-  resolution: Resolution | null
+  resolution: ResolutionRecord | null
   motionOn: boolean
   theme: Theme
   skin: Skin
   focus: FocusSession | null
   quickNoteOpen: boolean
+  persistenceError: string | null
 }

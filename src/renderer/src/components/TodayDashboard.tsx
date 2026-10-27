@@ -27,10 +27,11 @@ export function TodayDashboard() {
   const now = useNow(30_000)
 
   const fleet = summarizeFleet(sessions)
-  const todayTasks = tasksForTodayCard(tasks, dateKey(now))
+  const today = dateKey(now)
+  const todayTasks = tasksForTodayCard(tasks, today)
   const todo = todayTasks.filter((task) => !task.done).length
   const nowMinutes = now.getHours() * 60 + now.getMinutes()
-  const next = findNextTask(todayTasks, nowMinutes)
+  const next = findNextTask(todayTasks, nowMinutes, today)
   const nextBlockTime = findNextBlock(TIMELINE, nowMinutes)?.time
   const marker = getTimeMarkerPercent(now)
 

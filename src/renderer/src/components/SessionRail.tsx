@@ -17,7 +17,11 @@ export function SessionRail({ notify }: SessionRailProps) {
     <div className="w1-agroup">
       <div className="w1-ahead">
         <span className="w1-aglyph">
-          {agent === 'claude' ? <ClaudeGlyph width={11} height={11} /> : <CodexGlyph width={11} height={11} />}
+          {agent === 'claude' ? (
+            <ClaudeGlyph width={11} height={11} />
+          ) : (
+            <CodexGlyph width={11} height={11} />
+          )}
         </span>
         <span className="w1-aname">{agent === 'claude' ? 'Claude Code' : 'Codex'}</span>
         <span className="w1-acount">[{list.length}]</span>

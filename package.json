@@ -10,7 +10,12 @@
     "start": "node scripts/preview.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
+    "check": "biome check .",
+    "check:fix": "biome check --write .",
+    "lint": "biome lint .",
+    "fmt": "biome format --write .",
     "smoke": "npm run build && node scripts/smoke.mjs",
+    "verify": "npm run build && node scripts/runtime-verify.mjs",
     "capture": "npm run build && node scripts/capture.mjs",
     "icon": "node scripts/make-icon.mjs"
   },
@@ -22,6 +27,7 @@
     "zustand": "^5.0.16"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.6.2",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

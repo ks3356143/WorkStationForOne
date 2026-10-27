@@ -11,10 +11,13 @@
   padding-left: 16px;
   padding-right: 148px;
   border-bottom: 1px solid rgb(var(--prism-1-rgb) / 0.16);
-  background-image: var(--glass-spec),
+  background-image:
+    var(--glass-spec),
     linear-gradient(180deg, rgb(var(--glass-tint-rgb) / 0.56), rgb(var(--glass-deep-rgb) / 0.62));
   backdrop-filter: blur(24px) saturate(170%);
-  box-shadow: var(--neu-in), 0 10px 30px rgb(var(--shadow-rgb) / 0.28);
+  box-shadow:
+    var(--neu-in),
+    0 10px 30px rgb(var(--shadow-rgb) / 0.28);
   -webkit-app-region: drag;
 }
 
@@ -54,21 +57,23 @@
   place-items: center;
   border: 1px solid rgb(var(--ac-rgb) / 0.45);
   color: var(--fg-strong);
-  font: 600 11px/1 var(--mono);
+  font: 600 11px / 1 var(--mono);
   letter-spacing: 0.04em;
   background: linear-gradient(135deg, rgb(var(--vio-rgb) / 0.38), rgb(var(--ac2-rgb) / 0.16));
-  box-shadow: 0 0 16px rgb(var(--vio-rgb) / 0.22), inset 0 1px rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 0 16px rgb(var(--vio-rgb) / 0.22),
+    inset 0 1px rgba(255, 255, 255, 0.16);
 }
 
 .w1-ws {
-  font: 600 14px/1.15 var(--disp);
+  font: 600 14px / 1.15 var(--disp);
   white-space: nowrap;
 }
 
 .w1-ws small {
   display: block;
   margin-top: 3px;
-  font: 400 10.5px/1 var(--mono);
+  font: 400 10.5px / 1 var(--mono);
   letter-spacing: 0.04em;
   color: var(--mu);
 }
@@ -89,7 +94,10 @@
   font-size: 14px;
   text-align: left;
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.055);
-  transition: transform var(--dur-base) var(--ease-out), border-color var(--dur-base), background-color var(--dur-base),
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    border-color var(--dur-base),
+    background-color var(--dur-base),
     box-shadow var(--dur-base);
 }
 
@@ -118,7 +126,7 @@
   border: 1px solid rgb(var(--ac2-rgb) / 0.34);
   background: rgb(var(--ac2-rgb) / 0.07);
   color: var(--ac2);
-  font: 600 11px/1 var(--mono);
+  font: 600 11px / 1 var(--mono);
 }
 
 .w1-cmd kbd {
@@ -127,7 +135,7 @@
   padding: 4px 6px;
   border: 1px solid rgb(var(--ac-rgb) / 0.2);
   background: rgb(var(--vio-rgb) / 0.1);
-  font: 10.5px/1 var(--mono);
+  font: 10.5px / 1 var(--mono);
   color: var(--fs);
 }
 
@@ -136,7 +144,7 @@
   align-items: center;
   gap: 8px;
   flex: none;
-  font: 11px/1 var(--mono);
+  font: 11px / 1 var(--mono);
   letter-spacing: 0.05em;
   color: var(--mu);
   font-variant-numeric: tabular-nums;
@@ -149,5 +157,3 @@
   box-shadow: 0 0 7px rgb(var(--ok-rgb) / 0.6);
   animation: ledPulse 2.4s ease-in-out infinite;
 }
-
-

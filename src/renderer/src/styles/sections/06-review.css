@@ -8,7 +8,7 @@
 }
 
 .w1-big {
-  font: 600 64px/0.9 var(--mono);
+  font: 600 64px / 0.9 var(--mono);
   letter-spacing: -0.05em;
   color: var(--fg);
   font-variant-numeric: tabular-nums;
@@ -39,7 +39,7 @@
   display: flex;
   align-items: center;
   gap: 18px;
-  font: 11.5px/1 var(--mono);
+  font: 11.5px / 1 var(--mono);
   color: var(--su);
 }
 
@@ -54,14 +54,17 @@
   border: 1px solid transparent;
   background: linear-gradient(100deg, var(--ac), var(--ac2));
   color: var(--on-accent);
-  font: 700 13px/1 var(--sans);
+  font: 700 13px / 1 var(--sans);
   box-shadow: 0 10px 26px rgb(var(--vio-rgb) / 0.24);
-  transition: transform var(--dur-base) var(--ease-out), filter var(--dur-base), box-shadow var(--dur-base);
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    filter var(--dur-base),
+    box-shadow var(--dur-base);
 }
 
 .w1-rbtn span {
   display: inline-block;
-  font: 10.5px/1 var(--mono);
+  font: 10.5px / 1 var(--mono);
   font-weight: 600;
   color: var(--on-accent-dim);
   transition: transform var(--dur-base) var(--ease-out);
@@ -76,4 +79,3 @@
 .w1-rbtn:hover span {
   transform: translateX(3px);
 }
-

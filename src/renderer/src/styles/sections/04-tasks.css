@@ -16,10 +16,14 @@
   border: 1px solid transparent;
   background: transparent;
   color: var(--mu);
-  font: 500 12px/1 var(--sans);
+  font: 500 12px / 1 var(--sans);
   letter-spacing: 0.02em;
-  transition: transform var(--dur-base) var(--ease-out), border-color var(--dur-base), color var(--dur-base),
-    background-color var(--dur-base), box-shadow var(--dur-base);
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    border-color var(--dur-base),
+    color var(--dur-base),
+    background-color var(--dur-base),
+    box-shadow var(--dur-base);
 }
 
 .w1-filter:hover {
@@ -39,7 +43,7 @@
   align-items: center;
   gap: 9px;
   margin: 0 0 6px;
-  font: 11px/1 var(--mono);
+  font: 11px / 1 var(--mono);
   color: var(--su);
 }
 
@@ -91,7 +95,10 @@
   background: transparent;
   color: inherit;
   text-align: left;
-  transition: background-color var(--dur-ui), opacity var(--dur-base), box-shadow var(--dur-ui);
+  transition:
+    background-color var(--dur-ui),
+    opacity var(--dur-base),
+    box-shadow var(--dur-ui);
 }
 
 .w1-task:hover,
@@ -118,7 +125,7 @@
 }
 
 .w1-time {
-  font: 11.5px/1 var(--mono);
+  font: 11.5px / 1 var(--mono);
   color: var(--mu);
   font-variant-numeric: tabular-nums;
 }
@@ -131,7 +138,10 @@
   border: 1px solid var(--ctl);
   color: transparent;
   background: transparent;
-  transition: border-color var(--dur-pop), background-color var(--dur-pop), color var(--dur-pop),
+  transition:
+    border-color var(--dur-pop),
+    background-color var(--dur-pop),
+    color var(--dur-pop),
     transform var(--dur-press);
 }
 
@@ -186,7 +196,7 @@
   flex: none;
   padding: 3px 6px;
   border: 1px solid var(--bd);
-  font: 10.5px/1 var(--mono);
+  font: 10.5px / 1 var(--mono);
   letter-spacing: 0.03em;
   color: var(--mu);
   white-space: nowrap;
@@ -207,7 +217,7 @@
 .w1-tempty {
   grid-column: 1 / -1;
   padding: 22px 8px;
-  font: 12px/1.6 var(--mono);
+  font: 12px / 1.6 var(--mono);
   color: var(--su);
   text-align: center;
   letter-spacing: 0.04em;
@@ -217,7 +227,7 @@
   content: "∅";
   display: block;
   margin-bottom: 8px;
-  font: 600 24px/1 var(--mono);
+  font: 600 24px / 1 var(--mono);
   color: rgb(var(--ac-rgb) / 0.24);
   text-shadow: 0 0 20px rgb(var(--vio-rgb) / 0.2);
 }
@@ -246,7 +256,7 @@
 .w1-anote-status {
   margin-left: auto;
   flex: none;
-  font: 10.5px/1 var(--mono);
+  font: 10.5px / 1 var(--mono);
 }
 
 .w1-anote-status.pend {
@@ -260,4 +270,3 @@
 .w1-anote-status.deny {
   color: var(--dg);
 }
-

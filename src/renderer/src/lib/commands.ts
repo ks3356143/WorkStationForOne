@@ -145,15 +145,16 @@ export function buildPaletteCommands(input: PaletteInput): PaletteCommand[] {
     commands.push({
       id: `filter:${filter}`,
       group: '操作',
-      label: `任务筛选 · ${FILTER_LABEL[filter]}`,
+      label: `今日卡筛选 · ${FILTER_LABEL[filter]}`,
       hint: current ? '当前' : '切换',
-      value: `任务筛选 ${FILTER_LABEL[filter]} ${filter}`,
+      value: `今日卡筛选 任务 看板 ${FILTER_LABEL[filter]} ${filter}`,
       action: { kind: 'filter', filter }
     })
   }
 
   const text = input.query.trim()
-  const active = input.sessions.find((session) => session.id === input.activeSessionId) ?? input.sessions[0]
+  const active =
+    input.sessions.find((session) => session.id === input.activeSessionId) ?? input.sessions[0]
   if (text && active) {
     const meta = AGENT_META[active.agent]
     commands.push({
@@ -170,7 +171,10 @@ export function buildPaletteCommands(input: PaletteInput): PaletteCommand[] {
   return commands
 }
 
-export function visiblePaletteCommands(commands: PaletteCommand[], query: string): PaletteCommand[] {
+export function visiblePaletteCommands(
+  commands: PaletteCommand[],
+  query: string
+): PaletteCommand[] {
   const needle = query.trim().toLowerCase()
   const base = commands.filter((command) => command.action.kind !== 'send')
   const send = commands.filter((command) => command.action.kind === 'send')
@@ -180,7 +184,9 @@ export function visiblePaletteCommands(commands: PaletteCommand[], query: string
   const tokens = needle.split(/\s+/)
   return [
     ...base.filter((command) =>
-      tokens.every((token) => `${command.label} ${command.hint} ${command.value}`.toLowerCase().includes(token))
+      tokens.every((token) =>
+        `${command.label} ${command.hint} ${command.value}`.toLowerCase().includes(token)
+      )
     ),
     ...send
   ]

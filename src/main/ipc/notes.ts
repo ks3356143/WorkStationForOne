@@ -10,7 +10,8 @@ function assertNote(value: unknown): NoteRecord {
   if (typeof note.text !== 'string' || note.text.length === 0) throw new TypeError('笔记正文无效')
   if (typeof note.time !== 'string') throw new TypeError('笔记时间无效')
   if (note.tag !== undefined && typeof note.tag !== 'string') throw new TypeError('笔记标签无效')
-  if (note.pinned !== undefined && typeof note.pinned !== 'boolean') throw new TypeError('置顶状态无效')
+  if (note.pinned !== undefined && typeof note.pinned !== 'boolean')
+    throw new TypeError('置顶状态无效')
   return {
     id: note.id,
     text: note.text,

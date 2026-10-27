@@ -7,7 +7,8 @@ const width = Number(process.argv[3]) || 1440
 const height = Number(process.argv[4]) || 900
 const extras = process.argv.slice(5)
 const isTheme = (value) => value === 'dark' || value === 'light'
-const isView = (value) => value === 'today' || value === 'tasks' || value === 'agent' || value === 'notes'
+const isView = (value) =>
+  value === 'today' || value === 'tasks' || value === 'agent' || value === 'notes'
 const isSkin = (value) => value === 'prism' || value === 'classic'
 const theme = extras.filter(isTheme).at(-1) ?? 'dark'
 const view = extras.filter(isView).at(-1) ?? 'today'
@@ -121,14 +122,19 @@ async function run() {
   }
 
   if (consoleErrors.length) {
-    console.error(`[capture] ${consoleErrors.length} renderer error(s):\n${consoleErrors.join('\n')}`)
+    console.error(
+      `[capture] ${consoleErrors.length} renderer error(s):\n${consoleErrors.join('\n')}`
+    )
     app.exit(1)
     return
   }
   app.quit()
 }
 
-app.whenReady().then(run).catch((error) => {
-  console.error(error)
-  app.exit(1)
-})
+app
+  .whenReady()
+  .then(run)
+  .catch((error) => {
+    console.error(error)
+    app.exit(1)
+  })

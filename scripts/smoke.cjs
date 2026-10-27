@@ -3,7 +3,9 @@ const { join } = require('node:path')
 const { mkdtempSync, rmSync } = require('node:fs')
 const { tmpdir } = require('node:os')
 
-// 冒烟用例会勾选与删除任务；指向临时库，避免改写真实用户数据。
+// 冒烟只驱动渲染层：窗口不挂 preload，window.ws 为空，界面跑在内存种子上。
+// 主进程 / preload / SQLite 的真实路径由 `npm run verify`（scripts/runtime-verify.mjs）覆盖。
+// WS_DATA_DIR 保留给未来的主进程接入，当前只影响 verify 之外的临时目录约定。
 const dataDir = mkdtempSync(join(tmpdir(), 'ws-smoke-'))
 process.env.WS_DATA_DIR = dataDir
 
@@ -15,7 +17,12 @@ async function run() {
     width: 1440,
     height: 900,
     show: true,
-    webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: false }
+    webPreferences: {
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+      backgroundThrottling: false
+    }
   })
 
   win.webContents.on('console-message', (event) => {
@@ -596,7 +603,9 @@ async function run() {
   const failed = results.checks.filter((check) => !check.ok)
   console.log(JSON.stringify({ ...results, consoleErrors, failures: failed.length }, null, 2))
   if (failed.length > 0 || consoleErrors.length > 0) {
-    console.error(`[smoke] ${failed.length} failed check(s), ${consoleErrors.length} console error(s)`)
+    console.error(
+      `[smoke] ${failed.length} failed check(s), ${consoleErrors.length} console error(s)`
+    )
     app.exit(1)
     return
   }
@@ -611,9 +620,12 @@ function cleanup() {
   }
 }
 
-app.whenReady().then(run).catch((error) => {
-  console.error(error)
-  app.exit(1)
-})
+app
+  .whenReady()
+  .then(run)
+  .catch((error) => {
+    console.error(error)
+    app.exit(1)
+  })
 
 app.on('will-quit', cleanup)

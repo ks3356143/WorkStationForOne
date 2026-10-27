@@ -14,7 +14,15 @@ import {
 const TODAY = '2026-10-24'
 
 const tasks: Task[] = [
-  { id: 'a', title: '逾期', time: '09:00', done: false, dueDate: '2026-10-23', priority: 1, list: '工作' },
+  {
+    id: 'a',
+    title: '逾期',
+    time: '09:00',
+    done: false,
+    dueDate: '2026-10-23',
+    priority: 1,
+    list: '工作'
+  },
   { id: 'b', title: '今天', time: '15:00', done: false, dueDate: TODAY, priority: 2 },
   { id: 'c', title: '明天', time: '—', done: false, dueDate: '2026-10-25', list: '生活' },
   { id: 'd', title: '无日期', time: '—', done: false },
@@ -48,7 +56,13 @@ describe('filterTasksByScope', () => {
   })
 
   it('全部包含未完成任务，无日期排在最后', () => {
-    expect(filterTasksByScope(tasks, 'all', TODAY).map((task) => task.id)).toEqual(['a', 'b', 'c', 'f', 'd'])
+    expect(filterTasksByScope(tasks, 'all', TODAY).map((task) => task.id)).toEqual([
+      'a',
+      'b',
+      'c',
+      'f',
+      'd'
+    ])
   })
 
   it('已完成按完成时间倒序', () => {
@@ -105,7 +119,10 @@ describe('taskDueLabel', () => {
 
   it('已完成任务不再标逾期', () => {
     expect(
-      taskDueLabel({ id: 'z', title: '已完成', time: '—', done: true, dueDate: '2026-10-23' }, TODAY)
+      taskDueLabel(
+        { id: 'z', title: '已完成', time: '—', done: true, dueDate: '2026-10-23' },
+        TODAY
+      )
     ).toBe('10-23')
   })
 
@@ -119,7 +136,9 @@ describe('taskDueLabel', () => {
 describe('groupTasksByDate', () => {
   it('按日期分组且保持排序', () => {
     const upcoming = filterTasksByScope(tasks, 'upcoming', TODAY)
-    expect(groupTasksByDate(upcoming).map((group) => [group.date, group.tasks.map((task) => task.id)])).toEqual([
+    expect(
+      groupTasksByDate(upcoming).map((group) => [group.date, group.tasks.map((task) => task.id)])
+    ).toEqual([
       ['2026-10-25', ['c']],
       ['2026-11-02', ['f']]
     ])

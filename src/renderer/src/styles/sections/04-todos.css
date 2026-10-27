@@ -11,7 +11,10 @@
     linear-gradient(rgb(var(--ac-rgb) / 0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgb(var(--ac-rgb) / 0.03) 1px, transparent 1px),
     linear-gradient(180deg, rgb(var(--panel-1-rgb) / 0.02), rgb(var(--panel-1-rgb) / 0.26));
-  background-size: 48px 48px, 48px 48px, 100% 100%;
+  background-size:
+    48px 48px,
+    48px 48px,
+    100% 100%;
 }
 
 .w1-todorail {
@@ -22,10 +25,13 @@
   padding: 18px 14px 16px;
   overflow-y: auto;
   border-right: 1px solid rgb(var(--prism-1-rgb) / 0.18);
-  background-image: var(--glass-spec),
+  background-image:
+    var(--glass-spec),
     linear-gradient(180deg, rgb(var(--glass-tint-rgb) / 0.3), rgb(var(--glass-deep-rgb) / 0.38));
   backdrop-filter: blur(20px) saturate(160%);
-  box-shadow: var(--neu-in), inset -1px 0 rgb(var(--prism-2-rgb) / 0.1);
+  box-shadow:
+    var(--neu-in),
+    inset -1px 0 rgb(var(--prism-2-rgb) / 0.1);
 }
 
 .w1-todorailhead {
@@ -44,9 +50,12 @@
   border: 1px solid rgb(var(--ac-rgb) / 0.28);
   background: rgb(var(--vio-rgb) / 0.12);
   color: var(--ac-fg);
-  font: 500 11px/1 var(--mono);
+  font: 500 11px / 1 var(--mono);
   letter-spacing: 0.04em;
-  transition: border-color var(--dur-ui), background-color var(--dur-ui), color var(--dur-ui);
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui),
+    color var(--dur-ui);
 }
 
 .w1-todonew:hover {
@@ -71,7 +80,10 @@
   background: transparent;
   color: var(--mu);
   text-align: left;
-  transition: border-color var(--dur-ui), background-color var(--dur-ui), color var(--dur-ui);
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui),
+    color var(--dur-ui);
 }
 
 .w1-todorow:hover {
@@ -87,7 +99,7 @@
 }
 
 .w1-todokey {
-  font: 10.5px/1 var(--mono);
+  font: 10.5px / 1 var(--mono);
   color: var(--su);
   letter-spacing: 0.06em;
 }
@@ -106,7 +118,7 @@
 }
 
 .w1-todocount {
-  font: 11.5px/1 var(--mono);
+  font: 11.5px / 1 var(--mono);
   color: var(--su);
   font-variant-numeric: tabular-nums;
 }
@@ -123,7 +135,7 @@
 
 .w1-todogrouplabel {
   padding: 2px 8px 6px;
-  font: 10px/1 var(--mono);
+  font: 10px / 1 var(--mono);
   letter-spacing: 0.09em;
   color: var(--su);
 }
@@ -135,7 +147,7 @@
   margin-top: auto;
   padding-top: 14px;
   border-top: 1px solid var(--bd);
-  font: 11px/1.5 var(--mono);
+  font: 11px / 1.5 var(--mono);
   color: var(--su);
 }
 
@@ -159,12 +171,12 @@
 }
 
 .w1-todohead .w1-date {
-  font: 600 11.5px/1 var(--mono);
+  font: 600 11.5px / 1 var(--mono);
 }
 
 .w1-todotitle {
   margin: 8px 0 0;
-  font: 700 30px/1 var(--disp);
+  font: 700 30px / 1 var(--disp);
   letter-spacing: -0.03em;
   color: var(--fg);
 }
@@ -178,7 +190,7 @@
 
 .w1-todosub {
   margin-top: 10px;
-  font: 12px/1.5 var(--mono);
+  font: 12px / 1.5 var(--mono);
   color: var(--mu);
 }
 
@@ -206,7 +218,7 @@
 
 .w1-todosearch > span {
   flex: none;
-  font: 11px/1 var(--mono);
+  font: 11px / 1 var(--mono);
   color: var(--ac);
 }
 
@@ -219,7 +231,7 @@
   outline: none;
   background: transparent;
   color: var(--fg);
-  font: 13.5px/1.4 var(--sans);
+  font: 13.5px / 1.4 var(--sans);
 }
 
 .w1-todosearch input::placeholder {
@@ -232,7 +244,7 @@
   border: 0;
   background: transparent;
   color: var(--mu);
-  font: 10.5px/1 var(--mono);
+  font: 10.5px / 1 var(--mono);
 }
 
 .w1-todosearch button:hover {
@@ -247,20 +259,26 @@
   margin-top: 14px;
   padding: 10px 12px;
   border: 1px solid transparent;
-  background-image: var(--glass-spec),
-    linear-gradient(100deg, rgb(var(--prism-2-rgb) / 0.12), transparent 70%), var(--glass-body);
+  background-image:
+    var(--glass-spec), linear-gradient(100deg, rgb(var(--prism-2-rgb) / 0.12), transparent 70%),
+    var(--glass-body);
   background-origin: padding-box;
   background-clip: padding-box, padding-box, padding-box;
   border-image: var(--glass-rim) 1;
-  box-shadow: inset 0 -2px 2px rgb(var(--glass-deep-rgb) / 0.5), 0 10px 24px rgb(var(--shadow-rgb) / 0.22);
+  box-shadow:
+    inset 0 -2px 2px rgb(var(--glass-deep-rgb) / 0.5),
+    0 10px 24px rgb(var(--shadow-rgb) / 0.22);
   transition: box-shadow var(--dur-base);
 }
 
 .w1-todoquick:focus-within {
   border-image: var(--glass-rim-hot) 1;
-  background-image: var(--glass-spec),
-    linear-gradient(100deg, rgb(var(--prism-2-rgb) / 0.16), transparent 70%), var(--glass-body);
-  box-shadow: inset 0 -2px 2px rgb(var(--glass-deep-rgb) / 0.5), 0 14px 32px rgb(var(--shadow-rgb) / 0.3),
+  background-image:
+    var(--glass-spec), linear-gradient(100deg, rgb(var(--prism-2-rgb) / 0.16), transparent 70%),
+    var(--glass-body);
+  box-shadow:
+    inset 0 -2px 2px rgb(var(--glass-deep-rgb) / 0.5),
+    0 14px 32px rgb(var(--shadow-rgb) / 0.3),
     0 0 26px rgb(var(--prism-1-rgb) / 0.14);
 }
 
@@ -272,7 +290,7 @@
 
 .w1-todoquickprompt {
   flex: none;
-  font: 13px/1 var(--mono);
+  font: 13px / 1 var(--mono);
   color: var(--ac);
 }
 
@@ -285,7 +303,7 @@
   outline: none;
   background: transparent;
   color: var(--fg);
-  font: 14.5px/1.4 var(--sans);
+  font: 14.5px / 1.4 var(--sans);
 }
 
 .w1-todoinput::placeholder {
@@ -302,8 +320,11 @@
   border: 1px solid rgb(var(--ac-rgb) / 0.4);
   background: rgb(var(--vio-rgb) / 0.18);
   color: var(--ac-fg);
-  font: 500 11px/1 var(--mono);
-  transition: border-color var(--dur-ui), background-color var(--dur-ui), opacity var(--dur-ui);
+  font: 500 11px / 1 var(--mono);
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui),
+    opacity var(--dur-ui);
 }
 
 .w1-todoadd:hover {
@@ -322,7 +343,7 @@
   gap: 7px;
   flex-wrap: wrap;
   min-height: 18px;
-  font: 10.5px/1.3 var(--mono);
+  font: 10.5px / 1.3 var(--mono);
   color: var(--su);
 }
 
@@ -381,8 +402,13 @@
   align-items: center;
   gap: 10px;
   padding: 9px 4px 7px;
-  background: linear-gradient(180deg, rgb(var(--panel-1-rgb) / 0.92), rgb(var(--panel-1-rgb) / 0.7) 70%, transparent);
-  font: 10.5px/1 var(--mono);
+  background: linear-gradient(
+    180deg,
+    rgb(var(--panel-1-rgb) / 0.92),
+    rgb(var(--panel-1-rgb) / 0.7) 70%,
+    transparent
+  );
+  font: 10.5px / 1 var(--mono);
   letter-spacing: 0.06em;
   color: var(--mu);
 }
@@ -451,7 +477,11 @@
   border: 1px solid var(--ctl);
   background: transparent;
   color: transparent;
-  transition: border-color var(--dur-ui), background-color var(--dur-ui), color var(--dur-ui), transform var(--dur-ui),
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui),
+    color var(--dur-ui),
+    transform var(--dur-ui),
     box-shadow var(--dur-ui);
 }
 
@@ -490,7 +520,9 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: color var(--dur-base), opacity var(--dur-base);
+  transition:
+    color var(--dur-base),
+    opacity var(--dur-base);
 }
 
 .w1-todobody:hover .w1-todotitletext {
@@ -509,7 +541,7 @@
   border: 1px solid rgb(var(--ac-rgb) / 0.26);
   background: rgb(var(--vio-rgb) / 0.1);
   color: var(--ac-fg);
-  font: 11px/1 var(--mono);
+  font: 11px / 1 var(--mono);
   white-space: nowrap;
 }
 
@@ -517,7 +549,7 @@
   flex: none;
   padding: 3px 5px;
   border: 1px solid var(--bd);
-  font: 11px/1 var(--mono);
+  font: 11px / 1 var(--mono);
   letter-spacing: 0.04em;
 }
 
@@ -544,12 +576,12 @@
   padding: 2px 4px;
   border: 1px solid var(--bd);
   color: var(--su);
-  font: 9.5px/1 var(--mono);
+  font: 9.5px / 1 var(--mono);
 }
 
 .w1-tododue {
   justify-self: end;
-  font: 11.5px/1 var(--mono);
+  font: 11.5px / 1 var(--mono);
   color: var(--mu);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -597,7 +629,7 @@
 
 .w1-todofield label,
 .w1-todofieldlabel {
-  font: 10px/1 var(--mono);
+  font: 10px / 1 var(--mono);
   letter-spacing: 0.08em;
   color: var(--su);
 }
@@ -610,9 +642,11 @@
   border: 1px solid rgb(var(--ac-rgb) / 0.18);
   background: rgb(var(--panel-2-rgb) / 0.42);
   color: var(--fg);
-  font: 13.5px/1.5 var(--sans);
+  font: 13.5px / 1.5 var(--sans);
   outline: none;
-  transition: border-color var(--dur-ui), background-color var(--dur-ui);
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui);
 }
 
 .w1-todofield input:focus,
@@ -644,8 +678,11 @@
   border: 1px solid var(--bd);
   background: transparent;
   color: var(--mu);
-  font: 10.5px/1 var(--mono);
-  transition: border-color var(--dur-ui), background-color var(--dur-ui), color var(--dur-ui);
+  font: 10.5px / 1 var(--mono);
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui),
+    color var(--dur-ui);
 }
 
 .w1-tododatequick button:hover {
@@ -665,8 +702,11 @@
   border: 1px solid var(--bd);
   background: transparent;
   color: var(--mu);
-  font: 11px/1 var(--mono);
-  transition: border-color var(--dur-ui), background-color var(--dur-ui), color var(--dur-ui);
+  font: 11px / 1 var(--mono);
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui),
+    color var(--dur-ui);
 }
 
 .w1-todopriopt:hover {
@@ -713,8 +753,11 @@
   border: 1px solid rgb(var(--ac-rgb) / 0.24);
   background: rgb(var(--panel-2-rgb) / 0.34);
   color: var(--fs);
-  font: 500 11.5px/1 var(--mono);
-  transition: border-color var(--dur-ui), background-color var(--dur-ui), color var(--dur-ui);
+  font: 500 11.5px / 1 var(--mono);
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui),
+    color var(--dur-ui);
 }
 
 .w1-todosave {
@@ -769,7 +812,7 @@
 
 .w1-todoempty::before {
   content: "∅";
-  font: 600 32px/1 var(--mono);
+  font: 600 32px / 1 var(--mono);
   color: rgb(var(--ac-rgb) / 0.26);
   text-shadow: 0 0 24px rgb(var(--vio-rgb) / 0.22);
 }
@@ -780,19 +823,23 @@
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(rgb(var(--ac-rgb) / 0.38), rgb(var(--ac-rgb) / 0.38)) left top / 10px 1px no-repeat,
-    linear-gradient(rgb(var(--ac-rgb) / 0.38), rgb(var(--ac-rgb) / 0.38)) left top / 1px 10px no-repeat,
-    linear-gradient(rgb(var(--ac-rgb) / 0.38), rgb(var(--ac-rgb) / 0.38)) right bottom / 10px 1px no-repeat,
-    linear-gradient(rgb(var(--ac-rgb) / 0.38), rgb(var(--ac-rgb) / 0.38)) right bottom / 1px 10px no-repeat;
+    linear-gradient(rgb(var(--ac-rgb) / 0.38), rgb(var(--ac-rgb) / 0.38)) left top / 10px 1px
+    no-repeat,
+    linear-gradient(rgb(var(--ac-rgb) / 0.38), rgb(var(--ac-rgb) / 0.38)) left top / 1px 10px
+    no-repeat,
+    linear-gradient(rgb(var(--ac-rgb) / 0.38), rgb(var(--ac-rgb) / 0.38)) right bottom / 10px 1px
+    no-repeat,
+    linear-gradient(rgb(var(--ac-rgb) / 0.38), rgb(var(--ac-rgb) / 0.38)) right bottom / 1px 10px
+    no-repeat;
 }
 
 .w1-todoempty b {
-  font: 500 13px/1.4 var(--sans);
+  font: 500 13px / 1.4 var(--sans);
   color: var(--mu);
 }
 
 .w1-todoempty span {
-  font: 11px/1.6 var(--mono);
+  font: 11px / 1.6 var(--mono);
 }
 
 .w1-todoend {
@@ -800,7 +847,7 @@
   align-items: center;
   gap: 10px;
   padding: 16px 4px 4px;
-  font: 10.5px/1 var(--mono);
+  font: 10.5px / 1 var(--mono);
   letter-spacing: 0.08em;
   color: var(--su);
 }

@@ -50,6 +50,8 @@ export function TaskItem({
           role="checkbox"
           aria-checked={task.done}
           aria-label={`${task.title} · ${task.done ? '标记未完成' : '完成'}`}
+          disabled={expanded}
+          title={expanded ? '先保存或收起编辑区' : undefined}
           onClick={onToggle}
         >
           {task.done ? <CheckIcon width={9} height={9} /> : null}
@@ -65,16 +67,18 @@ export function TaskItem({
         >
           <span className="w1-todotitletext">{task.title}</span>
           {task.list ? <span className="w1-todolisttag">#{task.list}</span> : null}
-          {priority ? <span className={`w1-todopri p${priority}`}>{PRIORITY_LABEL[priority]}</span> : null}
-          {task.tag ? <span className={`w1-tag${task.tone ? ` ${task.tone}` : ''}`}>{task.tag}</span> : null}
-          {task.notes ? (
-            <span className="w1-todonote" aria-label="有备注">
-              备注
-            </span>
+          {priority ? (
+            <span className={`w1-todopri p${priority}`}>{PRIORITY_LABEL[priority]}</span>
           ) : null}
+          {task.tag ? (
+            <span className={`w1-tag${task.tone ? ` ${task.tone}` : ''}`}>{task.tag}</span>
+          ) : null}
+          {task.notes ? <span className="w1-todonote">备注</span> : null}
         </button>
 
-        <span className={`w1-tododue${overdue ? ' overdue' : task.dueDate === today ? ' today' : ''}`}>
+        <span
+          className={`w1-tododue${overdue ? ' overdue' : task.dueDate === today ? ' today' : ''}`}
+        >
           {due ?? ''}
         </span>
       </div>

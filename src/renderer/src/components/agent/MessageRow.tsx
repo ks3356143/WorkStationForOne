@@ -11,7 +11,11 @@ interface MessageRowProps {
   animate?: boolean
 }
 
-export const MessageRow = memo(function MessageRow({ message, agent, animate = false }: MessageRowProps) {
+export const MessageRow = memo(function MessageRow({
+  message,
+  agent,
+  animate = false
+}: MessageRowProps) {
   const meta = AGENT_META[agent]
 
   if (message.role === 'user') {

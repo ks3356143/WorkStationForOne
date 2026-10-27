@@ -1,12 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { TaskRecord } from '../../../shared/ipc'
 import { createInitialData } from '../data/mock'
 import { useWorkstation } from '../store/useWorkstation'
 import { hydrateTasks, type HydrateDeps } from './persistence'
 
 function deps(overrides: Partial<HydrateDeps> = {}): HydrateDeps {
+  let stored: TaskRecord[] = []
   return {
-    list: vi.fn().mockResolvedValue([]),
-    bootstrap: vi.fn().mockResolvedValue(undefined),
+    list: vi.fn(() => Promise.resolve(stored)),
+    bootstrap: vi.fn(async (tasks) => {
+      stored = tasks
+    }),
     setDone: vi.fn().mockResolvedValue(undefined),
     applySchedule: vi.fn().mockResolvedValue(undefined),
     create: vi.fn().mockResolvedValue({ id: 'saved', title: '任务', time: '—', done: false }),
@@ -23,11 +27,29 @@ beforeEach(() => {
 
 describe('hydrateTasks', () => {
   it('数据库为空时写入种子任务', async () => {
-    const d = deps()
+    let stored: TaskRecord[] = []
+    const d = deps({
+      list: vi.fn(() => Promise.resolve(stored)),
+      bootstrap: vi.fn(async (tasks) => {
+        stored = tasks
+      })
+    })
     await hydrateTasks(d)
 
-    expect(d.bootstrap).toHaveBeenCalledWith(useWorkstation.getState().tasks)
+    expect(d.bootstrap).toHaveBeenCalled()
     expect(useWorkstation.getState().tasks).toHaveLength(8)
+  })
+
+  it('任务被全部软删后重启不复活种子', async () => {
+    // 库里仍有软删行，bootstrap 会跳过写入，list 返回空。
+    const d = deps({
+      list: vi.fn().mockResolvedValue([]),
+      bootstrap: vi.fn().mockResolvedValue(undefined)
+    })
+    await hydrateTasks(d)
+
+    expect(d.bootstrap).toHaveBeenCalled()
+    expect(useWorkstation.getState().tasks).toEqual([])
   })
 
   it('已有数据时用数据库覆盖界面', async () => {

@@ -2,7 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { addDaysKey, dateKey } from '../../../shared/date-key'
 import { createInitialData } from '../data/mock'
 import { getTodayIndex } from '../lib/date'
-import { bindTaskPersistence, selectPreviewNotes, selectVisibleTasks, useWorkstation } from './useWorkstation'
+import {
+  bindTaskPersistence,
+  selectPreviewNotes,
+  selectVisibleTasks,
+  useWorkstation
+} from './useWorkstation'
 
 beforeEach(() => {
   useWorkstation.setState(createInitialData())
@@ -77,7 +82,7 @@ describe('权限请求', () => {
 
     const state = useWorkstation.getState()
     expect(state.permission).toBeNull()
-    expect(state.resolution).toBe('allowed')
+    expect(state.resolution).toEqual({ sessionId: 's-c1', decision: 'allowed' })
     expect(state.tasks.find((task) => task.id === 't8')?.time).toBe('09:00')
     expect(state.tasks.find((task) => task.id === 't8')?.tag).toBe('明天')
     expect(state.tasks.find((task) => task.id === 't6')?.time).toBe('22:00')
@@ -90,7 +95,7 @@ describe('权限请求', () => {
 
     const state = useWorkstation.getState()
     expect(state.permission).toBeNull()
-    expect(state.resolution).toBe('denied')
+    expect(state.resolution).toEqual({ sessionId: 's-c1', decision: 'denied' })
     expect(state.tasks).toEqual(before)
   })
 })
@@ -108,9 +113,9 @@ describe('对话', () => {
 
   it('收到回复后追加助手消息并结束等待', () => {
     useWorkstation.getState().sendMessage('把复习放到晚上')
-    useWorkstation.getState().receiveReply('已放到 20:30。', [
-      { name: 'study.plan', meta: '20:30–21:00', status: '完成' }
-    ])
+    useWorkstation
+      .getState()
+      .receiveReply('已放到 20:30。', [{ name: 'study.plan', meta: '20:30–21:00', status: '完成' }])
 
     const state = useWorkstation.getState()
     const thread = state.threads[state.activeSessionId]

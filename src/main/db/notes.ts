@@ -33,12 +33,20 @@ const SEARCH_FTS_SQL = `SELECT n.id, n.body, n.tag, n.pinned, n.time_label,
   ORDER BY n.pinned DESC, score ASC
   LIMIT ?`
 
-const SEARCH_LIKE_SQL = `SELECT id, body, tag, pinned, time_label,
+const SEARCH_LIKE_HEAD = `SELECT id, body, tag, pinned, time_label,
     '' AS snippet, 0 AS score
   FROM notes
-  WHERE body LIKE ? ESCAPE '\\' OR IFNULL(tag, '') LIKE ? ESCAPE '\\'
+  WHERE `
+const SEARCH_LIKE_CLAUSE = `(body LIKE ? ESCAPE '\\' OR IFNULL(tag, '') LIKE ? ESCAPE '\\')`
+const SEARCH_LIKE_TAIL = `
   ORDER BY pinned DESC, updated_at DESC, rowid DESC
   LIMIT ?`
+
+// 短词回退必须保留每个关键词：只用第一个会静默放宽结果。
+function likeSql(termCount: number): string {
+  const where = Array.from({ length: termCount }, () => SEARCH_LIKE_CLAUSE).join(' AND ')
+  return `${SEARCH_LIKE_HEAD}${where}${SEARCH_LIKE_TAIL}`
+}
 
 function toRecord(row: NoteRow): NoteRecord {
   return {
@@ -50,8 +58,16 @@ function toRecord(row: NoteRow): NoteRecord {
   }
 }
 
+// FTS5 snippet() 用这两个控制字符包住命中区间，读取后换回方括号。
+const SNIPPET_MARK_OPEN = '\u0001'
+const SNIPPET_MARK_CLOSE = '\u0002'
+
 function normalizeSnippet(snippet: string): string {
-  return snippet.replace(/\u0001/g, '[').replace(/\u0002/g, ']').replace(/\s+/g, ' ').trim()
+  return snippet
+    .replaceAll(SNIPPET_MARK_OPEN, '[')
+    .replaceAll(SNIPPET_MARK_CLOSE, ']')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function likeSnippet(body: string, term: string): string {
@@ -124,9 +140,9 @@ export class NoteRepository {
     if (this.count() > 0) return
     const now = Date.now()
     this.transaction(() => {
-      notes.forEach((note, index) =>
+      notes.forEach((note, index) => {
         this.insert(note.text, note.tag, note.pinned === true, now - index, note.id, note.time)
-      )
+      })
     })
   }
 
@@ -147,8 +163,11 @@ export class NoteRepository {
       return rows.map((row) => ({ ...toRecord(row), snippet: normalizeSnippet(row.snippet) }))
     }
 
-    const like = `%${plan.value.split(' ')[0]}%`
-    const rows = this.sql(SEARCH_LIKE_SQL).all(like, like, safeLimit) as unknown as SearchRow[]
+    const patterns = plan.terms.map((term) => `%${escapeLike(term)}%`)
+    const rows = this.sql(likeSql(patterns.length)).all(
+      ...patterns.flatMap((pattern) => [pattern, pattern]),
+      safeLimit
+    ) as unknown as SearchRow[]
     return rows.map((row) => ({
       ...toRecord(row),
       snippet: likeSnippet(row.body, plan.terms[0])
@@ -162,7 +181,10 @@ export class NoteRepository {
   }
 
   togglePin(id: string): void {
-    this.sql('UPDATE notes SET pinned = 1 - pinned, updated_at = ? WHERE id = ?').run(Date.now(), id)
+    this.sql('UPDATE notes SET pinned = 1 - pinned, updated_at = ? WHERE id = ?').run(
+      Date.now(),
+      id
+    )
   }
 
   private insert(

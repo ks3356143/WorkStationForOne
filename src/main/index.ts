@@ -90,7 +90,9 @@ if (!gotTheLock) {
 
   app.whenReady().then(() => {
     app.setAppUserModelId('com.workstationforone.app')
-    session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false))
+    session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) =>
+      callback(false)
+    )
     session.defaultSession.setPermissionCheckHandler(() => false)
 
     database = initDatabase()

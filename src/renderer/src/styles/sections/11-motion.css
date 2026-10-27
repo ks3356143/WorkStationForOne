@@ -125,7 +125,8 @@
 .w1-view {
   opacity: 1;
   transform: translateY(0);
-  transition: opacity var(--dur-view) var(--ease-out),
+  transition:
+    opacity var(--dur-view) var(--ease-out),
     transform var(--dur-view) var(--ease-out);
 }
 
@@ -212,4 +213,3 @@
     opacity: 0.9;
   }
 }
-

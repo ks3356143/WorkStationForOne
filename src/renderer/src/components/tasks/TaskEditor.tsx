@@ -40,7 +40,7 @@ export function TaskEditor({ task, lists, today, onSave, onDelete, onClose }: Ta
     onSave({
       title: nextTitle,
       notes,
-      dueDate: (dueDate || (time ? today : '')) || null,
+      dueDate: dueDate || (time ? today : '') || null,
       time: time || '—',
       priority,
       list: list.trim() || null

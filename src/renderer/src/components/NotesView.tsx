@@ -46,34 +46,40 @@ export function NotesView() {
   const offsetRef = useRef(0)
   const searchSeq = useRef(0)
   const revisionRef = useRef(noteRevision)
+  // 用 ref 而不是 state 做互斥：清空搜索时要在同一次提交里取消在途加载，
+  // 闭包里的 loading 永远是旧值，会把 loadPage 挡在门外并卡住载入态。
+  const loadingRef = useRef(false)
 
   const loadPage = useCallback(
     async (reset: boolean) => {
-      if (!api || loading) return
+      if (!api || loadingRef.current) return
+      loadingRef.current = true
       setLoading(true)
       setError(null)
       try {
         const offset = reset ? 0 : offsetRef.current
         const page = await api.page(offset, PAGE_SIZE)
         offsetRef.current = offset + page.items.length
-        setRows((current) => (reset ? notesToRows(page.items) : [...current, ...notesToRows(page.items)]))
+        setRows((current) =>
+          reset ? notesToRows(page.items) : [...current, ...notesToRows(page.items)]
+        )
         setTotal(page.total)
         setMode('browse')
       } catch (cause) {
         console.error('[notes] 读取失败', cause)
         setError('读取笔记失败')
       } finally {
+        loadingRef.current = false
         setLoading(false)
       }
     },
-    [api, loading]
+    [api]
   )
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: api 与 loadPage 在挂载后不变，只在挂载时拉第一页
   useEffect(() => {
     if (!api) return
     void loadPage(true)
-    // 只在挂载时拉第一页
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -87,10 +93,14 @@ export function NotesView() {
     void loadPage(true)
   }, [api, loading, noteRevision, query, loadPage])
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 依赖刻意收窄到 query/searchRefresh；loadPage 依赖 loading，展开会重复触发搜索
   useEffect(() => {
     const trimmed = query.trim()
 
     if (!trimmed) {
+      // 清空查询同时作废在途搜索，否则迟到的搜索结果会盖掉浏览列表。
+      searchSeq.current += 1
+      loadingRef.current = false
       if (api) void loadPage(true)
       else {
         setRows(notesToRows(memoryNotes))
@@ -111,6 +121,7 @@ export function NotesView() {
     }
 
     const seq = ++searchSeq.current
+    loadingRef.current = true
     setLoading(true)
     setError(null)
     const timer = window.setTimeout(() => {
@@ -128,13 +139,21 @@ export function NotesView() {
           setError('搜索失败')
         })
         .finally(() => {
-          if (seq === searchSeq.current) setLoading(false)
+          if (seq === searchSeq.current) {
+            loadingRef.current = false
+            setLoading(false)
+          }
         })
     }, 160)
 
-    return () => window.clearTimeout(timer)
-    // loadPage 依赖 loading，避免把搜索重复触发
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      window.clearTimeout(timer)
+      // 被取消的搜索要自己收掉载入态与互斥标记，否则页面会一直停在「载入中」。
+      if (seq === searchSeq.current) {
+        loadingRef.current = false
+        setLoading(false)
+      }
+    }
   }, [query, searchRefresh])
 
   const hasMore = mode === 'browse' && rows.length < total
@@ -153,7 +172,9 @@ export function NotesView() {
           </div>
           <div className="w1-nvheadright">
             <span className="w1-nvcount">
-              {mode === 'search' ? `命中 ${total}${total >= SEARCH_LIMIT ? '+' : ''}` : `共 ${total} 条 · 已载入 ${rows.length}`}
+              {mode === 'search'
+                ? `命中 ${total}${total >= SEARCH_LIMIT ? '+' : ''}`
+                : `共 ${total} 条 · 已载入 ${rows.length}`}
             </span>
             <button
               className="w1-nvnew"
@@ -177,6 +198,7 @@ export function NotesView() {
             aria-label="搜索笔记"
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing || event.keyCode === 229) return
               if (event.key === 'Escape' && query) setQuery('')
             }}
           />
@@ -195,6 +217,7 @@ export function NotesView() {
           rows={rows}
           loading={loading}
           mode={mode}
+          resetKey={`${mode}:${query}`}
           endLabel={
             !hasMore && rows.length > 0
               ? `// END · ${mode === 'search' ? '命中' : '共'} ${total} 条`
@@ -213,7 +236,9 @@ export function NotesView() {
 
         <div className="w1-nvfoot">
           <span>本地 SQLite · trigram 全文索引</span>
-          <span>{mode === 'search' ? '两字以内自动回退模糊匹配' : '置顶优先 · 按更新时间排序'}</span>
+          <span>
+            {mode === 'search' ? '两字以内自动回退模糊匹配' : '置顶优先 · 按更新时间排序'}
+          </span>
         </div>
       </div>
     </section>

@@ -10,7 +10,9 @@ export interface HydrateNoteDeps {
   togglePin?: (id: string) => Promise<void>
 }
 
-export async function hydrateNotes(deps: HydrateNoteDeps | undefined = bridgeNotes()): Promise<void> {
+export async function hydrateNotes(
+  deps: HydrateNoteDeps | undefined = bridgeNotes()
+): Promise<void> {
   if (!deps) return
 
   bindNotePersistence({

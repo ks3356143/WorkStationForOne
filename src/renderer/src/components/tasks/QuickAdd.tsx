@@ -87,7 +87,9 @@ export function QuickAdd({ scope, today, focusSignal, onAdd }: QuickAddProps) {
             {dueDate ? <span className="w1-todochip date">{dateChip(dueDate, today)}</span> : null}
             {parsed.time ? <span className="w1-todochip">{parsed.time}</span> : null}
             {parsed.priority ? (
-              <span className={`w1-todochip pri p${parsed.priority}`}>{PRIORITY_LABEL[parsed.priority]}</span>
+              <span className={`w1-todochip pri p${parsed.priority}`}>
+                {PRIORITY_LABEL[parsed.priority]}
+              </span>
             ) : null}
             {list ? <span className="w1-todochip list">#{list}</span> : null}
             {listTooLong ? (
@@ -99,7 +101,9 @@ export function QuickAdd({ scope, today, focusSignal, onAdd }: QuickAddProps) {
             )}
           </>
         ) : (
-          <span>识别 今天 / 明天 / 周五 / 3天后 / 10月30日、15:00 / 下午三点、!高 / !中 / !低、#清单</span>
+          <span>
+            识别 今天 / 明天 / 周五 / 3天后 / 10月30日、15:00 / 下午三点、!高 / !中 / !低、#清单
+          </span>
         )}
       </div>
     </div>

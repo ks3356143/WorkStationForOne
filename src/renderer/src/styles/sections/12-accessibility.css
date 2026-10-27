@@ -108,7 +108,8 @@
   .w1 *::before,
   .w1 *::after {
     animation: none !important;
-    transition-property: opacity, color, background-color, border-color, box-shadow, outline-color !important;
+    transition-property:
+      opacity, color, background-color, border-color, box-shadow, outline-color !important;
     transition-duration: var(--dur-feedback) !important;
     transition-timing-function: var(--ease-out) !important;
     transition-delay: 0s !important;
@@ -168,4 +169,3 @@
     opacity: 0.75;
   }
 }
-

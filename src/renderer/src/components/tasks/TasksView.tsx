@@ -82,9 +82,24 @@ export function TasksView({ notify }: TasksViewProps) {
   const completedVisible = visible.reduce((count, task) => count + (task.done ? 1 : 0), 0)
   const title = activeList ?? SMART_LISTS.find((item) => item.scope === scope)?.label ?? '任务'
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: scope/query 是触发条件，切换清单或改搜索词时收起详情
   useEffect(() => {
     setExpandedId(null)
   }, [scope, query])
+
+  // 详情打开后焦点可能落在行外（日期、清单栏），Esc 仍应收起。
+  useEffect(() => {
+    if (!expandedId) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      if (event.isComposing || event.keyCode === 229) return
+      if ((event.target as HTMLElement | null)?.closest('.w1-todosearch')) return
+      setExpandedId(null)
+      requestAnimationFrame(() => document.getElementById(`todo-row-${expandedId}`)?.focus())
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [expandedId])
 
   useEffect(() => {
     if (taskComposerRequest === lastHandledComposeRequest) return
@@ -204,7 +219,8 @@ export function TasksView({ notify }: TasksViewProps) {
               ) : (
                 <>
                   <span className="w1-subtag">今日</span>
-                  <b>{counts.today}</b> 项 · 未完成 <b>{counts.all}</b> · 已完成 <b>{counts.done}</b>
+                  <b>{counts.today}</b> 项 · 未完成 <b>{counts.all}</b> · 已完成{' '}
+                  <b>{counts.done}</b>
                 </>
               )}
             </div>
@@ -218,6 +234,7 @@ export function TasksView({ notify }: TasksViewProps) {
               aria-label="搜索任务"
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing || event.keyCode === 229) return
                 if (event.key === 'Escape' && query) {
                   event.preventDefault()
                   setQuery('')
@@ -233,7 +250,12 @@ export function TasksView({ notify }: TasksViewProps) {
         </header>
 
         {scope !== 'done' && !searching ? (
-          <QuickAdd scope={scope} today={today} focusSignal={taskComposerRequest} onAdd={handleAdd} />
+          <QuickAdd
+            scope={scope}
+            today={today}
+            focusSignal={taskComposerRequest}
+            onAdd={handleAdd}
+          />
         ) : null}
 
         <div className="w1-todoscroll" key={scope}>
@@ -260,7 +282,9 @@ export function TasksView({ notify }: TasksViewProps) {
                   expanded={expandedId === task.id}
                   highlight={task.id === lastAddedTaskId}
                   onToggle={() => toggleTask(task.id)}
-                  onExpand={() => setExpandedId((current) => (current === task.id ? null : task.id))}
+                  onExpand={() =>
+                    setExpandedId((current) => (current === task.id ? null : task.id))
+                  }
                   onSave={(patch: TaskPatch) => {
                     updateTask(task.id, patch)
                     setExpandedId(null)
@@ -285,7 +309,11 @@ export function TasksView({ notify }: TasksViewProps) {
 
           {visible.length === 0 ? (
             <div className="w1-todoempty">
-              <b>{searching ? '没有匹配的任务。' : EMPTY[scope as TaskViewMode] ?? '这个清单还是空的。'}</b>
+              <b>
+                {searching
+                  ? '没有匹配的任务。'
+                  : (EMPTY[scope as TaskViewMode] ?? '这个清单还是空的。')}
+              </b>
               <span>
                 {searching
                   ? '换个关键词，或清空搜索回到当前视图。'
@@ -298,8 +326,7 @@ export function TasksView({ notify }: TasksViewProps) {
             <div className="w1-todoend">
               <span>// END</span>
               <b>
-                {visible.length} 项
-                {completedVisible > 0 ? ` · ${completedVisible} 完成` : ''}
+                {visible.length} 项{completedVisible > 0 ? ` · ${completedVisible} 完成` : ''}
               </b>
             </div>
           )}

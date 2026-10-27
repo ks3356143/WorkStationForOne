@@ -14,7 +14,10 @@
     linear-gradient(rgb(var(--ac-rgb) / 0.035) 1px, transparent 1px),
     linear-gradient(90deg, rgb(var(--ac-rgb) / 0.035) 1px, transparent 1px),
     linear-gradient(180deg, rgb(var(--panel-1-rgb) / 0.02), rgb(var(--panel-1-rgb) / 0.3));
-  background-size: 48px 48px, 48px 48px, 100% 100%;
+  background-size:
+    48px 48px,
+    48px 48px,
+    100% 100%;
 }
 
 .w1-thead {
@@ -32,7 +35,7 @@
 }
 
 .w1-date {
-  font: 600 11.5px/1 var(--mono);
+  font: 600 11.5px / 1 var(--mono);
   letter-spacing: 0.09em;
   color: var(--mu);
 }
@@ -44,7 +47,7 @@
 
 .w1-h1 {
   margin: 9px 0 6px;
-  font: 700 38px/1 var(--disp);
+  font: 700 38px / 1 var(--disp);
   letter-spacing: -0.035em;
   color: var(--fg);
 }
@@ -69,7 +72,7 @@
 
 .w1-sub .w1-subtag {
   flex: none;
-  font: 600 10.5px/1 var(--mono);
+  font: 600 10.5px / 1 var(--mono);
   letter-spacing: 0.06em;
   color: var(--ac2);
   padding: 4px 6px;
@@ -100,13 +103,17 @@
   border: 1px solid var(--ctl);
   background: transparent;
   color: var(--fs);
-  font: 500 13.5px/1 var(--sans);
-  transition: transform var(--dur-base) var(--ease-out), border-color var(--dur-base), color var(--dur-base),
-    box-shadow var(--dur-base), filter var(--dur-base);
+  font: 500 13.5px / 1 var(--sans);
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    border-color var(--dur-base),
+    color var(--dur-base),
+    box-shadow var(--dur-base),
+    filter var(--dur-base);
 }
 
 .w1-btn kbd {
-  font: 10.5px/1 var(--mono);
+  font: 10.5px / 1 var(--mono);
   color: var(--mu);
 }
 
@@ -142,7 +149,10 @@
   border-image: var(--glass-rim) 1;
   backdrop-filter: blur(20px) saturate(160%);
   overflow: hidden;
-  box-shadow: var(--neu-in), var(--glass-drop), 0 0 26px rgb(var(--prism-2-rgb) / 0.07);
+  box-shadow:
+    var(--neu-in),
+    var(--glass-drop),
+    0 0 26px rgb(var(--prism-2-rgb) / 0.07);
 }
 
 .w1-tl::before {
@@ -162,9 +172,12 @@
   top: 0;
   height: 6px;
   pointer-events: none;
-  background-image: linear-gradient(90deg, rgb(var(--ac-rgb) / 0.6) 1px, transparent 1px),
+  background-image:
+    linear-gradient(90deg, rgb(var(--ac-rgb) / 0.6) 1px, transparent 1px),
     linear-gradient(90deg, rgb(var(--ac-rgb) / 0.25) 1px, transparent 1px);
-  background-size: calc(100% / 7) 6px, calc(100% / 28) 3px;
+  background-size:
+    calc(100% / 7) 6px,
+    calc(100% / 28) 3px;
   background-repeat: repeat-x;
 }
 
@@ -185,7 +198,12 @@
   white-space: nowrap;
   overflow: hidden;
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.06);
-  transition: border-color var(--dur-ui), background-color var(--dur-ui), transform var(--dur-ui), opacity var(--dur-base), filter var(--dur-base);
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui),
+    transform var(--dur-ui),
+    opacity var(--dur-base),
+    filter var(--dur-base);
 }
 
 .w1-tlblk:hover {
@@ -220,7 +238,7 @@
   position: absolute;
   bottom: 2px;
   transform: translateX(-50%);
-  font: 10.5px/1 var(--mono);
+  font: 10.5px / 1 var(--mono);
   color: var(--su);
 }
 
@@ -259,7 +277,7 @@
   padding: 2px 5px;
   background: var(--wn);
   color: #1a1205;
-  font: 700 11px/1.3 var(--mono);
+  font: 700 11px / 1.3 var(--mono);
   letter-spacing: 0.03em;
   white-space: nowrap;
   box-shadow: 0 0 10px rgb(var(--wn-rgb) / 0.3);
@@ -290,10 +308,17 @@
   background-clip: padding-box, padding-box;
   border-image: var(--glass-rim) 1;
   backdrop-filter: blur(24px) saturate(165%);
-  box-shadow: var(--neu-in), var(--glass-drop), inset 0 0 32px rgb(var(--prism-1-rgb) / 0.03);
+  box-shadow:
+    var(--neu-in),
+    var(--glass-drop),
+    inset 0 0 32px rgb(var(--prism-1-rgb) / 0.03);
   overflow: hidden;
-  transition: transform var(--dur-base) var(--ease-out), background-color var(--dur-base),
-    color var(--dur-base), box-shadow var(--dur-base), opacity var(--dur-base),
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    background-color var(--dur-base),
+    color var(--dur-base),
+    box-shadow var(--dur-base),
+    opacity var(--dur-base),
     --edge-angle 1.5s var(--ease-out);
   --edge-angle: 0deg;
 }
@@ -310,7 +335,9 @@
   background: linear-gradient(90deg, rgb(var(--prism-2-rgb)), rgb(var(--prism-1-rgb)));
   opacity: 0.75;
   clip-path: inset(0 calc(100% - 52px) 0 0);
-  transition: clip-path 0.45s var(--ease-out), opacity var(--dur-slow);
+  transition:
+    clip-path 0.45s var(--ease-out),
+    opacity var(--dur-slow);
 }
 
 .w1-card::after {
@@ -319,22 +346,33 @@
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(rgb(var(--ac-rgb) / 0.42), rgb(var(--ac-rgb) / 0.42)) left top / 9px 1px no-repeat,
-    linear-gradient(rgb(var(--ac-rgb) / 0.42), rgb(var(--ac-rgb) / 0.42)) left top / 1px 9px no-repeat,
-    linear-gradient(rgb(var(--ac-rgb) / 0.42), rgb(var(--ac-rgb) / 0.42)) right top / 9px 1px no-repeat,
-    linear-gradient(rgb(var(--ac-rgb) / 0.42), rgb(var(--ac-rgb) / 0.42)) right top / 1px 9px no-repeat,
-    linear-gradient(rgb(var(--ac-rgb) / 0.42), rgb(var(--ac-rgb) / 0.42)) left bottom / 9px 1px no-repeat,
-    linear-gradient(rgb(var(--ac-rgb) / 0.42), rgb(var(--ac-rgb) / 0.42)) left bottom / 1px 9px no-repeat,
-    linear-gradient(rgb(var(--ac-rgb) / 0.42), rgb(var(--ac-rgb) / 0.42)) right bottom / 9px 1px no-repeat,
-    linear-gradient(rgb(var(--ac-rgb) / 0.42), rgb(var(--ac-rgb) / 0.42)) right bottom / 1px 9px no-repeat;
+    linear-gradient(rgb(var(--ac-rgb) / 0.42), rgb(var(--ac-rgb) / 0.42)) left top / 9px 1px
+    no-repeat,
+    linear-gradient(rgb(var(--ac-rgb) / 0.42), rgb(var(--ac-rgb) / 0.42)) left top / 1px 9px
+    no-repeat,
+    linear-gradient(rgb(var(--ac-rgb) / 0.42), rgb(var(--ac-rgb) / 0.42)) right top / 9px 1px
+    no-repeat,
+    linear-gradient(rgb(var(--ac-rgb) / 0.42), rgb(var(--ac-rgb) / 0.42)) right top / 1px 9px
+    no-repeat,
+    linear-gradient(rgb(var(--ac-rgb) / 0.42), rgb(var(--ac-rgb) / 0.42)) left bottom / 9px 1px
+    no-repeat,
+    linear-gradient(rgb(var(--ac-rgb) / 0.42), rgb(var(--ac-rgb) / 0.42)) left bottom / 1px 9px
+    no-repeat,
+    linear-gradient(rgb(var(--ac-rgb) / 0.42), rgb(var(--ac-rgb) / 0.42)) right bottom / 9px 1px
+    no-repeat,
+    linear-gradient(rgb(var(--ac-rgb) / 0.42), rgb(var(--ac-rgb) / 0.42)) right bottom / 1px 9px
+    no-repeat;
 }
 
 .w1-card:hover {
   transform: translateY(-3px);
   border-image: var(--glass-rim-hot) 1;
   background-image: var(--glass-spec), var(--glass-body);
-  box-shadow: var(--neu-in), 0 26px 54px rgb(var(--shadow-rgb) / 0.48),
-    0 0 34px rgb(var(--prism-2-rgb) / 0.12), inset 0 0 40px rgb(var(--prism-1-rgb) / 0.05);
+  box-shadow:
+    var(--neu-in),
+    0 26px 54px rgb(var(--shadow-rgb) / 0.48),
+    0 0 34px rgb(var(--prism-2-rgb) / 0.12),
+    inset 0 0 40px rgb(var(--prism-1-rgb) / 0.05);
 }
 
 .w1-card:hover::before {
@@ -354,7 +392,7 @@
   display: flex;
   align-items: center;
   min-width: 0;
-  font: 600 16px/1 var(--sans);
+  font: 600 16px / 1 var(--sans);
   letter-spacing: 0.01em;
   color: var(--fg);
   white-space: nowrap;
@@ -372,7 +410,7 @@
 
 .w1-ct > span {
   flex: none;
-  font: 11px/1 var(--mono);
+  font: 11px / 1 var(--mono);
   letter-spacing: 0.03em;
   color: var(--mu);
   font-variant-numeric: tabular-nums;
@@ -386,7 +424,7 @@
 }
 
 .w1-ctmeta > span {
-  font: 11px/1 var(--mono);
+  font: 11px / 1 var(--mono);
   letter-spacing: 0.03em;
   color: var(--mu);
   font-variant-numeric: tabular-nums;
@@ -397,7 +435,7 @@
   background: transparent;
   padding: 3px 0;
   color: var(--mu);
-  font: 11px/1 var(--mono);
+  font: 11px / 1 var(--mono);
   letter-spacing: 0.03em;
   transition: color var(--dur-ui);
 }
@@ -405,4 +443,3 @@
 .w1-ctlink:hover {
   color: var(--ac2);
 }
-

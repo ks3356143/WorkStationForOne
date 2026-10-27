@@ -57,7 +57,7 @@
   align-items: center;
   gap: 10px;
   margin-top: 6px;
-  font: 11px/1 var(--mono);
+  font: 11px / 1 var(--mono);
   color: var(--su);
 }
 
@@ -80,7 +80,9 @@
   border-bottom: 1px solid rgb(var(--ac-rgb) / 0.1);
   font-size: 13.5px;
   color: var(--fs);
-  transition: transform var(--dur-ui) var(--ease-out), color var(--dur-ui);
+  transition:
+    transform var(--dur-ui) var(--ease-out),
+    color var(--dur-ui);
 }
 
 .w1-nitem:last-child {
@@ -97,7 +99,7 @@
 .w1-nitem time {
   margin-left: auto;
   flex: none;
-  font: 11px/1 var(--mono);
+  font: 11px / 1 var(--mono);
   color: var(--su);
   transition: color var(--dur-ui);
 }
@@ -117,7 +119,7 @@
   justify-content: space-between;
   margin-top: auto;
   padding-top: 10px;
-  font: 11.5px/1 var(--mono);
+  font: 11.5px / 1 var(--mono);
   color: var(--su);
 }
 
@@ -131,14 +133,13 @@
   background: transparent;
   padding: 3px 0;
   color: var(--mu);
-  font: 11.5px/1 var(--mono);
+  font: 11.5px / 1 var(--mono);
   transition: color var(--dur-ui);
 }
 
 .w1-nall:hover {
   color: var(--ac2);
 }
-
 
 /* ---------- all-notes workspace ---------- */
 
@@ -154,7 +155,10 @@
     linear-gradient(rgb(var(--ac-rgb) / 0.035) 1px, transparent 1px),
     linear-gradient(90deg, rgb(var(--ac-rgb) / 0.035) 1px, transparent 1px),
     linear-gradient(180deg, rgb(var(--panel-1-rgb) / 0.02), rgb(var(--panel-1-rgb) / 0.3));
-  background-size: 48px 48px, 48px 48px, 100% 100%;
+  background-size:
+    48px 48px,
+    48px 48px,
+    100% 100%;
 }
 
 .w1-nvbox {
@@ -166,13 +170,16 @@
   gap: 14px;
   padding: 24px 28px 18px;
   border: 1px solid transparent;
-  background-image: var(--glass-spec),
+  background-image:
+    var(--glass-spec),
     linear-gradient(155deg, rgb(var(--glass-tint-rgb) / 0.5), rgb(var(--glass-deep-rgb) / 0.6));
   background-origin: padding-box;
   background-clip: padding-box, padding-box;
   border-image: var(--glass-rim) 1;
   backdrop-filter: blur(24px) saturate(165%);
-  box-shadow: var(--neu-in), 0 30px 70px rgb(var(--shadow-rgb) / 0.44),
+  box-shadow:
+    var(--neu-in),
+    0 30px 70px rgb(var(--shadow-rgb) / 0.44),
     inset 0 0 44px rgb(var(--prism-2-rgb) / 0.035);
 }
 
@@ -185,12 +192,12 @@
 }
 
 .w1-nvtitle .w1-date {
-  font: 600 11.5px/1 var(--mono);
+  font: 600 11.5px / 1 var(--mono);
 }
 
 .w1-nvtitle h1 {
   margin: 8px 0 0;
-  font: 700 30px/1 var(--disp);
+  font: 700 30px / 1 var(--disp);
   letter-spacing: -0.03em;
   color: var(--fg);
 }
@@ -203,7 +210,7 @@
 }
 
 .w1-nvcount {
-  font: 12px/1 var(--mono);
+  font: 12px / 1 var(--mono);
   color: var(--su);
   white-space: nowrap;
 }
@@ -224,10 +231,13 @@
   border: 1px solid rgb(var(--ac-rgb) / 0.28);
   background: rgb(var(--vio-rgb) / 0.1);
   color: var(--ac-fg);
-  font: 500 11px/1 var(--mono);
+  font: 500 11px / 1 var(--mono);
   letter-spacing: 0.04em;
   white-space: nowrap;
-  transition: border-color var(--dur-ui), background-color var(--dur-ui), color var(--dur-ui);
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui),
+    color var(--dur-ui);
 }
 
 .w1-nvnew:hover {
@@ -240,7 +250,7 @@
   padding: 2px 4px;
   border: 1px solid rgb(var(--ac-rgb) / 0.2);
   color: var(--mu);
-  font: 10px/1 var(--mono);
+  font: 10px / 1 var(--mono);
 }
 
 .w1-nvsearch {
@@ -253,12 +263,17 @@
   border: 1px solid rgb(var(--ac-rgb) / 0.24);
   background: rgb(var(--field-rgb) / 0.6);
   color: var(--ac2);
-  transition: border-color var(--dur-base), box-shadow var(--dur-base), background-color var(--dur-base);
+  transition:
+    border-color var(--dur-base),
+    box-shadow var(--dur-base),
+    background-color var(--dur-base);
 }
 
 .w1-nvsearch:focus-within {
   border-color: rgb(var(--ac2-rgb) / 0.48);
-  box-shadow: 0 0 0 1px rgb(var(--ac2-rgb) / 0.1), 0 12px 30px -24px rgb(var(--ac2-rgb) / 0.9);
+  box-shadow:
+    0 0 0 1px rgb(var(--ac2-rgb) / 0.1),
+    0 12px 30px -24px rgb(var(--ac2-rgb) / 0.9);
 }
 
 .w1-nvinput {
@@ -267,7 +282,7 @@
   border: 0;
   background: transparent;
   color: var(--fg);
-  font: 15px/1 var(--sans);
+  font: 15px / 1 var(--sans);
   outline: none;
 }
 
@@ -282,7 +297,7 @@
   border: 1px solid rgb(var(--ac-rgb) / 0.24);
   background: transparent;
   color: var(--mu);
-  font: 11px/1.4 var(--mono);
+  font: 11px / 1.4 var(--mono);
 }
 
 .w1-nvclear:hover {
@@ -319,7 +334,9 @@
   gap: 5px;
   padding: 8px 8px;
   border-bottom: 1px solid rgb(var(--ac-rgb) / 0.1);
-  transition: background-color var(--dur-ui), box-shadow var(--dur-ui);
+  transition:
+    background-color var(--dur-ui),
+    box-shadow var(--dur-ui);
 }
 
 .w1-nvrow:hover {
@@ -331,7 +348,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font: 11.5px/1 var(--mono);
+  font: 11.5px / 1 var(--mono);
   color: var(--su);
 }
 
@@ -380,7 +397,7 @@
   content: "∅";
   display: block;
   margin-bottom: 12px;
-  font: 600 36px/1 var(--mono);
+  font: 600 36px / 1 var(--mono);
   color: rgb(var(--ac-rgb) / 0.26);
   text-shadow: 0 0 26px rgb(var(--vio-rgb) / 0.22);
 }
@@ -392,7 +409,7 @@
   align-items: center;
   gap: 10px;
   padding: 0 8px;
-  font: 10.5px/1 var(--mono);
+  font: 10.5px / 1 var(--mono);
   letter-spacing: 0.08em;
   color: var(--su);
 }
@@ -415,7 +432,7 @@
   border: 1px solid rgb(var(--ac-rgb) / 0.26);
   background: transparent;
   color: var(--fs);
-  font: 500 13.5px/1 var(--sans);
+  font: 500 13.5px / 1 var(--sans);
 }
 
 .w1-nvmore:hover:not(:disabled) {
@@ -432,6 +449,6 @@
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  font: 11.5px/1.4 var(--mono);
+  font: 11.5px / 1.4 var(--mono);
   color: var(--su);
 }

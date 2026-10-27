@@ -44,10 +44,14 @@ describe('迁移', () => {
     const { db } = seedDb()
     expect(userVersion(db)).toBe(MIGRATIONS.at(-1)!.version)
     const tables = db
-      .prepare("SELECT name FROM sqlite_master WHERE type IN ('table','trigger') AND name LIKE 'notes%'")
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type IN ('table','trigger') AND name LIKE 'notes%'"
+      )
       .all()
       .map((row) => (row as { name: string }).name)
-    expect(tables).toEqual(expect.arrayContaining(['notes', 'notes_fts', 'notes_fts_insert', 'notes_fts_update']))
+    expect(tables).toEqual(
+      expect.arrayContaining(['notes', 'notes_fts', 'notes_fts_insert', 'notes_fts_update'])
+    )
     db.close()
   })
 })
@@ -138,6 +142,25 @@ describe('NoteRepository 搜索', () => {
 
     expect(repo.search('100%', 10)).toHaveLength(1)
     expect(repo.search('%', 10)).toHaveLength(1)
+    db.close()
+  })
+
+  it('短词多关键词必须同时命中', () => {
+    const { db, repo } = seedDb()
+    repo.bootstrap([
+      { id: 'm1', text: '登录 修复 思路', time: '—' },
+      { id: 'm2', text: '登录失败', time: '—' }
+    ])
+
+    expect(repo.search('登录 修复', 10).map((hit) => hit.id)).toEqual(['m1'])
+    db.close()
+  })
+
+  it('长词搜索也能命中标签，与短词回退结果一致', () => {
+    const { db, repo } = seedDb()
+    repo.bootstrap(notes)
+
+    expect(repo.search('产品思考', 10).map((hit) => hit.id)).toEqual(['n1'])
     db.close()
   })
 

@@ -1,9 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import {
-  IPC_CHANNELS,
-  type TaskScheduleChange,
-  type WsApi
-} from '../shared/ipc'
+import { IPC_CHANNELS, type TaskScheduleChange, type WsApi } from '../shared/ipc'
 
 const api: WsApi = {
   tasks: {

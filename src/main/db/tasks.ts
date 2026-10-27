@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import type { DatabaseSync, StatementSync } from 'node:sqlite'
-import type { TaskDraft, TaskPatch, TaskPriority, TaskRecord, TaskScheduleChange } from '../../shared/ipc'
+import type {
+  TaskDraft,
+  TaskPatch,
+  TaskPriority,
+  TaskRecord,
+  TaskScheduleChange
+} from '../../shared/ipc'
 
 interface TaskRow {
   id: string
@@ -29,12 +35,17 @@ const INSERT_SQL = `INSERT INTO tasks
   (id, title, time_label, tag, tone, done, notes, due_date, priority, list, completed_at, sort_order, created_at, updated_at)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
-const SET_DONE_SQL = 'UPDATE tasks SET done = ?, completed_at = ?, updated_at = ? WHERE id = ?'
-const APPLY_SCHEDULE_SQL = 'UPDATE tasks SET time_label = ?, tag = ?, updated_at = ? WHERE id = ?'
-const APPLY_SCHEDULE_DUE_SQL = 'UPDATE tasks SET time_label = ?, tag = ?, due_date = ?, updated_at = ? WHERE id = ?'
+const SET_DONE_SQL =
+  'UPDATE tasks SET done = ?, completed_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
+const APPLY_SCHEDULE_SQL =
+  'UPDATE tasks SET time_label = ?, tag = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
+const APPLY_SCHEDULE_DUE_SQL =
+  'UPDATE tasks SET time_label = ?, tag = ?, due_date = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
 const NEXT_SORT_SQL = 'SELECT COALESCE(MIN(sort_order), 0) - 1 AS n FROM tasks'
-const SOFT_DELETE_SQL = 'UPDATE tasks SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
-const RESTORE_SQL = 'UPDATE tasks SET deleted_at = NULL, updated_at = ? WHERE id = ?'
+const SOFT_DELETE_SQL =
+  'UPDATE tasks SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
+const RESTORE_SQL =
+  'UPDATE tasks SET deleted_at = NULL, updated_at = ? WHERE id = ? AND deleted_at IS NOT NULL'
 const PURGE_SQL = 'DELETE FROM tasks WHERE deleted_at IS NOT NULL AND deleted_at < ?'
 
 const PATCH_COLUMNS: Record<keyof TaskPatch, string> = {
@@ -163,11 +174,9 @@ export class TaskRepository {
     if (entries.length === 0) return
 
     const assignments = entries.map(([column]) => `${column} = ?`).join(', ')
-    this.sql(`UPDATE tasks SET ${assignments}, updated_at = ? WHERE id = ?`).run(
-      ...entries.map(([, value]) => value),
-      Date.now(),
-      id
-    )
+    this.sql(
+      `UPDATE tasks SET ${assignments}, updated_at = ? WHERE id = ? AND deleted_at IS NULL`
+    ).run(...entries.map(([, value]) => value), Date.now(), id)
   }
 
   remove(id: string): void {

@@ -9,8 +9,9 @@ export function FleetStrip({ summary }: FleetStripProps) {
   const openAgentSession = useWorkstation((state) => state.openAgentSession)
   const activeSessionId = useWorkstation((state) => state.activeSessionId)
   const activeView = useWorkstation((state) => state.activeView)
+  const waitingId = summary.waitingSessionId
   const waitingActive =
-    summary.waitingSessionId !== null && summary.waitingSessionId === activeSessionId && activeView === 'agent'
+    waitingId !== null && waitingId === activeSessionId && activeView === 'agent'
 
   return (
     <div className="w1-fleet" role="group" aria-label="Agent 舰队状态">
@@ -32,12 +33,8 @@ export function FleetStrip({ summary }: FleetStripProps) {
           会话
         </span>
       </div>
-      {summary.waitingSessionId && !waitingActive ? (
-        <button
-          className="w1-fjump"
-          type="button"
-          onClick={() => openAgentSession(summary.waitingSessionId!)}
-        >
+      {waitingId && !waitingActive ? (
+        <button className="w1-fjump" type="button" onClick={() => openAgentSession(waitingId)}>
           <i />
           {summary.waiting} 个待确认 · 去处理
         </button>

@@ -31,7 +31,11 @@ export function AgentDock() {
   const resolvePermission = useWorkstation((state) => state.resolvePermission)
 
   const threadRef = useRef<HTMLDivElement>(null)
-  const threadMeta = useRef({ sessionId: activeSession.id, length: thread.length, initialized: false })
+  const threadMeta = useRef({
+    sessionId: activeSession.id,
+    length: thread.length,
+    initialized: false
+  })
   const counts = {
     claude: sessions.filter((session) => session.agent === 'claude').length,
     codex: sessions.filter((session) => session.agent === 'codex').length
@@ -48,6 +52,7 @@ export function AgentDock() {
     threadMeta.current = { sessionId: activeSession.id, length: thread.length, initialized: true }
   }, [activeSession.id, thread.length])
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: thread.length / typingHere / permission 是滚动触发条件，用于在有新内容时贴底
   useLayoutEffect(() => {
     const node = threadRef.current
     if (node) node.scrollTop = node.scrollHeight
@@ -64,7 +69,12 @@ export function AgentDock() {
 
   return (
     <aside className="w1-dock">
-      <DockHeader agent={agent} counts={counts} status={activeSession.status} onSwitch={switchAgent} />
+      <DockHeader
+        agent={agent}
+        counts={counts}
+        status={activeSession.status}
+        onSwitch={switchAgent}
+      />
 
       <div className="w1-term">
         <span className="pr">&gt;</span>
@@ -81,7 +91,9 @@ export function AgentDock() {
           animate={{ opacity: 1, transform: 'translateY(0px)' }}
           transition={{ duration: DURATION.view, ease: EASE_OUT }}
         >
-          <div className="w1-tdiv">// {activeSession.threadDate} · {activeSession.title}</div>
+          <div className="w1-tdiv">
+            // {activeSession.threadDate} · {activeSession.title}
+          </div>
           <div className="w1-ctx">
             <span>上下文</span>
             <i>任务 {taskCount}</i>
@@ -91,11 +103,16 @@ export function AgentDock() {
           </div>
 
           {thread.map((message) => (
-            <MessageRow key={message.id} message={message} agent={agent} animate={message.id === animateId} />
+            <MessageRow
+              key={message.id}
+              message={message}
+              agent={agent}
+              animate={message.id === animateId}
+            />
           ))}
 
           {typingHere ? (
-            <div className="w1-typing" aria-label={`${meta.name} 正在处理`}>
+            <div className="w1-typing" role="status" aria-label={`${meta.name} 正在处理`}>
               <span className="w1-av">{meta.badge}</span>
               <span className="w1-typing-dots">
                 <i />
@@ -117,26 +134,33 @@ export function AgentDock() {
             ) : null}
           </AnimatePresence>
 
-          {agent === 'claude' && resolution ? (
+          {agent === 'claude' && resolution?.sessionId === activeSession.id ? (
             <m.div
-              className={`w1-resolved ${resolution === 'allowed' ? 'ok' : 'deny'}`}
+              className={`w1-resolved ${resolution.decision === 'allowed' ? 'ok' : 'deny'}`}
               initial={{ opacity: 0, transform: 'translateY(6px)' }}
               animate={{ opacity: 1, transform: 'translateY(0px)' }}
             >
-              // {resolution === 'allowed' ? '已允许 · 3 项任务已顺延' : '已拒绝 · 任务保持原样'}
+              //{' '}
+              {resolution.decision === 'allowed'
+                ? '已允许 · 3 项任务已顺延'
+                : '已拒绝 · 任务保持原样'}
             </m.div>
           ) : null}
         </m.div>
       </div>
 
       {agent === 'codex' && permission && permission.sessionId !== activeSession.id ? (
-        <button className="w1-queue" type="button" onClick={() => setActiveSession(permission.sessionId)}>
+        <button
+          className="w1-queue"
+          type="button"
+          onClick={() => setActiveSession(permission.sessionId)}
+        >
           <span className="w1-queue-dot" />
           {permission.source} 有 1 项待审批 · 查看
         </button>
       ) : null}
 
-      <Composer agent={agent} typing={typing} onSend={sendMessage} />
+      <Composer key={activeSession.id} agent={agent} typing={typing} onSend={sendMessage} />
     </aside>
   )
 }

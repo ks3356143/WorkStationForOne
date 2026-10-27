@@ -16,7 +16,8 @@ export interface TaskList {
 }
 
 export function isOverdue(task: Task, today: string): boolean {
-  return !task.done && Boolean(task.dueDate) && task.dueDate! < today
+  if (task.done || !task.dueDate) return false
+  return task.dueDate < today
 }
 
 export function isInToday(task: Task, today: string): boolean {
@@ -61,12 +62,12 @@ export function filterTasksByScope(tasks: Task[], scope: TaskScope, today: strin
   if (scope === 'inbox') return tasks.filter((task) => !task.done && !task.list)
   if (scope === 'today') {
     return tasks
-      .filter((task) => !task.done && Boolean(task.dueDate) && task.dueDate! <= today)
+      .filter((task) => !task.done && !!task.dueDate && task.dueDate <= today)
       .sort(dueSort)
   }
   if (scope === 'upcoming') {
     return tasks
-      .filter((task) => !task.done && Boolean(task.dueDate) && task.dueDate! > today)
+      .filter((task) => !task.done && !!task.dueDate && task.dueDate > today)
       .sort(dueSort)
   }
   if (scope === 'done') {
@@ -93,7 +94,9 @@ export function searchTasks(tasks: Task[], query: string): Task[] {
 
   return [
     ...matched.filter((task) => !task.done).sort(dueSort),
-    ...matched.filter((task) => task.done).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0))
+    ...matched
+      .filter((task) => task.done)
+      .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0))
   ]
 }
 

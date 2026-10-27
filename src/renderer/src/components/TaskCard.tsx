@@ -30,7 +30,10 @@ export function TaskCard({ nextTaskId }: TaskCardProps) {
   const todoCount = todayTasks.length - doneCount
   const visible = filterTasks(todayTasks, filter)
   const half = Math.ceil(visible.length / 2)
-  const columns = [visible.slice(0, half), visible.slice(half)]
+  const columns = [
+    { id: 'left', tasks: visible.slice(0, half) },
+    { id: 'right', tasks: visible.slice(half) }
+  ]
 
   const countFor = (id: TaskFilter) =>
     id === 'all' ? todayTasks.length : id === 'todo' ? todoCount : doneCount
@@ -67,7 +70,11 @@ export function TaskCard({ nextTaskId }: TaskCardProps) {
       <div className="w1-tprog">
         <span>进度</span>
         <div className="w1-tbar">
-          <i style={{ transform: `scaleX(${todayTasks.length ? doneCount / todayTasks.length : 0})` }} />
+          <i
+            style={{
+              transform: `scaleX(${todayTasks.length ? doneCount / todayTasks.length : 0})`
+            }}
+          />
         </div>
         <b>
           {doneCount} / {todayTasks.length}
@@ -75,10 +82,12 @@ export function TaskCard({ nextTaskId }: TaskCardProps) {
       </div>
 
       <div className="w1-taskgrid">
-        {visible.length === 0 ? <div className="w1-tempty">没有符合条件的任务。享受空白。</div> : null}
-        {columns.map((column, columnIndex) => (
-          <div className="w1-taskcol" key={columnIndex}>
-            {column.map((task) => (
+        {visible.length === 0 ? (
+          <div className="w1-tempty">没有符合条件的任务。享受空白。</div>
+        ) : null}
+        {columns.map((column) => (
+          <div className="w1-taskcol" key={column.id}>
+            {column.tasks.map((task) => (
               <button
                 key={task.id}
                 type="button"
@@ -107,12 +116,12 @@ export function TaskCard({ nextTaskId }: TaskCardProps) {
 
       <div className="w1-anote">
         <SparkIcon width={12} height={12} />
-        {resolution === 'allowed' ? (
+        {resolution?.decision === 'allowed' ? (
           <>
             <b>Claude</b> 已顺延 3 项任务，20:30 提醒你复习
             <span className="w1-anote-status ok">完成</span>
           </>
-        ) : resolution === 'denied' ? (
+        ) : resolution?.decision === 'denied' ? (
           <>
             <b>Claude</b> 变更已拒绝，任务保持原样
             <span className="w1-anote-status deny">已拒绝</span>

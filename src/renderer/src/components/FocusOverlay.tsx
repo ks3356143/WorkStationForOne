@@ -21,11 +21,14 @@ export function FocusOverlay({ focus, onClose }: FocusOverlayProps) {
   const boxRef = useRef<HTMLDivElement>(null)
   const pauseRef = useRef<HTMLButtonElement>(null)
   const restoreRef = useRef<HTMLElement | null>(null)
+  // 记截止时间而不是逐 tick 递减：窗口被节流或系统睡眠后，下一次 tick 会立刻校正。
+  const endRef = useRef(Date.now() + total * 1000)
   const done = remaining <= 0
 
   useEffect(() => {
     const root = boxRef.current
-    restoreRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    restoreRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
     pauseRef.current?.focus()
     return () => {
       const active = document.activeElement
@@ -35,9 +38,20 @@ export function FocusOverlay({ focus, onClose }: FocusOverlayProps) {
 
   useEffect(() => {
     if (paused || done) return
-    const timer = window.setInterval(() => setRemaining((value) => Math.max(0, value - 1)), 1000)
+    const tick = () => setRemaining(Math.max(0, Math.ceil((endRef.current - Date.now()) / 1000)))
+    tick()
+    const timer = window.setInterval(tick, 250)
     return () => window.clearInterval(timer)
   }, [paused, done])
+
+  const togglePause = () => {
+    if (paused) {
+      endRef.current = Date.now() + remaining * 1000
+      setPaused(false)
+    } else {
+      setPaused(true)
+    }
+  }
 
   const progress = total === 0 ? 0 : remaining / total
 
@@ -56,6 +70,12 @@ export function FocusOverlay({ focus, onClose }: FocusOverlayProps) {
       <m.div
         ref={boxRef}
         className={`w1-focus-box${done ? ' done' : ''}`}
+        tabIndex={-1}
+        onMouseDown={(event) => {
+          const target = event.target as HTMLElement
+          if (!target.closest('button, a, input, textarea, select, [tabindex]'))
+            boxRef.current?.focus()
+        }}
         initial={{ opacity: 0, transform: 'translateY(14px)' }}
         animate={{ opacity: 1, transform: 'translateY(0px)' }}
         exit={{ opacity: 0, transform: 'translateY(8px)' }}
@@ -104,7 +124,7 @@ export function FocusOverlay({ focus, onClose }: FocusOverlayProps) {
             ref={pauseRef}
             className="w1-pb"
             type="button"
-            onClick={() => setPaused((value) => !value)}
+            onClick={togglePause}
             disabled={done}
           >
             {paused ? '继续' : '暂停'}

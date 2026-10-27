@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
-import { AnimatePresence, LazyMotion, MotionConfig, domAnimation, m, useReducedMotion } from 'motion/react'
+import {
+  AnimatePresence,
+  LazyMotion,
+  MotionConfig,
+  domAnimation,
+  m,
+  useReducedMotion
+} from 'motion/react'
 import { AgentDock } from './components/agent/AgentDock'
 import { BootOverlay } from './components/BootOverlay'
 import { CommandPalette } from './components/CommandPalette'
@@ -44,12 +51,24 @@ export default function App() {
 
   useDemoReply()
 
-  const notify = useCallback((text: string, action?: { label: string; run: () => void }, duration = 2400) => {
-    noticeSeq.current += 1
-    setNotice({ id: noticeSeq.current, text, action, duration })
-    if (noticeTimer.current) window.clearTimeout(noticeTimer.current)
-    noticeTimer.current = window.setTimeout(() => setNotice(null), duration)
-  }, [])
+  const notify = useCallback(
+    (text: string, action?: { label: string; run: () => void }, duration = 2400) => {
+      noticeSeq.current += 1
+      setNotice({ id: noticeSeq.current, text, action, duration })
+      if (noticeTimer.current) window.clearTimeout(noticeTimer.current)
+      noticeTimer.current = window.setTimeout(() => setNotice(null), duration)
+    },
+    []
+  )
+
+  const persistenceError = useWorkstation((state) => state.persistenceError)
+  const clearPersistenceError = useWorkstation((state) => state.clearPersistenceError)
+
+  useEffect(() => {
+    if (!persistenceError) return
+    notify(persistenceError, undefined, 4000)
+    clearPersistenceError()
+  }, [persistenceError, clearPersistenceError, notify])
 
   useEffect(() => {
     const timer = window.setTimeout(() => setBooting(false), reducedMotion ? 420 : 1250)
@@ -69,7 +88,8 @@ export default function App() {
 
   const openPalette = useCallback(() => {
     if (focus || quickNoteOpen || commandOpen) return
-    paletteTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    paletteTriggerRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
     setPaletteSeq((seq) => seq + 1)
     setCommandOpen(true)
   }, [commandOpen, focus, quickNoteOpen])
@@ -154,7 +174,9 @@ export default function App() {
           </div>
           <StatusBar notify={notify} />
 
-          <AnimatePresence>{booting ? <BootOverlay onSkip={() => setBooting(false)} /> : null}</AnimatePresence>
+          <AnimatePresence>
+            {booting ? <BootOverlay onSkip={() => setBooting(false)} /> : null}
+          </AnimatePresence>
 
           <AnimatePresence>
             {focus ? <FocusOverlay key={focus.label} focus={focus} onClose={closeFocus} /> : null}
@@ -164,7 +186,11 @@ export default function App() {
 
           <AnimatePresence>
             {commandOpen ? (
-              <CommandPalette key={`palette-${paletteSeq}`} notify={notify} onClose={closePalette} />
+              <CommandPalette
+                key={`palette-${paletteSeq}`}
+                notify={notify}
+                onClose={closePalette}
+              />
             ) : null}
           </AnimatePresence>
 

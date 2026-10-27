@@ -42,7 +42,8 @@ function assertDate(value: unknown): string {
 }
 
 function assertPriority(value: unknown): TaskPriority {
-  if (value !== 0 && value !== 1 && value !== 2 && value !== 3) throw new TypeError('任务优先级无效')
+  if (value !== 0 && value !== 1 && value !== 2 && value !== 3)
+    throw new TypeError('任务优先级无效')
   return value
 }
 
@@ -112,10 +113,12 @@ export function assertTaskPatch(value: unknown): TaskPatch {
 
   if (patch.title !== undefined) result.title = assertTitle(patch.title)
   if (patch.time !== undefined) result.time = assertTime(patch.time)
-  if (patch.tag !== undefined) result.tag = patch.tag === null ? null : assertLabel(patch.tag, '任务标签')
+  if (patch.tag !== undefined)
+    result.tag = patch.tag === null ? null : assertLabel(patch.tag, '任务标签')
   if (patch.tone !== undefined) result.tone = patch.tone === null ? null : assertTone(patch.tone)
   if (patch.notes !== undefined) result.notes = assertText(patch.notes, '任务备注', MAX_NOTES)
-  if (patch.dueDate !== undefined) result.dueDate = patch.dueDate === null ? null : assertDate(patch.dueDate)
+  if (patch.dueDate !== undefined)
+    result.dueDate = patch.dueDate === null ? null : assertDate(patch.dueDate)
   if (patch.priority !== undefined) result.priority = assertPriority(patch.priority)
   if (patch.list !== undefined) {
     result.list = patch.list === null ? null : assertLabel(patch.list, '任务清单') || null
@@ -130,16 +133,18 @@ function assertChanges(value: unknown): TaskScheduleChange[] {
   return value.map((item) => {
     if (typeof item !== 'object' || item === null) throw new TypeError('变更项无效')
     const change = item as Record<string, unknown>
-    if (typeof change.taskId !== 'string' || change.taskId.length === 0) throw new TypeError('变更任务 id 无效')
-    if (typeof change.toTime !== 'string') throw new TypeError('变更时间无效')
-    if (typeof change.toTag !== 'string') throw new TypeError('变更标签无效')
+    if (typeof change.taskId !== 'string' || change.taskId.length === 0)
+      throw new TypeError('变更任务 id 无效')
+    const toTime = assertTime(change.toTime)
+    const toTag = assertLabel(change.toTag, '变更标签')
     if (change.toDueDate !== undefined) {
-      if (change.toDueDate !== null && !isDateKey(change.toDueDate)) throw new TypeError('变更日期无效')
+      if (change.toDueDate !== null && !isDateKey(change.toDueDate))
+        throw new TypeError('变更日期无效')
     }
     return {
       taskId: change.taskId,
-      toTime: change.toTime,
-      toTag: change.toTag,
+      toTime,
+      toTag,
       ...(change.toDueDate !== undefined ? { toDueDate: change.toDueDate as string | null } : {})
     }
   })
@@ -170,7 +175,9 @@ export function registerTaskHandlers(repository: TaskRepository): void {
     repository.applySchedule(assertChanges(value))
   })
 
-  ipcMain.handle(IPC.tasksCreate, (_event, value: unknown) => repository.create(assertTaskDraft(value)))
+  ipcMain.handle(IPC.tasksCreate, (_event, value: unknown) =>
+    repository.create(assertTaskDraft(value))
+  )
 
   ipcMain.handle(IPC.tasksUpdate, (_event, id: unknown, value: unknown) => {
     repository.update(assertTaskId(id), assertTaskPatch(value))

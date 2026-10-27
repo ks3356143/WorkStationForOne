@@ -34,23 +34,26 @@ export function HabitCard() {
         {habits.map((habit) => (
           <div className="w1-hrow" key={habit.id}>
             <span className="w1-hname">{habit.name}</span>
-            {habit.days.map((done, index) => (
-              <button
-                key={index}
-                type="button"
-                className={[
-                  'w1-hdot',
-                  done ? 'on' : index < today ? 'miss' : '',
-                  index === today ? 'today' : ''
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                disabled={index !== today}
-                aria-label={`${habit.name} · 周${DAY_LABELS[index]}${done ? ' · 已完成' : ''}`}
-                aria-pressed={index === today ? done : undefined}
-                onClick={() => toggleHabitToday(habit.id)}
-              />
-            ))}
+            {DAY_LABELS.map((label, index) => {
+              const done = habit.days[index] === true
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  className={[
+                    'w1-hdot',
+                    done ? 'on' : index < today ? 'miss' : '',
+                    index === today ? 'today' : ''
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  disabled={index !== today}
+                  aria-label={`${habit.name} · 周${label}${done ? ' · 已完成' : ''}`}
+                  aria-pressed={index === today ? done : undefined}
+                  onClick={() => toggleHabitToday(habit.id)}
+                />
+              )
+            })}
           </div>
         ))}
       </div>

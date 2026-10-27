@@ -25,7 +25,10 @@ export const AGENT_META: Record<AgentId, AgentMeta> = {
   }
 }
 
-export function agentCommandPreview(agent: AgentId, sessionId: string): { bin: string; args: string } {
+export function agentCommandPreview(
+  agent: AgentId,
+  sessionId: string
+): { bin: string; args: string } {
   if (agent === 'codex') return { bin: 'codex', args: '--sandbox workspace-write' }
   return { bin: 'claude', args: `--resume ${sessionId.replace('s-', '')} --perm ask` }
 }

@@ -21,7 +21,8 @@ export function StatusBar({ notify }: StatusBarProps) {
   const now = useNow(30_000)
 
   const agentName = session.agent === 'claude' ? 'Claude Code' : 'Codex'
-  const stateLabel = session.status === 'run' ? '运行中' : session.status === 'wait' ? '待确认' : '空闲'
+  const stateLabel =
+    session.status === 'run' ? '运行中' : session.status === 'wait' ? '待确认' : '空闲'
 
   return (
     <footer className="w1-status">
@@ -40,7 +41,11 @@ export function StatusBar({ notify }: StatusBarProps) {
       </button>
       <span>会话 {sessionCount}</span>
       {permission ? (
-        <button className="w1-sbtn pending" type="button" onClick={() => openAgentSession(permission.sessionId)}>
+        <button
+          className="w1-sbtn pending"
+          type="button"
+          onClick={() => openAgentSession(permission.sessionId)}
+        >
           待审批 1
         </button>
       ) : (

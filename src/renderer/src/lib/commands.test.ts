@@ -42,14 +42,22 @@ describe('buildPaletteCommands', () => {
       action: { kind: 'session', sessionId: 's-c1' }
     })
     expect(sessionCommands[0].hint).toContain('当前')
-    expect(sessionCommands[1]).toMatchObject({ badge: 'X', action: { kind: 'session', sessionId: 's-x1' } })
+    expect(sessionCommands[1]).toMatchObject({
+      badge: 'X',
+      action: { kind: 'session', sessionId: 's-x1' }
+    })
     expect(sessionCommands[1].hint).not.toContain('当前')
   })
 
   it('导航命令覆盖四个工作区', () => {
     const navigation = buildPaletteCommands(base).filter((command) => command.group === '导航')
 
-    expect(navigation.map((command) => command.id)).toEqual(['view:today', 'view:tasks', 'view:agent', 'view:notes'])
+    expect(navigation.map((command) => command.id)).toEqual([
+      'view:today',
+      'view:tasks',
+      'view:agent',
+      'view:notes'
+    ])
     expect(navigation.map((command) => command.action)).toEqual([
       { kind: 'view', view: 'today' },
       { kind: 'view', view: 'tasks' },
@@ -117,9 +125,11 @@ describe('buildPaletteCommands', () => {
   })
 
   it('空白输入不生成发送命令', () => {
-    expect(buildPaletteCommands({ ...base, query: '   ' }).some((command) => command.id === 'action:send')).toBe(
-      false
-    )
+    expect(
+      buildPaletteCommands({ ...base, query: '   ' }).some(
+        (command) => command.id === 'action:send'
+      )
+    ).toBe(false)
   })
 
   it('等待回复时发送命令禁用', () => {
@@ -141,7 +151,12 @@ describe('buildPaletteCommands', () => {
   })
 
   it('无会话时不生成发送命令', () => {
-    const commands = buildPaletteCommands({ ...base, sessions: [], activeSessionId: '', query: 'hello' })
+    const commands = buildPaletteCommands({
+      ...base,
+      sessions: [],
+      activeSessionId: '',
+      query: 'hello'
+    })
 
     expect(commands.some((command) => command.id === 'action:send')).toBe(false)
     expect(visiblePaletteCommands(commands, 'hello')).toEqual([])

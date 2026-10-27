@@ -15,7 +15,8 @@ import type {
   ChatMessage,
   FocusSession,
   Note,
-  Resolution,
+  ResolutionRecord,
+  Session,
   Task,
   TaskFilter,
   TaskScope,
@@ -26,12 +27,14 @@ import type {
 
 interface TaskPersistence {
   setDone: (id: string, done: boolean) => Promise<void>
-  applySchedule: (changes: {
-    taskId: string
-    toTime: string
-    toTag: string
-    toDueDate?: string | null
-  }[]) => Promise<void>
+  applySchedule: (
+    changes: {
+      taskId: string
+      toTime: string
+      toTag: string
+      toDueDate?: string | null
+    }[]
+  ) => Promise<void>
   create: (draft: TaskDraft) => Promise<Task>
   update: (id: string, patch: TaskPatch) => Promise<void>
   remove: (id: string) => Promise<void>
@@ -53,10 +56,13 @@ export function bindNotePersistence(next: NotePersistence | null): void {
   notePersistence = next
 }
 
+function reportPersistenceError(error: unknown): void {
+  console.error('[persistence] 写入失败', error)
+  useWorkstation.setState({ persistenceError: '写入本地数据库失败，这次改动可能没有保存' })
+}
+
 function persistQuietly(run: () => Promise<void>): void {
-  void run().catch((error) => {
-    console.error('[persistence] 任务写入失败', error)
-  })
+  void run().catch(reportPersistenceError)
 }
 
 interface WorkstationActions {
@@ -86,6 +92,7 @@ interface WorkstationActions {
   closeQuickNote: () => void
   addNote: (text: string) => void
   openNotesView: () => void
+  clearPersistenceError: () => void
 }
 
 export type WorkstationState = WorkstationData & WorkstationActions
@@ -156,9 +163,7 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
           lastAddedTaskId: state.lastAddedTaskId === local.id ? saved.id : state.lastAddedTaskId
         }))
       })
-      .catch((error) => {
-        console.error('[persistence] 任务写入失败', error)
-      })
+      .catch(reportPersistenceError)
   },
 
   updateTask: (taskId, patch) => {
@@ -273,7 +278,10 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       tools
     }
     set((current) => ({
-      threads: { ...current.threads, [sessionId]: [...(current.threads[sessionId] ?? []), message] },
+      threads: {
+        ...current.threads,
+        [sessionId]: [...(current.threads[sessionId] ?? []), message]
+      },
       typing: false,
       pendingReplyTo: null
     }))
@@ -282,14 +290,29 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
   resolvePermission: (decision) => {
     const permission = get().permission
     if (!permission) return
-    const resolution: Resolution = decision === 'allow' ? 'allowed' : 'denied'
+    const resolution: ResolutionRecord = {
+      sessionId: permission.sessionId,
+      decision: decision === 'allow' ? 'allowed' : 'denied'
+    }
+    // 审批处理完，发起会话就不再是「待确认」，否则舰队与导航会一直显示有人等。
+    const clearWaiting = (sessions: Session[]) =>
+      sessions.map((session) =>
+        session.id === permission.sessionId
+          ? { ...session, status: 'run' as const, meta: session.meta.replace('待确认 · ', '') }
+          : session
+      )
     if (decision === 'deny') {
-      set({ permission: null, resolution })
+      set((state) => ({
+        permission: null,
+        resolution,
+        sessions: clearWaiting(state.sessions)
+      }))
       return
     }
     set((state) => {
       const changes = new Map(permission.changes.map((change) => [change.taskId, change]))
       return {
+        sessions: clearWaiting(state.sessions),
         tasks: state.tasks.map((task) => {
           const change = changes.get(task.id)
           if (!change) return task
@@ -355,17 +378,19 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       .then((saved) => {
         set((state) => ({
           notes: state.notes.map((note) =>
-            note.id === local.id ? { ...saved, text: note.text, time: note.time, tag: note.tag } : note
+            note.id === local.id
+              ? { ...saved, text: note.text, time: note.time, tag: note.tag }
+              : note
           ),
           noteRevision: state.noteRevision + 1
         }))
       })
-      .catch((error) => {
-        console.error('[persistence] 笔记写入失败', error)
-      })
+      .catch(reportPersistenceError)
   },
 
-  openNotesView: () => set({ activeView: 'notes' })
+  openNotesView: () => set({ activeView: 'notes' }),
+
+  clearPersistenceError: () => set({ persistenceError: null })
 }))
 
 export function replaceTasks(tasks: Task[]): void {
@@ -396,11 +421,12 @@ export function selectActiveThread(state: WorkstationState): ChatMessage[] {
 
 export function selectPreviewNotes(notes: Note[]): { pinned?: Note; rest: Note[] } {
   const pinnedIndex = notes.findIndex((note) => note.pinned)
-  const pinned = notes[pinnedIndex >= 0 ? pinnedIndex : 0]
+  const pinnedAt = Math.max(pinnedIndex, 0)
+  const pinned = notes[pinnedAt]
   const rest: Note[] = []
 
   for (let index = 0; index < notes.length && rest.length < 2; index += 1) {
-    if (index === (pinnedIndex >= 0 ? pinnedIndex : 0)) continue
+    if (index === pinnedAt) continue
     rest.push(notes[index])
   }
 

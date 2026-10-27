@@ -82,7 +82,11 @@ export function WorkspaceNav({ notify }: WorkspaceNavProps) {
           <span className="w1-eyebrow">// 启动</span>
           <span className="w1-acount">外部</span>
         </div>
-        <button className="w1-lrow" type="button" onClick={() => notify('Qoder 启动器将在 P2 接入')}>
+        <button
+          className="w1-lrow"
+          type="button"
+          onClick={() => notify('Qoder 启动器将在 P2 接入')}
+        >
           <span className="w1-lname">Qoder</span>
           <span className="w1-lmeta">独立窗口</span>
         </button>
@@ -97,7 +101,11 @@ export function WorkspaceNav({ notify }: WorkspaceNavProps) {
       </div>
 
       <div className="w1-rfoot">
-        <button className="w1-settings" type="button" onClick={() => notify('设置面板将在 P1 接入')}>
+        <button
+          className="w1-settings"
+          type="button"
+          onClick={() => notify('设置面板将在 P1 接入')}
+        >
           <SettingsIcon width={12} height={12} />
           设置
         </button>

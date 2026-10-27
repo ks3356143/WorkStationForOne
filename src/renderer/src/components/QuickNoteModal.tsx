@@ -13,7 +13,8 @@ export function QuickNoteModal() {
 
   useEffect(() => {
     const root = boxRef.current
-    restoreRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    restoreRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
     inputRef.current?.focus()
     return () => {
       const active = document.activeElement
@@ -44,6 +45,12 @@ export function QuickNoteModal() {
         role="dialog"
         aria-modal="true"
         aria-label="快速笔记"
+        tabIndex={-1}
+        onMouseDown={(event) => {
+          const target = event.target as HTMLElement
+          if (!target.closest('button, a, input, textarea, select, [tabindex]'))
+            boxRef.current?.focus()
+        }}
         initial={{ opacity: 0, transform: 'translateY(12px)' }}
         animate={{ opacity: 1, transform: 'translateY(0px)' }}
         exit={{ opacity: 0, transform: 'translateY(8px)' }}

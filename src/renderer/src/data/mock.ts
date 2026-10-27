@@ -30,6 +30,7 @@ export function createInitialData(): WorkstationData {
     theme: 'dark',
     skin: 'prism',
     focus: null,
-    quickNoteOpen: false
+    quickNoteOpen: false,
+    persistenceError: null
   }
 }

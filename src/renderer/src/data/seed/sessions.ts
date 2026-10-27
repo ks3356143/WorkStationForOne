@@ -6,16 +6,16 @@ export function createSeedSessions(): Session[] {
       id: 's-c1',
       agent: 'claude',
       title: '重构 auth 模块',
-      meta: '00:42:18 · 3 个文件',
-      status: 'run',
+      meta: '待确认 · 00:42:18',
+      status: 'wait',
       threadDate: '今天'
     },
     {
       id: 's-c2',
       agent: 'claude',
       title: '修复登录 500',
-      meta: '待确认 · 00:06:12',
-      status: 'wait',
+      meta: '00:06:12 · 3 个文件',
+      status: 'run',
       threadDate: '今天'
     },
     {

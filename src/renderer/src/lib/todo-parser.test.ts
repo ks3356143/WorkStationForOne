@@ -15,7 +15,10 @@ describe('parseTaskInput', () => {
   })
 
   it('识别今天、后天与周几', () => {
-    expect(parseTaskInput('今天 读完论文', TODAY)).toMatchObject({ title: '读完论文', dueDate: TODAY })
+    expect(parseTaskInput('今天 读完论文', TODAY)).toMatchObject({
+      title: '读完论文',
+      dueDate: TODAY
+    })
     expect(parseTaskInput('后天 交作业', TODAY)).toMatchObject({ dueDate: '2026-10-26' })
     expect(parseTaskInput('周三 复习线代', TODAY)).toMatchObject({ dueDate: '2026-10-28' })
     expect(parseTaskInput('周天 休息', TODAY)).toMatchObject({ dueDate: '2026-10-25' })
@@ -27,9 +30,18 @@ describe('parseTaskInput', () => {
   })
 
   it('下周几指向下一周的对应日期', () => {
-    expect(parseTaskInput('下周一 站会', '2026-10-24')).toEqual({ title: '站会', dueDate: '2026-10-26' })
-    expect(parseTaskInput('下周一 站会', '2026-10-25')).toEqual({ title: '站会', dueDate: '2026-10-26' })
-    expect(parseTaskInput('下周一 站会', '2026-10-26')).toEqual({ title: '站会', dueDate: '2026-11-02' })
+    expect(parseTaskInput('下周一 站会', '2026-10-24')).toEqual({
+      title: '站会',
+      dueDate: '2026-10-26'
+    })
+    expect(parseTaskInput('下周一 站会', '2026-10-25')).toEqual({
+      title: '站会',
+      dueDate: '2026-10-26'
+    })
+    expect(parseTaskInput('下周一 站会', '2026-10-26')).toEqual({
+      title: '站会',
+      dueDate: '2026-11-02'
+    })
   })
 
   it('清单标记不误伤 C# 这类标题', () => {
@@ -69,16 +81,37 @@ describe('parseTaskInput', () => {
 
 describe('截止前缀不残留到标题', () => {
   it('周几后的「前」「之前」「以前」并入日期', () => {
-    expect(parseTaskInput('周五前交报告', TODAY)).toEqual({ title: '交报告', dueDate: '2026-10-30' })
-    expect(parseTaskInput('周五之前交报告', TODAY)).toEqual({ title: '交报告', dueDate: '2026-10-30' })
-    expect(parseTaskInput('周五以前交报告', TODAY)).toEqual({ title: '交报告', dueDate: '2026-10-30' })
-    expect(parseTaskInput('明天前交报告', TODAY)).toEqual({ title: '交报告', dueDate: '2026-10-25' })
-    expect(parseTaskInput('10月30日前交报告', TODAY)).toEqual({ title: '交报告', dueDate: '2026-10-30' })
+    expect(parseTaskInput('周五前交报告', TODAY)).toEqual({
+      title: '交报告',
+      dueDate: '2026-10-30'
+    })
+    expect(parseTaskInput('周五之前交报告', TODAY)).toEqual({
+      title: '交报告',
+      dueDate: '2026-10-30'
+    })
+    expect(parseTaskInput('周五以前交报告', TODAY)).toEqual({
+      title: '交报告',
+      dueDate: '2026-10-30'
+    })
+    expect(parseTaskInput('明天前交报告', TODAY)).toEqual({
+      title: '交报告',
+      dueDate: '2026-10-25'
+    })
+    expect(parseTaskInput('10月30日前交报告', TODAY)).toEqual({
+      title: '交报告',
+      dueDate: '2026-10-30'
+    })
   })
 
   it('「前台」这类词组不被当作截止前缀', () => {
-    expect(parseTaskInput('周五前台交报告', TODAY)).toEqual({ title: '前台交报告', dueDate: '2026-10-30' })
-    expect(parseTaskInput('周五前面交报告', TODAY)).toEqual({ title: '前面交报告', dueDate: '2026-10-30' })
+    expect(parseTaskInput('周五前台交报告', TODAY)).toEqual({
+      title: '前台交报告',
+      dueDate: '2026-10-30'
+    })
+    expect(parseTaskInput('周五前面交报告', TODAY)).toEqual({
+      title: '前面交报告',
+      dueDate: '2026-10-30'
+    })
   })
 })
 
@@ -86,20 +119,34 @@ describe('时间数字与单位之间允许空格', () => {
   it('数字与「点」之间、时段后的空格都能识别', () => {
     expect(parseTaskInput('晚上 8 点跑步', TODAY)).toMatchObject({ title: '跑步', time: '20:00' })
     expect(parseTaskInput('晚上8 点跑步', TODAY)).toMatchObject({ title: '跑步', time: '20:00' })
-    expect(parseTaskInput('下午 3 点半 开会', TODAY)).toMatchObject({ title: '开会', time: '15:30' })
-    expect(parseTaskInput('早上 9 点 15 分 晨跑', TODAY)).toMatchObject({ title: '晨跑', time: '09:15' })
+    expect(parseTaskInput('下午 3 点半 开会', TODAY)).toMatchObject({
+      title: '开会',
+      time: '15:30'
+    })
+    expect(parseTaskInput('早上 9 点 15 分 晨跑', TODAY)).toMatchObject({
+      title: '晨跑',
+      time: '09:15'
+    })
   })
 })
 
 describe('「晚上十二点」是零点', () => {
   it('晚上/今晚的 12 点归零', () => {
     expect(parseTaskInput('晚上12点提交周报', TODAY)).toEqual({ title: '提交周报', time: '00:00' })
-    expect(parseTaskInput('今晚12点半提交周报', TODAY)).toEqual({ title: '提交周报', time: '00:30' })
+    expect(parseTaskInput('今晚12点半提交周报', TODAY)).toEqual({
+      title: '提交周报',
+      time: '00:30'
+    })
   })
 
   it('中午与下午的 12 点仍是中午', () => {
     expect(parseTaskInput('中午12点吃饭', TODAY)).toEqual({ title: '吃饭', time: '12:00' })
     expect(parseTaskInput('下午12点吃饭', TODAY)).toEqual({ title: '吃饭', time: '12:00' })
+  })
+
+  it('凌晨 12 点同样是零点', () => {
+    expect(parseTaskInput('凌晨12点发版', TODAY)).toEqual({ title: '发版', time: '00:00' })
+    expect(parseTaskInput('凌晨十二点发版', TODAY)).toEqual({ title: '发版', time: '00:00' })
   })
 })
 
@@ -151,7 +198,10 @@ describe('相对天数', () => {
   })
 
   it('「N 天后」带截止语时一并吃掉', () => {
-    expect(parseTaskInput('3 天后前交报告', TODAY)).toEqual({ title: '交报告', dueDate: '2026-10-27' })
+    expect(parseTaskInput('3 天后前交报告', TODAY)).toEqual({
+      title: '交报告',
+      dueDate: '2026-10-27'
+    })
   })
 
   it('「天后」「周末」这类词不被误判', () => {
