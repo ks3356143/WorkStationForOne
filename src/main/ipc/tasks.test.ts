@@ -51,7 +51,9 @@ describe('IPC 入参校验', () => {
       dueDate: undefined,
       priority: 0,
       list: undefined,
-      completedAt: undefined
+      completedAt: undefined,
+      plannedFor: undefined,
+      estimateMinutes: 0
     })
   })
 
@@ -165,5 +167,30 @@ describe('任务补丁校验', () => {
     expect(() => registerTaskHandlersIPC.assertTaskPatch({ priority: -1 })).toThrow(TypeError)
     expect(() => registerTaskHandlersIPC.assertTaskPatch({ extra: true })).toThrow(TypeError)
     expect(() => registerTaskHandlersIPC.assertTaskPatch(null)).toThrow(TypeError)
+  })
+
+  it('校验计划日期与预计时长', () => {
+    expect(() =>
+      registerTaskHandlersIPC.assertTaskDraft({ title: 'x', plannedFor: '2026-13-01' })
+    ).toThrow(TypeError)
+    expect(() =>
+      registerTaskHandlersIPC.assertTaskDraft({ title: 'x', estimateMinutes: -15 })
+    ).toThrow(TypeError)
+    expect(() =>
+      registerTaskHandlersIPC.assertTaskDraft({ title: 'x', estimateMinutes: 481 })
+    ).toThrow(TypeError)
+    expect(() =>
+      registerTaskHandlersIPC.assertTaskDraft({ title: 'x', estimateMinutes: 1.5 })
+    ).toThrow(TypeError)
+    expect(
+      registerTaskHandlersIPC.assertTaskDraft({
+        title: 'x',
+        plannedFor: '2026-10-27',
+        estimateMinutes: 45
+      })
+    ).toMatchObject({ plannedFor: '2026-10-27', estimateMinutes: 45 })
+    expect(registerTaskHandlersIPC.assertTaskPatch({ plannedFor: null })).toEqual({
+      plannedFor: null
+    })
   })
 })

@@ -150,7 +150,9 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       ...(draft.tag ? { tag: draft.tag } : {}),
       ...(draft.tone ? { tone: draft.tone } : {}),
       ...(draft.dueDate ? { dueDate: draft.dueDate } : {}),
-      ...(draft.list ? { list: draft.list } : {})
+      ...(draft.list ? { list: draft.list } : {}),
+      ...(draft.plannedFor ? { plannedFor: draft.plannedFor } : {}),
+      ...(draft.estimateMinutes ? { estimateMinutes: draft.estimateMinutes } : {})
     }
     set((state) => ({ tasks: [local, ...state.tasks], lastAddedTaskId: local.id }))
 
@@ -191,6 +193,9 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
         else if (next.dueDate !== undefined) updated.dueDate = next.dueDate
         if (next.list === null) delete updated.list
         else if (next.list !== undefined) updated.list = next.list
+        if (next.plannedFor === null) delete updated.plannedFor
+        else if (next.plannedFor !== undefined) updated.plannedFor = next.plannedFor
+        if (next.estimateMinutes !== undefined) updated.estimateMinutes = next.estimateMinutes
         return updated
       })
     }))

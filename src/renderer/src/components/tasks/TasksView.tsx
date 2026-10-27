@@ -12,6 +12,9 @@ import {
 import { useNow } from '../../lib/useNow'
 import { useWorkstation } from '../../store/useWorkstation'
 import { PlusIcon } from '../Glyphs'
+import { dayCapacity } from '../../lib/capacity'
+import { CapacityBar } from './CapacityBar'
+import { PlanningPanel } from './PlanningPanel'
 import { QuickAdd } from './QuickAdd'
 import { TaskItem } from './TaskItem'
 
@@ -70,8 +73,11 @@ export function TasksView({ notify }: TasksViewProps) {
 
   const [query, setQuery] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [planningOpen, setPlanningOpen] = useState(false)
   const now = useNow(60_000)
   const today = dateKey(now)
+  const nowMinutes = now.getHours() * 60 + now.getMinutes()
+  const capacity = dayCapacity(tasks, today, nowMinutes)
 
   const counts = taskCounts(tasks, today)
   const activeList = scope.startsWith('list:') ? scope.slice('list:'.length) : undefined
@@ -249,6 +255,13 @@ export function TasksView({ notify }: TasksViewProps) {
           </div>
         </header>
 
+        <div className="w1-caprow">
+          <CapacityBar capacity={capacity} />
+          <button className="w1-planbtn" type="button" onClick={() => setPlanningOpen(true)}>
+            计划今天
+          </button>
+        </div>
+
         {scope !== 'done' && !searching ? (
           <QuickAdd
             scope={scope}
@@ -332,6 +345,17 @@ export function TasksView({ notify }: TasksViewProps) {
           )}
         </div>
       </div>
+
+      {planningOpen ? (
+        <PlanningPanel
+          tasks={tasks}
+          today={today}
+          nowMinutes={nowMinutes}
+          onPlan={(taskId) => updateTask(taskId, { plannedFor: today })}
+          onUnplan={(taskId) => updateTask(taskId, { plannedFor: null })}
+          onClose={() => setPlanningOpen(false)}
+        />
+      ) : null}
     </section>
   )
 }

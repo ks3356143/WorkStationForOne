@@ -3,6 +3,8 @@ import { addDaysKey } from '../../../../shared/date-key'
 import type { TaskPatch } from '../../../../shared/ipc'
 import type { Task } from '../../types'
 
+const ESTIMATES = [0, 15, 30, 60, 90, 120] as const
+
 const PRIORITIES: { value: 0 | 1 | 2 | 3; label: string }[] = [
   { value: 0, label: '无' },
   { value: 3, label: '低' },
@@ -26,6 +28,8 @@ export function TaskEditor({ task, lists, today, onSave, onDelete, onClose }: Ta
   const [time, setTime] = useState(task.time === '—' ? '' : task.time)
   const [priority, setPriority] = useState<0 | 1 | 2 | 3>(task.priority ?? 0)
   const [list, setList] = useState(task.list ?? '')
+  const [plannedFor, setPlannedFor] = useState(task.plannedFor ?? '')
+  const [estimate, setEstimate] = useState(task.estimateMinutes ?? 0)
   const [confirming, setConfirming] = useState(false)
 
   useEffect(() => {
@@ -43,7 +47,9 @@ export function TaskEditor({ task, lists, today, onSave, onDelete, onClose }: Ta
       dueDate: dueDate || (time ? today : '') || null,
       time: time || '—',
       priority,
-      list: list.trim() || null
+      list: list.trim() || null,
+      plannedFor: plannedFor || null,
+      estimateMinutes: estimate
     })
   }
 
@@ -158,6 +164,48 @@ export function TaskEditor({ task, lists, today, onSave, onDelete, onClose }: Ta
                 onClick={() => setPriority(item.value)}
               >
                 {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="w1-todofield">
+          <span className="w1-todofieldlabel">计划于</span>
+          <div className="w1-tododatequick" role="group" aria-label="计划日期">
+            <button
+              type="button"
+              className={plannedFor === today ? 'on' : ''}
+              aria-pressed={plannedFor === today}
+              onClick={() => setPlannedFor(today)}
+            >
+              今天
+            </button>
+            <button
+              type="button"
+              className={plannedFor === addDaysKey(today, 1) ? 'on' : ''}
+              aria-pressed={plannedFor === addDaysKey(today, 1)}
+              onClick={() => setPlannedFor(addDaysKey(today, 1))}
+            >
+              明天
+            </button>
+            {plannedFor ? (
+              <button type="button" onClick={() => setPlannedFor('')}>
+                清除
+              </button>
+            ) : null}
+          </div>
+        </div>
+        <div className="w1-todofield">
+          <span className="w1-todofieldlabel">预计时长</span>
+          <div className="w1-todoprirow" role="group" aria-label="预计时长">
+            {ESTIMATES.map((value) => (
+              <button
+                key={value}
+                type="button"
+                className={`w1-todopriopt${estimate === value ? ' on' : ''}`}
+                aria-pressed={estimate === value}
+                onClick={() => setEstimate(value)}
+              >
+                {value === 0 ? '未估' : `${value}m`}
               </button>
             ))}
           </div>

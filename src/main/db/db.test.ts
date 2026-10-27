@@ -388,6 +388,47 @@ describe('migrate v4', () => {
   })
 })
 
+describe('migrate v6', () => {
+  it('新增 planned_for 与 estimate_minutes，旧任务保持空值', () => {
+    const db = tempDb()
+    migrate(db, MIGRATIONS.slice(0, 5))
+    db.prepare('INSERT INTO tasks (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)').run(
+      'legacy',
+      '旧任务',
+      1,
+      1
+    )
+
+    migrate(db)
+
+    const row = db
+      .prepare('SELECT planned_for, estimate_minutes FROM tasks WHERE id = ?')
+      .get('legacy') as { planned_for: string | null; estimate_minutes: number }
+    expect(row.planned_for).toBeNull()
+    expect(row.estimate_minutes).toBe(0)
+    db.close()
+  })
+})
+
+describe('TaskRepository · 计划', () => {
+  it('创建与更新计划日期和预计时长', () => {
+    const db = tempDb()
+    migrate(db)
+    const repo = new TaskRepository(db)
+    repo.bootstrap(seed)
+
+    const created = repo.create({ title: '写方案', plannedFor: '2026-10-27', estimateMinutes: 60 })
+    expect(created).toMatchObject({ plannedFor: '2026-10-27', estimateMinutes: 60 })
+
+    repo.update('t1', { plannedFor: '2026-10-28', estimateMinutes: 45 })
+    expect(repo.find('t1')).toMatchObject({ plannedFor: '2026-10-28', estimateMinutes: 45 })
+
+    repo.update('t1', { plannedFor: null })
+    expect(repo.find('t1')?.plannedFor).toBeUndefined()
+    db.close()
+  })
+})
+
 describe('迁移前备份', () => {
   it('迁移前在库旁写出一份快照，且快照可独立打开', () => {
     const dir = tempDir()

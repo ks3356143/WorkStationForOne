@@ -74,6 +74,20 @@ describe('任务完成时间', () => {
   })
 })
 
+describe('计划字段', () => {
+  it('计划日期与预计时长可更新并可清空', () => {
+    useWorkstation.getState().updateTask('t3', { plannedFor: '2026-10-27', estimateMinutes: 60 })
+
+    const planned = useWorkstation.getState().tasks.find((task) => task.id === 't3')
+    expect(planned).toMatchObject({ plannedFor: '2026-10-27', estimateMinutes: 60 })
+
+    useWorkstation.getState().updateTask('t3', { plannedFor: null })
+    expect(
+      useWorkstation.getState().tasks.find((task) => task.id === 't3')?.plannedFor
+    ).toBeUndefined()
+  })
+})
+
 describe('权限请求', () => {
   it('允许后清空待确认并写入任务变更', () => {
     expect(useWorkstation.getState().permission).not.toBeNull()

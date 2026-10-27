@@ -20,9 +20,11 @@ interface TaskRow {
   priority: number
   list: string | null
   completed_at: number | null
+  planned_for: string | null
+  estimate_minutes: number
 }
 
-const COLUMNS = `id, title, time_label, tag, tone, done, notes, due_date, priority, list, completed_at`
+const COLUMNS = `id, title, time_label, tag, tone, done, notes, due_date, priority, list, completed_at, planned_for, estimate_minutes`
 
 const LIST_SQL = `SELECT ${COLUMNS}
   FROM tasks
@@ -32,8 +34,8 @@ const LIST_SQL = `SELECT ${COLUMNS}
 const FIND_SQL = `SELECT ${COLUMNS} FROM tasks WHERE id = ? AND deleted_at IS NULL`
 
 const INSERT_SQL = `INSERT INTO tasks
-  (id, title, time_label, tag, tone, done, notes, due_date, priority, list, completed_at, sort_order, created_at, updated_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  (id, title, time_label, tag, tone, done, notes, due_date, priority, list, completed_at, planned_for, estimate_minutes, sort_order, created_at, updated_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 const SET_DONE_SQL =
   'UPDATE tasks SET done = ?, completed_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
@@ -56,7 +58,9 @@ const PATCH_COLUMNS: Record<keyof TaskPatch, string> = {
   notes: 'notes',
   dueDate: 'due_date',
   priority: 'priority',
-  list: 'list'
+  list: 'list',
+  plannedFor: 'planned_for',
+  estimateMinutes: 'estimate_minutes'
 }
 
 function toRecord(row: TaskRow): TaskRecord {
@@ -71,7 +75,9 @@ function toRecord(row: TaskRow): TaskRecord {
     dueDate: row.due_date ?? undefined,
     priority: row.priority as TaskPriority,
     list: row.list ?? undefined,
-    completedAt: row.completed_at ?? undefined
+    completedAt: row.completed_at ?? undefined,
+    plannedFor: row.planned_for ?? undefined,
+    estimateMinutes: row.estimate_minutes
   }
 }
 
@@ -132,6 +138,8 @@ export class TaskRepository {
           task.priority ?? 0,
           task.list ?? null,
           task.done ? now : null,
+          task.plannedFor ?? null,
+          task.estimateMinutes ?? 0,
           index,
           now,
           now
@@ -157,6 +165,8 @@ export class TaskRepository {
       draft.priority ?? 0,
       draft.list ?? null,
       null,
+      draft.plannedFor ?? null,
+      draft.estimateMinutes ?? 0,
       Number(next.n),
       now,
       now

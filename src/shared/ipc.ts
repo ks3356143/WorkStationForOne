@@ -18,6 +18,8 @@ export interface TaskRecord {
   priority?: TaskPriority
   list?: string
   completedAt?: number
+  plannedFor?: string
+  estimateMinutes?: number
 }
 
 export interface TaskDraft {
@@ -29,6 +31,8 @@ export interface TaskDraft {
   dueDate?: string
   priority?: TaskPriority
   list?: string
+  plannedFor?: string
+  estimateMinutes?: number
 }
 
 export interface TaskPatch {
@@ -40,6 +44,8 @@ export interface TaskPatch {
   dueDate?: string | null
   priority?: TaskPriority
   list?: string | null
+  plannedFor?: string | null
+  estimateMinutes?: number
 }
 
 export interface TaskScheduleChange {

@@ -862,3 +862,107 @@
     transform: scaleX(0);
   }
 }
+
+/* 计划今天面板 */
+.w1-plan {
+  width: min(760px, calc(100vw - 80px));
+  max-height: min(620px, calc(100vh - 120px));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.w1-plancols {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.w1-plancol {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid rgb(var(--bd-rgb) / 0.6);
+  background: rgb(var(--field-rgb) / 0.45);
+}
+
+.w1-plancol header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  border-bottom: 1px solid rgb(var(--bd-rgb) / 0.6);
+  font: 11px / 1 var(--mono);
+  letter-spacing: 0.08em;
+  color: var(--mu);
+}
+
+.w1-plancol header b {
+  color: var(--fg);
+}
+
+.w1-planlist {
+  flex: 1;
+  min-height: 120px;
+  overflow-y: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.w1-planrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
+}
+
+.w1-planrow:hover {
+  border-color: rgb(var(--ac-rgb) / 0.28);
+  background: rgb(var(--ac-rgb) / 0.08);
+}
+
+.w1-planrow.on {
+  border-color: rgb(var(--ac2-rgb) / 0.3);
+  background: linear-gradient(90deg, rgb(var(--ac2-rgb) / 0.1), transparent 82%);
+}
+
+.w1-planrowtitle {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: 13px / 1.4 var(--sans);
+}
+
+.w1-planmeta {
+  flex: none;
+  font: 11px / 1 var(--mono);
+  color: var(--mu);
+}
+
+.w1-planempty {
+  padding: 14px 12px;
+  color: var(--mu);
+  font: 12px / 1.7 var(--sans);
+}
+
+.w1-planfoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font: 11.5px / 1 var(--mono);
+  color: var(--mu);
+}

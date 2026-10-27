@@ -864,3 +864,92 @@
   height: 1px;
   background: linear-gradient(90deg, rgb(var(--ac-rgb) / 0.16), transparent);
 }
+
+/* 计划：今日容量条与「计划今天」入口 */
+.w1-caprow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 26px;
+  margin: 2px 0 12px;
+}
+
+.w1-cap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.w1-captext {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font: 11.5px / 1 var(--mono);
+  color: var(--mu);
+}
+
+.w1-captext b {
+  font: 600 12px / 1 var(--mono);
+  color: var(--fg);
+}
+
+.w1-captext em {
+  margin-left: auto;
+  font-style: normal;
+  color: rgb(var(--wn-rgb));
+}
+
+.w1-captrack {
+  height: 3px;
+  overflow: hidden;
+  background: rgb(var(--bd-rgb) / 0.7);
+}
+
+.w1-captrack i {
+  display: block;
+  height: 100%;
+  transform-origin: left center;
+  background: linear-gradient(90deg, rgb(var(--ac2-rgb) / 0.5), rgb(var(--ac2-rgb)));
+  transition: transform var(--dur-ui) var(--ease-out);
+}
+
+.w1-cap.tight .w1-captrack i {
+  background: linear-gradient(90deg, rgb(var(--wn-rgb) / 0.5), rgb(var(--wn-rgb)));
+}
+
+.w1-cap.over .w1-captrack i {
+  background: linear-gradient(90deg, rgb(var(--dg-rgb) / 0.5), rgb(var(--dg-rgb)));
+}
+
+.w1-cap.tight .w1-captext b {
+  color: rgb(var(--wn-rgb));
+}
+
+.w1-cap.over .w1-captext b {
+  color: rgb(var(--dg-rgb));
+}
+
+.w1-planbtn {
+  flex: none;
+  padding: 6px 12px;
+  border: 1px solid rgb(var(--ac-rgb) / 0.32);
+  background: rgb(var(--ac-rgb) / 0.08);
+  color: var(--fg);
+  font: 600 11.5px / 1 var(--mono);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
+}
+
+.w1-planbtn:hover {
+  border-color: rgb(var(--ac2-rgb) / 0.5);
+  background: rgb(var(--ac2-rgb) / 0.12);
+}
+
+.w1-planbtn:active {
+  transform: scale(0.97);
+}

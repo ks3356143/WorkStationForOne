@@ -124,6 +124,17 @@ export const MIGRATIONS: Migration[] = [
 
       INSERT INTO notes_fts(notes_fts) VALUES('rebuild');
     `
+  },
+  {
+    // 计划做（planned_for）与截止（due_date）分开，容量视图只统计计划在今天的事项。
+    version: 6,
+    sql: `
+      ALTER TABLE tasks ADD COLUMN planned_for TEXT
+        CHECK (planned_for IS NULL OR planned_for GLOB '????-??-??');
+      ALTER TABLE tasks ADD COLUMN estimate_minutes INTEGER NOT NULL DEFAULT 0
+        CHECK (estimate_minutes BETWEEN 0 AND 480);
+      CREATE INDEX idx_tasks_planned ON tasks(planned_for, deleted_at);
+    `
   }
 ]
 

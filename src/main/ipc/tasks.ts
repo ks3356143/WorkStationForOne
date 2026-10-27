@@ -41,6 +41,12 @@ function assertDate(value: unknown): string {
   return value
 }
 
+function assertEstimate(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 480)
+    throw new TypeError('预计时长无效')
+  return value
+}
+
 function assertPriority(value: unknown): TaskPriority {
   if (value !== 0 && value !== 1 && value !== 2 && value !== 3)
     throw new TypeError('任务优先级无效')
@@ -78,6 +84,9 @@ export function assertTaskRecord(value: unknown): TaskRecord {
     dueDate: record.dueDate === undefined ? undefined : assertDate(record.dueDate),
     priority: record.priority === undefined ? 0 : assertPriority(record.priority),
     list: record.list === undefined ? undefined : assertLabel(record.list, '任务清单'),
+    plannedFor: record.plannedFor === undefined ? undefined : assertDate(record.plannedFor),
+    estimateMinutes:
+      record.estimateMinutes === undefined ? 0 : assertEstimate(record.estimateMinutes),
     completedAt:
       record.completedAt === undefined
         ? undefined
@@ -102,6 +111,9 @@ export function assertTaskDraft(value: unknown): TaskDraft {
   if (draft.dueDate !== undefined) result.dueDate = assertDate(draft.dueDate)
   if (draft.priority !== undefined) result.priority = assertPriority(draft.priority)
   if (draft.list !== undefined) result.list = assertLabel(draft.list, '任务清单')
+  if (draft.plannedFor !== undefined) result.plannedFor = assertDate(draft.plannedFor)
+  if (draft.estimateMinutes !== undefined)
+    result.estimateMinutes = assertEstimate(draft.estimateMinutes)
 
   return result
 }
@@ -122,6 +134,12 @@ export function assertTaskPatch(value: unknown): TaskPatch {
   if (patch.priority !== undefined) result.priority = assertPriority(patch.priority)
   if (patch.list !== undefined) {
     result.list = patch.list === null ? null : assertLabel(patch.list, '任务清单') || null
+  }
+  if (patch.plannedFor !== undefined) {
+    result.plannedFor = patch.plannedFor === null ? null : assertDate(patch.plannedFor)
+  }
+  if (patch.estimateMinutes !== undefined) {
+    result.estimateMinutes = assertEstimate(patch.estimateMinutes)
   }
 
   if (Object.keys(result).length === 0) throw new TypeError('任务补丁没有可更新字段')

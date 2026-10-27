@@ -262,6 +262,21 @@ async function run() {
     one('.w1-todosearch button')?.click()
     await sleep(300)
     check('清空任务搜索恢复', all('.w1-todorowwrap').length === 6, String(all('.w1-todorowwrap').length))
+
+    const planButton = byText('button', '计划今天')
+    check('任务区有计划今天入口', Boolean(planButton))
+    planButton?.click()
+    await sleep(400)
+    check('计划面板与容量条', !!one('.w1-plan') && !!one('.w1-plan .w1-cap'))
+    const planCols = all('.w1-plancol')
+    const beforePlanned = planCols[1]?.querySelectorAll('.w1-planrow').length ?? 0
+    planCols[0]?.querySelector('.w1-planrow')?.click()
+    await sleep(300)
+    const afterPlanned = all('.w1-plancol')[1]?.querySelectorAll('.w1-planrow').length ?? 0
+    check('加入今天后进入已计划列', afterPlanned === beforePlanned + 1, beforePlanned + '->' + afterPlanned)
+    byText('.w1-planfoot button', '完成')?.click()
+    await sleep(300)
+    check('计划面板可关闭', !one('.w1-plan'))
     setValue(taskSearch, 'auth')
     await sleep(250)
     taskSearch.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
