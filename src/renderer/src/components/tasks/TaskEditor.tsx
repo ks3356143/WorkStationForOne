@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { addDaysKey } from '../../../../shared/date-key'
 import type { TaskPatch } from '../../../../shared/ipc'
 import type { Task } from '../../types'
+import { ComboSelect } from '../fields/ComboSelect'
+import { DatePicker } from '../fields/DatePicker'
+import { TimePicker } from '../fields/TimePicker'
 
 const ESTIMATES = [0, 15, 30, 60, 90, 120] as const
 
@@ -110,12 +113,13 @@ export function TaskEditor({ task, lists, today, onSave, onDelete, onClose }: Ta
 
       <div className="w1-todoeditside">
         <div className="w1-todofield">
-          <label htmlFor={`todo-date-${task.id}`}>截止日期</label>
-          <input
+          <span className="w1-todofieldlabel">截止日期</span>
+          <DatePicker
             id={`todo-date-${task.id}`}
-            type="date"
             value={dueDate}
-            onChange={(event) => setDate(event.target.value)}
+            today={today}
+            label="截止日期"
+            onChange={setDate}
           />
           <div className="w1-tododatequick" role="group" aria-label="快捷日期">
             <button
@@ -142,13 +146,8 @@ export function TaskEditor({ task, lists, today, onSave, onDelete, onClose }: Ta
           </div>
         </div>
         <div className="w1-todofield">
-          <label htmlFor={`todo-time-${task.id}`}>时间</label>
-          <input
-            id={`todo-time-${task.id}`}
-            type="time"
-            value={time}
-            onChange={(event) => setClock(event.target.value)}
-          />
+          <span className="w1-todofieldlabel">时间</span>
+          <TimePicker id={`todo-time-${task.id}`} value={time} label="时间" onChange={setClock} />
         </div>
         <div className="w1-todofield">
           <span className="w1-todofieldlabel">优先级</span>
@@ -211,21 +210,18 @@ export function TaskEditor({ task, lists, today, onSave, onDelete, onClose }: Ta
           </div>
         </div>
         <div className="w1-todofield">
-          <label htmlFor={`todo-list-${task.id}`}>清单</label>
-          <input
+          <span className="w1-todofieldlabel">清单</span>
+          <ComboSelect
             id={`todo-list-${task.id}`}
-            list="w1-todolists"
             value={list}
-            maxLength={80}
+            label="清单"
             placeholder="无清单"
-            onChange={(event) => setList(event.target.value)}
+            options={lists}
+            maxLength={80}
+            emptyLabel="无清单"
+            onChange={setList}
           />
         </div>
-        <datalist id="w1-todolists">
-          {lists.map((name) => (
-            <option key={name} value={name} />
-          ))}
-        </datalist>
       </div>
 
       <div className="w1-todoactions">

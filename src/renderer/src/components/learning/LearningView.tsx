@@ -13,6 +13,8 @@ import {
 import { DURATION, EASE_OUT } from '../../lib/motion'
 import { useNow } from '../../lib/useNow'
 import { useWorkstation } from '../../store/useWorkstation'
+import { ComboSelect } from '../fields/ComboSelect'
+import { DatePicker } from '../fields/DatePicker'
 import { PlusIcon } from '../Glyphs'
 
 interface LearningItemRowProps {
@@ -126,13 +128,15 @@ function LearningItemRow({
 
               <div className="w1-leditside">
                 <div className="w1-todofield">
-                  <label htmlFor={`learn-subject-${item.id}`}>科目</label>
-                  <input
+                  <span className="w1-todofieldlabel">科目</span>
+                  <ComboSelect
                     id={`learn-subject-${item.id}`}
-                    list="w1-learnsubjects"
                     value={subject}
+                    label="科目"
+                    placeholder="英语二"
+                    options={subjects}
                     maxLength={40}
-                    onChange={(event) => setSubject(event.target.value)}
+                    onChange={setSubject}
                   />
                 </div>
                 <div className="w1-todofield">
@@ -146,12 +150,14 @@ function LearningItemRow({
                   />
                 </div>
                 <div className="w1-todofield">
-                  <label htmlFor={`learn-next-${item.id}`}>下次复习</label>
-                  <input
+                  <span className="w1-todofieldlabel">下次复习</span>
+                  <DatePicker
                     id={`learn-next-${item.id}`}
-                    type="date"
                     value={nextReviewOn}
-                    onChange={(event) => setNextReviewOn(event.target.value)}
+                    today={today}
+                    label="下次复习"
+                    allowClear={false}
+                    onChange={setNextReviewOn}
                   />
                   <div className="w1-tododatequick" role="group" aria-label="快捷复习日">
                     <button
@@ -172,11 +178,6 @@ function LearningItemRow({
                     </button>
                   </div>
                 </div>
-                <datalist id="w1-learnsubjects">
-                  {subjects.map((name) => (
-                    <option key={name} value={name} />
-                  ))}
-                </datalist>
               </div>
 
               <div className="w1-todoactions">
@@ -240,13 +241,15 @@ function NewCardForm({ subjects, today, onSubmit, onCancel }: NewCardFormProps) 
     >
       <div className="w1-lnewrow">
         <div className="w1-todofield">
-          <label htmlFor="learn-new-subject">科目</label>
-          <input
+          <span className="w1-todofieldlabel">科目</span>
+          <ComboSelect
             id="learn-new-subject"
-            list="w1-learnsubjects"
             value={subject}
+            label="科目"
+            placeholder="英语二"
+            options={subjects}
             maxLength={40}
-            onChange={(event) => setSubject(event.target.value)}
+            onChange={setSubject}
           />
         </div>
         <div className="w1-todofield">

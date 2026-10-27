@@ -104,7 +104,8 @@ export function TasksView({ notify }: TasksViewProps) {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       if (event.isComposing || event.keyCode === 229) return
-      if ((event.target as HTMLElement | null)?.closest('.w1-todosearch')) return
+      // 事件目标可能是 window/document（合成事件或失焦），不能直接调 closest
+      if (event.target instanceof Element && event.target.closest('.w1-todosearch')) return
       setExpandedId(null)
       requestAnimationFrame(() => document.getElementById(`todo-row-${expandedId}`)?.focus())
     }

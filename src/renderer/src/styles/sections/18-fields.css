@@ -1,0 +1,395 @@
+/* ---------- field controls (date / time / combo) ---------- */
+
+/* 触发按钮：与 .w1-todofield input 同高同位，但自带终端式指示符 */
+.w1-pick {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 9px;
+  border: 1px solid rgb(var(--ac-rgb) / 0.18);
+  background: rgb(var(--panel-2-rgb) / 0.42);
+  color: var(--fg);
+  font: 13.5px / 1 var(--sans);
+  text-align: left;
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui),
+    box-shadow var(--dur-ui);
+}
+
+.w1-pick:hover {
+  border-color: rgb(var(--ac-rgb) / 0.34);
+  background: rgb(var(--panel-2-rgb) / 0.56);
+}
+
+.w1-pick[aria-expanded="true"] {
+  border-color: rgb(var(--ac2-rgb) / 0.58);
+  background: rgb(var(--panel-2-rgb) / 0.62);
+  box-shadow: 0 0 18px rgb(var(--ac2-rgb) / 0.12);
+}
+
+.w1-pick.empty .w1-picktext {
+  color: var(--su);
+}
+
+.w1-picktext {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.w1-pickmono {
+  font: 12.5px / 1 var(--mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.w1-pickglyph {
+  flex: none;
+  color: var(--ac2);
+  font-size: 11px;
+  line-height: 1;
+  text-shadow: 0 0 10px rgb(var(--ac2-rgb) / 0.45);
+  transition:
+    transform var(--dur-ui) var(--ease-out),
+    color var(--dur-ui);
+}
+
+.w1-pick[aria-expanded="true"] .w1-pickglyph {
+  transform: rotate(90deg);
+}
+
+/* 弹层：不透明底 + 1px 棱镜边 + 阴影，内层不再叠半透明 */
+.w1-pop {
+  position: fixed;
+  z-index: 56;
+  padding: 10px;
+  border: 1px solid transparent;
+  background-image:
+    var(--glass-spec),
+    linear-gradient(155deg, rgb(var(--glass-tint-rgb) / 0.9), rgb(var(--glass-deep-rgb) / 0.96));
+  background-origin: padding-box;
+  background-clip: padding-box, padding-box;
+  border-image: var(--glass-rim) 1;
+  backdrop-filter: blur(26px) saturate(165%);
+  box-shadow:
+    var(--neu-in),
+    0 26px 58px rgb(var(--shadow-rgb) / 0.52),
+    0 0 44px rgb(var(--prism-2-rgb) / 0.12);
+  transform-origin: top center;
+}
+
+.w1-pop::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 42%;
+  height: 2px;
+  background: linear-gradient(90deg, rgb(var(--prism-2-rgb)), rgb(var(--prism-1-rgb)), transparent);
+}
+
+/* 弹层里的按钮不继承全局按压缩放，避免格子抖动 */
+.w1-pop button:not(:disabled):active {
+  transform: none !important;
+}
+
+/* ---------- date ---------- */
+
+.w1-pickhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px 8px;
+}
+
+.w1-picktitle {
+  font: 600 13px / 1 var(--sans);
+  letter-spacing: 0.01em;
+  color: var(--fg);
+}
+
+.w1-picknav {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--bd);
+  background: transparent;
+  color: var(--mu);
+  font: 600 13px / 1 var(--mono);
+  transition:
+    border-color var(--dur-ui),
+    color var(--dur-ui),
+    background-color var(--dur-ui);
+}
+
+.w1-picknav:hover {
+  border-color: rgb(var(--ac2-rgb) / 0.5);
+  background: rgb(var(--ac2-rgb) / 0.08);
+  color: var(--ac2-fg);
+}
+
+.w1-pickweek {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+  padding: 0 0 4px;
+  border-bottom: 1px solid rgb(var(--bd-rgb) / 0.6);
+  font: 10px / 1 var(--mono);
+  letter-spacing: 0.06em;
+  color: var(--su);
+  text-align: center;
+}
+
+.w1-pickweek span {
+  padding: 3px 0 5px;
+}
+
+.w1-pickgrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+  padding-top: 6px;
+}
+
+.w1-pickday {
+  position: relative;
+  height: 30px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--fs);
+  font: 12.5px / 1 var(--mono);
+  font-variant-numeric: tabular-nums;
+  transition:
+    border-color var(--dur-fast),
+    background-color var(--dur-fast),
+    color var(--dur-fast),
+    box-shadow var(--dur-fast);
+}
+
+.w1-pickday.we {
+  color: var(--mu);
+}
+
+.w1-pickday.out {
+  color: var(--su);
+  opacity: 0.42;
+}
+
+.w1-pickday:hover {
+  border-color: rgb(var(--ac-rgb) / 0.34);
+  background: rgb(var(--vio-rgb) / 0.12);
+  color: var(--fg);
+}
+
+.w1-pickday.today::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  width: 3px;
+  height: 3px;
+  transform: translateX(-50%);
+  background: var(--ac2);
+  box-shadow: 0 0 8px rgb(var(--ac2-rgb) / 0.7);
+}
+
+.w1-pickday.on {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--ac), var(--ac2));
+  color: var(--on-accent);
+  font-weight: 700;
+  box-shadow: 0 6px 18px rgb(var(--vio-rgb) / 0.3);
+}
+
+.w1-pickday.on::after {
+  background: var(--on-accent);
+  box-shadow: none;
+}
+
+.w1-pickfoot {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid rgb(var(--bd-rgb) / 0.6);
+}
+
+.w1-pickquick,
+.w1-pickclear {
+  height: 25px;
+  padding: 0 8px;
+  border: 1px solid var(--bd);
+  background: transparent;
+  color: var(--mu);
+  font: 10.5px / 1 var(--mono);
+  letter-spacing: 0.04em;
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui),
+    color var(--dur-ui);
+}
+
+.w1-pickquick:hover,
+.w1-pickclear:hover {
+  border-color: rgb(var(--ac-rgb) / 0.42);
+  background: rgb(var(--vio-rgb) / 0.1);
+  color: var(--fg);
+}
+
+.w1-pickquick.pri {
+  margin-left: auto;
+  border-color: rgb(var(--ac2-rgb) / 0.46);
+  background: rgb(var(--ac2-rgb) / 0.1);
+  color: var(--ac2-fg);
+}
+
+.w1-pickquick.pri:hover {
+  border-color: rgb(var(--ac2-rgb) / 0.7);
+  background: rgb(var(--ac2-rgb) / 0.18);
+}
+
+.w1-pickquick:disabled {
+  opacity: 0.4;
+}
+
+.w1-pickclear {
+  color: var(--dg);
+  border-color: rgb(var(--dg-rgb) / 0.3);
+}
+
+.w1-pickclear:hover {
+  border-color: rgb(var(--dg-rgb) / 0.56);
+  background: rgb(var(--dg-rgb) / 0.1);
+  color: var(--dg-fg);
+}
+
+/* ---------- time ---------- */
+
+.w1-timehead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 2px 8px;
+  border-bottom: 1px solid rgb(var(--bd-rgb) / 0.6);
+  font: 10.5px / 1 var(--mono);
+  letter-spacing: 0.08em;
+  color: var(--su);
+}
+
+.w1-timehead b {
+  font: 700 17px / 1 var(--mono);
+  letter-spacing: -0.02em;
+  color: var(--ac2-fg);
+  text-shadow: 0 0 16px rgb(var(--ac2-rgb) / 0.3);
+  font-variant-numeric: tabular-nums;
+}
+
+.w1-timecols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.w1-timecol {
+  max-height: 168px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.55);
+  background: rgb(var(--field-rgb) / 0.42);
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--ac-rgb) / 0.3) transparent;
+}
+
+.w1-timeopt {
+  flex: none;
+  height: 26px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--fs);
+  font: 12px / 1 var(--mono);
+  font-variant-numeric: tabular-nums;
+  transition:
+    background-color var(--dur-fast),
+    border-color var(--dur-fast),
+    color var(--dur-fast);
+}
+
+.w1-timeopt:hover {
+  background: rgb(var(--vio-rgb) / 0.14);
+  color: var(--fg);
+}
+
+.w1-timeopt.on {
+  border-color: rgb(var(--ac2-rgb) / 0.5);
+  background: linear-gradient(100deg, rgb(var(--ac2-rgb) / 0.2), rgb(var(--vio-rgb) / 0.1));
+  color: var(--ac2-fg);
+  font-weight: 700;
+  box-shadow: inset 0 0 12px rgb(var(--ac2-rgb) / 0.12);
+}
+
+/* ---------- combo ---------- */
+
+.w1-picklist {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 208px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--ac-rgb) / 0.3) transparent;
+}
+
+.w1-pickoption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--fs);
+  font: 12.5px / 1 var(--sans);
+  text-align: left;
+  transition:
+    border-color var(--dur-fast),
+    background-color var(--dur-fast),
+    color var(--dur-fast);
+}
+
+.w1-pickoption span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.w1-pickoption.hot {
+  border-color: rgb(var(--ac-rgb) / 0.3);
+  background: rgb(var(--vio-rgb) / 0.14);
+  color: var(--fg);
+}
+
+.w1-pickoption.on {
+  color: var(--ac2-fg);
+}
+
+.w1-pickoption i {
+  flex: none;
+  color: var(--ac2);
+  font-size: 6px;
+  font-style: normal;
+  text-shadow: 0 0 8px rgb(var(--ac2-rgb) / 0.7);
+}

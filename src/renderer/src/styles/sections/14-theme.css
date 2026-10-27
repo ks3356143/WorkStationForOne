@@ -329,6 +329,7 @@
   :root[data-theme="light"] .w1-modal,
   :root[data-theme="light"] .w1-palette,
   :root[data-theme="light"] .w1-focus-box,
+  :root[data-theme="light"] .w1-pop,
   :root[data-theme="light"] .w1-toast {
     background: var(--panel-solid);
     background-image: none;
