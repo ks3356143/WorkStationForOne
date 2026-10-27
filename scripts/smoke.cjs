@@ -347,6 +347,50 @@ async function run() {
       document.activeElement?.className?.toString?.() ?? activeNav()
     )
 
+    const railItem = (label) =>
+      all('.w1-todorow').find(
+        (el) => el.querySelector('.w1-todolabel')?.textContent?.trim() === label
+      )
+    const dragTo = async (fromRow, target, wait = 700) => {
+      if (!fromRow || !target) return false
+      const dt = new DataTransfer()
+      fromRow
+        .querySelector('.w1-tododrag')
+        ?.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dt }))
+      target.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }))
+      await sleep(90)
+      const highlighted = target.classList.contains('drop')
+      target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }))
+      await sleep(wait)
+      return highlighted
+    }
+
+    railItem('今天')?.click()
+    await sleep(450)
+    const todayBefore = all('.w1-todorowwrap').length
+    const dragRow = all('.w1-todorowwrap')[0]
+    const dragTitle = dragRow?.querySelector('.w1-todotitletext')?.textContent?.trim() ?? ''
+
+    const highlighted = await dragTo(dragRow, railItem('即将到来'))
+    check('拖拽悬停高亮清单', highlighted)
+    check(
+      '拖到即将到来后离开今天',
+      Boolean(dragTitle) && !taskRow(dragTitle) && all('.w1-todorowwrap').length === todayBefore - 1,
+      dragTitle + ' · ' + all('.w1-todorowwrap').length + '/' + todayBefore
+    )
+    railItem('即将到来')?.click()
+    await sleep(450)
+    check('任务出现在即将到来清单', Boolean(taskRow(dragTitle)))
+
+    await dragTo(taskRow(dragTitle), railItem('今天'))
+    railItem('今天')?.click()
+    await sleep(500)
+    check(
+      '拖回今天后恢复',
+      Boolean(taskRow(dragTitle)) && all('.w1-todorowwrap').length === todayBefore,
+      dragTitle + ' · ' + all('.w1-todorowwrap').length + '/' + todayBefore
+    )
+
     await navTo('今日')
     one('.w1-ctlink')?.click()
     await sleep(500)
@@ -429,6 +473,45 @@ async function run() {
       byText('.w1-task', '周报收尾')?.textContent ?? ''
     )
     check('返回今日后仅保留今日任务', all('.w1-task').length === 6, String(all('.w1-task').length))
+
+    const cardRow = all('.w1-task').find(
+      (el) => el.dataset.taskId && !el.classList.contains('done')
+    )
+    const cardId = cardRow?.dataset.taskId ?? ''
+    const timeline = one('.w1-tl')
+    if (cardRow && timeline && cardId) {
+      const dt = new DataTransfer()
+      cardRow.dispatchEvent(
+        new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dt })
+      )
+      const rect = timeline.getBoundingClientRect()
+      const dropX = rect.left + rect.width * 0.5
+      timeline.dispatchEvent(
+        new DragEvent('dragover', {
+          bubbles: true,
+          cancelable: true,
+          dataTransfer: dt,
+          clientX: dropX,
+          clientY: rect.top + 10
+        })
+      )
+      await sleep(80)
+      check('时间轴拖拽高亮', timeline.classList.contains('drop'))
+      timeline.dispatchEvent(
+        new DragEvent('drop', {
+          bubbles: true,
+          cancelable: true,
+          dataTransfer: dt,
+          clientX: dropX,
+          clientY: rect.top + 10
+        })
+      )
+      await sleep(450)
+      const draggedTime = document
+        .querySelector('.w1-task[data-task-id="' + cardId + '"] .w1-time')
+        ?.textContent?.trim()
+      check('拖到时间轴写入 15:30', draggedTime === '15:30', String(draggedTime))
+    }
     check(
       '顺延任务离开今日',
       byText('.w1-task', '整理本周资料') === undefined && byText('.w1-task', '给妈妈回电话') === undefined

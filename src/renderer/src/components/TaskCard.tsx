@@ -1,4 +1,5 @@
 import { dateKey } from '../../../shared/date-key'
+import { TASK_DRAG_TYPE } from '../lib/dnd'
 import { filterTasks, useWorkstation } from '../store/useWorkstation'
 import { tasksForTodayCard } from '../lib/todo'
 import { useNow } from '../lib/useNow'
@@ -94,6 +95,12 @@ export function TaskCard({ nextTaskId }: TaskCardProps) {
                 role="checkbox"
                 aria-checked={task.done}
                 className={`w1-task${task.done ? ' done' : ''}`}
+                data-task-id={task.id}
+                draggable={!task.done}
+                onDragStart={(event) => {
+                  event.dataTransfer.setData(TASK_DRAG_TYPE, task.id)
+                  event.dataTransfer.effectAllowed = 'move'
+                }}
                 onClick={() => toggleTask(task.id)}
               >
                 <span className="w1-time">{task.time}</span>

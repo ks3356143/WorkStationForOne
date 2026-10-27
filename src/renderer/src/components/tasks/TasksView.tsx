@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { type DragEvent as ReactDragEvent, useEffect, useState } from 'react'
 import { addDaysKey, dateKey } from '../../../../shared/date-key'
 import type { TaskDraft, TaskPatch } from '../../../../shared/ipc'
-import type { TaskViewMode } from '../../types'
+import type { TaskScope, TaskViewMode } from '../../types'
 import {
   filterTasksByScope,
   groupTasksByDate,
@@ -13,6 +13,7 @@ import { useNow } from '../../lib/useNow'
 import { useWorkstation } from '../../store/useWorkstation'
 import { PlusIcon } from '../Glyphs'
 import { dayCapacity } from '../../lib/capacity'
+import { scopeDropPatch, TASK_DRAG_TYPE } from '../../lib/dnd'
 import { withViewTransition } from '../../lib/view-transition'
 import { CapacityBar } from './CapacityBar'
 import { PlanningPanel } from './PlanningPanel'
@@ -76,6 +77,7 @@ export function TasksView({ notify }: TasksViewProps) {
   const [query, setQuery] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [planningOpen, setPlanningOpen] = useState(false)
+  const [dragTarget, setDragTarget] = useState<string | null>(null)
   const [scheduleOpen, setScheduleOpen] = useState(false)
   const now = useNow(60_000)
   const today = dateKey(now)
@@ -123,6 +125,29 @@ export function TasksView({ notify }: TasksViewProps) {
     return () => window.clearTimeout(timer)
   }, [lastAddedTaskId, clearLastAddedTask])
 
+  const dragProps = (target: TaskScope) => {
+    const patch = scopeDropPatch(target, today)
+    if (!patch) return {}
+    return {
+      onDragOver: (event: ReactDragEvent) => {
+        if (!event.dataTransfer.types.includes(TASK_DRAG_TYPE)) return
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'move'
+        setDragTarget((current) => (current === target ? current : target))
+      },
+      onDragLeave: () => {
+        setDragTarget((current) => (current === target ? null : current))
+      },
+      onDrop: (event: ReactDragEvent) => {
+        event.preventDefault()
+        setDragTarget(null)
+        const taskId = event.dataTransfer.getData(TASK_DRAG_TYPE)
+        if (!taskId) return
+        withViewTransition(() => updateTask(taskId, patch))
+      }
+    }
+  }
+
   const focusRow = (taskId: string) => {
     requestAnimationFrame(() => document.getElementById(`todo-row-${taskId}`)?.focus())
   }
@@ -165,12 +190,15 @@ export function TasksView({ notify }: TasksViewProps) {
             <button
               key={item.scope}
               type="button"
-              className={`w1-todorow${scope === item.scope ? ' on' : ''}`}
+              className={`w1-todorow${scope === item.scope ? ' on' : ''}${
+                dragTarget === item.scope ? ' drop' : ''
+              }`}
               aria-pressed={scope === item.scope}
               onClick={() => {
                 setQuery('')
                 setScope(item.scope)
               }}
+              {...dragProps(item.scope)}
             >
               <span className="w1-todokey">{item.key}</span>
               <span className="w1-todolabel">{item.label}</span>
@@ -188,12 +216,15 @@ export function TasksView({ notify }: TasksViewProps) {
                 <button
                   key={item.name}
                   type="button"
-                  className={`w1-todorow${scope === target ? ' on' : ''}`}
+                  className={`w1-todorow${scope === target ? ' on' : ''}${
+                    dragTarget === target ? ' drop' : ''
+                  }`}
                   aria-pressed={scope === target}
                   onClick={() => {
                     setQuery('')
                     setScope(target)
                   }}
+                  {...dragProps(target)}
                 >
                   <span className="w1-todokey">#</span>
                   <span className="w1-todolabel">{item.name}</span>

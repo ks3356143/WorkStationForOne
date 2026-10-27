@@ -443,3 +443,10 @@
 .w1-ctlink:hover {
   color: var(--ac2);
 }
+
+/* 拖到时间轴：显示可投放区间 */
+.w1-tl.drop {
+  outline: 1px dashed rgb(var(--ac2-rgb) / 0.55);
+  outline-offset: 3px;
+  background: rgb(var(--ac2-rgb) / 0.04);
+}

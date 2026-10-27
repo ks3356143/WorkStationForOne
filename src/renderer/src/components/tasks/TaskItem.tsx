@@ -1,5 +1,6 @@
 import { AnimatePresence, m } from 'motion/react'
 import type { TaskPatch } from '../../../../shared/ipc'
+import { TASK_DRAG_TYPE } from '../../lib/dnd'
 import type { Task } from '../../types'
 import { DURATION, EASE_OUT } from '../../lib/motion'
 import { taskDueLabel } from '../../lib/todo'
@@ -43,8 +44,21 @@ export function TaskItem({
       className={`w1-todorowwrap${task.done ? ' done' : ''}${highlight ? ' landing' : ''}`}
       role="listitem"
       style={{ viewTransitionName: `task-${task.id}` }}
+      data-task-id={task.id}
     >
       <div className="w1-todorowmain">
+        <span
+          className="w1-tododrag"
+          draggable
+          title="拖到清单或时间轴改期"
+          aria-hidden="true"
+          onDragStart={(event) => {
+            event.dataTransfer.setData(TASK_DRAG_TYPE, task.id)
+            event.dataTransfer.effectAllowed = 'move'
+          }}
+        >
+          ⋮⋮
+        </span>
         <button
           className={`w1-todocb${task.done ? ' on' : ''}`}
           type="button"

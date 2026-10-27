@@ -1,4 +1,7 @@
+import { useState } from 'react'
 import { dateKey } from '../../../shared/date-key'
+import { TASK_DRAG_TYPE, timeFromRatio } from '../lib/dnd'
+import { withViewTransition } from '../lib/view-transition'
 import { formatDateLine, formatHM, getTimeMarkerPercent, toMinutes } from '../lib/date'
 import { summarizeFleet } from '../lib/fleet'
 import { blockMinutes, findNextBlock, findNextTask } from '../lib/schedule'
@@ -24,6 +27,8 @@ export function TodayDashboard() {
   const sessions = useWorkstation((state) => state.sessions)
   const openQuickNote = useWorkstation((state) => state.openQuickNote)
   const startFocus = useWorkstation((state) => state.startFocus)
+  const updateTask = useWorkstation((state) => state.updateTask)
+  const [dropActive, setDropActive] = useState(false)
   const now = useNow(30_000)
 
   const fleet = summarizeFleet(sessions)
@@ -75,9 +80,30 @@ export function TodayDashboard() {
       </div>
 
       <div
-        className="w1-tl"
+        className={`w1-tl${dropActive ? ' drop' : ''}`}
         role="group"
         aria-label={`今日时间轴：当前 ${formatHM(now)}，下一段 ${next?.time ?? '待定'} ${next?.title ?? ''}`}
+        onDragOver={(event) => {
+          if (!event.dataTransfer.types.includes(TASK_DRAG_TYPE)) return
+          event.preventDefault()
+          event.dataTransfer.dropEffect = 'move'
+          setDropActive(true)
+        }}
+        onDragLeave={(event) => {
+          if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+          setDropActive(false)
+        }}
+        onDrop={(event) => {
+          event.preventDefault()
+          setDropActive(false)
+          const taskId = event.dataTransfer.getData(TASK_DRAG_TYPE)
+          if (!taskId) return
+          const rect = event.currentTarget.getBoundingClientRect()
+          const ratio = rect.width > 0 ? (event.clientX - rect.left) / rect.width : 0
+          withViewTransition(() =>
+            updateTask(taskId, { time: timeFromRatio(ratio), plannedFor: today })
+          )
+        }}
       >
         {TIMELINE.map((block, index) => {
           const minutes = blockMinutes(block, TIMELINE[index + 1])
