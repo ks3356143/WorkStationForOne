@@ -3,12 +3,14 @@ import type { Task } from '../../types'
 
 export function createSeedTasks(): Task[] {
   const today = dateKey()
+  const completedAt = Date.now()
   return [
     {
       id: 't1',
       time: '09:00',
       title: '站会：确认本周优先级',
       done: true,
+      completedAt,
       dueDate: today,
       list: '工作',
       priority: 2
@@ -44,7 +46,15 @@ export function createSeedTasks(): Task[] {
       list: '生活',
       priority: 3
     },
-    { id: 't5', time: '08:30', title: '喝水 500 ml', done: true, dueDate: today, list: '生活' },
+    {
+      id: 't5',
+      time: '08:30',
+      title: '喝水 500 ml',
+      done: true,
+      completedAt,
+      dueDate: today,
+      list: '生活'
+    },
     {
       id: 't6',
       time: '21:00',

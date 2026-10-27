@@ -9,6 +9,7 @@ import { tasksForTodayCard } from '../lib/todo'
 import { useNow } from '../lib/useNow'
 import { useWorkstation } from '../store/useWorkstation'
 import { HabitCard } from './HabitCard'
+import { HeatmapCard } from './HeatmapCard'
 import { NoteCard } from './NoteCard'
 import { PlayIcon, PlusIcon } from './Glyphs'
 import { ReviewCard } from './ReviewCard'
@@ -141,6 +142,7 @@ export function TodayDashboard() {
         <NoteCard />
         <HabitCard />
         <ReviewCard />
+        <HeatmapCard />
       </div>
     </div>
   )

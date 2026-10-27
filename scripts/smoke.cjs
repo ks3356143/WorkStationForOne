@@ -124,6 +124,17 @@ async function run() {
     )
     check('默认停在今日', activeNav() === '今日', activeNav())
     check('今日看板可见', !!one('.w1-main'))
+    check('完成热力图可见', !!one('.w1-heat'))
+    check(
+      '热力图按 26 周 × 7 天渲染',
+      all('.w1-heatcol').length === 26 && all('.w1-heatcol i').length === 182,
+      all('.w1-heatcol').length + ' × ' + all('.w1-heatcol i').length
+    )
+    check(
+      '热力图统计文案',
+      one('.w1-heatstats')?.textContent?.includes('项完成') ?? false,
+      one('.w1-heatstats')?.textContent ?? ''
+    )
     check('看板与 Agent 不同时可见', !one('.w1-dock') && !one('.w1-agent'))
     check('初始任务 8 项', all('.w1-task').length === 8, String(all('.w1-task').length))
     check('初始完成 2 项', all('.w1-task.done').length === 2, String(all('.w1-task.done').length))
