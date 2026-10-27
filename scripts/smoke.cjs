@@ -1,37 +1,68 @@
-const { app, BrowserWindow } = require('electron')
+const { app } = require('electron')
 const { join } = require('node:path')
-const { mkdtempSync, rmSync } = require('node:fs')
+const { mkdirSync, mkdtempSync, readdirSync, rmSync, statSync } = require('node:fs')
 const { tmpdir } = require('node:os')
 
-// 冒烟只驱动渲染层：窗口不挂 preload，window.ws 为空，界面跑在内存种子上。
-// 主进程 / preload / SQLite 的真实路径由 `npm run verify`（scripts/runtime-verify.mjs）覆盖。
-// WS_DATA_DIR 保留给未来的主进程接入，当前只影响 verify 之外的临时目录约定。
+// 冒烟跑真实主进程：SQLite、preload 与 IPC 全部走生产路径。
+// 数据库、Chromium 存储与单实例锁都隔离到临时目录，避免污染真实工作站。
+// 退出时 Chromium 仍持有缓存句柄，当次目录删不干净；改为启动时清理一小时前的残留。
+function pruneStaleDirs() {
+  const base = tmpdir()
+  for (const name of readdirSync(base)) {
+    if (!name.startsWith('ws-smoke-')) continue
+    const path = join(base, name)
+    try {
+      if (Date.now() - statSync(path).mtimeMs < 60 * 60 * 1000) continue
+      rmSync(path, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
+    } catch {
+      // 被其他进程占用时留到下次启动再清。
+    }
+  }
+}
+
+pruneStaleDirs()
+
 const dataDir = mkdtempSync(join(tmpdir(), 'ws-smoke-'))
-process.env.WS_DATA_DIR = dataDir
+const userDir = join(dataDir, 'user')
+const sessionDir = join(dataDir, 'session')
+mkdirSync(userDir, { recursive: true })
+mkdirSync(sessionDir, { recursive: true })
+app.setPath('userData', userDir)
+app.setPath('sessionData', sessionDir)
+process.env.WS_DATA_DIR = join(dataDir, 'db')
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
-async function run() {
-  const consoleErrors = []
-  const win = new BrowserWindow({
-    width: 1440,
-    height: 900,
-    show: true,
-    webPreferences: {
-      contextIsolation: true,
-      sandbox: true,
-      nodeIntegration: false,
-      backgroundThrottling: false
-    }
-  })
+const consoleErrors = []
+let win = null
 
-  win.webContents.on('console-message', (event) => {
+app.on('browser-window-created', (_event, created) => {
+  if (win) return
+  win = created
+  // 生产窗口默认允许节流；冒烟要按真实时间等待动画与 IPC 回包。
+  created.webContents.setBackgroundThrottling(false)
+  created.webContents.on('console-message', (event) => {
     if (event.level === 'error') {
       consoleErrors.push(`${event.message} (${event.sourceId}:${event.lineNumber})`)
     }
   })
+})
 
-  await win.loadFile(join(__dirname, '../out/renderer/index.html'))
+// 加载真实入口：单实例锁、数据库、IPC 与 preload 都由它建立。
+require('../out/main/index.js')
+
+async function waitForWindow(timeout = 20_000) {
+  const started = Date.now()
+  while (!win && Date.now() - started < timeout) await sleep(100)
+  if (!win) throw new Error('主窗口未创建：确认 out/ 已构建，且没有实例占用同一 userData')
+  return win
+}
+
+async function run() {
+  await waitForWindow()
+  if (win.webContents.isLoading()) {
+    await new Promise((resolve) => win.webContents.once('did-finish-load', resolve))
+  }
   win.setAlwaysOnTop(true, 'screen-saver')
   win.show()
   win.focus()
@@ -78,6 +109,11 @@ async function run() {
     }
 
     check('左侧导航四个入口', all('.w1-navitem').length === 4, String(all('.w1-navitem').length))
+    check(
+      'preload 桥可用（真实 IPC 路径）',
+      typeof window.ws?.tasks?.list === 'function' && typeof window.ws?.notes?.page === 'function',
+      typeof window.ws
+    )
     check(
       '导航顺序为今日任务 Agent 笔记',
       all('.w1-navitem .w1-navtext b')
@@ -596,17 +632,43 @@ async function run() {
       )
       .catch((snapshotError) => String(snapshotError))
     console.error(JSON.stringify({ consoleErrors, snapshot }, null, 2))
-    app.exit(1)
+    fail()
     return
   }
 
+  // 主进程侧的证据：这一轮 UI 操作必须真的落进 SQLite。
+  const dbFile = join(dataDir, 'db', 'workstation.db')
+  let dbStats = null
+  try {
+    const { DatabaseSync } = require('node:sqlite')
+    const db = new DatabaseSync(dbFile, { readOnly: true })
+    const count = (sql) => Number(db.prepare(sql).get().n)
+    dbStats = {
+      tasks: count('SELECT COUNT(*) AS n FROM tasks WHERE deleted_at IS NULL'),
+      notes: count('SELECT COUNT(*) AS n FROM notes')
+    }
+    db.close()
+  } catch (error) {
+    console.error(`[smoke] 读取临时数据库失败：${error}`)
+  }
+  const dbReady = Boolean(dbStats && dbStats.tasks > 0 && dbStats.notes > 0)
   const failed = results.checks.filter((check) => !check.ok)
-  console.log(JSON.stringify({ ...results, consoleErrors, failures: failed.length }, null, 2))
-  if (failed.length > 0 || consoleErrors.length > 0) {
-    console.error(
-      `[smoke] ${failed.length} failed check(s), ${consoleErrors.length} console error(s)`
+  const failures = failed.length + (dbReady ? 0 : 1)
+  console.log(
+    JSON.stringify(
+      {
+        ...results,
+        database: { file: dbFile, ...dbStats, ready: dbReady },
+        consoleErrors,
+        failures
+      },
+      null,
+      2
     )
-    app.exit(1)
+  )
+  if (failures > 0 || consoleErrors.length > 0) {
+    console.error(`[smoke] ${failures} failed check(s), ${consoleErrors.length} console error(s)`)
+    fail()
     return
   }
   app.quit()
@@ -614,10 +676,22 @@ async function run() {
 
 function cleanup() {
   try {
-    rmSync(dataDir, { recursive: true, force: true })
+    rmSync(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   } catch {
     // 临时目录清理失败不影响冒烟结论。
   }
+}
+
+function fail(code = 1) {
+  // app.exit 不触发 before-quit / will-quit：先手动关库（主进程的 before-quit 处理器），
+  // 再清临时目录，否则 Windows 上文件仍被占用、目录会残留在 %TEMP%。
+  try {
+    app.emit('before-quit', { preventDefault() {} })
+  } catch {
+    // 退出路径不再抛错
+  }
+  cleanup()
+  app.exit(code)
 }
 
 app
@@ -625,7 +699,7 @@ app
   .then(run)
   .catch((error) => {
     console.error(error)
-    app.exit(1)
+    fail()
   })
 
 app.on('will-quit', cleanup)
