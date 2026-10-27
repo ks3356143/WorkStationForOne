@@ -10,6 +10,8 @@
 
 首屏目标（与设计文档 G2 对齐）：打开今日看板 3 秒内知道今天有多少张卡到期、大概要花多久；点「开始复习」直接进入复习态，不需要配置任何东西。
 
+首期科目按用户实际备考内容设定：**考研英语二（204）**与**互联网知识**。前者为闭卷 180 分钟、满分 100：完形填空 10、阅读 Part A 40、阅读 Part B（新题型）10、英译汉 15、小作文 10、大作文（图表）15；大纲词汇约 5500，真题高频约 1000–2000。v1 只做「识别型」词汇卡（看到英文能反应中文），不做拼写与作文模板；考试倒计时、题型训练、真题库均不在本期。
+
 非目标：FSRS 参数拟合、Anki/CSV 导入、复习统计图表、到期提醒推送、学习域 MCP 工具（`learning_due` / `learning_review` 留到 MCP 阶段）、习惯域。
 
 ## 2. 导航与视图
@@ -53,9 +55,10 @@ CREATE TABLE learning_reviews (
 CREATE INDEX idx_learning_reviews_item ON learning_reviews(item_id, reviewed_at DESC);
 ```
 
-- `subject` 即科目（如 `英语二`、`互联网`）；`title` 是卡片正面（词/概念），`notes` 是背面（释义、例句、解释）。
+- `subject` 即科目（`英语二`、`互联网`）；`title` 是卡片正面（词/概念），`notes` 是背面（释义、例句、解释）。
 - `active = 0` 表示停用，不进入到期队列；v1 不做硬删除，停用即「收起来」。
-- 迁移不替用户补数据。种子仅在空库写入，共 24 张：英语二 16 个高频词、互联网 8 个概念；全部自写释义，不搬运版权词表。种子的 `next_review_on` 为相对今天的混合值（约 7 张今天到期、其余分散在未来 1–14 天），保证首次启动即可复习。
+- 迁移不替用户补数据。种子仅在空库写入，共 24 张：英语二 16 个考研真题高频词（`analyze / significant / consequence / approach / maintain / consume / decline / evidence / factor / indicate / involve / issue / occur / require / respond / tend`），每张配自写的中文释义与一句真题风格例句；互联网 8 个概念（HTTP、DNS、TLS、CDN、缓存、幂等、限流、CAP）。全部自写，不搬运版权词表。
+- 种子的 `next_review_on` 为相对今天的混合值（约 7 张今天到期、其余分散在未来 1–14 天），保证首次启动即可复习。
 
 ## 4. 调度规则（`src/shared/srs.ts`）
 
