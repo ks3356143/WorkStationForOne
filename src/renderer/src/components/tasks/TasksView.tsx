@@ -15,6 +15,7 @@ import { PlusIcon } from '../Glyphs'
 import { dayCapacity } from '../../lib/capacity'
 import { CapacityBar } from './CapacityBar'
 import { PlanningPanel } from './PlanningPanel'
+import { SchedulePreview } from './SchedulePreview'
 import { QuickAdd } from './QuickAdd'
 import { TaskItem } from './TaskItem'
 
@@ -74,6 +75,7 @@ export function TasksView({ notify }: TasksViewProps) {
   const [query, setQuery] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [planningOpen, setPlanningOpen] = useState(false)
+  const [scheduleOpen, setScheduleOpen] = useState(false)
   const now = useNow(60_000)
   const today = dateKey(now)
   const nowMinutes = now.getHours() * 60 + now.getMinutes()
@@ -260,6 +262,9 @@ export function TasksView({ notify }: TasksViewProps) {
           <button className="w1-planbtn" type="button" onClick={() => setPlanningOpen(true)}>
             计划今天
           </button>
+          <button className="w1-planbtn" type="button" onClick={() => setScheduleOpen(true)}>
+            排程预览
+          </button>
         </div>
 
         {scope !== 'done' && !searching ? (
@@ -345,6 +350,22 @@ export function TasksView({ notify }: TasksViewProps) {
           )}
         </div>
       </div>
+
+      {scheduleOpen ? (
+        <SchedulePreview
+          tasks={tasks}
+          today={today}
+          nowMinutes={nowMinutes}
+          onAccept={(changes) => {
+            for (const change of changes) {
+              updateTask(change.taskId, { time: change.time, plannedFor: today })
+            }
+            setScheduleOpen(false)
+            notify(`已排入 ${changes.length} 项时间`)
+          }}
+          onClose={() => setScheduleOpen(false)}
+        />
+      ) : null}
 
       {planningOpen ? (
         <PlanningPanel

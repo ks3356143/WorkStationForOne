@@ -277,6 +277,20 @@ async function run() {
     byText('.w1-planfoot button', '完成')?.click()
     await sleep(300)
     check('计划面板可关闭', !one('.w1-plan'))
+
+    const scheduleButton = byText('button', '排程预览')
+    check('任务区有排程预览入口', Boolean(scheduleButton))
+    scheduleButton?.click()
+    await sleep(400)
+    check('排程预览面板打开', !!one('.w1-sched') && !!one('.w1-schedlist'))
+    check(
+      '排程预览有结果或空态',
+      !!one('.w1-schedempty') || all('.w1-schedblock').length > 0 || all('.w1-schedrow').length > 0,
+      all('.w1-schedblock').length + '/' + all('.w1-schedrow').length
+    )
+    byText('.w1-schedfoot button', '取消')?.click()
+    await sleep(300)
+    check('排程预览可关闭', !one('.w1-sched'))
     setValue(taskSearch, 'auth')
     await sleep(250)
     taskSearch.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
