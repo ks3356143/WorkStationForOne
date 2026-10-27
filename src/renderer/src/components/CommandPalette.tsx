@@ -27,6 +27,7 @@ const ACTION_GLYPH: Record<PaletteCommand['action']['kind'], string> = {
   filter: '▤',
   motion: '◐',
   theme: '◑',
+  review: '◈',
   send: '↵'
 }
 
@@ -46,6 +47,7 @@ export function CommandPalette({ onClose, notify }: CommandPaletteProps) {
   const setFilter = useWorkstation((state) => state.setFilter)
   const toggleMotion = useWorkstation((state) => state.toggleMotion)
   const toggleTheme = useWorkstation((state) => state.toggleTheme)
+  const startLearningReview = useWorkstation((state) => state.startLearningReview)
   const sendMessage = useWorkstation((state) => state.sendMessage)
 
   const [query, setQuery] = useState('')
@@ -100,6 +102,10 @@ export function CommandPalette({ onClose, notify }: CommandPaletteProps) {
       case 'theme':
         toggleTheme()
         notify(theme === 'dark' ? '已切换到白天模式' : '已切换到夜间模式')
+        break
+      case 'review':
+        startLearningReview()
+        notify('已进入复习')
         break
       case 'send':
         if (!activeSession) break

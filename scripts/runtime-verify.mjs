@@ -371,10 +371,51 @@ const expectedWindow = {
 }
 
 const VIEW_EXPECTATIONS = {
-  today: { active: '今日', hasMain: true, hasTasks: false, hasAgent: false, hasNotes: false },
-  tasks: { active: '任务', hasMain: false, hasTasks: true, hasAgent: false, hasNotes: false },
-  agent: { active: 'Agent', hasMain: false, hasTasks: false, hasAgent: true, hasNotes: false },
-  notes: { active: '笔记', hasMain: false, hasTasks: false, hasAgent: false, hasNotes: true }
+  today: {
+    active: '今日',
+    hasMain: true,
+    hasTasks: false,
+    hasAgent: false,
+    hasNotes: false,
+    hasLearning: false,
+    hasReview: false
+  },
+  tasks: {
+    active: '任务',
+    hasMain: false,
+    hasTasks: true,
+    hasAgent: false,
+    hasNotes: false,
+    hasLearning: false,
+    hasReview: false
+  },
+  agent: {
+    active: 'Agent',
+    hasMain: false,
+    hasTasks: false,
+    hasAgent: true,
+    hasNotes: false,
+    hasLearning: false,
+    hasReview: false
+  },
+  notes: {
+    active: '笔记',
+    hasMain: false,
+    hasTasks: false,
+    hasAgent: false,
+    hasNotes: true,
+    hasLearning: false,
+    hasReview: false
+  },
+  learning: {
+    active: '学习',
+    hasMain: false,
+    hasTasks: false,
+    hasAgent: false,
+    hasNotes: false,
+    hasLearning: true,
+    hasReview: false
+  }
 }
 
 const navStateExpr = `(() => {
@@ -396,6 +437,8 @@ const navStateExpr = `(() => {
     hasTasks: Boolean(document.querySelector('.w1-todos')),
     hasAgent: Boolean(document.querySelector('.w1-agent')),
     hasNotes: Boolean(document.querySelector('.w1-notesview')),
+    hasLearning: Boolean(document.querySelector('.w1-learn')),
+    hasReview: Boolean(document.querySelector('.w1-lreview')),
     hasRail: Boolean(rail),
     hasDock: Boolean(dock),
     hasNvBox: Boolean(nvbox),
@@ -581,6 +624,52 @@ async function createRuntimeTask() {
   await clickNav('今日')
 }
 
+async function verifyLearningReview() {
+  await clickNav('学习')
+  const result = await pageEval(
+    `(async () => {
+      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+      document.querySelector('.w1-lrevbtn')?.click()
+      await wait(600)
+      const inReview = Boolean(document.querySelector('.w1-lreview'))
+      const title = document.querySelector('.w1-lcardtitle')?.textContent?.trim() ?? ''
+      const before = (await window.ws.learning.list()).find((item) => item.title === title)
+      if (!before) return { error: '找不到当前卡片', title }
+
+      document.querySelector('.w1-lcard')?.click()
+      await wait(450)
+      const flipped = Boolean(document.querySelector('.w1-lcard.flipped'))
+      const good = [...document.querySelectorAll('.w1-lrate')].find((el) => el.textContent.includes('良好'))
+      good?.click()
+      await wait(900)
+      const after = (await window.ws.learning.list()).find((item) => item.id === before.id)
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
+      await wait(500)
+      return {
+        inReview,
+        flipped,
+        title,
+        before,
+        after,
+        backToLibrary: !document.querySelector('.w1-lreview') && Boolean(document.querySelector('.w1-learn'))
+      }
+    })()`,
+    'learning review'
+  )
+
+  record('运行时：进入复习态', result?.inReview === true, result)
+  record('运行时：翻面可看到背面', result?.flipped === true, result?.flipped)
+  record(
+    '运行时：评分后间隔与复习日前移',
+    Boolean(result?.after) &&
+      result.after.repetitions === result.before.repetitions + 1 &&
+      result.after.nextReviewOn > result.before.nextReviewOn,
+    result ? { title: result.title, before: result.before, after: result.after } : result
+  )
+  record('运行时：Esc 回到卡片库', result?.backToLibrary === true, result?.backToLibrary)
+  await clickNav('今日')
+}
+
 async function verifyAndRemoveRuntimeTask() {
   if (!runtimeTask) {
     record('运行时：重启后仍能读回任务', false, '未创建任务')
@@ -642,13 +731,17 @@ async function assertView(view, label) {
       state.hasMain === expected.hasMain &&
       state.hasTasks === expected.hasTasks &&
       state.hasAgent === expected.hasAgent &&
-      state.hasNotes === expected.hasNotes,
+      state.hasNotes === expected.hasNotes &&
+      state.hasLearning === expected.hasLearning &&
+      state.hasReview === expected.hasReview,
     {
       viewCount: state.viewCount,
       main: state.hasMain,
       tasks: state.hasTasks,
       agent: state.hasAgent,
-      notes: state.hasNotes
+      notes: state.hasNotes,
+      learning: state.hasLearning,
+      review: state.hasReview
     }
   )
   record(
@@ -735,8 +828,8 @@ async function auditNavigation(label, { expectDefault = true } = {}) {
     )
   }
   record(
-    `${label}：主导航为 今日/任务/Agent/笔记`,
-    JSON.stringify(initial.labels) === JSON.stringify(['今日', '任务', 'Agent', '笔记']),
+    `${label}：主导航为 今日/任务/Agent/笔记/学习`,
+    JSON.stringify(initial.labels) === JSON.stringify(['今日', '任务', 'Agent', '笔记', '学习']),
     initial.labels
   )
   const today = await assertView('today', `${label} 今日`)
@@ -746,14 +839,21 @@ async function auditNavigation(label, { expectDefault = true } = {}) {
   const agent = await assertView('agent', `${label} Agent`)
   await clickNav('笔记')
   const notes = await assertView('notes', `${label} 笔记`)
+  await clickNav('学习')
+  const learning = await assertView('learning', `${label} 学习`)
   await clickNav('今日')
   const back = await pageEval(navStateExpr, `${label} back to today`)
   record(
-    `${label}：返回今日后任务/Agent/笔记 DOM 已卸载`,
-    back.active === '今日' && back.hasMain && !back.hasTasks && !back.hasAgent && !back.hasNotes,
+    `${label}：返回今日后任务/Agent/笔记/学习 DOM 已卸载`,
+    back.active === '今日' &&
+      back.hasMain &&
+      !back.hasTasks &&
+      !back.hasAgent &&
+      !back.hasNotes &&
+      !back.hasLearning,
     back.active
   )
-  return { initial, today, tasks, agent, notes, back }
+  return { initial, today, tasks, agent, notes, learning, back }
 }
 
 async function auditPaletteNavigation(label) {
@@ -835,6 +935,7 @@ async function measureViewPerformance() {
         tasks: await measure('任务'),
         agent: await measure('Agent'),
         notes: await measure('笔记'),
+        learning: await measure('学习'),
         today: await measure('今日')
       }
     })()`,
@@ -853,15 +954,15 @@ async function measureViewPerformance() {
     styleRecalcs: after.RecalcStyleCount - before.RecalcStyleCount,
     nodes: after.Nodes
   }
-  const worst = Math.max(timing.tasks, timing.agent, timing.notes, timing.today)
+  const worst = Math.max(timing.tasks, timing.agent, timing.notes, timing.learning, timing.today)
   record(
-    '四视图切换均在 120ms 内完成首帧',
+    '五视图切换均在 120ms 内完成首帧',
     worst <= 120,
-    `任务 ${timing.tasks}ms · Agent ${timing.agent}ms · 笔记 ${timing.notes}ms · 今日 ${timing.today}ms`
+    `任务 ${timing.tasks}ms · Agent ${timing.agent}ms · 笔记 ${timing.notes}ms · 学习 ${timing.learning}ms · 今日 ${timing.today}ms`
   )
   record(
-    '四视图往返布局次数可控',
-    delta.layouts <= 80,
+    '五视图往返布局次数可控',
+    delta.layouts <= 100,
     `layout +${delta.layouts} · style +${delta.styleRecalcs}`
   )
   return { timing, delta }
@@ -1447,6 +1548,7 @@ async function main() {
   const navigation = await auditNavigation('启动')
   phases[0].navigation = navigation
   await createRuntimeTask()
+  await verifyLearningReview()
 
   const security = await pageEval(
     `(() => ({
@@ -1463,10 +1565,10 @@ async function main() {
   record('渲染进程无 Node require', security.require === 'undefined', security.require)
   record('渲染进程无 process', security.process === 'undefined', security.process)
   record(
-    'preload 桥仅暴露窄接口（tasks/notes/capture/app.setTheme）',
+    'preload 桥仅暴露窄接口（tasks/notes/capture/learning/app.setTheme）',
     security.invoke === 'function' &&
       !security.dbAccess &&
-      [...security.wsKeys].sort().join() === 'app,capture,notes,tasks' &&
+      [...security.wsKeys].sort().join() === 'app,capture,learning,notes,tasks' &&
       security.appKeys.join() === 'setTheme',
     security
   )
@@ -1830,7 +1932,8 @@ async function main() {
       p3Nav.hasMain &&
       !p3Nav.hasTasks &&
       !p3Nav.hasAgent &&
-      !p3Nav.hasNotes,
+      !p3Nav.hasNotes &&
+      !p3Nav.hasLearning,
     p3Nav.active
   )
   const finalMetrics = await pageEval(metricsExpr, 'final metrics')

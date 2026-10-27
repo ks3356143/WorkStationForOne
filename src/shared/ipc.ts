@@ -98,6 +98,47 @@ export interface CaptureApi {
   create: (draft: TaskDraft) => Promise<TaskRecord>
 }
 
+export interface LearningItemRecord {
+  id: string
+  subject: string
+  title: string
+  source?: string
+  notes?: string
+  repetitions: number
+  intervalDays: number
+  ease: number
+  nextReviewOn: string
+  lastReviewedAt?: number
+  active: boolean
+}
+
+export interface LearningDraft {
+  subject: string
+  title: string
+  source?: string
+  notes?: string
+  nextReviewOn?: string
+}
+
+export interface LearningPatch {
+  subject?: string
+  title?: string
+  source?: string
+  notes?: string
+  nextReviewOn?: string
+  active?: boolean
+}
+
+export type LearningRating = 1 | 2 | 3 | 4
+
+export interface LearningApi {
+  list: () => Promise<LearningItemRecord[]>
+  bootstrap: (items: LearningItemRecord[]) => Promise<void>
+  create: (draft: LearningDraft) => Promise<LearningItemRecord>
+  update: (id: string, patch: LearningPatch) => Promise<void>
+  review: (id: string, rating: LearningRating) => Promise<LearningItemRecord>
+}
+
 export interface AppApi {
   setTheme: (theme: Theme) => Promise<void>
 }
@@ -106,6 +147,7 @@ export interface WsApi {
   tasks: TaskApi
   notes: NoteApi
   capture: CaptureApi
+  learning: LearningApi
   app: AppApi
 }
 
@@ -127,5 +169,10 @@ export const IPC_CHANNELS = {
   captureOpen: 'capture:open',
   captureClose: 'capture:close',
   captureCreate: 'capture:create',
+  learningList: 'learning:list',
+  learningBootstrap: 'learning:bootstrap',
+  learningCreate: 'learning:create',
+  learningUpdate: 'learning:update',
+  learningReview: 'learning:review',
   appSetTheme: 'app:set-theme'
 } as const

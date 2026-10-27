@@ -1,10 +1,21 @@
+import { dateKey } from '../../../shared/date-key'
+import { dueQueue, estimatedMinutes, subjectStacks } from '../lib/learning'
+import { useNow } from '../lib/useNow'
 import { useWorkstation } from '../store/useWorkstation'
 
+const PALETTE = ['var(--ac)', 'var(--ac2)', 'var(--su)']
+
 export function ReviewCard() {
-  const startFocus = useWorkstation((state) => state.startFocus)
+  const learningItems = useWorkstation((state) => state.learningItems)
+  const startLearningReview = useWorkstation((state) => state.startLearningReview)
+  const setView = useWorkstation((state) => state.setView)
+  const now = useNow(60_000)
+  const due = dueQueue(learningItems, dateKey(now))
+  const minutes = estimatedMinutes(due.length)
+  const stacks = subjectStacks(due, 3)
 
   return (
-    <section className="w1-card">
+    <section className="w1-card w1-review" aria-label="学习与复习">
       <div className="w1-ct">
         <b>
           <em>//</em>学习与复习
@@ -13,27 +24,46 @@ export function ReviewCard() {
       </div>
 
       <div className="w1-numrow">
-        <span className="w1-big">12</span>
+        <span className="w1-big">{due.length}</span>
         <span className="w1-unit">
           张卡到期
           <br />
-          预计 18 分钟
+          {due.length > 0 ? `预计 ${minutes} 分钟` : '今天没有到期卡片'}
         </span>
       </div>
 
-      <div className="w1-rbar">
-        <i style={{ width: '42%', background: '#7C5CFF', opacity: 0.85 }} />
-        <i style={{ width: '33%', background: '#2DE2E6', opacity: 0.7 }} />
-        <i style={{ width: '25%', background: '#5B6C8A', opacity: 0.7 }} />
-      </div>
-      <div className="w1-rmeta">
-        <span>线代 5</span>
-        <span>概率论 4</span>
-        <span>英语 3</span>
-      </div>
+      {stacks.length > 0 ? (
+        <>
+          <div className="w1-rbar">
+            {stacks.map((stack, index) => (
+              <i
+                key={stack.subject}
+                style={{
+                  width: `${(stack.share * 100).toFixed(2)}%`,
+                  background: PALETTE[Math.min(index, PALETTE.length - 1)],
+                  opacity: 0.85 - index * 0.12
+                }}
+              />
+            ))}
+          </div>
+          <div className="w1-rmeta">
+            {stacks.map((stack) => (
+              <span key={stack.subject}>
+                {stack.subject} {stack.count}
+              </span>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="w1-rempty">今天没有到期卡片，可以去卡片库补几张。</div>
+      )}
 
-      <button className="w1-rbtn" type="button" onClick={() => startFocus('复习 · 12 张卡', 18)}>
-        开始复习 <span>约 18 分钟 →</span>
+      <button
+        className="w1-rbtn"
+        type="button"
+        onClick={() => (due.length > 0 ? startLearningReview() : setView('learning'))}
+      >
+        开始复习 <span>{due.length > 0 ? `约 ${minutes} 分钟 →` : '查看卡片库 →'}</span>
       </button>
     </section>
   )

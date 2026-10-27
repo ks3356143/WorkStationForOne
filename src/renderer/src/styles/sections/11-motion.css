@@ -69,7 +69,8 @@
 .w1-modal,
 .w1-palette,
 .w1-focus-box,
-.w1-toast {
+.w1-toast,
+.w1-lcard {
   --glass-rim: conic-gradient(from var(--edge-angle), var(--glass-edge));
   --glass-rim-hot: conic-gradient(from var(--edge-angle), var(--glass-edge-hot));
 }

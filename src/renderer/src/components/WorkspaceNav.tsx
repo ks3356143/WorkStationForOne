@@ -1,10 +1,11 @@
 import { dateKey } from '../../../shared/date-key'
 import { summarizeFleet } from '../lib/fleet'
+import { dueQueue } from '../lib/learning'
 import { useNow } from '../lib/useNow'
 import { useWorkstation } from '../store/useWorkstation'
 import type { View } from '../types'
 import { FleetStrip } from './FleetStrip'
-import { AgentIcon, NotesIcon, SettingsIcon, TasksIcon, TodayIcon } from './Glyphs'
+import { AgentIcon, LearningIcon, NotesIcon, SettingsIcon, TasksIcon, TodayIcon } from './Glyphs'
 
 interface WorkspaceNavProps {
   notify: (text: string) => void
@@ -14,7 +15,8 @@ const VIEWS: { id: View; label: string; index: string; Icon: typeof TodayIcon }[
   { id: 'today', label: '今日', index: '01', Icon: TodayIcon },
   { id: 'tasks', label: '任务', index: '02', Icon: TasksIcon },
   { id: 'agent', label: 'Agent', index: '03', Icon: AgentIcon },
-  { id: 'notes', label: '笔记', index: '04', Icon: NotesIcon }
+  { id: 'notes', label: '笔记', index: '04', Icon: NotesIcon },
+  { id: 'learning', label: '学习', index: '05', Icon: LearningIcon }
 ]
 
 export function WorkspaceNav({ notify }: WorkspaceNavProps) {
@@ -22,6 +24,7 @@ export function WorkspaceNav({ notify }: WorkspaceNavProps) {
   const setView = useWorkstation((state) => state.setView)
   const sessions = useWorkstation((state) => state.sessions)
   const tasks = useWorkstation((state) => state.tasks)
+  const learningItems = useWorkstation((state) => state.learningItems)
   const noteCount = useWorkstation((state) => state.noteTotal)
   const now = useNow(60_000)
   const today = dateKey(now)
@@ -30,13 +33,15 @@ export function WorkspaceNav({ notify }: WorkspaceNavProps) {
     (count, task) => count + (!task.done && task.dueDate && task.dueDate <= today ? 1 : 0),
     0
   )
+  const dueCount = dueQueue(learningItems, today).length
 
   const fleet = summarizeFleet(sessions)
   const meta: Record<View, string> = {
     today: `${todayCount} 项今日`,
     tasks: `${todoCount} 项待办`,
     agent: fleet.waiting > 0 ? `${fleet.waiting} 个待确认` : `${sessions.length} 个会话`,
-    notes: `${noteCount} 条记录`
+    notes: `${noteCount} 条记录`,
+    learning: dueCount > 0 ? `${dueCount} 张到期` : '今日已完成'
   }
 
   return (

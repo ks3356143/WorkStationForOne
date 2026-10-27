@@ -11,6 +11,7 @@ import { AgentDock } from './components/agent/AgentDock'
 import { BootOverlay } from './components/BootOverlay'
 import { CommandPalette } from './components/CommandPalette'
 import { FocusOverlay } from './components/FocusOverlay'
+import { LearningWorkspace } from './components/learning/LearningWorkspace'
 import { NotesView } from './components/NotesView'
 import { QuickNoteModal } from './components/QuickNoteModal'
 import { SessionRail } from './components/SessionRail'
@@ -23,6 +24,7 @@ import { useWorkstation } from './store/useWorkstation'
 import { DURATION, EASE_OUT } from './lib/motion'
 import { hydrateTasks, refreshTasks } from './lib/persistence'
 import { hydrateNotes } from './lib/notes-persistence'
+import { hydrateLearning } from './lib/learning-persistence'
 import { useDemoReply } from './lib/useDemoReply'
 
 export default function App() {
@@ -78,6 +80,7 @@ export default function App() {
   useEffect(() => {
     void hydrateTasks()
     void hydrateNotes()
+    void hydrateLearning()
   }, [])
 
   useEffect(() => {
@@ -176,6 +179,7 @@ export default function App() {
                   </section>
                 ) : null}
                 {activeView === 'notes' ? <NotesView /> : null}
+                {activeView === 'learning' ? <LearningWorkspace /> : null}
               </div>
             </main>
           </div>

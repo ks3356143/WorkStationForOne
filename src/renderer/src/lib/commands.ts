@@ -13,6 +13,7 @@ export type PaletteAction =
   | { kind: 'filter'; filter: TaskFilter }
   | { kind: 'motion' }
   | { kind: 'theme' }
+  | { kind: 'review' }
   | { kind: 'send'; text: string }
 
 export interface PaletteCommand {
@@ -97,6 +98,22 @@ export function buildPaletteCommands(input: PaletteInput): PaletteCommand[] {
       hint: '工作区',
       value: '全部笔记 笔记 搜索 notes',
       action: { kind: 'view', view: 'notes' }
+    },
+    {
+      id: 'view:learning',
+      group: '导航',
+      label: '打开学习卡片库',
+      hint: '工作区',
+      value: '学习 卡片库 复习 闪卡 learning cards',
+      action: { kind: 'view', view: 'learning' }
+    },
+    {
+      id: 'action:review',
+      group: '操作',
+      label: '开始复习',
+      hint: '间隔重复',
+      value: '开始复习 闪卡 学习 review study',
+      action: { kind: 'review' }
     },
     {
       id: 'action:note',

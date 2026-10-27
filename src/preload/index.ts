@@ -32,6 +32,13 @@ const api: WsApi = {
     close: () => ipcRenderer.invoke(IPC_CHANNELS.captureClose),
     create: (draft) => ipcRenderer.invoke(IPC_CHANNELS.captureCreate, draft)
   },
+  learning: {
+    list: () => ipcRenderer.invoke(IPC_CHANNELS.learningList),
+    bootstrap: (items) => ipcRenderer.invoke(IPC_CHANNELS.learningBootstrap, items),
+    create: (draft) => ipcRenderer.invoke(IPC_CHANNELS.learningCreate, draft),
+    update: (id, patch) => ipcRenderer.invoke(IPC_CHANNELS.learningUpdate, id, patch),
+    review: (id, rating) => ipcRenderer.invoke(IPC_CHANNELS.learningReview, id, rating)
+  },
   app: {
     setTheme: (theme) => ipcRenderer.invoke(IPC_CHANNELS.appSetTheme, theme)
   }

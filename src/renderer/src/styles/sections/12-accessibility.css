@@ -76,9 +76,11 @@
   .w1-modal,
   .w1-focus-box,
   .w1-palette,
+  .w1-lcard,
   :root[data-theme="light"] .w1-modal,
   :root[data-theme="light"] .w1-focus-box,
-  :root[data-theme="light"] .w1-palette {
+  :root[data-theme="light"] .w1-palette,
+  :root[data-theme="light"] .w1-lcard {
     border-color: rgb(var(--ac-rgb) / 0.28);
     background: var(--panel-solid);
     background-image: none;

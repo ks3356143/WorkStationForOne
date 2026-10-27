@@ -2,12 +2,14 @@ import { app } from 'electron'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { migrate, openDatabase } from './database'
+import { LearningRepository } from './learning'
 import { NoteRepository } from './notes'
 import { TaskRepository } from './tasks'
 
 export interface DatabaseContext {
   tasks: TaskRepository
   notes: NoteRepository
+  learning: LearningRepository
   close: () => void
 }
 
@@ -20,6 +22,7 @@ export function initDatabase(): DatabaseContext {
   return {
     tasks: new TaskRepository(db),
     notes: new NoteRepository(db),
+    learning: new LearningRepository(db),
     close: () => db.close()
   }
 }

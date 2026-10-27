@@ -49,22 +49,29 @@ describe('buildPaletteCommands', () => {
     expect(sessionCommands[1].hint).not.toContain('当前')
   })
 
-  it('导航命令覆盖四个工作区', () => {
+  it('导航命令覆盖五个工作区', () => {
     const navigation = buildPaletteCommands(base).filter((command) => command.group === '导航')
 
     expect(navigation.map((command) => command.id)).toEqual([
       'view:today',
       'view:tasks',
       'view:agent',
-      'view:notes'
+      'view:notes',
+      'view:learning'
     ])
     expect(navigation.map((command) => command.action)).toEqual([
       { kind: 'view', view: 'today' },
       { kind: 'view', view: 'tasks' },
       { kind: 'view', view: 'agent' },
-      { kind: 'view', view: 'notes' }
+      { kind: 'view', view: 'notes' },
+      { kind: 'view', view: 'learning' }
     ])
     expect(navigation.every((command) => command.hint === '工作区')).toBe(true)
+  })
+
+  it('操作命令包含开始复习', () => {
+    const review = buildPaletteCommands(base).find((command) => command.id === 'action:review')
+    expect(review).toMatchObject({ group: '操作', action: { kind: 'review' } })
   })
 
   it('操作命令包含笔记、任务、专注、动效、主题与三种筛选', () => {

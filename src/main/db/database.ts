@@ -135,6 +135,39 @@ export const MIGRATIONS: Migration[] = [
         CHECK (estimate_minutes BETWEEN 0 AND 480);
       CREATE INDEX idx_tasks_planned ON tasks(planned_for, deleted_at);
     `
+  },
+  {
+    // 学习域：复习日按本地日期键存，与任务 due_date 同一套约定。
+    version: 7,
+    sql: `
+      CREATE TABLE learning_items (
+        id TEXT PRIMARY KEY,
+        subject TEXT NOT NULL,
+        title TEXT NOT NULL,
+        source TEXT NOT NULL DEFAULT '',
+        notes TEXT NOT NULL DEFAULT '',
+        repetitions INTEGER NOT NULL DEFAULT 0 CHECK (repetitions >= 0),
+        interval_days INTEGER NOT NULL DEFAULT 0 CHECK (interval_days BETWEEN 0 AND 365),
+        ease REAL NOT NULL DEFAULT 2.5 CHECK (ease BETWEEN 1.3 AND 3.0),
+        next_review_on TEXT NOT NULL CHECK (next_review_on GLOB '????-??-??'),
+        last_reviewed_at INTEGER,
+        active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE INDEX idx_learning_due ON learning_items(active, next_review_on);
+      CREATE INDEX idx_learning_subject ON learning_items(subject, active);
+
+      CREATE TABLE learning_reviews (
+        id TEXT PRIMARY KEY,
+        item_id TEXT NOT NULL REFERENCES learning_items(id) ON DELETE CASCADE,
+        rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 4),
+        reviewed_at INTEGER NOT NULL
+      );
+
+      CREATE INDEX idx_learning_reviews_item ON learning_reviews(item_id, reviewed_at DESC);
+    `
   }
 ]
 

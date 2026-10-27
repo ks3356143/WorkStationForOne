@@ -4,6 +4,7 @@ import { app, BrowserWindow, session, shell } from 'electron'
 import { initDatabase, type DatabaseContext } from './db'
 import { disposeCaptureShortcut, registerCaptureHandlers, registerCaptureShortcut } from './capture'
 import { registerAppHandlers, TITLE_BAR_HEIGHT, WINDOW_PALETTE } from './ipc/app'
+import { registerLearningHandlers } from './ipc/learning'
 import { registerNoteHandlers } from './ipc/notes'
 import { registerTaskHandlers } from './ipc/tasks'
 
@@ -102,6 +103,7 @@ if (!gotTheLock) {
     registerAppHandlers()
     registerTaskHandlers(database.tasks)
     registerNoteHandlers(database.notes)
+    registerLearningHandlers(database.learning)
     registerCaptureHandlers(database.tasks)
     registerCaptureShortcut()
 

@@ -107,17 +107,19 @@ async function run() {
       window.__smokeProgress = checks.map((item) => item.name)
     }
 
-    check('左侧导航四个入口', all('.w1-navitem').length === 4, String(all('.w1-navitem').length))
+    check('左侧导航五个入口', all('.w1-navitem').length === 5, String(all('.w1-navitem').length))
     check(
       'preload 桥可用（真实 IPC 路径）',
-      typeof window.ws?.tasks?.list === 'function' && typeof window.ws?.notes?.page === 'function',
+      typeof window.ws?.tasks?.list === 'function' &&
+        typeof window.ws?.notes?.page === 'function' &&
+        typeof window.ws?.learning?.list === 'function',
       typeof window.ws
     )
     check(
-      '导航顺序为今日任务 Agent 笔记',
+      '导航顺序为今日任务 Agent 笔记 学习',
       all('.w1-navitem .w1-navtext b')
         .map((el) => el.textContent?.trim())
-        .join('/') === '今日/任务/Agent/笔记',
+        .join('/') === '今日/任务/Agent/笔记/学习',
       all('.w1-navitem .w1-navtext b')
         .map((el) => el.textContent?.trim())
         .join('/')
@@ -174,7 +176,7 @@ async function run() {
     check('导航切换到任务', activeNav() === '任务' && !!one('.w1-todos'), activeNav())
     check(
       '任务工作区与其他视图互斥',
-      !one('.w1-main') && !one('.w1-agent') && !one('.w1-notesview'),
+      !one('.w1-main') && !one('.w1-agent') && !one('.w1-notesview') && !one('.w1-learn'),
       activeNav()
     )
     check(
@@ -683,7 +685,134 @@ async function run() {
     await sleep(400)
     check('Esc 不关闭笔记工作区', activeNav() === '笔记' && !!one('.w1-notesview'), activeNav())
 
+    // ---------- 学习域 ----------
+    await navTo('学习')
+    check('导航切换到学习', activeNav() === '学习' && !!one('.w1-learn'), activeNav())
+    check(
+      '学习与其他视图互斥',
+      !one('.w1-main') && !one('.w1-todos') && !one('.w1-agent') && !one('.w1-notesview'),
+      activeNav()
+    )
+    check('学习左栏列出科目', all('.w1-learnrail .w1-todorow').length >= 3, String(all('.w1-learnrail .w1-todorow').length))
+    check(
+      '学习科目按卡片数降序（全部/英语二/互联网/已停用）',
+      all('.w1-learnrail .w1-todolabel').map((node) => node.textContent).join('/') ===
+        '全部/英语二/互联网/已停用',
+      all('.w1-learnrail .w1-todolabel').map((node) => node.textContent).join('/')
+    )
+    check(
+      '学习默认列出全部卡片',
+      all('.w1-litem').length >= 20,
+      String(all('.w1-litem').length)
+    )
+    check(
+      '学习顶部显示到期数与时长',
+      one('.w1-learnmain .w1-todosub')?.textContent?.includes('分钟') ?? false,
+      one('.w1-learnmain .w1-todosub')?.textContent ?? ''
+    )
+
+    const learnSearch = one('.w1-learnmain .w1-todosearch input')
+    setValue(learnSearch, 'analyze')
+    await sleep(350)
+    check(
+      '卡片搜索命中正面',
+      all('.w1-litem').length === 1 && one('.w1-ltitle')?.textContent === 'analyze',
+      String(all('.w1-litem').length)
+    )
+    learnSearch.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
+    await sleep(300)
+    check('卡片搜索 Esc 清空', learnSearch.value === '' && all('.w1-litem').length >= 20, learnSearch.value)
+
+    byText('.w1-learnrail .w1-todorow', '互联网')?.click()
+    await sleep(350)
+    check(
+      '按科目收窄卡片',
+      all('.w1-litem').length === 8,
+      String(all('.w1-litem').length)
+    )
+    byText('.w1-learnrail .w1-todorow', '全部')?.click()
+    await sleep(350)
+
+    byText('.w1-learnrail button', '新建')?.click()
+    await sleep(300)
+    check('新建卡片表单内联展开', !!one('.w1-lnew'))
+    setValue(one('#learn-new-subject'), '互联网')
+    setValue(one('#learn-new-title'), '幂等键')
+    setValue(one('#learn-new-notes'), '用于支付类接口去重')
+    byText('.w1-lnew button', '保存卡片')?.click()
+    await sleep(600)
+    check(
+      '新建卡片出现在列表',
+      all('.w1-litem').some((el) => el.textContent?.includes('幂等键')) && !one('.w1-lnew'),
+      String(all('.w1-litem').length)
+    )
+
+    const dueBefore = Number(one('.w1-learnmain .w1-todosub b')?.textContent ?? -1)
+    const reviewBtn = one('.w1-lrevbtn')
+    check('卡片库有开始复习入口', Boolean(reviewBtn))
+    reviewBtn?.click()
+    await sleep(600)
+    check('进入复习态', !!one('.w1-lreview') && !!one('.w1-lcard'))
+    check(
+      '复习卡默认显示正面',
+      one('.w1-lfront')?.textContent?.includes('正面') ?? false,
+      one('.w1-lfront')?.textContent?.slice(0, 40) ?? ''
+    )
+    check(
+      '复习进度显示当前张数',
+      /\\d+\\s*\\/\\s*\\d+/.test(one('.w1-lrevcount')?.textContent ?? ''),
+      one('.w1-lrevcount')?.textContent ?? ''
+    )
+    check(
+      '未翻面时评分禁用',
+      all('.w1-lrate').every((el) => el.disabled),
+      String(all('.w1-lrate').filter((el) => el.disabled).length)
+    )
+
+    one('.w1-lcard')?.click()
+    await sleep(500)
+    check(
+      '点击翻面显示背面',
+      one('.w1-lfront')?.style.opacity === '0' && !!one('.w1-lcardnotes'),
+      one('.w1-lfront')?.style.opacity ?? ''
+    )
+    check(
+      '翻面后评分可用并显示间隔',
+      all('.w1-lrate').every((el) => !el.disabled) &&
+        all('.w1-lrate span').every((el) => /\\d+\\s*天|今天/.test(el.textContent ?? '')),
+      all('.w1-lrate span').map((el) => el.textContent).join('/')
+    )
+
+    const queueSizeBefore = all('.w1-lrate').length
+    byText('.w1-lrate', '良好')?.click()
+    await sleep(700)
+    const advanced = one('.w1-lrevcount')?.textContent ?? ''
+    check('评分后进入下一张', queueSizeBefore === 4 && advanced.length > 0, advanced)
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
+    await sleep(500)
+    check(
+      'Esc 退出复习回到卡片库',
+      !one('.w1-lreview') && !!one('.w1-learn') && activeNav() === '学习',
+      activeNav()
+    )
+
+    const dueAfter = Number(one('.w1-learnmain .w1-todosub b')?.textContent ?? -1)
+    check('评分后到期数减少', dueAfter === dueBefore - 1, dueBefore + ' -> ' + dueAfter)
+
     await navTo('今日')
+    check(
+      '今日学习卡显示真实到期数',
+      one('.w1-review .w1-big')?.textContent === String(dueAfter),
+      (one('.w1-review .w1-big')?.textContent ?? '') + ' vs ' + dueAfter
+    )
+    one('.w1-review .w1-rbtn')?.click()
+    await sleep(600)
+    check('今日卡可开始复习', !!one('.w1-lreview') && activeNav() === '学习', activeNav())
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
+    await sleep(450)
+    await navTo('今日')
+
     one('.w1-motion')?.focus()
     await openPalette()
     const sendInput = one('.w1-paletteinput')
@@ -791,13 +920,17 @@ async function run() {
     const count = (sql) => Number(db.prepare(sql).get().n)
     dbStats = {
       tasks: count('SELECT COUNT(*) AS n FROM tasks WHERE deleted_at IS NULL'),
-      notes: count('SELECT COUNT(*) AS n FROM notes')
+      notes: count('SELECT COUNT(*) AS n FROM notes'),
+      learning: count('SELECT COUNT(*) AS n FROM learning_items'),
+      reviews: count('SELECT COUNT(*) AS n FROM learning_reviews')
     }
     db.close()
   } catch (error) {
     console.error(`[smoke] 读取临时数据库失败：${error}`)
   }
-  const dbReady = Boolean(dbStats && dbStats.tasks > 0 && dbStats.notes > 0)
+  const dbReady = Boolean(
+    dbStats && dbStats.tasks > 0 && dbStats.notes > 0 && dbStats.learning > 0 && dbStats.reviews > 0
+  )
   const failed = results.checks.filter((check) => !check.ok)
   const failures = failed.length + (dbReady ? 0 : 1)
   console.log(

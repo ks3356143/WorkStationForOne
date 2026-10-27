@@ -5,7 +5,11 @@ const [target = '.screenshots/shell.png', width = '1440', height = '900', ...ext
   process.argv.slice(2)
 const isTheme = (value) => value === 'dark' || value === 'light'
 const isView = (value) =>
-  value === 'today' || value === 'tasks' || value === 'agent' || value === 'notes'
+  value === 'today' ||
+  value === 'tasks' ||
+  value === 'agent' ||
+  value === 'notes' ||
+  value === 'learning'
 const isSkin = (value) => value === 'prism' || value === 'classic'
 const audit = extras.find((value) => !isTheme(value) && !isView(value) && !isSkin(value))
 

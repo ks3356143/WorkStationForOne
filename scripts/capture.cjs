@@ -8,14 +8,24 @@ const height = Number(process.argv[4]) || 900
 const extras = process.argv.slice(5)
 const isTheme = (value) => value === 'dark' || value === 'light'
 const isView = (value) =>
-  value === 'today' || value === 'tasks' || value === 'agent' || value === 'notes'
+  value === 'today' ||
+  value === 'tasks' ||
+  value === 'agent' ||
+  value === 'notes' ||
+  value === 'learning'
 const isSkin = (value) => value === 'prism' || value === 'classic'
 const theme = extras.filter(isTheme).at(-1) ?? 'dark'
 const view = extras.filter(isView).at(-1) ?? 'today'
 const skin = extras.filter(isSkin).at(-1) ?? 'prism'
 const auditArg = extras.find((value) => !isTheme(value) && !isView(value) && !isSkin(value))
 const auditPath = auditArg ? resolve(auditArg) : null
-const VIEW_LABELS = { today: '今日', tasks: '任务', agent: 'Agent', notes: '笔记' }
+const VIEW_LABELS = {
+  today: '今日',
+  tasks: '任务',
+  agent: 'Agent',
+  notes: '笔记',
+  learning: '学习'
+}
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms))
 

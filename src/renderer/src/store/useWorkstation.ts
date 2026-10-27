@@ -1,6 +1,16 @@
 import { create } from 'zustand'
-import type { TaskDraft, TaskPatch } from '../../../shared/ipc'
+import type {
+  LearningDraft,
+  LearningItemRecord,
+  LearningPatch,
+  LearningRating,
+  TaskDraft,
+  TaskPatch
+} from '../../../shared/ipc'
 import { createInitialData } from '../data/mock'
+import { dateKey } from '../../../shared/date-key'
+import { dueQueue } from '../lib/learning'
+import { scheduleReview } from '../../../shared/srs'
 import { getTodayIndex } from '../lib/date'
 import {
   browserStorage,
@@ -14,6 +24,8 @@ import {
 import type {
   ChatMessage,
   FocusSession,
+  LearningItem,
+  LearningScope,
   Note,
   ResolutionRecord,
   Session,
@@ -45,8 +57,15 @@ interface NotePersistence {
   create: (text: string, tag?: string) => Promise<Note>
 }
 
+interface LearningPersistence {
+  create: (draft: LearningDraft) => Promise<LearningItemRecord>
+  update: (id: string, patch: LearningPatch) => Promise<void>
+  review: (id: string, rating: LearningRating) => Promise<LearningItemRecord>
+}
+
 let persistence: TaskPersistence | null = null
 let notePersistence: NotePersistence | null = null
+let learningPersistence: LearningPersistence | null = null
 
 export function bindTaskPersistence(next: TaskPersistence | null): void {
   persistence = next
@@ -54,6 +73,10 @@ export function bindTaskPersistence(next: TaskPersistence | null): void {
 
 export function bindNotePersistence(next: NotePersistence | null): void {
   notePersistence = next
+}
+
+export function bindLearningPersistence(next: LearningPersistence | null): void {
+  learningPersistence = next
 }
 
 function reportPersistenceError(error: unknown): void {
@@ -92,6 +115,12 @@ interface WorkstationActions {
   closeQuickNote: () => void
   addNote: (text: string) => void
   openNotesView: () => void
+  setLearningScope: (scope: LearningScope) => void
+  addLearningItem: (draft: LearningDraft) => void
+  updateLearningItem: (itemId: string, patch: LearningPatch) => void
+  reviewLearningItem: (itemId: string, rating: LearningRating) => void
+  startLearningReview: () => void
+  exitLearningReview: () => void
   clearPersistenceError: () => void
 }
 
@@ -99,6 +128,7 @@ export type WorkstationState = WorkstationData & WorkstationActions
 
 let messageSeq = 0
 let taskSeq = 0
+let learningSeq = 0
 
 function nextMessageId(prefix: string): string {
   messageSeq += 1
@@ -108,6 +138,11 @@ function nextMessageId(prefix: string): string {
 function nextTaskId(): string {
   taskSeq += 1
   return `todo-${Date.now()}-${taskSeq}`
+}
+
+function nextLearningId(): string {
+  learningSeq += 1
+  return `learn-${Date.now()}-${learningSeq}`
 }
 
 export const useWorkstation = create<WorkstationState>()((set, get) => ({
@@ -392,6 +427,124 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
   },
 
   openNotesView: () => set({ activeView: 'notes' }),
+
+  setLearningScope: (learningScope) => set({ learningScope }),
+
+  addLearningItem: (draft) => {
+    const title = draft.title.trim()
+    const subject = draft.subject.trim()
+    if (!title || !subject) return
+    const local: LearningItem = {
+      id: nextLearningId(),
+      subject,
+      title,
+      source: draft.source ?? '',
+      notes: draft.notes ?? '',
+      repetitions: 0,
+      intervalDays: 0,
+      ease: 2.5,
+      nextReviewOn: draft.nextReviewOn ?? dateKey(),
+      active: true
+    }
+    set((state) => ({
+      learningItems: [local, ...state.learningItems],
+      learningScope: { kind: 'all' }
+    }))
+
+    if (!learningPersistence) return
+    void learningPersistence
+      .create({ ...draft, subject, title })
+      .then((saved) => {
+        set((state) => ({
+          learningItems: state.learningItems.map((item) => (item.id === local.id ? saved : item))
+        }))
+      })
+      .catch(reportPersistenceError)
+  },
+
+  updateLearningItem: (itemId, patch) => {
+    const next: LearningPatch = { ...patch }
+    if (next.title !== undefined) {
+      const title = next.title.trim()
+      if (!title) return
+      next.title = title
+    }
+    if (next.subject !== undefined) {
+      const subject = next.subject.trim()
+      if (!subject) return
+      next.subject = subject
+    }
+    if (Object.keys(next).length === 0) return
+
+    set((state) => ({
+      learningItems: state.learningItems.map((item) =>
+        item.id === itemId ? { ...item, ...next } : item
+      )
+    }))
+    persistQuietly(() => learningPersistence?.update(itemId, next) ?? Promise.resolve())
+  },
+
+  reviewLearningItem: (itemId, rating) => {
+    const state = get()
+    const item = state.learningItems.find((entry) => entry.id === itemId)
+    if (!item) return
+
+    const advance = (updated: LearningItem) => {
+      set((current) => {
+        const session = current.learningReviewSession ?? []
+        const rest = session.filter((id) => id !== itemId)
+        return {
+          learningItems: current.learningItems.map((entry) =>
+            entry.id === itemId ? updated : entry
+          ),
+          learningReviewSession: rating === 1 ? [...rest, itemId] : rest,
+          learningReviewTally: {
+            reviewed: current.learningReviewTally.reviewed + 1,
+            again: current.learningReviewTally.again + (rating === 1 ? 1 : 0),
+            startedAt: current.learningReviewTally.startedAt
+          }
+        }
+      })
+    }
+
+    if (!learningPersistence) {
+      advance({
+        ...item,
+        ...scheduleReview(
+          {
+            repetitions: item.repetitions,
+            intervalDays: item.intervalDays,
+            ease: item.ease
+          },
+          rating,
+          dateKey()
+        )
+      })
+      return
+    }
+
+    void learningPersistence
+      .review(itemId, rating)
+      .then(advance)
+      .catch((error) => {
+        reportPersistenceError(error)
+        // 写库失败也要让这一张离开队列，否则用户会被卡在同一张卡上。
+        advance(item)
+      })
+  },
+
+  startLearningReview: () => {
+    const state = get()
+    const ids = dueQueue(state.learningItems, dateKey()).map((item) => item.id)
+    set({
+      activeView: 'learning',
+      learningReviewOpen: true,
+      learningReviewSession: ids,
+      learningReviewTally: { reviewed: 0, again: 0, startedAt: Date.now() }
+    })
+  },
+
+  exitLearningReview: () => set({ learningReviewOpen: false, learningReviewSession: null }),
 
   clearPersistenceError: () => set({ persistenceError: null })
 }))

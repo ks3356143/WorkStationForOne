@@ -225,6 +225,24 @@ export function NotesIcon(props: GlyphProps) {
   )
 }
 
+export function LearningIcon(props: GlyphProps) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      <path d="M2.5 3.5h4.2c.7 0 1.3.6 1.3 1.3v8.2c0-.7-.6-1.3-1.3-1.3H2.5z" />
+      <path d="M13.5 3.5H9.3c-.7 0-1.3.6-1.3 1.3v8.2c0-.7.6-1.3 1.3-1.3h4.2z" />
+    </svg>
+  )
+}
+
 export function TerminalIcon(props: GlyphProps) {
   return (
     <svg
