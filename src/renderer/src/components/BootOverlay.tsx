@@ -20,7 +20,7 @@ export function BootOverlay({ onSkip }: BootOverlayProps) {
       <div className="w1-boot-core">
         <div className="w1-boot-mark">W/1</div>
         <div className="w1-boot-name">WorkStationForOne</div>
-        <div className="w1-boot-sys">// SYS BOOT · v0.1.0 · 本地模式</div>
+        <div className="w1-boot-sys">// SYS BOOT · v{__APP_VERSION__} · 本地模式</div>
         <div className="w1-boot-log">
           <span>
             <b>OK</b> 载入本地会话与看板

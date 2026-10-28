@@ -92,7 +92,7 @@ export function StatusBar({ notify, onShortcuts }: StatusBarProps) {
         {skinLabel(skin)}
       </button>
       <i className="w1-sdiv" aria-hidden="true" />
-      <span className="w1-status-ver">v0.1.0</span>
+      <span className="w1-status-ver">v{__APP_VERSION__}</span>
       <span className="w1-st-keys">
         <span className="w1-st-key">
           <kbd>^K</kbd>聚焦

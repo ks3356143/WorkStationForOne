@@ -114,7 +114,7 @@ export function WorkspaceNav({ notify }: WorkspaceNavProps) {
           <SettingsIcon width={12} height={12} />
           设置
         </button>
-        <span className="w1-navver">v0.1.0</span>
+        <span className="w1-navver">v{__APP_VERSION__}</span>
       </div>
     </aside>
   )

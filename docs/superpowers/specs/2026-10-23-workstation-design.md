@@ -5,7 +5,7 @@
 | 日期 | 2026-10-23 |
 | 状态 | 待评审 |
 | 平台 | Windows 10 / 11 x64 |
-| 产品版本 | v0.1.0 |
+| 产品版本 | v0.0.8 |
 | 视觉方向 | B‴ 极光 HUD（直角 + 玻璃 + 中文优先 + 全动效） |
 | 视觉稿 | `E:\Chentools项目\WorkStationForOne\.superpowers\brainstorm\1407-1792734240\content\visual-style-v6.html` |
 
@@ -418,7 +418,7 @@ B‴ 极光 HUD：深靛黑背景上的紫→青极光，每张卡片玻璃，�
   - 品牌名：WorkStationForOne、Claude Code、Codex、Qoder、DeepSeek Harness、Sonnet。
   - 技术缩写：MCP、CLI、SYS、HUD、API。
   - 快捷键：`Ctrl K`、`^N`、`^⇧N`、`^,`。
-  - HUD 骨架：`//`、`v0.1.0`、`>` 提示符、命令行片段。
+  - HUD 骨架：`//`、`v0.0.8`、`>` 提示符、命令行片段。
 
 ### 9.6 组件
 

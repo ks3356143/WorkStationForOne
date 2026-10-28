@@ -6,4 +6,7 @@ declare global {
   interface Window {
     ws?: WsApi
   }
+
+  /** 构建时由 electron.vite.config.ts 从 package.json 注入 */
+  const __APP_VERSION__: string
 }
