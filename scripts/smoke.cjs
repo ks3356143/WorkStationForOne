@@ -32,6 +32,10 @@ app.setPath('sessionData', sessionDir)
 process.env.WS_DATA_DIR = join(dataDir, 'db')
 // Agent 走 stub CLI：验证真实 IPC → 子进程 → 渲染整条链路，但不调用模型、不消耗额度
 process.env.WS_AGENT_CLI = join(__dirname, 'stub-agent.cjs')
+// 提醒轮询调快，并把命中记录写到文件，供主进程侧断言
+const reminderLog = join(dataDir, 'reminders.log')
+process.env.WS_REMINDER_TICK_MS = '400'
+process.env.WS_REMINDER_LOG = reminderLog
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -451,6 +455,26 @@ async function run() {
     )
     byText('.w1-todorow', '今天')?.click()
     await sleep(400)
+    // 到点提醒：建一条时间为「当前时刻」的今日任务，等主进程轮询命中
+    const nowClock = new Date().toTimeString().slice(0, 5)
+    const reminderInput = one('.w1-todoinput')
+    setValue(reminderInput, '提醒测试 ' + nowClock)
+    await sleep(120)
+    reminderInput.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    // 主进程每 400ms 扫一次，等它命中并写日志
+    await sleep(1500)
+    const reminderRow = all('.w1-todorowwrap').find((row) =>
+      row.textContent?.includes('提醒测试')
+    )
+    reminderRow?.querySelector('.w1-todobody')?.click()
+    await sleep(300)
+    byText('.w1-todoedit .w1-tododelete', '删除任务')?.click()
+    await sleep(150)
+    byText('.w1-todoedit .w1-tododelete', '再次点击确认删除')?.click()
+    await sleep(400)
+
     check(
       '循环任务两条都已清理',
       !all('.w1-todorowwrap').some((item) => item.textContent?.includes('每周复盘')),
@@ -1198,6 +1222,22 @@ async function run() {
   const dbReady = Boolean(
     dbStats && dbStats.tasks > 0 && dbStats.notes > 0 && dbStats.learning > 0 && dbStats.reviews > 0
   )
+  let reminderLines = []
+  try {
+    const { readFileSync } = require('node:fs')
+    reminderLines = readFileSync(reminderLog, 'utf8')
+      .split(String.fromCharCode(10))
+      .map((line) => line.trim())
+      .filter(Boolean)
+  } catch {
+    reminderLines = []
+  }
+  results.checks.push({
+    name: '到点提醒真的触发并落日志',
+    ok: reminderLines.some((line) => line.includes('提醒测试')),
+    detail: reminderLines.join(' / ') || 'empty'
+  })
+
   let backupFiles = []
   try {
     const { readdirSync } = require('node:fs')

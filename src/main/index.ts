@@ -6,6 +6,7 @@ import { disposeCaptureShortcut, registerCaptureHandlers, registerCaptureShortcu
 import { registerAgentHandlers } from './ipc/agent'
 import { registerAppHandlers, TITLE_BAR_HEIGHT, WINDOW_PALETTE } from './ipc/app'
 import { backupDirFor, ensureDailyBackup } from './db/backup'
+import { startReminderLoop } from './reminders'
 import { registerHabitHandlers } from './ipc/habits'
 import { registerLearningHandlers } from './ipc/learning'
 import { registerNoteHandlers } from './ipc/notes'
@@ -116,6 +117,14 @@ if (!gotTheLock) {
     registerHabitHandlers(database.habits)
     // 捕获窗是另一个 BrowserWindow，Agent 事件只回主窗口
     registerAgentHandlers(() => mainWindow)
+    // 到点提醒：轮询数据库，命中「今天 + 正好到点 + 没提醒过」就弹系统通知
+    startReminderLoop(database.tasks, {
+      ...(process.env.WS_REMINDER_TICK_MS
+        ? { tickMs: Number(process.env.WS_REMINDER_TICK_MS) }
+        : {}),
+      ...(process.env.WS_REMINDER_LOG ? { logFile: process.env.WS_REMINDER_LOG } : {})
+    })
+
     // 每天首次启动补一份快照：库只有一份，坏掉就全没了
     try {
       const created = ensureDailyBackup(database.db, backupDirFor(database.file))
