@@ -59,6 +59,7 @@ npm run dev
 | `npm run verify` | 启动真实主进程跑 244 项运行时断言（五视图、双主题/皮肤、跨重启） |
 | `npm run capture -- .screenshots/home.png 1440 900 .screenshots/audit.json` | 截图并输出布局审计 |
 | `npm run capture -- .screenshots/notes-1180.png 1180 720 .screenshots/audit-notes.json dark notes` | 指定主题 `dark|light` 与视图 `today|tasks|agent|notes|learning` 截图 |
+| `npm run package` | 构建并生成便携版到 `dist/WorkStationForOne/` |
 | `npm run icon` | 从 `resources/icon.svg` 重新生成 PNG 与多尺寸 ICO |
 
 请始终通过上述封装脚本启动 Electron：开发环境可能设置了 `ELECTRON_RUN_AS_NODE=1`，脚本会清除它并正确解析 electron-vite。

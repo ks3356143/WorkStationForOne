@@ -1,6 +1,6 @@
 {
   "name": "workstation-for-one",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "private": true,
   "description": "WorkStationForOne — 个人 AI 工作站",
   "main": "./out/main/index.js",
@@ -17,6 +17,7 @@
     "smoke": "npm run build && node scripts/smoke.mjs",
     "verify": "npm run build && node scripts/runtime-verify.mjs",
     "capture": "npm run build && node scripts/capture.mjs",
+    "package": "node scripts/package.mjs",
     "icon": "node scripts/make-icon.mjs"
   },
   "dependencies": {
