@@ -343,6 +343,55 @@ async function run() {
       listLabels().join('|')
     )
 
+    // 只做三件事：从全部未完成里挑三条，完成一条自动补位
+    const threeBtn = byText('.w1-planbtn', '只做三件事')
+    threeBtn?.click()
+    await sleep(350)
+    check(
+      '开启后只显示三条',
+      all('.w1-todorowwrap').length === 3 && !!one('.w1-threebar'),
+      all('.w1-todorowwrap').length + ' 行'
+    )
+    check(
+      '三件事横幅不撑出横向滚动',
+      document.documentElement.scrollWidth <= innerWidth,
+      document.documentElement.scrollWidth + ' / ' + innerWidth
+    )
+    const firstTitle = one('.w1-todorowwrap .w1-todotitletext')?.textContent?.trim() ?? ''
+    one('.w1-todorowwrap .w1-todocb')?.click()
+    await sleep(600)
+    const afterTitles = all('.w1-todorowwrap .w1-todotitletext').map((el) =>
+      el.textContent?.trim() ?? ''
+    )
+    check(
+      '完成一件后自动补位仍是三条',
+      afterTitles.length === 3 && firstTitle !== '' && !afterTitles.includes(firstTitle),
+      firstTitle + ' -> ' + afterTitles.join(' / ')
+    )
+    byText('.w1-threebar button', '退出')?.click()
+    await sleep(300)
+    check(
+      '退出后恢复完整列表',
+      !one('.w1-threebar') && all('.w1-todorowwrap').length >= 3,
+      String(all('.w1-todorowwrap').length)
+    )
+    // 把刚才勾掉的任务还原：它已离开未完成列表，得去「已完成」里取消勾选
+    byText('.w1-todorow', '已完成')?.click()
+    await sleep(400)
+    const doneRow = all('.w1-todorowwrap').find(
+      (row) => row.querySelector('.w1-todotitletext')?.textContent?.trim() === firstTitle
+    )
+    doneRow?.querySelector('.w1-todocb')?.click()
+    await sleep(500)
+    byText('.w1-todorow', '今天')?.click()
+    await sleep(400)
+    check(
+      '还原被勾选的任务',
+      all('.w1-todotitletext').some((el) => el.textContent?.trim() === firstTitle),
+      firstTitle
+    )
+
+
     const planButton = byText('button', '计划今天')
     check('任务区有计划今天入口', Boolean(planButton))
     planButton?.click()

@@ -14,6 +14,7 @@ import { useNow } from '../../lib/useNow'
 import { useWorkstation } from '../../store/useWorkstation'
 import { PlusIcon } from '../Glyphs'
 import { dayCapacity } from '../../lib/capacity'
+import { topThree } from '../../lib/focus'
 import { scopeDropPatch, TASK_DRAG_TYPE } from '../../lib/dnd'
 import { withViewTransition } from '../../lib/view-transition'
 import { CapacityBar } from './CapacityBar'
@@ -81,6 +82,7 @@ export function TasksView({ notify }: TasksViewProps) {
   const [dragTarget, setDragTarget] = useState<string | null>(null)
   const [scheduleOpen, setScheduleOpen] = useState(false)
   const renameTaskList = useWorkstation((state) => state.renameTaskList)
+  const [threeOnly, setThreeOnly] = useState(false)
   const [renaming, setRenaming] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
   const [renameError, setRenameError] = useState<string | null>(null)
@@ -94,7 +96,13 @@ export function TasksView({ notify }: TasksViewProps) {
   const lists = taskLists(tasks, activeList)
   const listNames = lists.map((item) => item.name)
   const searching = query.trim().length > 0
-  const visible = searching ? searchTasks(tasks, query) : filterTasksByScope(tasks, scope, today)
+  // 三件事模式从「全部未完成」里挑，不受当前清单限制——它要回答的是「今天先做哪三件」
+  const three = topThree(tasks, today)
+  const visible = threeOnly
+    ? three
+    : searching
+      ? searchTasks(tasks, query)
+      : filterTasksByScope(tasks, scope, today)
   const completedVisible = visible.reduce((count, task) => count + (task.done ? 1 : 0), 0)
   const title = activeList ?? SMART_LISTS.find((item) => item.scope === scope)?.label ?? '任务'
 
@@ -377,7 +385,34 @@ export function TasksView({ notify }: TasksViewProps) {
           <button className="w1-planbtn" type="button" onClick={() => setScheduleOpen(true)}>
             排程预览
           </button>
+          <button
+            className={`w1-planbtn${threeOnly ? ' on' : ''}`}
+            type="button"
+            aria-pressed={threeOnly}
+            title="从全部未完成任务里挑出最该动手的三件"
+            onClick={() => {
+              setThreeOnly((current) => !current)
+              setQuery('')
+              setScope('all')
+            }}
+          >
+            只做三件事
+          </button>
         </div>
+
+        {threeOnly ? (
+          <div className="w1-threebar" role="status">
+            <b>// 只做三件事</b>
+            <span>
+              {three.length > 0
+                ? `从 ${tasks.filter((task) => !task.done).length} 条未完成里挑了 ${three.length} 条，完成一件会自动补位`
+                : '没有未完成的任务了'}
+            </span>
+            <button type="button" onClick={() => setThreeOnly(false)}>
+              退出
+            </button>
+          </div>
+        ) : null}
 
         {scope !== 'done' && !searching ? (
           <QuickAdd

@@ -1077,3 +1077,58 @@
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
+
+/* ---------- 只做三件事 ---------- */
+
+.w1-planbtn.on {
+  border-color: rgb(var(--ac2-rgb) / 0.55);
+  background: rgb(var(--ac2-rgb) / 0.12);
+  color: var(--ac2-fg);
+}
+
+.w1-threebar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 2px;
+  padding: 7px 10px;
+  border: 1px solid rgb(var(--ac2-rgb) / 0.28);
+  border-left: 2px solid rgb(var(--ac2-rgb) / 0.7);
+  background: linear-gradient(90deg, rgb(var(--ac2-rgb) / 0.1), transparent 72%);
+  font: 11px / 1.4 var(--mono);
+  color: var(--mu);
+}
+
+.w1-threebar b {
+  flex: none;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--ac2-fg);
+}
+
+.w1-threebar span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.w1-threebar button {
+  flex: none;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid rgb(var(--ac2-rgb) / 0.4);
+  background: transparent;
+  color: var(--ac2-fg);
+  font: 10.5px / 1 var(--mono);
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui);
+}
+
+.w1-threebar button:hover {
+  border-color: rgb(var(--ac2-rgb) / 0.7);
+  background: rgb(var(--ac2-rgb) / 0.14);
+}
