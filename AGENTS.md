@@ -15,7 +15,7 @@
 - `npm run check` — Biome 检查格式与 lint（Rust 单二进制，不依赖 Prettier / ESLint）。
 - `npm run check:fix` — 自动修复格式与可安全修复的 lint 问题。
 - `npm run fmt` — 只格式化，不跑 lint。
-- `npm run smoke` — 先构建，再跑 189 项 UI 交互冒烟。加载真实主进程与 preload，UI 操作直接写进临时 SQLite（`userData`、`sessionData`、数据库都隔离到 `%TEMP%`），并断言「preload 桥可用」与「操作已落库」；跨重启持久化仍由 `npm run verify` 覆盖。
+- `npm run smoke` — 先构建，再跑 191 项 UI 交互冒烟。加载真实主进程与 preload，UI 操作直接写进临时 SQLite（`userData`、`sessionData`、数据库都隔离到 `%TEMP%`），并断言「preload 桥可用」与「操作已落库」；跨重启持久化仍由 `npm run verify` 覆盖。
 - `npm run verify` — 构建后启动真实主进程（临时 `WS_DATA_DIR`），运行 251–253 项运行时断言（起始主题不同会差 2 项分支）：五视图互斥、双主题/双皮肤持久化、跨重启数据。
 - `npm run capture -- .screenshots/shell-1440.png 1440 900 .screenshots/audit-1440.json` — 构建、保存截图并写入布局审计。
 - `npm run capture -- .screenshots/shell-1180.png 1180 720 .screenshots/audit-1180.json dark` — 在最小窗口尺寸下做同样的检查；主题参数为 `dark|light`，视图参数为 `today|tasks|agent|notes|learning`，均可省略审计路径后按任意顺序追加（如 `... 1440 900 light tasks`）。
@@ -60,6 +60,7 @@
 - 今日卡只展示今天与逾期任务；任务全量管理放在「任务」工作区。不要恢复今日卡显示所有任务，也不要给任务另建一套数据源。今日卡末尾是「完成记录」热力图：只统计带 `completedAt` 的已完成任务，按本地日期归入近 26 周（周一起始）的格子，未来日期留空（`lib/heatmap.ts`）。
 - 任务视图：容量条只统计 `planned_for = 今天` 且未完成的任务，可用时间按 09:00–22:00 窗口扣掉当前时刻计算（`lib/capacity.ts`）；「计划今天」面板只做计划/取消计划，时长在任务详情里设置；「排程预览」按截止日期 → 优先级贪心排入 09:00–22:00 空档、15 分钟对齐，已有时间的任务作为锚点，结果先预览再「接受全部」（`lib/planner.ts`）。
 - 任务视图：智能清单（收集箱 / 今天 / 即将到来 / 全部 / 已完成）与自定义清单都来自同一 `tasks` 数组；新增或删除任务必须同步 SQLite。快速添加的 Enter、`Ctrl+Shift+N` 聚焦、Esc 收起详情、搜索 Esc 清空、中文输入法组合期间不提交是既有契约。详情关闭后焦点回到行标题；日期支持今天/明天/清除快捷按钮。权限卡里的任务顺延可携带 `toDueDate`，允许后必须同时更新截止日期，不能只改时间与标签。任务行支持拖拽改期：拖到智能清单/自定义清单改截止日期或清单，拖到今日时间轴写入时间（15 分钟对齐，规则在 `lib/dnd.ts`）；拖拽只是鼠标增强，键盘用户仍走详情编辑。
+- 审计：`audit_log`（DB v11，domain/action/target/title/source/detail）**挂在仓储层**而不是各个 IPC handler——未来接 MCP 或定时任务时，只要走仓储就一定留痕。审计写入失败只记 console，绝不让业务写入回滚。目前没有查看入口，等 MCP 桥落地再一起做。
 - 子任务：`tasks.parent_id`（DB v10）。子任务**不进入任何清单、计数、排程与「只做三件事」**——所有聚合函数用 `lib/subtasks.ts` 的 `topLevel()` 先过滤；它们只在父任务详情里出现，行上显示 `1/2` 进度。删除父任务时在同一事务里连带软删子任务，避免留下看不见也删不掉的孤儿。
 - 设置面板由左侧导航的「设置」与命令面板打开：外观（主题/皮肤/动效）、数据（库目录、备份份数与目录、立即备份）、版本。数据路径来自 `app:info`，不要在渲染层拼路径。退出时 `before-quit` 必须先停提醒轮询再关库。
 - 到点提醒：主进程 `main/reminders.ts` 每 20 秒轮询数据库（不是给每条任务排定时器——任务随时会改时间/删除/完成，轮询让「当前真相」只有一个来源），命中「今天到期 + 正好到点 + 今天没提醒过」就发系统通知；错过的那一分钟不补发，避免打开应用被历史提醒刷屏。`WS_REMINDER_TICK_MS` / `WS_REMINDER_LOG` 是自动化测试缝。**退出阶段数据库已关闭，轮询必须跳过并兜底 try/catch**，否则 setInterval 抛错会弹出原生错误窗把验证挂死（踩过一次）。
@@ -102,7 +103,7 @@
 - 数据库位置：`%APPDATA%\WorkStationForOne\data\workstation.db`；设置 `WS_DATA_DIR` 可覆盖，冒烟与运行时校验据此使用临时库，避免改写真实数据。
 - 备份：每天首次启动用 `VACUUM INTO` 生成一份快照到 `<库目录>/backups/`（`workstation-YYYYMMDD-HHmmss.db`），只保留最近 10 份；命令面板「立即备份数据」可手动触发并在提示条显示文件名与大小。VACUUM INTO 是一致性快照，不需要停写入，也不要把库文件直接 `copyFile`（会拷到 WAL 中间态）。
 - 迁移前会自动 `VACUUM INTO` 备份到库文件旁。迁移 SQL 不得替用户伪造语义（例如给历史任务填「今天到期」）。
-- 未实现：会话域持久化（对话线程仍在内存）、Codex 适配器与多会话并发、交互式工具审批（当前只读工具自动放行、写操作会被 CLI 拒绝）、本地 MCP 服务器与审计。
+- 未实现：会话域持久化（对话线程仍在内存）、Codex 适配器与多会话并发、交互式工具审批（当前只读工具自动放行、写操作会被 CLI 拒绝）、本地 MCP 服务器。
 - 渲染进程不直接访问数据库；新增数据能力必须走 `src/shared/ipc.ts` 的类型契约 + `src/main/ipc/` 的 handler，并在主进程校验入参。preload 桥目前暴露 `tasks / notes / capture / learning / habits / agent / app` 七组接口，`runtime-verify.mjs` 会断言这个集合，扩面时同步更新。
 
 ## 知识库取用规则

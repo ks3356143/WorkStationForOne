@@ -2,6 +2,7 @@ import { app } from 'electron'
 import type { DatabaseSync } from 'node:sqlite'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { AuditLog } from './audit'
 import { migrate, openDatabase } from './database'
 import { HabitRepository } from './habits'
 import { LearningRepository } from './learning'
@@ -16,6 +17,7 @@ export interface DatabaseContext {
   notes: NoteRepository
   learning: LearningRepository
   habits: HabitRepository
+  audit: AuditLog
   close: () => void
 }
 
@@ -25,13 +27,15 @@ export function initDatabase(): DatabaseContext {
   mkdirSync(dir, { recursive: true })
   const db = openDatabase(join(dir, 'workstation.db'))
   migrate(db)
+  const audit = new AuditLog(db)
   return {
     file: join(dir, 'workstation.db'),
     db,
-    tasks: new TaskRepository(db),
-    notes: new NoteRepository(db),
-    learning: new LearningRepository(db),
-    habits: new HabitRepository(db),
+    audit,
+    tasks: new TaskRepository(db, audit),
+    notes: new NoteRepository(db, audit),
+    learning: new LearningRepository(db, audit),
+    habits: new HabitRepository(db, audit),
     close: () => db.close()
   }
 }

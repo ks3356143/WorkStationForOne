@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { DatabaseSync, StatementSync } from 'node:sqlite'
+import type { AuditLog } from './audit'
 import { dateKey } from '../../shared/date-key'
 import type {
   LearningDraft,
@@ -64,7 +65,10 @@ function toRecord(row: LearningRow): LearningItemRecord {
 export class LearningRepository {
   private readonly statements = new Map<string, StatementSync>()
 
-  constructor(private readonly db: DatabaseSync) {}
+  constructor(
+    private readonly db: DatabaseSync,
+    private readonly audit?: AuditLog
+  ) {}
 
   private sql(query: string): StatementSync {
     let statement = this.statements.get(query)
@@ -127,6 +131,18 @@ export class LearningRepository {
   create(draft: LearningDraft): LearningItemRecord {
     const id = randomUUID()
     const now = Date.now()
+    const created = this.doCreate(id, draft, now)
+    this.audit?.record({
+      at: now,
+      domain: 'learning',
+      action: 'create',
+      targetId: id,
+      title: draft.title
+    })
+    return created
+  }
+
+  private doCreate(id: string, draft: LearningDraft, now: number): LearningItemRecord {
     this.sql(INSERT_SQL).run(
       id,
       draft.subject,
@@ -192,6 +208,14 @@ export class LearningRepository {
 
     const updated = this.find(id)
     if (!updated) throw new Error('卡片更新失败')
+    this.audit?.record({
+      at: now,
+      domain: 'learning',
+      action: 'review',
+      targetId: id,
+      title: current.title,
+      detail: `评分 ${rating} → 下次 ${next.nextReviewOn}`
+    })
     return updated
   }
 

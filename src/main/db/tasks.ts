@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { DatabaseSync, StatementSync } from 'node:sqlite'
+import type { AuditLog } from './audit'
 import { dateKey } from '../../shared/date-key'
 import { nextDueDate } from '../../shared/repeat'
 import type {
@@ -95,7 +96,10 @@ function toRecord(row: TaskRow): TaskRecord {
 export class TaskRepository {
   private readonly statements = new Map<string, StatementSync>()
 
-  constructor(private readonly db: DatabaseSync) {}
+  constructor(
+    private readonly db: DatabaseSync,
+    private readonly audit?: AuditLog
+  ) {}
 
   private sql(query: string): StatementSync {
     let statement = this.statements.get(query)
@@ -189,6 +193,13 @@ export class TaskRepository {
 
     const created = this.find(id)
     if (!created) throw new Error('任务写入失败')
+    this.audit?.record({
+      at: now,
+      domain: 'task',
+      action: 'create',
+      targetId: id,
+      title: draft.title
+    })
     return created
   }
 
@@ -199,13 +210,30 @@ export class TaskRepository {
     if (entries.length === 0) return
 
     const assignments = entries.map(([column]) => `${column} = ?`).join(', ')
+    const at = Date.now()
     this.sql(
       `UPDATE tasks SET ${assignments}, updated_at = ? WHERE id = ? AND deleted_at IS NULL`
-    ).run(...entries.map(([, value]) => value), Date.now(), id)
+    ).run(...entries.map(([, value]) => value), at, id)
+    this.audit?.record({
+      at,
+      domain: 'task',
+      action: 'update',
+      targetId: id,
+      title: this.find(id)?.title,
+      detail: entries.map(([column]) => column).join(',')
+    })
   }
 
   remove(id: string): void {
     const now = Date.now()
+    const task = this.find(id)
+    this.audit?.record({
+      at: now,
+      domain: 'task',
+      action: 'delete',
+      targetId: id,
+      title: task?.title
+    })
     this.transaction(() => {
       this.sql(SOFT_DELETE_SQL).run(now, now, id)
       // 子任务跟着走，否则会留下一批看不见也删不掉的孤儿
@@ -216,7 +244,9 @@ export class TaskRepository {
   }
 
   restore(id: string): void {
-    this.sql(RESTORE_SQL).run(Date.now(), id)
+    const at = Date.now()
+    this.sql(RESTORE_SQL).run(at, id)
+    this.audit?.record({ at, domain: 'task', action: 'restore', targetId: id })
   }
 
   /** 清理过了保留期的已删任务，返回清理条数。 */
@@ -228,6 +258,15 @@ export class TaskRepository {
   setDone(id: string, done: boolean): void {
     const now = Date.now()
     this.sql(SET_DONE_SQL).run(done ? 1 : 0, done ? now : null, now, id)
+    const task = this.find(id)
+    this.audit?.record({
+      at: now,
+      domain: 'task',
+      action: done ? 'complete' : 'update',
+      targetId: id,
+      title: task?.title,
+      detail: done ? '标记完成' : '取消完成'
+    })
   }
 
   /**
@@ -266,8 +305,16 @@ export class TaskRepository {
 
   /** 一次 UPDATE 改完整组任务，不逐条走 update，避免半途失败留下两个清单。 */
   renameList(from: string, to: string): number {
-    const result = this.sql(RENAME_LIST_SQL).run(to, Date.now(), from)
-    return Number(result.changes ?? 0)
+    const at = Date.now()
+    const result = this.sql(RENAME_LIST_SQL).run(to, at, from)
+    const changed = Number(result.changes ?? 0)
+    this.audit?.record({
+      at,
+      domain: 'task',
+      action: 'rename-list',
+      detail: `${from} → ${to}（${changed} 条）`
+    })
+    return changed
   }
 
   applySchedule(changes: TaskScheduleChange[]): void {

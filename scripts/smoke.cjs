@@ -1305,6 +1305,34 @@ async function run() {
   const dbReady = Boolean(
     dbStats && dbStats.tasks > 0 && dbStats.notes > 0 && dbStats.learning > 0 && dbStats.reviews > 0
   )
+  // 审计：UI 操作必须留下记录（这里读库，不依赖渲染层）
+  let auditRows = []
+  try {
+    const { DatabaseSync } = require('node:sqlite')
+    const auditDb = new DatabaseSync(dbFile, { readOnly: true })
+    auditRows = auditDb
+      .prepare('SELECT domain, action, title FROM audit_log ORDER BY id DESC LIMIT 40')
+      .all()
+    auditDb.close()
+  } catch (error) {
+    console.error(`[smoke] 读取审计失败：${error}`)
+  }
+  const auditHas = (domain, action) =>
+    auditRows.some((row) => row.domain === domain && row.action === action)
+  results.checks.push({
+    name: '审计记录任务新增与完成',
+    ok: auditHas('task', 'create') && auditHas('task', 'complete'),
+    detail: auditRows.length + ' 条'
+  })
+  results.checks.push({
+    name: '审计记录笔记与习惯写入',
+    ok: auditHas('note', 'create') && auditHas('habit', 'checkin'),
+    detail: auditRows
+      .slice(0, 6)
+      .map((row) => row.domain + ':' + row.action)
+      .join(', ')
+  })
+
   let reminderLines = []
   try {
     const { readFileSync } = require('node:fs')

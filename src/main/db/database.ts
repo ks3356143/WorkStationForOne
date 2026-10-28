@@ -202,6 +202,24 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE tasks ADD COLUMN parent_id TEXT;
       CREATE INDEX idx_tasks_parent ON tasks(parent_id);
     `
+  },
+  {
+    version: 11,
+    sql: `
+      CREATE TABLE audit_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        at INTEGER NOT NULL,
+        domain TEXT NOT NULL,
+        action TEXT NOT NULL,
+        target_id TEXT,
+        title TEXT,
+        source TEXT NOT NULL DEFAULT 'ui',
+        detail TEXT
+      );
+
+      CREATE INDEX idx_audit_at ON audit_log(at DESC);
+      CREATE INDEX idx_audit_target ON audit_log(domain, target_id);
+    `
   }
 ]
 

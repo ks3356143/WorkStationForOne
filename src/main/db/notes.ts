@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { DatabaseSync, StatementSync } from 'node:sqlite'
+import type { AuditLog } from './audit'
 import type { NotePage, NoteRecord, NoteSearchHit } from '../../shared/ipc'
 
 interface NoteRow {
@@ -108,7 +109,10 @@ export function planSearch(raw: string): SearchPlan | null {
 export class NoteRepository {
   private readonly statements = new Map<string, StatementSync>()
 
-  constructor(private readonly db: DatabaseSync) {}
+  constructor(
+    private readonly db: DatabaseSync,
+    private readonly audit?: AuditLog
+  ) {}
 
   private sql(query: string): StatementSync {
     let statement = this.statements.get(query)
@@ -177,14 +181,20 @@ export class NoteRepository {
   create(text: string, tag?: string): NoteRecord {
     const now = Date.now()
     const record = this.insert(text, tag, false, now)
+    this.audit?.record({
+      at: now,
+      domain: 'note',
+      action: 'create',
+      targetId: record.id,
+      title: text.slice(0, 60)
+    })
     return record
   }
 
   togglePin(id: string): void {
-    this.sql('UPDATE notes SET pinned = 1 - pinned, updated_at = ? WHERE id = ?').run(
-      Date.now(),
-      id
-    )
+    const at = Date.now()
+    this.sql('UPDATE notes SET pinned = 1 - pinned, updated_at = ? WHERE id = ?').run(at, id)
+    this.audit?.record({ at, domain: 'note', action: 'toggle-pin', targetId: id })
   }
 
   private insert(

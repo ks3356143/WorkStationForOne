@@ -1,4 +1,5 @@
 import type { DatabaseSync, StatementSync } from 'node:sqlite'
+import type { AuditLog } from './audit'
 import { isDateKey } from '../../shared/date-key'
 import type { HabitRecord } from '../../shared/ipc'
 
@@ -34,7 +35,10 @@ function toRecord(row: HabitRow): HabitRecord {
 }
 
 export class HabitRepository {
-  constructor(private readonly db: DatabaseSync) {}
+  constructor(
+    private readonly db: DatabaseSync,
+    private readonly audit?: AuditLog
+  ) {}
 
   private statement(sql: string): StatementSync {
     return this.db.prepare(sql)
@@ -66,7 +70,15 @@ export class HabitRepository {
   }
 
   setCheckin(id: string, day: string, done: boolean): void {
-    if (done) this.statement(CHECKIN_SQL).run(id, day, Date.now())
+    const at = Date.now()
+    if (done) this.statement(CHECKIN_SQL).run(id, day, at)
     else this.statement(UNCHECK_SQL).run(id, day)
+    this.audit?.record({
+      at,
+      domain: 'habit',
+      action: 'checkin',
+      targetId: id,
+      detail: `${day} ${done ? '打卡' : '取消'}`
+    })
   }
 }
