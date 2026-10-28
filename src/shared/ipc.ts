@@ -27,6 +27,8 @@ export interface TaskRecord {
   estimateMinutes?: number
   /** 重复规则；完成时自动生成下一条 */
   repeat?: RepeatRule
+  /** 父任务 id；子任务不出现在任何清单里，只在父任务详情下展示 */
+  parentId?: string
   /** 创建时间戳（毫秒），用于判断任务挂了多久没动 */
   createdAt?: number
 }
@@ -43,6 +45,7 @@ export interface TaskDraft {
   plannedFor?: string
   estimateMinutes?: number
   repeat?: RepeatRule | null
+  parentId?: string
 }
 
 export interface TaskPatch {

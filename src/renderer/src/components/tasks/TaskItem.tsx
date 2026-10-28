@@ -4,6 +4,7 @@ import { TASK_DRAG_TYPE } from '../../lib/dnd'
 import type { Task } from '../../types'
 import { DURATION, EASE_OUT } from '../../lib/motion'
 import { repeatLabel } from '../../lib/repeat'
+import { subtaskProgress } from '../../lib/subtasks'
 import { isStale, staleDays, taskDueLabel } from '../../lib/todo'
 import { CheckIcon } from '../Glyphs'
 import { TaskEditor } from './TaskEditor'
@@ -12,6 +13,8 @@ const PRIORITY_LABEL: Record<1 | 2 | 3, string> = { 1: '高', 2: '中', 3: '低'
 
 interface TaskItemProps {
   task: Task
+  /** 全部任务：算出这条任务的子任务进度并交给详情编辑 */
+  tasks: Task[]
   today: string
   lists: string[]
   expanded: boolean
@@ -21,10 +24,13 @@ interface TaskItemProps {
   onSave: (patch: TaskPatch) => void
   onDelete: () => void
   onCollapse: () => void
+  onAddSubtask: (title: string) => void
+  onToggleSubtask: (id: string) => void
 }
 
 export function TaskItem({
   task,
+  tasks,
   today,
   lists,
   expanded,
@@ -33,13 +39,16 @@ export function TaskItem({
   onExpand,
   onSave,
   onDelete,
-  onCollapse
+  onCollapse,
+  onAddSubtask,
+  onToggleSubtask
 }: TaskItemProps) {
   const due = taskDueLabel(task, today)
   const overdue = Boolean(task.dueDate && task.dueDate < today && !task.done)
   // 挂了很久又一直没有截止日期提醒的任务：给一个「N 天未动」的小标记
   const stale = isStale(task, today)
   const staleAge = stale ? staleDays(task, today) : 0
+  const progress = subtaskProgress(tasks, task.id)
   const priority = task.priority ?? 0
   const editorId = `todo-edit-${task.id}`
 
@@ -92,6 +101,11 @@ export function TaskItem({
           {task.tag ? (
             <span className={`w1-tag${task.tone ? ` ${task.tone}` : ''}`}>{task.tag}</span>
           ) : null}
+          {progress.total > 0 ? (
+            <span className="w1-todosubcount">
+              {progress.done}/{progress.total}
+            </span>
+          ) : null}
           {task.repeat ? <span className="w1-todorepeat">{repeatLabel(task.repeat)}</span> : null}
           {task.notes ? <span className="w1-todonote">备注</span> : null}
           {stale ? (
@@ -122,11 +136,14 @@ export function TaskItem({
             <div className="w1-todoeditorinner">
               <TaskEditor
                 task={task}
+                tasks={tasks}
                 lists={lists}
                 today={today}
                 onSave={onSave}
                 onDelete={onDelete}
                 onClose={onCollapse}
+                onAddSubtask={onAddSubtask}
+                onToggleSubtask={onToggleSubtask}
               />
             </div>
           </m.div>

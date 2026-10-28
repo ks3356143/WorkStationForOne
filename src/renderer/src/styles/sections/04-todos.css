@@ -1143,3 +1143,72 @@
   font: 10px / 1 var(--mono);
   white-space: nowrap;
 }
+
+/* ---------- 子任务 ---------- */
+
+.w1-todosubcount {
+  flex: none;
+  padding: 1px 5px;
+  border: 1px solid rgb(var(--ac-rgb) / 0.26);
+  background: rgb(var(--vio-rgb) / 0.08);
+  color: var(--ac-fg-dim);
+  font: 10px / 1 var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.w1-todosubs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 10px 0 2px;
+  padding-top: 8px;
+  border-top: 1px solid rgb(var(--bd-rgb) / 0.4);
+}
+
+.w1-todosubrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 12.5px / 1.5 var(--sans);
+  color: var(--fs);
+}
+
+.w1-todosubrow .done {
+  color: var(--su);
+  text-decoration: line-through;
+}
+
+.w1-todocb.small {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgb(var(--ac-rgb) / 0.35);
+  background: transparent;
+  color: var(--on-accent);
+  font-size: 9px;
+  line-height: 1;
+}
+
+.w1-todocb.small.on {
+  background: linear-gradient(135deg, var(--ac), var(--ac2));
+  border-color: transparent;
+}
+
+.w1-todosubadd input {
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px dashed rgb(var(--bd-rgb) / 0.8);
+  background: transparent;
+  color: var(--fg);
+  font: 12.5px / 1.4 var(--sans);
+  outline: none;
+  transition: border-color var(--dur-ui);
+}
+
+.w1-todosubadd input:focus {
+  border-color: rgb(var(--ac2-rgb) / 0.6);
+  border-style: solid;
+}

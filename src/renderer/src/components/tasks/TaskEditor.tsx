@@ -3,6 +3,7 @@ import { addDaysKey } from '../../../../shared/date-key'
 import type { TaskPatch } from '../../../../shared/ipc'
 import type { Task } from '../../types'
 import type { RepeatRule } from '../../../../shared/repeat'
+import { childrenOf, subtaskProgress } from '../../lib/subtasks'
 import { ComboSelect } from '../fields/ComboSelect'
 import { DatePicker } from '../fields/DatePicker'
 import { TimePicker } from '../fields/TimePicker'
@@ -25,6 +26,10 @@ const PRIORITIES: { value: 0 | 1 | 2 | 3; label: string }[] = [
 
 interface TaskEditorProps {
   task: Task
+  /** 全部任务：用来列出这条任务的子任务 */
+  tasks: Task[]
+  onAddSubtask: (title: string) => void
+  onToggleSubtask: (id: string) => void
   lists: string[]
   today: string
   onSave: (patch: TaskPatch) => void
@@ -32,7 +37,20 @@ interface TaskEditorProps {
   onClose: () => void
 }
 
-export function TaskEditor({ task, lists, today, onSave, onDelete, onClose }: TaskEditorProps) {
+export function TaskEditor({
+  task,
+  tasks,
+  lists,
+  today,
+  onSave,
+  onDelete,
+  onClose,
+  onAddSubtask,
+  onToggleSubtask
+}: TaskEditorProps) {
+  const children = childrenOf(tasks, task.id)
+  const progress = subtaskProgress(tasks, task.id)
+  const [subtaskDraft, setSubtaskDraft] = useState('')
   const [title, setTitle] = useState(task.title)
   const [notes, setNotes] = useState(task.notes ?? '')
   const [dueDate, setDueDate] = useState(task.dueDate ?? '')
@@ -246,6 +264,46 @@ export function TaskEditor({ task, lists, today, onSave, onDelete, onClose }: Ta
             maxLength={80}
             emptyLabel="无清单"
             onChange={setList}
+          />
+        </div>
+      </div>
+
+      <div className="w1-todosubs">
+        <span className="w1-todofieldlabel">
+          子任务 {progress.total > 0 ? `${progress.done}/${progress.total}` : ''}
+        </span>
+        {children.map((child) => (
+          <div className="w1-todosubrow" key={child.id}>
+            <button
+              type="button"
+              className={`w1-todocb small${child.done ? ' on' : ''}`}
+              role="checkbox"
+              aria-checked={child.done}
+              aria-label={`${child.title} · ${child.done ? '标记未完成' : '完成'}`}
+              onClick={() => onToggleSubtask(child.id)}
+            >
+              {child.done ? '✓' : ''}
+            </button>
+            <span className={child.done ? 'done' : ''}>{child.title}</span>
+          </div>
+        ))}
+        <div className="w1-todosubadd">
+          <input
+            value={subtaskDraft}
+            maxLength={200}
+            placeholder="添加子任务，Enter 确认"
+            aria-label="添加子任务"
+            onChange={(event) => setSubtaskDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing || event.keyCode === 229) return
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                const title = subtaskDraft.trim()
+                if (!title) return
+                onAddSubtask(title)
+                setSubtaskDraft('')
+              }
+            }}
           />
         </div>
       </div>

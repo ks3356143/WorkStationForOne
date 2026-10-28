@@ -115,6 +115,11 @@ export function assertTaskDraft(value: unknown): TaskDraft {
   if (draft.plannedFor !== undefined) result.plannedFor = assertDate(draft.plannedFor)
   if (draft.estimateMinutes !== undefined)
     result.estimateMinutes = assertEstimate(draft.estimateMinutes)
+  if (draft.repeat !== undefined) {
+    if (draft.repeat !== null && !isRepeatRule(draft.repeat)) throw new TypeError('重复规则无效')
+    result.repeat = draft.repeat as TaskDraft['repeat']
+  }
+  if (draft.parentId !== undefined) result.parentId = assertTaskId(draft.parentId)
 
   return result
 }

@@ -25,10 +25,11 @@ interface TaskRow {
   planned_for: string | null
   estimate_minutes: number
   repeat: 'daily' | 'weekly' | 'monthly' | null
+  parent_id: string | null
   created_at: number
 }
 
-const COLUMNS = `id, title, time_label, tag, tone, done, notes, due_date, priority, list, completed_at, planned_for, estimate_minutes, repeat, created_at`
+const COLUMNS = `id, title, time_label, tag, tone, done, notes, due_date, priority, list, completed_at, planned_for, estimate_minutes, repeat, parent_id, created_at`
 
 const LIST_SQL = `SELECT ${COLUMNS}
   FROM tasks
@@ -38,8 +39,8 @@ const LIST_SQL = `SELECT ${COLUMNS}
 const FIND_SQL = `SELECT ${COLUMNS} FROM tasks WHERE id = ? AND deleted_at IS NULL`
 
 const INSERT_SQL = `INSERT INTO tasks
-  (id, title, time_label, tag, tone, done, notes, due_date, priority, list, completed_at, planned_for, estimate_minutes, repeat, sort_order, created_at, updated_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  (id, title, time_label, tag, tone, done, notes, due_date, priority, list, completed_at, planned_for, estimate_minutes, repeat, parent_id, sort_order, created_at, updated_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 const SET_DONE_SQL =
   'UPDATE tasks SET done = ?, completed_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
@@ -86,6 +87,7 @@ function toRecord(row: TaskRow): TaskRecord {
     plannedFor: row.planned_for ?? undefined,
     estimateMinutes: row.estimate_minutes,
     ...(row.repeat ? { repeat: row.repeat } : {}),
+    ...(row.parent_id ? { parentId: row.parent_id } : {}),
     createdAt: row.created_at
   }
 }
@@ -150,6 +152,7 @@ export class TaskRepository {
           task.plannedFor ?? null,
           task.estimateMinutes ?? 0,
           task.repeat ?? null,
+          task.parentId ?? null,
           index,
           now,
           now
@@ -178,6 +181,7 @@ export class TaskRepository {
       draft.plannedFor ?? null,
       draft.estimateMinutes ?? 0,
       draft.repeat ?? null,
+      draft.parentId ?? null,
       Number(next.n),
       now,
       now
@@ -202,7 +206,13 @@ export class TaskRepository {
 
   remove(id: string): void {
     const now = Date.now()
-    this.sql(SOFT_DELETE_SQL).run(now, now, id)
+    this.transaction(() => {
+      this.sql(SOFT_DELETE_SQL).run(now, now, id)
+      // 子任务跟着走，否则会留下一批看不见也删不掉的孤儿
+      this.sql(
+        'UPDATE tasks SET deleted_at = ?, updated_at = ? WHERE parent_id = ? AND deleted_at IS NULL'
+      ).run(now, now, id)
+    })
   }
 
   restore(id: string): void {

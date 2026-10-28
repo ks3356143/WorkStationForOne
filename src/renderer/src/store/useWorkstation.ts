@@ -105,6 +105,7 @@ interface WorkstationActions {
   setTaskScope: (scope: TaskScope) => void
   toggleTask: (taskId: string) => void
   addTask: (draft: TaskDraft) => void
+  addSubtask: (parentId: string, title: string) => void
   updateTask: (taskId: string, patch: TaskPatch) => void
   removeTask: (taskId: string) => void
   renameTaskList: (from: string, to: string) => void
@@ -263,6 +264,30 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       })
     }))
     persistQuietly(() => persistence?.update(taskId, next) ?? Promise.resolve())
+  },
+
+  addSubtask: (parentId, title) => {
+    const trimmed = title.trim()
+    if (!trimmed) return
+    const local: Task = {
+      id: nextTaskId(),
+      title: trimmed,
+      time: '—',
+      done: false,
+      notes: '',
+      priority: 0,
+      parentId
+    }
+    set((state) => ({ tasks: [...state.tasks, local] }))
+    if (!persistence) return
+    void persistence
+      .create({ title: trimmed, parentId })
+      .then((saved) =>
+        set((state) => ({
+          tasks: state.tasks.map((task) => (task.id === local.id ? saved : task))
+        }))
+      )
+      .catch(reportPersistenceError)
   },
 
   renameTaskList: (from, to) => {

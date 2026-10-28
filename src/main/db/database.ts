@@ -195,6 +195,13 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE tasks ADD COLUMN repeat TEXT
         CHECK (repeat IS NULL OR repeat IN ('daily', 'weekly', 'monthly'));
     `
+  },
+  {
+    version: 10,
+    sql: `
+      ALTER TABLE tasks ADD COLUMN parent_id TEXT;
+      CREATE INDEX idx_tasks_parent ON tasks(parent_id);
+    `
   }
 ]
 

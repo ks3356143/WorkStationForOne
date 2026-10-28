@@ -781,6 +781,61 @@ async function run() {
     await sleep(200)
     check('筛选恢复全部', all('.w1-task').length === 6, String(all('.w1-task').length))
 
+    // 子任务：父任务行显示进度，勾选后更新，删父任务连带清理
+    await navTo('任务')
+    await sleep(500)
+    const topBefore = (await window.ws.tasks.list()).filter((task) => !task.parentId).length
+    const subParent = one('.w1-todoinput')
+    setValue(subParent, '整理季度复盘')
+    await sleep(120)
+    subParent.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    await sleep(600)
+    all('.w1-todorowwrap')
+      .find((row) => row.textContent?.includes('整理季度复盘'))
+      ?.querySelector('.w1-todobody')
+      ?.click()
+    await sleep(400)
+    const subInput = one('.w1-todosubadd input')
+    check('详情里有子任务输入框', Boolean(subInput))
+    for (const title of ['收集数据', '写结论']) {
+      setValue(subInput, title)
+      await sleep(80)
+      subInput.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+      )
+      await sleep(500)
+    }
+    check(
+      '子任务出现在详情里',
+      all('.w1-todosubrow').length === 2,
+      String(all('.w1-todosubrow').length)
+    )
+    one('.w1-todosubrow .w1-todocb')?.click()
+    await sleep(500)
+    const subBadge = all('.w1-todorowwrap')
+      .find((row) => row.textContent?.includes('整理季度复盘'))
+      ?.querySelector('.w1-todosubcount')?.textContent
+    check('父任务行显示 1/2 进度', subBadge === '1/2', subBadge ?? 'missing')
+    const subCounts = await window.ws.tasks.list()
+    check(
+      '子任务不进入清单计数',
+      subCounts.filter((task) => !task.parentId).length === topBefore + 1,
+      topBefore + ' -> ' + subCounts.filter((task) => !task.parentId).length
+    )
+    // 删掉父任务：子任务应一起软删
+    byText('.w1-todoedit .w1-tododelete', '删除任务')?.click()
+    await sleep(150)
+    byText('.w1-todoedit .w1-tododelete', '再次点击确认删除')?.click()
+    await sleep(600)
+    const afterDelete = await window.ws.tasks.list()
+    check(
+      '删除父任务后子任务一并移除',
+      !afterDelete.some((task) => task.parentId),
+      String(afterDelete.filter((task) => task.parentId).length)
+    )
+
     // 设置面板：从左侧导航打开，读到真实数据路径与版本
     await navTo('今日')
     one('.w1-settings')?.click()

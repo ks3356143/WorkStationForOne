@@ -1,6 +1,7 @@
 import { addDaysKey } from '../../../shared/date-key'
 import type { Task, TaskScope } from '../types'
 import { toMinutes } from './date'
+import { topLevel } from './subtasks'
 
 export interface TaskCounts {
   inbox: number
@@ -26,10 +27,12 @@ export function isInToday(task: Task, today: string): boolean {
 }
 
 export function tasksForTodayCard(tasks: Task[], today: string): Task[] {
+  tasks = topLevel(tasks)
   return tasks.filter((task) => task.dueDate === today || isOverdue(task, today))
 }
 
 export function taskCounts(tasks: Task[], today: string): TaskCounts {
+  tasks = topLevel(tasks)
   return tasks.reduce<TaskCounts>(
     (counts, task) => {
       if (task.done) {
@@ -59,6 +62,7 @@ function dueSort(a: Task, b: Task): number {
 }
 
 export function filterTasksByScope(tasks: Task[], scope: TaskScope, today: string): Task[] {
+  tasks = topLevel(tasks)
   if (scope === 'inbox') return tasks.filter((task) => !task.done && !task.list)
   if (scope === 'today') {
     return tasks
@@ -83,6 +87,7 @@ export function filterTasksByScope(tasks: Task[], scope: TaskScope, today: strin
 }
 
 export function searchTasks(tasks: Task[], query: string): Task[] {
+  tasks = topLevel(tasks)
   const needle = query.trim().toLowerCase()
   if (!needle) return []
 
@@ -101,6 +106,7 @@ export function searchTasks(tasks: Task[], query: string): Task[] {
 }
 
 export function taskLists(tasks: Task[], activeList?: string): TaskList[] {
+  tasks = topLevel(tasks)
   const counts = new Map<string, number>()
   for (const task of tasks) {
     if (task.done || !task.list) continue

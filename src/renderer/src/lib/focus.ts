@@ -24,7 +24,7 @@ const farFuture = '9999-12-31'
  */
 export function topThree(tasks: Task[], today: string, limit = THREE_LIMIT): Task[] {
   return tasks
-    .filter((task) => !task.done)
+    .filter((task) => !task.done && !task.parentId)
     .sort((a, b) => {
       const byRank = rank(a, today) - rank(b, today)
       if (byRank !== 0) return byRank

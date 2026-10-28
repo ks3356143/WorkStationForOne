@@ -82,6 +82,7 @@ export function TasksView({ notify }: TasksViewProps) {
   const [dragTarget, setDragTarget] = useState<string | null>(null)
   const [scheduleOpen, setScheduleOpen] = useState(false)
   const renameTaskList = useWorkstation((state) => state.renameTaskList)
+  const addSubtask = useWorkstation((state) => state.addSubtask)
   const [threeOnly, setThreeOnly] = useState(false)
   const [renaming, setRenaming] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
@@ -442,11 +443,14 @@ export function TasksView({ notify }: TasksViewProps) {
                 <TaskItem
                   key={task.id}
                   task={task}
+                  tasks={tasks}
                   today={today}
                   lists={listNames}
                   expanded={expandedId === task.id}
                   highlight={task.id === lastAddedTaskId}
                   onToggle={() => withViewTransition(() => toggleTask(task.id))}
+                  onAddSubtask={(title) => withViewTransition(() => addSubtask(task.id, title))}
+                  onToggleSubtask={(id) => withViewTransition(() => toggleTask(id))}
                   onExpand={() =>
                     setExpandedId((current) => (current === task.id ? null : task.id))
                   }
