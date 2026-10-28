@@ -89,6 +89,13 @@ function connect(url, label) {
 
     socket.onopen = () => resolve(api)
     socket.onerror = () => reject(new Error(`${label} websocket error`))
+    // 连接断了要立即失败未决请求，否则它们会永远 pending，把整轮验证挂住
+    socket.onclose = () => {
+      for (const [id, request] of pending) {
+        pending.delete(id)
+        request.rej(new Error(`${label} websocket closed`))
+      }
+    }
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data)
       if (message.id) {
@@ -120,14 +127,30 @@ function connect(url, label) {
   })
 }
 
+/** 单次求值的上限：主进程一旦卡住，CDP 不会自己返回，没有它会挂死整轮验证。 */
+const EVAL_TIMEOUT_MS = 30000
+
+async function withTimeout(promise, ms, label) {
+  let timer = null
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`timeout: ${label} (${ms}ms)`)), ms)
+  })
+  try {
+    return await Promise.race([promise, timeout])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 async function evaluate(target, expression, label = 'evaluate') {
-  const result = await target.call('Runtime.evaluate', {
+  const call = target.call('Runtime.evaluate', {
     expression,
     awaitPromise: true,
     returnByValue: true,
     userGesture: true,
     includeCommandLineAPI: true
   })
+  const result = await withTimeout(call, EVAL_TIMEOUT_MS, label)
   if (result.exceptionDetails) {
     throw new Error(
       `${label}: ${result.exceptionDetails.exception?.description || result.exceptionDetails.text}`

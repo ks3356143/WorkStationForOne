@@ -94,7 +94,7 @@
   opacity: 0.82;
 }
 
-.w1-lrow {
+.w1-litemrow {
   display: grid;
   grid-template-columns: 14px minmax(0, 1fr) auto 62px;
   align-items: center;
@@ -103,8 +103,8 @@
   transition: background-color var(--dur-ui);
 }
 
-.w1-lrow:hover,
-.w1-lrow:focus-within {
+.w1-litemrow:hover,
+.w1-litemrow:focus-within {
   background: linear-gradient(90deg, rgb(var(--ac2-rgb) / 0.06), transparent 80%);
   box-shadow: inset 2px 0 rgb(var(--ac2-rgb) / 0.42);
 }

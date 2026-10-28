@@ -153,6 +153,12 @@ async function run() {
         one('.w1-fleet .w1-frow')?.textContent?.includes('待确认'),
       one('.w1-fleet .w1-frow')?.textContent ?? ''
     )
+    const launchNames = all('.w1-launch .w1-lname')
+    check(
+      '外部启动器名称有宽度',
+      launchNames.length === 2 && launchNames.every((el) => el.getBoundingClientRect().width > 30),
+      launchNames.map((el) => el.textContent + ':' + Math.round(el.getBoundingClientRect().width)).join(' ')
+    )
 
     const themeBefore = document.documentElement.dataset.theme
     const fgBefore = getComputedStyle(one('.w1')).getPropertyValue('--fg').trim()
@@ -455,25 +461,36 @@ async function run() {
     )
     byText('.w1-todorow', '今天')?.click()
     await sleep(400)
-    // 到点提醒：建一条时间为「当前时刻」的今日任务，等主进程轮询命中
-    const nowClock = new Date().toTimeString().slice(0, 5)
-    const reminderInput = one('.w1-todoinput')
-    setValue(reminderInput, '提醒测试 ' + nowClock)
-    await sleep(120)
-    reminderInput.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
-    )
-    // 主进程每 400ms 扫一次，等它命中并写日志
-    await sleep(1500)
-    const reminderRow = all('.w1-todorowwrap').find((row) =>
-      row.textContent?.includes('提醒测试')
-    )
-    reminderRow?.querySelector('.w1-todobody')?.click()
-    await sleep(300)
-    byText('.w1-todoedit .w1-tododelete', '删除任务')?.click()
-    await sleep(150)
-    byText('.w1-todoedit .w1-tododelete', '再次点击确认删除')?.click()
-    await sleep(400)
+    // 到点提醒：建一条时间为「当前时刻」的今日任务，等主进程轮询命中。
+    // 轮询按分钟精确匹配；这 1.4 秒内若跨过分钟边界就可能错过，此时删掉重建一次。
+    const addReminderTask = async () => {
+      const clock = new Date().toTimeString().slice(0, 5)
+      const input = one('.w1-todoinput')
+      setValue(input, '提醒测试 ' + clock)
+      await sleep(120)
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+      )
+      await sleep(1400)
+      return new Date().toTimeString().slice(0, 5) === clock
+    }
+    const removeReminderTask = async () => {
+      const row = all('.w1-todorowwrap').find((item) => item.textContent?.includes('提醒测试'))
+      if (!row) return
+      row.querySelector('.w1-todobody')?.click()
+      await sleep(300)
+      byText('.w1-todoedit .w1-tododelete', '删除任务')?.click()
+      await sleep(150)
+      byText('.w1-todoedit .w1-tododelete', '再次点击确认删除')?.click()
+      await sleep(400)
+    }
+    let reminderSameMinute = false
+    for (let attempt = 0; attempt < 3 && !reminderSameMinute; attempt += 1) {
+      reminderSameMinute = await addReminderTask()
+      if (!reminderSameMinute) await removeReminderTask()
+    }
+    check('提醒轮询期间同分钟未跨界', reminderSameMinute)
+    await removeReminderTask()
 
     check(
       '循环任务两条都已清理',
@@ -1330,14 +1347,14 @@ async function run() {
   results.checks.push({
     name: '审计记录任务新增与完成',
     ok: auditHas('task', 'create') && auditHas('task', 'complete'),
-    detail: auditRows.length + ' 条'
+    detail: `${auditRows.length} 条`
   })
   results.checks.push({
     name: '审计记录笔记与习惯写入',
     ok: auditHas('note', 'create') && auditHas('habit', 'checkin'),
     detail: auditRows
       .slice(0, 6)
-      .map((row) => row.domain + ':' + row.action)
+      .map((row) => `${row.domain}:${row.action}`)
       .join(', ')
   })
 

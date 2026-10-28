@@ -15,7 +15,7 @@
 - `npm run check` — Biome 检查格式与 lint（Rust 单二进制，不依赖 Prettier / ESLint）。
 - `npm run check:fix` — 自动修复格式与可安全修复的 lint 问题。
 - `npm run fmt` — 只格式化，不跑 lint。
-- `npm run smoke` — 先构建，再跑 192 项 UI 交互冒烟。加载真实主进程与 preload，UI 操作直接写进临时 SQLite（`userData`、`sessionData`、数据库都隔离到 `%TEMP%`），并断言「preload 桥可用」与「操作已落库」；跨重启持久化仍由 `npm run verify` 覆盖。
+- `npm run smoke` — 先构建，再跑 194 项 UI 交互冒烟。加载真实主进程与 preload，UI 操作直接写进临时 SQLite（`userData`、`sessionData`、数据库都隔离到 `%TEMP%`），并断言「preload 桥可用」与「操作已落库」；跨重启持久化仍由 `npm run verify` 覆盖。到点提醒那条按分钟匹配，冒烟会检测是否跨过分钟边界并在跨界时重建重试。
 - `npm run verify` — 构建后启动真实主进程（临时 `WS_DATA_DIR`），运行 251–253 项运行时断言（起始主题不同会差 2 项分支）：五视图互斥、双主题/双皮肤持久化、跨重启数据。
 - `npm run capture -- .screenshots/shell-1440.png 1440 900 .screenshots/audit-1440.json` — 构建、保存截图并写入布局审计。
 - `npm run capture -- .screenshots/shell-1180.png 1180 720 .screenshots/audit-1180.json dark` — 在最小窗口尺寸下做同样的检查；主题参数为 `dark|light`，视图参数为 `today|tasks|agent|notes|learning`，均可省略审计路径后按任意顺序追加（如 `... 1440 900 light tasks`）。
@@ -48,7 +48,7 @@
 - Agent 现在真的驱动本机 CLI：`main/agent/claude.ts` 启动 `claude -p --output-format stream-json`，事件在 `shared/agent-stream.ts` 解析后经 `agent:event` 推给渲染层，渲染层用 `lib/useAgentRun.ts` 写入线程。提示词只走 stdin，命令行里不含用户文本；`shell: false`。只开只读工具白名单（`CLAUDE_ALLOWED_TOOLS`），不得加 `--dangerously-*` 或放开写入工具。CLI 路径可用 `WS_AGENT_CLI` 覆盖（冒烟指向 `scripts/stub-agent.cjs`），找不到 CLI 或执行失败必须明确报错，不得静默退回 `demoReply()`——它只用于无 preload 桥的浏览器调试。
 - 会话状态按 session ID 限定作用域：`threads` 以它为键，`pendingReplyTo` / `permission.sessionId` 用于选择当前会话。新增会话或审批流程时保持这一约定。
 - 种子数据由 `data/mock.ts` 的 `createInitialData()` 从 `data/seed/*` 组合。测试用它重置 Zustand；必须返回全新对象，并保持这个门面是唯一入口。
-- CSS 入口是 `styles/index.css`，按顺序导入各分节。新规则加到对应分节并保持导入顺序；层叠顺序是有意设计的。
+- CSS 入口是 `styles/index.css`，按顺序导入各分节。新规则加到对应分节并保持导入顺序；层叠顺序是有意设计的。类名按「域前缀」取：`w1-` 全局外壳、`w1-todo*` 任务、`w1-n*` 笔记、`w1-l*` 学习。**改前先在整个工作区 grep 一遍**——后导入的分节会静默覆盖同名规则，学习卡行曾与导航启动器共用 `.w1-lrow`，把「Qoder / DeepSeek Harness」压成 14px 只显示省略号；现在学习卡行是 `.w1-litemrow`，冒烟有「外部启动器名称有宽度」兜底。
 - 格式与 lint 统一走 Biome（`biome.json`，Rust 单二进制）。不要引入 Prettier / ESLint。配置里关掉的规则都是与项目设计冲突的：`<i>//</i>` 是终端风格装饰而非注释、带 `role` 的 div 是虚拟列表容器、无障碍降级必须用 `!important` 压过后导入的分节、跨分节特异性倒置是导入顺序的结果。新增例外优先写 `// biome-ignore <rule>: 原因`，不要全局关规则。
 - main 与 preload 以 CJS 构建（没有 `"type": "module"`）。未验证 Electron preload 与 sandbox 行为前，不要切换模块格式。
 - Vitest 覆盖 `src/**/*.test.ts` 与 `scripts/**/*.test.mjs`，运行在 Node 环境。添加 `.tsx` 测试前，先有意识地配置 DOM/组件测试环境。

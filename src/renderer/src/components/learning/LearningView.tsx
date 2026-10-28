@@ -57,7 +57,7 @@ function LearningItemRow({
 
   return (
     <div className={`w1-litem${item.active ? '' : ' off'}${expanded ? ' open' : ''}`}>
-      <div className="w1-lrow">
+      <div className="w1-litemrow">
         <span className={`w1-ldot${due ? ' due' : ''}`} aria-hidden="true" />
         <button
           className="w1-lbody"
