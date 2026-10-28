@@ -14,6 +14,7 @@ import { selectActiveSession, useWorkstation } from '../store/useWorkstation'
 interface CommandPaletteProps {
   onClose: () => void
   notify: (text: string) => void
+  onShortcuts: () => void
 }
 
 const GROUPS: readonly PaletteGroup[] = ['会话', '导航', '操作', '交给 Agent']
@@ -26,12 +27,13 @@ const ACTION_GLYPH: Record<PaletteCommand['action']['kind'], string> = {
   focus: '▶',
   filter: '▤',
   motion: '◐',
+  shortcuts: '?',
   theme: '◑',
   review: '◈',
   send: '↵'
 }
 
-export function CommandPalette({ onClose, notify }: CommandPaletteProps) {
+export function CommandPalette({ onClose, notify, onShortcuts }: CommandPaletteProps) {
   const sessions = useWorkstation((state) => state.sessions)
   const activeSessionId = useWorkstation((state) => state.activeSessionId)
   const activeSession = useWorkstation(selectActiveSession)
@@ -102,6 +104,9 @@ export function CommandPalette({ onClose, notify }: CommandPaletteProps) {
       case 'theme':
         toggleTheme()
         notify(theme === 'dark' ? '已切换到白天模式' : '已切换到夜间模式')
+        break
+      case 'shortcuts':
+        onShortcuts()
         break
       case 'review':
         startLearningReview()

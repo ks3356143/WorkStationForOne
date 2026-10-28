@@ -50,6 +50,25 @@
   color: var(--su);
 }
 
+.w1-st-shortcuts {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: var(--su);
+  cursor: pointer;
+  transition: color var(--dur-ui);
+}
+
+.w1-st-shortcuts:hover {
+  color: var(--fg);
+}
+
+.w1-st-shortcuts:hover kbd {
+  border-color: rgb(var(--ac2-rgb) / 0.5);
+  color: var(--ac2-fg);
+}
+
 .w1-st-key kbd {
   padding: 2px 4px;
   border: 1px solid rgb(var(--ac-rgb) / 0.18);

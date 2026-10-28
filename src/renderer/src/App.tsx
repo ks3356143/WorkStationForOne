@@ -15,6 +15,7 @@ import { LearningWorkspace } from './components/learning/LearningWorkspace'
 import { NotesView } from './components/NotesView'
 import { QuickNoteModal } from './components/QuickNoteModal'
 import { SessionRail } from './components/SessionRail'
+import { ShortcutSheet } from './components/ShortcutSheet'
 import { StatusBar } from './components/StatusBar'
 import { TasksView } from './components/tasks/TasksView'
 import { TodayDashboard } from './components/TodayDashboard'
@@ -25,6 +26,7 @@ import { DURATION, EASE_OUT } from './lib/motion'
 import { hydrateTasks, refreshTasks } from './lib/persistence'
 import { hydrateNotes } from './lib/notes-persistence'
 import { hydrateLearning } from './lib/learning-persistence'
+import { isTypingTarget } from './lib/shortcuts'
 import { useDemoReply } from './lib/useDemoReply'
 
 export default function App() {
@@ -40,6 +42,8 @@ export default function App() {
   const [booting, setBooting] = useState(true)
   const [commandOpen, setCommandOpen] = useState(false)
   const [paletteSeq, setPaletteSeq] = useState(0)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const shortcutsTriggerRef = useRef<HTMLElement | null>(null)
   const [notice, setNotice] = useState<{
     id: number
     text: string
@@ -133,9 +137,21 @@ export default function App() {
         }
         return
       }
+      if (event.key === '?' && !mod && !event.altKey) {
+        // 输入框里的问号是正文，不能抢走
+        if (isTypingTarget(event.target)) return
+        if (commandOpen || quickNoteOpen || focus) return
+        if (shortcutsOpen) return
+        event.preventDefault()
+        shortcutsTriggerRef.current =
+          document.activeElement instanceof HTMLElement ? document.activeElement : null
+        setShortcutsOpen(true)
+        return
+      }
       if (event.key === 'Escape') {
         if (event.isComposing || event.keyCode === 229) return
-        if (commandOpen) closePalette()
+        if (shortcutsOpen) setShortcutsOpen(false)
+        else if (commandOpen) closePalette()
         else if (quickNoteOpen) closeQuickNote()
         else if (focus) closeFocus()
       }
@@ -152,7 +168,8 @@ export default function App() {
     focus,
     openPalette,
     openQuickNote,
-    quickNoteOpen
+    quickNoteOpen,
+    shortcutsOpen
   ])
 
   return (
@@ -183,7 +200,7 @@ export default function App() {
               </div>
             </main>
           </div>
-          <StatusBar notify={notify} />
+          <StatusBar notify={notify} onShortcuts={() => setShortcutsOpen(true)} />
 
           <AnimatePresence>
             {booting ? <BootOverlay onSkip={() => setBooting(false)} /> : null}
@@ -196,11 +213,27 @@ export default function App() {
           <AnimatePresence>{quickNoteOpen ? <QuickNoteModal /> : null}</AnimatePresence>
 
           <AnimatePresence>
+            {shortcutsOpen ? (
+              <ShortcutSheet
+                onClose={() => {
+                  setShortcutsOpen(false)
+                  shortcutsTriggerRef.current?.focus()
+                }}
+              />
+            ) : null}
+          </AnimatePresence>
+
+          <AnimatePresence>
             {commandOpen ? (
               <CommandPalette
                 key={`palette-${paletteSeq}`}
                 notify={notify}
                 onClose={closePalette}
+                onShortcuts={() => {
+                  // 先收起面板（焦点回到触发元素），速查表再记下它作为归还目标
+                  closePalette()
+                  setShortcutsOpen(true)
+                }}
               />
             ) : null}
           </AnimatePresence>

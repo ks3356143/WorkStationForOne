@@ -5,9 +5,10 @@ import { skinLabel, themeLabel } from '../lib/theme'
 
 interface StatusBarProps {
   notify: (text: string) => void
+  onShortcuts: () => void
 }
 
-export function StatusBar({ notify }: StatusBarProps) {
+export function StatusBar({ notify, onShortcuts }: StatusBarProps) {
   const sessionCount = useWorkstation((state) => state.sessions.length)
   const session = useWorkstation(selectActiveSession)
   const permission = useWorkstation((state) => state.permission)
@@ -99,6 +100,14 @@ export function StatusBar({ notify }: StatusBarProps) {
         <span className="w1-st-key">
           <kbd>^N</kbd>笔记
         </span>
+        <button
+          className="w1-st-key w1-st-shortcuts"
+          type="button"
+          onClick={onShortcuts}
+          title="键盘快捷键速查"
+        >
+          <kbd>?</kbd>快捷键
+        </button>
       </span>
       <span>{formatHM(now)} 本地</span>
     </footer>

@@ -867,6 +867,36 @@ async function run() {
     await sleep(1000)
     check('命令面板发送后收到回复', !one('.w1-typing'), one('.w1-typing') ? '等待动画未结束' : '')
 
+    // 键盘速查表：输入框内不抢问号，非输入场景打开
+    await navTo('任务')
+    const shortcutProbe = one('.w1-todoinput')
+    shortcutProbe?.focus()
+    shortcutProbe?.dispatchEvent(
+      new KeyboardEvent('keydown', { key: '?', code: 'Slash', shiftKey: true, bubbles: true })
+    )
+    await sleep(300)
+    check('输入框内的问号不打开速查表', !one('.w1-shortcuts'))
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '?', code: 'Slash', shiftKey: true, bubbles: true }))
+    await sleep(500)
+    check(
+      '问号打开键盘速查表',
+      !!one('.w1-shortcuts') &&
+        all('.w1-sheetgroup').length === 5 &&
+        all('.w1-sheetrow').length >= 15,
+      String(all('.w1-sheetgroup').length) + ' 组 / ' + String(all('.w1-sheetrow').length) + ' 条'
+    )
+    check(
+      '速查表列出主键位',
+      ['Ctrl', 'Shift', 'Space', 'Esc'].every((key) =>
+        one('.w1-shortcuts')?.textContent?.includes(key)
+      ),
+      one('.w1-schead')?.textContent ?? ''
+    )
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
+    await sleep(500)
+    check('Esc 关闭速查表', !one('.w1-shortcuts'))
+    check('状态栏有速查入口', !!one('.w1-st-shortcuts'))
+
     await navTo('今日')
     one('.w1-motion')?.focus()
     await openPalette()

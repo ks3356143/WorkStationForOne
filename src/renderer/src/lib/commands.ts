@@ -14,6 +14,7 @@ export type PaletteAction =
   | { kind: 'motion' }
   | { kind: 'theme' }
   | { kind: 'review' }
+  | { kind: 'shortcuts' }
   | { kind: 'send'; text: string }
 
 export interface PaletteCommand {
@@ -106,6 +107,14 @@ export function buildPaletteCommands(input: PaletteInput): PaletteCommand[] {
       hint: '工作区',
       value: '学习 卡片库 复习 闪卡 learning cards',
       action: { kind: 'view', view: 'learning' }
+    },
+    {
+      id: 'action:shortcuts',
+      group: '操作',
+      label: '快捷键速查',
+      hint: '按 ? 打开',
+      value: '快捷键 键位 速查 帮助 shortcuts keys help',
+      action: { kind: 'shortcuts' }
     },
     {
       id: 'action:review',
