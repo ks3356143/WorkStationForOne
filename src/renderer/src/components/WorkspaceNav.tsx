@@ -9,6 +9,7 @@ import { AgentIcon, LearningIcon, NotesIcon, SettingsIcon, TasksIcon, TodayIcon 
 
 interface WorkspaceNavProps {
   notify: (text: string) => void
+  onOpenSettings: () => void
 }
 
 const VIEWS: { id: View; label: string; index: string; Icon: typeof TodayIcon }[] = [
@@ -19,7 +20,7 @@ const VIEWS: { id: View; label: string; index: string; Icon: typeof TodayIcon }[
   { id: 'learning', label: '学习', index: '05', Icon: LearningIcon }
 ]
 
-export function WorkspaceNav({ notify }: WorkspaceNavProps) {
+export function WorkspaceNav({ notify, onOpenSettings }: WorkspaceNavProps) {
   const activeView = useWorkstation((state) => state.activeView)
   const setView = useWorkstation((state) => state.setView)
   const sessions = useWorkstation((state) => state.sessions)
@@ -106,11 +107,7 @@ export function WorkspaceNav({ notify }: WorkspaceNavProps) {
       </div>
 
       <div className="w1-rfoot">
-        <button
-          className="w1-settings"
-          type="button"
-          onClick={() => notify('设置面板将在 P1 接入')}
-        >
+        <button className="w1-settings" type="button" onClick={onOpenSettings}>
           <SettingsIcon width={12} height={12} />
           设置
         </button>

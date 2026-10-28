@@ -62,7 +62,8 @@ const api: WsApi = {
   },
   app: {
     setTheme: (theme) => ipcRenderer.invoke(IPC_CHANNELS.appSetTheme, theme),
-    backupNow: () => ipcRenderer.invoke(IPC_CHANNELS.appBackupNow)
+    backupNow: () => ipcRenderer.invoke(IPC_CHANNELS.appBackupNow),
+    info: () => ipcRenderer.invoke(IPC_CHANNELS.appInfo)
   }
 }
 

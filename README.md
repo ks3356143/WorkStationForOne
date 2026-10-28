@@ -55,7 +55,7 @@ npm run dev
 | `npm run typecheck` | 类型检查（main/preload 与 renderer 各一套配置） |
 | `npm test` | 运行全部单元测试（407 项） |
 | `npm run check` | Biome 检查格式与 lint（Rust 单二进制，不依赖 Prettier / ESLint） |
-| `npm run smoke` | 构建后跑 UI 交互冒烟（179 项，真实主进程 + 临时 SQLite） |
+| `npm run smoke` | 构建后跑 UI 交互冒烟（184 项，真实主进程 + 临时 SQLite） |
 | `npm run verify` | 启动真实主进程跑 244 项运行时断言（五视图、双主题/皮肤、跨重启） |
 | `npm run capture -- .screenshots/home.png 1440 900 .screenshots/audit.json` | 截图并输出布局审计 |
 | `npm run capture -- .screenshots/notes-1180.png 1180 720 .screenshots/audit-notes.json dark notes` | 指定主题 `dark|light` 与视图 `today|tasks|agent|notes|learning` 截图 |

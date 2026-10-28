@@ -190,13 +190,22 @@ export interface AgentApi {
 
 export interface BackupResult {
   file: string
+  dir: string
   bytes: number
   at: number
+}
+
+export interface AppInfo {
+  version: string
+  dataDir: string
+  backupDir: string
+  backupCount: number
 }
 
 export interface AppApi {
   setTheme: (theme: Theme) => Promise<void>
   backupNow: () => Promise<BackupResult>
+  info: () => Promise<AppInfo>
 }
 
 export interface WsApi {
@@ -240,5 +249,6 @@ export const IPC_CHANNELS = {
   agentCancel: 'agent:cancel',
   agentEvent: 'agent:event',
   appSetTheme: 'app:set-theme',
-  appBackupNow: 'app:backup-now'
+  appBackupNow: 'app:backup-now',
+  appInfo: 'app:info'
 } as const

@@ -781,6 +781,34 @@ async function run() {
     await sleep(200)
     check('筛选恢复全部', all('.w1-task').length === 6, String(all('.w1-task').length))
 
+    // 设置面板：从左侧导航打开，读到真实数据路径与版本
+    await navTo('今日')
+    one('.w1-settings')?.click()
+    await sleep(600)
+    check('设置面板可打开', !!one('.w1-settings-sheet'), one('.w1-navver')?.textContent ?? '')
+    const settingsText = one('.w1-settings-sheet')?.textContent ?? ''
+    check(
+      '设置面板显示版本与数据路径',
+      settingsText.includes('当前版本 v') && settingsText.includes('ws-smoke-'),
+      settingsText.slice(0, 120)
+    )
+    check(
+      '设置面板读到备份份数',
+      settingsText.includes('份 ·'),
+      one('.w1-setpath')?.textContent ?? ''
+    )
+    const themeBtnBefore = document.documentElement.dataset.theme
+    const themeBtns = all('.w1-setbtn')
+    themeBtns[0]?.click()
+    await sleep(500)
+    const themeBtnAfter = document.documentElement.dataset.theme
+    check('设置里可切换主题', themeBtnBefore !== themeBtnAfter, themeBtnBefore + ' -> ' + themeBtnAfter)
+    all('.w1-setbtn')[0]?.click()
+    await sleep(500)
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
+    await sleep(400)
+    check('Esc 关闭设置面板', !one('.w1-settings-sheet'))
+
     const habitCard = all('.w1-card').find((card) => card.textContent?.includes('习惯打卡'))
     const habitBefore = habitCard?.querySelector('.w1-ct span')?.textContent ?? ''
     one('.w1-hdot.today:not(.on)')?.click()

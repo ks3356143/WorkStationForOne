@@ -15,6 +15,7 @@ import { LearningWorkspace } from './components/learning/LearningWorkspace'
 import { NotesView } from './components/NotesView'
 import { QuickNoteModal } from './components/QuickNoteModal'
 import { SessionRail } from './components/SessionRail'
+import { SettingsSheet } from './components/SettingsSheet'
 import { ShortcutSheet } from './components/ShortcutSheet'
 import { StatusBar } from './components/StatusBar'
 import { TasksView } from './components/tasks/TasksView'
@@ -44,6 +45,7 @@ export default function App() {
   const [commandOpen, setCommandOpen] = useState(false)
   const [paletteSeq, setPaletteSeq] = useState(0)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const shortcutsTriggerRef = useRef<HTMLElement | null>(null)
   const [notice, setNotice] = useState<{
     id: number
@@ -152,7 +154,8 @@ export default function App() {
       }
       if (event.key === 'Escape') {
         if (event.isComposing || event.keyCode === 229) return
-        if (shortcutsOpen) setShortcutsOpen(false)
+        if (settingsOpen) setSettingsOpen(false)
+        else if (shortcutsOpen) setShortcutsOpen(false)
         else if (commandOpen) closePalette()
         else if (quickNoteOpen) closeQuickNote()
         else if (focus) closeFocus()
@@ -171,7 +174,8 @@ export default function App() {
     openPalette,
     openQuickNote,
     quickNoteOpen,
-    shortcutsOpen
+    shortcutsOpen,
+    settingsOpen
   ])
 
   return (
@@ -186,7 +190,7 @@ export default function App() {
           <div className="w1-ambient" aria-hidden="true" />
           <TopBar onCommand={openPalette} />
           <div className="w1-body">
-            <WorkspaceNav notify={notify} />
+            <WorkspaceNav notify={notify} onOpenSettings={() => setSettingsOpen(true)} />
             <main className="w1-stage">
               <div key={activeView} className="w1-view">
                 {activeView === 'today' ? <TodayDashboard /> : null}
@@ -215,6 +219,12 @@ export default function App() {
           <AnimatePresence>{quickNoteOpen ? <QuickNoteModal /> : null}</AnimatePresence>
 
           <AnimatePresence>
+            {settingsOpen ? (
+              <SettingsSheet onClose={() => setSettingsOpen(false)} notify={notify} />
+            ) : null}
+          </AnimatePresence>
+
+          <AnimatePresence>
             {shortcutsOpen ? (
               <ShortcutSheet
                 onClose={() => {
@@ -235,6 +245,10 @@ export default function App() {
                   // 先收起面板（焦点回到触发元素），速查表再记下它作为归还目标
                   closePalette()
                   setShortcutsOpen(true)
+                }}
+                onSettings={() => {
+                  closePalette()
+                  setSettingsOpen(true)
                 }}
               />
             ) : null}

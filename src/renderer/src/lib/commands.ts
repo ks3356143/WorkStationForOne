@@ -16,6 +16,7 @@ export type PaletteAction =
   | { kind: 'review' }
   | { kind: 'shortcuts' }
   | { kind: 'backup' }
+  | { kind: 'settings' }
   | { kind: 'send'; text: string }
 
 export interface PaletteCommand {
@@ -108,6 +109,14 @@ export function buildPaletteCommands(input: PaletteInput): PaletteCommand[] {
       hint: '工作区',
       value: '学习 卡片库 复习 闪卡 learning cards',
       action: { kind: 'view', view: 'learning' }
+    },
+    {
+      id: 'action:settings',
+      group: '操作',
+      label: '打开设置',
+      hint: '外观 · 数据 · 版本',
+      value: '设置 偏好 外观 主题 皮肤 动效 数据 路径 settings',
+      action: { kind: 'settings' }
     },
     {
       id: 'action:backup',

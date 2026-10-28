@@ -1,6 +1,7 @@
 import { BrowserWindow, ipcMain } from 'electron'
 import { IPC_CHANNELS, type Theme } from '../../shared/ipc'
-import { backupSize, createBackup } from '../db/backup'
+import { app } from 'electron'
+import { backupSize, createBackup, listBackups } from '../db/backup'
 
 export const WINDOW_PALETTE: Record<Theme, { background: string; symbol: string }> = {
   dark: { background: '#070812', symbol: '#B7C9DC' },
@@ -18,14 +19,24 @@ export const registerAppHandlersIPC = { assertTheme } as const
 
 export interface BackupTarget {
   db: import('node:sqlite').DatabaseSync
+  /** 备份目录 */
   dir: string
+  /** 数据库所在目录，设置面板要原样展示给用户 */
+  dataDir: string
 }
 
 export function registerAppHandlers(backup: BackupTarget): void {
   ipcMain.handle(IPC_CHANNELS.appBackupNow, () => {
     const file = createBackup(backup.db, backup.dir)
-    return { file, bytes: backupSize(file), at: Date.now() }
+    return { file, dir: backup.dir, bytes: backupSize(file), at: Date.now() }
   })
+
+  ipcMain.handle(IPC_CHANNELS.appInfo, () => ({
+    version: app.getVersion(),
+    dataDir: backup.dataDir,
+    backupDir: backup.dir,
+    backupCount: listBackups(backup.dir).length
+  }))
 
   ipcMain.handle(IPC_CHANNELS.appSetTheme, (event, value: unknown) => {
     const theme = assertTheme(value)

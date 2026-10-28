@@ -1229,3 +1229,113 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ---------- settings sheet ---------- */
+
+.w1-settings-sheet {
+  position: relative;
+  width: min(560px, calc(100vw - 80px));
+  max-height: min(640px, calc(100vh - 96px));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  border: 1px solid transparent;
+  background-image:
+    var(--glass-spec),
+    linear-gradient(155deg, rgb(var(--glass-tint-rgb) / 0.78), rgb(var(--glass-deep-rgb) / 0.9));
+  background-origin: padding-box;
+  background-clip: padding-box, padding-box;
+  border-image: var(--glass-rim) 1;
+  backdrop-filter: blur(28px) saturate(165%);
+  box-shadow:
+    var(--neu-in),
+    0 38px 84px rgb(var(--shadow-rgb) / 0.54),
+    0 0 56px rgb(var(--prism-2-rgb) / 0.14);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--ac-rgb) / 0.3) transparent;
+}
+
+.w1-settings-sheet::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 46%;
+  height: 2px;
+  background: linear-gradient(90deg, rgb(var(--prism-2-rgb)), rgb(var(--prism-1-rgb)), transparent);
+}
+
+.w1-setgroup h3 {
+  margin: 0 0 6px;
+  padding-left: 7px;
+  border-left: 2px solid rgb(var(--ac-rgb) / 0.6);
+  font: 600 11px / 1 var(--mono);
+  letter-spacing: 0.12em;
+  color: var(--ac-fg);
+}
+
+.w1-setrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+  padding: 3px 0;
+  border-bottom: 1px solid rgb(var(--bd-rgb) / 0.3);
+  font: 12.5px / 1.4 var(--sans);
+  color: var(--fs);
+}
+
+.w1-setrow:last-child {
+  border-bottom: 0;
+}
+
+.w1-setrow > span:first-child {
+  flex: none;
+  width: 72px;
+  color: var(--mu);
+}
+
+.w1-setpath {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 10.5px / 1.5 var(--mono);
+  color: var(--su);
+  direction: rtl;
+  text-align: left;
+}
+
+.w1-setbtn {
+  flex: none;
+  margin-left: auto;
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid rgb(var(--ac-rgb) / 0.3);
+  background: rgb(var(--vio-rgb) / 0.08);
+  color: var(--fg);
+  font: 11px / 1 var(--mono);
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui),
+    color var(--dur-ui);
+}
+
+.w1-setbtn:hover {
+  border-color: rgb(var(--ac2-rgb) / 0.55);
+  background: rgb(var(--ac2-rgb) / 0.14);
+  color: var(--ac2-fg);
+}
+
+.w1-setbtn.on {
+  border-color: rgb(var(--ac2-rgb) / 0.6);
+  background: rgb(var(--ac2-rgb) / 0.16);
+  color: var(--ac2-fg);
+}
+
+.w1-setbtn:disabled {
+  opacity: 0.45;
+}

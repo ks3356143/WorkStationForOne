@@ -15,6 +15,7 @@ interface CommandPaletteProps {
   onClose: () => void
   notify: (text: string) => void
   onShortcuts: () => void
+  onSettings: () => void
 }
 
 const GROUPS: readonly PaletteGroup[] = ['会话', '导航', '操作', '交给 Agent']
@@ -29,12 +30,13 @@ const ACTION_GLYPH: Record<PaletteCommand['action']['kind'], string> = {
   motion: '◐',
   shortcuts: '?',
   backup: '⌸',
+  settings: '⚙',
   theme: '◑',
   review: '◈',
   send: '↵'
 }
 
-export function CommandPalette({ onClose, notify, onShortcuts }: CommandPaletteProps) {
+export function CommandPalette({ onClose, notify, onShortcuts, onSettings }: CommandPaletteProps) {
   const sessions = useWorkstation((state) => state.sessions)
   const activeSessionId = useWorkstation((state) => state.activeSessionId)
   const activeSession = useWorkstation(selectActiveSession)
@@ -108,6 +110,9 @@ export function CommandPalette({ onClose, notify, onShortcuts }: CommandPaletteP
         break
       case 'shortcuts':
         onShortcuts()
+        break
+      case 'settings':
+        onSettings()
         break
       case 'backup': {
         const bridge = window.ws?.app

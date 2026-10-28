@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { app, BrowserWindow, session, shell } from 'electron'
 import { initDatabase, type DatabaseContext } from './db'
@@ -40,6 +40,7 @@ function isAllowedNavigation(url: string): boolean {
 }
 
 let mainWindow: BrowserWindow | null = null
+let stopReminders: (() => void) | null = null
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -110,7 +111,11 @@ if (!gotTheLock) {
     database = initDatabase()
     // 软删任务保留 30 天后清掉，避免已删行无限堆积。
     database.tasks.purgeDeleted(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    registerAppHandlers({ db: database.db, dir: backupDirFor(database.file) })
+    registerAppHandlers({
+      db: database.db,
+      dir: backupDirFor(database.file),
+      dataDir: dirname(database.file)
+    })
     registerTaskHandlers(database.tasks)
     registerNoteHandlers(database.notes)
     registerLearningHandlers(database.learning)
@@ -118,7 +123,7 @@ if (!gotTheLock) {
     // 捕获窗是另一个 BrowserWindow，Agent 事件只回主窗口
     registerAgentHandlers(() => mainWindow)
     // 到点提醒：轮询数据库，命中「今天 + 正好到点 + 没提醒过」就弹系统通知
-    startReminderLoop(database.tasks, {
+    stopReminders = startReminderLoop(database.tasks, {
       ...(process.env.WS_REMINDER_TICK_MS
         ? { tickMs: Number(process.env.WS_REMINDER_TICK_MS) }
         : {}),
@@ -143,6 +148,9 @@ if (!gotTheLock) {
 }
 
 app.on('before-quit', () => {
+  // 先停轮询再关库：反过来的话 tick 会读到已关闭的连接
+  stopReminders?.()
+  stopReminders = null
   disposeCaptureShortcut()
   database?.close()
   database = null
