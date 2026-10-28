@@ -1,6 +1,9 @@
+import { dateKey } from '../../../shared/date-key'
 import { getTodayIndex, getWeekdayCn } from '../lib/date'
+import { habitsDoneToday, weekFlags } from '../lib/habits'
 import { useNow } from '../lib/useNow'
 import { useWorkstation } from '../store/useWorkstation'
+import type { Habit } from '../types'
 
 const DAY_LABELS = ['一', '二', '三', '四', '五', '六', '日']
 
@@ -9,7 +12,9 @@ export function HabitCard() {
   const toggleHabitToday = useWorkstation((state) => state.toggleHabitToday)
   const now = useNow(60_000)
   const today = getTodayIndex(now)
-  const doneCount = habits.filter((habit) => habit.days[today]).length
+  const todayKey = dateKey(now)
+  const doneCount = habitsDoneToday(habits, todayKey)
+  const flagsOf = (habit: Habit) => weekFlags(habit, todayKey)
 
   return (
     <section className="w1-card">
@@ -34,8 +39,8 @@ export function HabitCard() {
         {habits.map((habit) => (
           <div className="w1-hrow" key={habit.id}>
             <span className="w1-hname">{habit.name}</span>
-            {DAY_LABELS.map((label, index) => {
-              const done = habit.days[index] === true
+            {flagsOf(habit).map((done, index) => {
+              const label = DAY_LABELS[index]
               return (
                 <button
                   key={label}

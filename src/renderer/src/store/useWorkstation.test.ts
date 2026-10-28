@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { addDaysKey, dateKey } from '../../../shared/date-key'
 import { createInitialData } from '../data/mock'
-import { getTodayIndex } from '../lib/date'
 import {
   bindTaskPersistence,
   selectPreviewNotes,
@@ -45,15 +44,15 @@ describe('任务', () => {
 describe('习惯', () => {
   it('翻转今日打卡并保持其他日期不变', () => {
     const before = useWorkstation.getState().habits.find((habit) => habit.id === 'h1')!
-    const todayIndex = getTodayIndex()
-    const target = before.days[todayIndex]
+    const todayKey = dateKey()
+    const target = before.checkins.includes(todayKey)
 
     useWorkstation.getState().toggleHabitToday('h1')
 
     const after = useWorkstation.getState().habits.find((habit) => habit.id === 'h1')!
-    expect(after.days[todayIndex]).toBe(!target)
-    expect(after.days.filter((_, index) => index !== todayIndex)).toEqual(
-      before.days.filter((_, index) => index !== todayIndex)
+    expect(after.checkins.includes(todayKey)).toBe(!target)
+    expect(after.checkins.filter((day) => day !== todayKey)).toEqual(
+      before.checkins.filter((day) => day !== todayKey)
     )
   })
 })

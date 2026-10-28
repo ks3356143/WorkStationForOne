@@ -653,6 +653,17 @@ async function run() {
       habitCount(habitAfter) === habitCount(habitBefore) + 1,
       habitBefore + ' -> ' + habitAfter
     )
+    const habitKey = new Date().toLocaleDateString('sv-SE')
+    const storedHabits = await window.ws.habits.list()
+    const habitStored = {
+      total: storedHabits.length,
+      checkedToday: storedHabits.filter((habit) => habit.checkins.includes(habitKey)).length
+    }
+    check(
+      '习惯打卡已落库',
+      habitStored?.total > 0 && habitStored?.checkedToday >= 1,
+      JSON.stringify(habitStored)
+    )
 
     byText('.w1-btn', '快速笔记')?.click()
     await sleep(350)

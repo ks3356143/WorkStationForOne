@@ -45,6 +45,11 @@ const api: WsApi = {
     update: (id, patch) => ipcRenderer.invoke(IPC_CHANNELS.learningUpdate, id, patch),
     review: (id, rating) => ipcRenderer.invoke(IPC_CHANNELS.learningReview, id, rating)
   },
+  habits: {
+    list: () => ipcRenderer.invoke(IPC_CHANNELS.habitsList),
+    bootstrap: (habits) => ipcRenderer.invoke(IPC_CHANNELS.habitsBootstrap, habits),
+    setCheckin: (id, day, done) => ipcRenderer.invoke(IPC_CHANNELS.habitsSetCheckin, id, day, done)
+  },
   agent: {
     send: (input) => ipcRenderer.invoke(IPC_CHANNELS.agentSend, input),
     cancel: (runId) => ipcRenderer.invoke(IPC_CHANNELS.agentCancel, runId),

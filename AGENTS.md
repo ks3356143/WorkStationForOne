@@ -15,8 +15,8 @@
 - `npm run check` — Biome 检查格式与 lint（Rust 单二进制，不依赖 Prettier / ESLint）。
 - `npm run check:fix` — 自动修复格式与可安全修复的 lint 问题。
 - `npm run fmt` — 只格式化，不跑 lint。
-- `npm run smoke` — 先构建，再跑 167 项 UI 交互冒烟。加载真实主进程与 preload，UI 操作直接写进临时 SQLite（`userData`、`sessionData`、数据库都隔离到 `%TEMP%`），并断言「preload 桥可用」与「操作已落库」；跨重启持久化仍由 `npm run verify` 覆盖。
-- `npm run verify` — 构建后启动真实主进程（临时 `WS_DATA_DIR`），运行 244 项运行时断言：五视图互斥、双主题/双皮肤持久化、跨重启数据。
+- `npm run smoke` — 先构建，再跑 168 项 UI 交互冒烟。加载真实主进程与 preload，UI 操作直接写进临时 SQLite（`userData`、`sessionData`、数据库都隔离到 `%TEMP%`），并断言「preload 桥可用」与「操作已落库」；跨重启持久化仍由 `npm run verify` 覆盖。
+- `npm run verify` — 构建后启动真实主进程（临时 `WS_DATA_DIR`），运行 248 项运行时断言：五视图互斥、双主题/双皮肤持久化、跨重启数据。
 - `npm run capture -- .screenshots/shell-1440.png 1440 900 .screenshots/audit-1440.json` — 构建、保存截图并写入布局审计。
 - `npm run capture -- .screenshots/shell-1180.png 1180 720 .screenshots/audit-1180.json dark` — 在最小窗口尺寸下做同样的检查；主题参数为 `dark|light`，视图参数为 `today|tasks|agent|notes|learning`，均可省略审计路径后按任意顺序追加（如 `... 1440 900 light tasks`）。
 - `npm run capture -- .screenshots/tasks-1180.png 1180 720 dark tasks` — 只截某个视图并省略审计路径。
@@ -88,13 +88,14 @@
 - 已实现：全局快速捕获窗（`Ctrl+Alt+Space`）。独立 560×168 无边框窗口走同一 preload，用 `capture:create` 落库后广播 `tasks:changed`，主窗口调用 `refreshTasks()` 重新拉库；失焦或 Esc 自动隐藏。
 - 已实现：今日看板「完成记录」热力图。近 26 周 × 7 天（周一起始），四档色阶与「项完成 / 天有记录 / 最多一天」统计，规则在纯函数 `lib/heatmap.ts`；种子数据中今天已完成的两条任务带 `completedAt`，首次启动即可见当天格子。没有 `completedAt` 的旧数据不计入，也不要迁移伪造。
 - 已实现：外壳「左侧主导航 + 单个全宽工作区」。今日（模块流）、任务（清单栏 + 任务列表）、Agent（会话栏 + 聊天区）、笔记（全宽工作区）、学习（科目栏 + 卡片列表 / 复习态）互斥渲染；左侧导航同时承载舰队总览、外部启动器与设置；命令面板可直接跳转视图或新建任务。
+- 已实现：习惯域 SQLite 持久化（DB v8）。打卡按日期键存 `habit_checkins`，**不要再退回 `days: boolean[7]`**——七格布尔跨周就没有意义；本周视图由 `lib/habits.ts` 的 `weekFlags()` 从日期键推导，未来日期恒为空。空库时播种，播种后一律以数据库为准。
 - 已实现：学习域 v1（间隔重复闪卡）。`learning_items` / `learning_reviews` 迁移到 v7，调度规则在 `shared/srs.ts`（1 重来 / 2 困难 / 3 良好 / 4 简单，间隔上限 365 天、ease 1.3–3.0），主进程按本机当天计算，`review` 不接收日期；`lib/learning.ts` 负责到期队列、时长估算与科目分组；种子 24 张（英语二 16 个真题高频词 + 互联网 8 个概念），仅空库写入。
 - 笔记搜索：FTS5 `trigram` 分词（`unicode61` 无法检索中文）；**查询少于 3 字符时自动回退 `LIKE`**，写查询前请先看 `src/main/db/notes.ts` 的 `planSearch`。
 - 全部笔记页用固定行高虚拟滚动（`ROW_HEIGHT` 与 CSS `.w1-nvrow` 高度必须一致），分页每页 60 条。
 - 数据库位置：`%APPDATA%\WorkStationForOne\data\workstation.db`；设置 `WS_DATA_DIR` 可覆盖，冒烟与运行时校验据此使用临时库，避免改写真实数据。
 - 迁移前会自动 `VACUUM INTO` 备份到库文件旁。迁移 SQL 不得替用户伪造语义（例如给历史任务填「今天到期」）。
-- 未实现：习惯/会话两域持久化、任务的子任务 / 循环 / 提醒、Codex 适配器与多会话并发、交互式工具审批（当前只读工具自动放行、写操作会被 CLI 拒绝）、本地 MCP 服务器、设置、审计、备份与打包。
-- 渲染进程不直接访问数据库；新增数据能力必须走 `src/shared/ipc.ts` 的类型契约 + `src/main/ipc/` 的 handler，并在主进程校验入参。preload 桥目前暴露 `tasks / notes / capture / learning / agent / app` 六组接口，`runtime-verify.mjs` 会断言这个集合，扩面时同步更新。
+- 未实现：会话域持久化（对话线程仍在内存）、任务的子任务 / 循环 / 提醒、Codex 适配器与多会话并发、交互式工具审批（当前只读工具自动放行、写操作会被 CLI 拒绝）、本地 MCP 服务器、设置、审计、备份与打包。
+- 渲染进程不直接访问数据库；新增数据能力必须走 `src/shared/ipc.ts` 的类型契约 + `src/main/ipc/` 的 handler，并在主进程校验入参。preload 桥目前暴露 `tasks / notes / capture / learning / habits / agent / app` 七组接口，`runtime-verify.mjs` 会断言这个集合，扩面时同步更新。
 
 ## 知识库取用规则
 

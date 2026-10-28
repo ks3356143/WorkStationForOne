@@ -10,9 +10,9 @@ import type {
 import { appendStreamText } from '../../../shared/agent-stream'
 import { createInitialData } from '../data/mock'
 import { dateKey } from '../../../shared/date-key'
+import { toggleCheckin } from '../lib/habits'
 import { dueQueue } from '../lib/learning'
 import { scheduleReview } from '../../../shared/srs'
-import { getTodayIndex } from '../lib/date'
 import {
   browserStorage,
   otherSkin,
@@ -66,8 +66,17 @@ interface LearningPersistence {
 }
 
 let persistence: TaskPersistence | null = null
+let habitPersistence: {
+  setCheckin: (id: string, day: string, done: boolean) => Promise<void>
+} | null = null
 let notePersistence: NotePersistence | null = null
 let learningPersistence: LearningPersistence | null = null
+
+export function bindHabitPersistence(
+  next: { setCheckin: (id: string, day: string, done: boolean) => Promise<void> } | null
+): void {
+  habitPersistence = next
+}
 
 export function bindTaskPersistence(next: TaskPersistence | null): void {
   persistence = next
@@ -286,18 +295,17 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
 
   clearRemovedTask: () => set({ lastRemovedTask: null }),
 
-  toggleHabitToday: (habitId) =>
-    set((state) => {
-      const today = getTodayIndex()
-      return {
-        habits: state.habits.map((habit) => {
-          if (habit.id !== habitId) return habit
-          const days = [...habit.days]
-          days[today] = !days[today]
-          return { ...habit, days }
-        })
-      }
-    }),
+  toggleHabitToday: (habitId) => {
+    const today = dateKey()
+    const current = get().habits.find((habit) => habit.id === habitId)
+    if (!current) return
+    const next = toggleCheckin(current, today, today)
+    const checked = !current.checkins.includes(today)
+    set((state) => ({
+      habits: state.habits.map((habit) => (habit.id === habitId ? next : habit))
+    }))
+    persistQuietly(() => habitPersistence?.setCheckin(habitId, today, checked) ?? Promise.resolve())
+  },
 
   setActiveSession: (sessionId) =>
     set((state) => {

@@ -66,7 +66,8 @@ describe('迁移 v7', () => {
 
     migrate(db)
 
-    expect(userVersion(db)).toBe(7)
+    // 不写死版本号：后续迁移不该让这条断言失效，只验证「升到了最新」
+    expect(userVersion(db)).toBe(Math.max(...MIGRATIONS.map((item) => item.version)))
     expect(new LearningRepository(db).list()).toEqual([])
     const row = db.prepare('SELECT title FROM tasks WHERE id = ?').get('legacy') as {
       title: string

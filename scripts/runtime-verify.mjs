@@ -670,6 +670,33 @@ async function verifyLearningReview() {
   await clickNav('今日')
 }
 
+let runtimeHabit = null
+
+async function verifyHabitAfterRestart() {
+  if (!runtimeHabit) {
+    record('运行时：重启后习惯打卡仍在', false, '未打卡')
+    return
+  }
+  const found = await pageEval(
+    `(async () => {
+      const habits = await window.ws.habits.list()
+      const habit = habits.find((item) => item.id === ${JSON.stringify(runtimeHabit.habitId)})
+      const nav = [...document.querySelectorAll('.w1-navitem')].find(
+        (node) => node.textContent.includes('今日')
+      )
+      nav?.click()
+      await new Promise((done) => setTimeout(done, 400))
+      const dot = [...document.querySelectorAll('.w1-hrow')]
+        .find((node) => node.textContent.includes(${JSON.stringify(runtimeHabit.name)}))
+        ?.querySelector('.w1-hdot.today.on')
+      return { stored: Boolean(habit?.checkins.includes(${JSON.stringify(runtimeHabit.day)})), rendered: Boolean(dot) }
+    })()`,
+    'habit reload'
+  )
+  record('运行时：重启后习惯打卡仍在 SQLite', found?.stored === true, found)
+  record('运行时：重启后习惯打卡重新渲染', found?.rendered === true, found?.rendered)
+}
+
 async function verifyAndRemoveRuntimeTask() {
   if (!runtimeTask) {
     record('运行时：重启后仍能读回任务', false, '未创建任务')
@@ -1565,10 +1592,10 @@ async function main() {
   record('渲染进程无 Node require', security.require === 'undefined', security.require)
   record('渲染进程无 process', security.process === 'undefined', security.process)
   record(
-    'preload 桥仅暴露窄接口（tasks/notes/capture/learning/agent/app.setTheme）',
+    'preload 桥仅暴露窄接口（tasks/notes/capture/learning/habits/agent/app.setTheme）',
     security.invoke === 'function' &&
       !security.dbAccess &&
-      [...security.wsKeys].sort().join() === 'agent,app,capture,learning,notes,tasks' &&
+      [...security.wsKeys].sort().join() === 'agent,app,capture,habits,learning,notes,tasks' &&
       security.appKeys.join() === 'setTheme',
     security
   )
@@ -1839,6 +1866,49 @@ async function main() {
   const paletteNavigation = await auditPaletteNavigation('白天')
   phases[0].paletteNavigation = paletteNavigation
 
+  // 习惯打卡：确保最终处于「已打卡」，重启后才能证明记录真的留在库里
+  const habitToggle = await pageEval(
+    `(async () => {
+      const nav = [...document.querySelectorAll('.w1-navitem')].find(
+        (node) => node.textContent.includes('今日')
+      )
+      nav?.click()
+      await new Promise((done) => setTimeout(done, 500))
+      const key = new Date().toLocaleDateString('sv-SE')
+      const before = await window.ws.habits.list()
+      const target = before[0]
+      if (!target) return { error: '没有习惯' }
+      const wasChecked = target.checkins.includes(key)
+      // 种子数据可能今天已打卡：点一次会变成取消，所以确保最终是「已打卡」
+      const clicks = wasChecked ? 2 : 1
+      for (let index = 0; index < clicks; index += 1) {
+        const dot = [...document.querySelectorAll('.w1-hrow')]
+          .find((node) => node.textContent.includes(target.name))
+          ?.querySelector('.w1-hdot.today')
+        dot?.click()
+        await new Promise((done) => setTimeout(done, 350))
+      }
+      const after = await window.ws.habits.list()
+      const fresh = after.find((habit) => habit.id === target.id)
+      const dotNow = [...document.querySelectorAll('.w1-hrow')]
+        .find((node) => node.textContent.includes(target.name))
+        ?.querySelector('.w1-hdot.today')
+      return {
+        habitId: target.id,
+        name: target.name,
+        day: key,
+        wasChecked,
+        clicks,
+        stored: Boolean(fresh?.checkins.includes(key)),
+        rendered: dotNow?.classList.contains('on') === true
+      }
+    })()`,
+    'habit toggle'
+  )
+  runtimeHabit = habitToggle && !habitToggle.error ? habitToggle : null
+  record('运行时：习惯打卡写入数据库', habitToggle?.stored === true, habitToggle)
+  record('运行时：习惯打卡即时反映到界面', habitToggle?.rendered === true, habitToggle)
+
   const metrics = await pageEval(metricsExpr, 'renderer metrics')
   phases[0].rendererMetrics = metrics
   phases[0].consoleErrors = [...consoleErrors]
@@ -1868,6 +1938,7 @@ async function main() {
   await assertWindow('light', '重启后白天')
   const p2Navigation = await auditNavigation('重启后')
   phases[1].navigation = p2Navigation
+  await verifyHabitAfterRestart()
   await verifyAndRemoveRuntimeTask()
   const p2BackDark = await pageEval(clickThemeExpr, 'phase2 toggle dark')
   record(

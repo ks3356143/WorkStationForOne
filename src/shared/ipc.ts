@@ -142,6 +142,19 @@ export interface LearningApi {
   review: (id: string, rating: LearningRating) => Promise<LearningItemRecord>
 }
 
+export interface HabitRecord {
+  id: string
+  name: string
+  /** 打卡日期键，仅保留今天及以前 */
+  checkins: string[]
+}
+
+export interface HabitApi {
+  list: () => Promise<HabitRecord[]>
+  bootstrap: (habits: HabitRecord[]) => Promise<void>
+  setCheckin: (id: string, day: string, done: boolean) => Promise<void>
+}
+
 export interface AgentSendInput {
   /** 应用内的会话 id（s-c1），用于把事件归到正确的线程 */
   sessionId: string
@@ -174,6 +187,7 @@ export interface WsApi {
   notes: NoteApi
   capture: CaptureApi
   learning: LearningApi
+  habits: HabitApi
   agent: AgentApi
   app: AppApi
 }
@@ -202,6 +216,9 @@ export const IPC_CHANNELS = {
   learningCreate: 'learning:create',
   learningUpdate: 'learning:update',
   learningReview: 'learning:review',
+  habitsList: 'habits:list',
+  habitsBootstrap: 'habits:bootstrap',
+  habitsSetCheckin: 'habits:set-checkin',
   agentSend: 'agent:send',
   agentCancel: 'agent:cancel',
   agentEvent: 'agent:event',

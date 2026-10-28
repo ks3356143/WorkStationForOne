@@ -168,6 +168,26 @@ export const MIGRATIONS: Migration[] = [
 
       CREATE INDEX idx_learning_reviews_item ON learning_reviews(item_id, reviewed_at DESC);
     `
+  },
+  {
+    version: 8,
+    sql: `
+      CREATE TABLE habits (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL
+      );
+
+      CREATE TABLE habit_checkins (
+        habit_id TEXT NOT NULL REFERENCES habits(id) ON DELETE CASCADE,
+        day TEXT NOT NULL CHECK (day GLOB '????-??-??'),
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (habit_id, day)
+      );
+
+      CREATE INDEX idx_habit_checkins_day ON habit_checkins(day);
+    `
   }
 ]
 

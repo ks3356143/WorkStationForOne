@@ -5,6 +5,7 @@ import { initDatabase, type DatabaseContext } from './db'
 import { disposeCaptureShortcut, registerCaptureHandlers, registerCaptureShortcut } from './capture'
 import { registerAgentHandlers } from './ipc/agent'
 import { registerAppHandlers, TITLE_BAR_HEIGHT, WINDOW_PALETTE } from './ipc/app'
+import { registerHabitHandlers } from './ipc/habits'
 import { registerLearningHandlers } from './ipc/learning'
 import { registerNoteHandlers } from './ipc/notes'
 import { registerTaskHandlers } from './ipc/tasks'
@@ -111,6 +112,7 @@ if (!gotTheLock) {
     registerTaskHandlers(database.tasks)
     registerNoteHandlers(database.notes)
     registerLearningHandlers(database.learning)
+    registerHabitHandlers(database.habits)
     // 捕获窗是另一个 BrowserWindow，Agent 事件只回主窗口
     registerAgentHandlers(() => mainWindow)
     registerCaptureHandlers(database.tasks)

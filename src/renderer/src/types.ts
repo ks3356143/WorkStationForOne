@@ -19,7 +19,8 @@ export type LearningScope =
 export interface Habit {
   id: string
   name: string
-  days: boolean[]
+  /** 打卡日期键（YYYY-MM-DD）。存日期而不是本周七格，跨周才有意义 */
+  checkins: string[]
 }
 
 export interface Note {
