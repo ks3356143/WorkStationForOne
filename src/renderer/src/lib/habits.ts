@@ -36,3 +36,32 @@ export function toggleCheckin(habit: Habit, day: string, today: string): Habit {
   else next.add(day)
   return { ...habit, checkins: [...next].sort() }
 }
+
+/**
+ * 当前连续天数。今天还没打卡时从昨天往前数——
+ * 一天还没过完就把连续清零，会让人为了保住数字而被迫提前打卡。
+ */
+export function currentStreak(habit: Habit, today: string): number {
+  const done = new Set(habit.checkins)
+  let cursor = done.has(today) ? today : addDaysKey(today, -1)
+  let count = 0
+  while (done.has(cursor)) {
+    count += 1
+    cursor = addDaysKey(cursor, -1)
+  }
+  return count
+}
+
+/** 历史上最长的一段连续，用来跟当前值对比「是不是最好状态」。 */
+export function bestStreak(habit: Habit): number {
+  const days = [...new Set(habit.checkins)].sort()
+  let best = 0
+  let run = 0
+  let previous: string | null = null
+  for (const day of days) {
+    run = previous && addDaysKey(previous, 1) === day ? run + 1 : 1
+    best = Math.max(best, run)
+    previous = day
+  }
+  return best
+}

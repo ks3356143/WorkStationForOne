@@ -1,6 +1,6 @@
 import { dateKey } from '../../../shared/date-key'
 import { getTodayIndex, getWeekdayCn } from '../lib/date'
-import { habitsDoneToday, weekFlags } from '../lib/habits'
+import { currentStreak, habitsDoneToday, weekFlags } from '../lib/habits'
 import { useNow } from '../lib/useNow'
 import { useWorkstation } from '../store/useWorkstation'
 import type { Habit } from '../types'
@@ -38,7 +38,17 @@ export function HabitCard() {
         </div>
         {habits.map((habit) => (
           <div className="w1-hrow" key={habit.id}>
-            <span className="w1-hname">{habit.name}</span>
+            <span className="w1-hname">
+              {habit.name}
+              {currentStreak(habit, todayKey) > 0 ? (
+                <em
+                  className={`w1-hstreak${currentStreak(habit, todayKey) >= 3 ? ' hot' : ''}`}
+                  title={`连续 ${currentStreak(habit, todayKey)} 天`}
+                >
+                  {currentStreak(habit, todayKey)}
+                </em>
+              ) : null}
+            </span>
             {flagsOf(habit).map((done, index) => {
               const label = DAY_LABELS[index]
               return (

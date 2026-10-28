@@ -882,6 +882,14 @@ async function run() {
       checkedToday: storedHabits.filter((habit) => habit.checkins.includes(habitKey)).length
     }
     check(
+      '习惯行显示连续天数',
+      all('.w1-hstreak').length >= 1 &&
+        all('.w1-hstreak').every((el) => /^[0-9]+$/.test(el.textContent?.trim() ?? '')),
+      all('.w1-hstreak')
+        .map((el) => el.textContent?.trim())
+        .join(',')
+    )
+    check(
       '习惯打卡已落库',
       habitStored?.total > 0 && habitStored?.checkedToday >= 1,
       JSON.stringify(habitStored)

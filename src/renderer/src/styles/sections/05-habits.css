@@ -22,6 +22,9 @@
 }
 
 .w1-hname {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   font-size: 13.5px;
   line-height: 1.2;
   color: var(--fs);
@@ -91,4 +94,22 @@
   color: var(--ac2);
   border-bottom: 1px solid rgb(var(--ac2-rgb) / 0.6);
   padding-bottom: 3px;
+}
+
+/* 连续天数：小号等宽数字，3 天以上转琥珀色，作为「保持住」的弱激励 */
+.w1-hstreak {
+  flex: none;
+  padding: 1px 4px;
+  border: 1px solid rgb(var(--ac-rgb) / 0.22);
+  background: rgb(var(--vio-rgb) / 0.07);
+  color: var(--su);
+  font: 9.5px / 1 var(--mono);
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.w1-hstreak.hot {
+  border-color: rgb(var(--wn-rgb) / 0.42);
+  background: rgb(var(--wn-rgb) / 0.12);
+  color: var(--wn-fg);
 }
