@@ -291,6 +291,58 @@ async function run() {
     await sleep(300)
     check('清空任务搜索恢复', all('.w1-todorowwrap').length === 6, String(all('.w1-todorowwrap').length))
 
+    // 清单重命名：行内输入、Enter 提交、Esc 取消、重名被拦
+    const listEdit = all('.w1-todolistedit').find((el) =>
+      el.getAttribute('aria-label')?.includes('工作')
+    )
+    check('清单行有重命名入口', Boolean(listEdit), String(all('.w1-todolistedit').length))
+    listEdit?.click()
+    await sleep(250)
+    const renameInput = one('.w1-todorenaming')
+    check('点击后出现行内输入框', Boolean(renameInput), one('.w1-todorail')?.textContent ?? '')
+    setValue(renameInput, '工作流')
+    await sleep(60)
+    renameInput?.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    await sleep(450)
+    const listLabels = () => all('.w1-todolistrow .w1-todolabel').map((el) => el.textContent)
+    check(
+      '重命名后清单栏更新',
+      listLabels().includes('工作流') && !listLabels().includes('工作'),
+      listLabels().join('|')
+    )
+    check(
+      '重命名后任务行跟着改',
+      all('.w1-todorowwrap').some((el) => el.textContent?.includes('#工作流')) ||
+        one('.w1-todomain')?.textContent?.includes('工作流'),
+      all('.w1-todorowwrap').length + ' 行'
+    )
+
+    all('.w1-todolistedit')
+      .find((el) => el.getAttribute('aria-label')?.includes('工作流'))
+      ?.click()
+    await sleep(250)
+    const dupInput = one('.w1-todorenaming')
+    setValue(dupInput, '学习')
+    await sleep(60)
+    dupInput?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }))
+    await sleep(250)
+    check(
+      '重名被拦下并给出提示',
+      one('.w1-todolisthint')?.textContent?.includes('已存在同名清单') && Boolean(one('.w1-todorenaming')),
+      one('.w1-todolisthint')?.textContent ?? 'missing'
+    )
+    one('.w1-todorenaming')?.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true })
+    )
+    await sleep(250)
+    check(
+      'Esc 取消重命名且清单未变',
+      !one('.w1-todorenaming') && listLabels().includes('工作流'),
+      listLabels().join('|')
+    )
+
     const planButton = byText('button', '计划今天')
     check('任务区有计划今天入口', Boolean(planButton))
     planButton?.click()

@@ -115,6 +115,20 @@ function dateText(key: string, today: string): string {
   return key.slice(0, 4) === today.slice(0, 4) ? key.slice(5) : key
 }
 
+export const LIST_NAME_MAX = 80
+
+/**
+ * 清单重命名的校验。返回错误文案，null 表示可以提交。
+ * 与已有清单同名会让两个清单静默合并，代价不明显但不可逆，所以直接拦下。
+ */
+export function listNameError(raw: string, existing: string[], current: string): string | null {
+  const name = raw.trim()
+  if (!name) return '清单名不能为空'
+  if (name.length > LIST_NAME_MAX) return `清单名最多 ${LIST_NAME_MAX} 字`
+  if (name !== current && existing.includes(name)) return '已存在同名清单'
+  return null
+}
+
 export function taskDueLabel(task: Task, today: string): string | undefined {
   if (!task.dueDate) return undefined
 

@@ -43,6 +43,8 @@ const APPLY_SCHEDULE_SQL =
   'UPDATE tasks SET time_label = ?, tag = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
 const APPLY_SCHEDULE_DUE_SQL =
   'UPDATE tasks SET time_label = ?, tag = ?, due_date = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
+const RENAME_LIST_SQL =
+  'UPDATE tasks SET list = ?, updated_at = ? WHERE list = ? AND deleted_at IS NULL'
 const NEXT_SORT_SQL = 'SELECT COALESCE(MIN(sort_order), 0) - 1 AS n FROM tasks'
 const SOFT_DELETE_SQL =
   'UPDATE tasks SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
@@ -207,6 +209,12 @@ export class TaskRepository {
   setDone(id: string, done: boolean): void {
     const now = Date.now()
     this.sql(SET_DONE_SQL).run(done ? 1 : 0, done ? now : null, now, id)
+  }
+
+  /** 一次 UPDATE 改完整组任务，不逐条走 update，避免半途失败留下两个清单。 */
+  renameList(from: string, to: string): number {
+    const result = this.sql(RENAME_LIST_SQL).run(to, Date.now(), from)
+    return Number(result.changes ?? 0)
   }
 
   applySchedule(changes: TaskScheduleChange[]): void {

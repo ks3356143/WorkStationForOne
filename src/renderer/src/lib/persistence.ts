@@ -18,6 +18,7 @@ export interface HydrateDeps {
   update: (id: string, patch: TaskPatch) => Promise<void>
   remove: (id: string) => Promise<void>
   restore: (id: string) => Promise<void>
+  renameList: (from: string, to: string) => Promise<void>
 }
 
 export async function hydrateTasks(deps: HydrateDeps | undefined = bridgeTasks()): Promise<void> {
@@ -29,7 +30,8 @@ export async function hydrateTasks(deps: HydrateDeps | undefined = bridgeTasks()
     create: deps.create,
     update: deps.update,
     remove: deps.remove,
-    restore: deps.restore
+    restore: deps.restore,
+    renameList: deps.renameList
   })
 
   try {

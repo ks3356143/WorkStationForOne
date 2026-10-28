@@ -201,6 +201,10 @@ export function registerTaskHandlers(repository: TaskRepository): void {
     repository.update(assertTaskId(id), assertTaskPatch(value))
   })
 
+  ipcMain.handle(IPC.tasksRenameList, (_event, from: unknown, to: unknown) => {
+    repository.renameList(assertLabel(from, '原清单名'), assertLabel(to, '新清单名'))
+  })
+
   ipcMain.handle(IPC.tasksRemove, (_event, id: unknown) => {
     repository.remove(assertTaskId(id))
   })

@@ -52,6 +52,7 @@ interface TaskPersistence {
   update: (id: string, patch: TaskPatch) => Promise<void>
   remove: (id: string) => Promise<void>
   restore: (id: string) => Promise<void>
+  renameList: (from: string, to: string) => Promise<void>
 }
 
 interface NotePersistence {
@@ -97,6 +98,7 @@ interface WorkstationActions {
   addTask: (draft: TaskDraft) => void
   updateTask: (taskId: string, patch: TaskPatch) => void
   removeTask: (taskId: string) => void
+  renameTaskList: (from: string, to: string) => void
   undoRemoveTask: () => void
   clearRemovedTask: () => void
   composeTask: () => void
@@ -243,6 +245,17 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       })
     }))
     persistQuietly(() => persistence?.update(taskId, next) ?? Promise.resolve())
+  },
+
+  renameTaskList: (from, to) => {
+    const next = to.trim()
+    if (!next || next === from) return
+    set((state) => ({
+      tasks: state.tasks.map((task) => (task.list === from ? { ...task, list: next } : task)),
+      // 正停在这个清单上时跟着切过去，否则右侧会突然空掉
+      taskScope: state.taskScope === `list:${from}` ? (`list:${next}` as const) : state.taskScope
+    }))
+    persistQuietly(() => persistence?.renameList(from, next) ?? Promise.resolve())
   },
 
   removeTask: (taskId) => {

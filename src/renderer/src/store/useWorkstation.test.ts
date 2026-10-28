@@ -176,7 +176,8 @@ describe('持久化', () => {
       create: vi.fn(),
       update: vi.fn(),
       remove: vi.fn(),
-      restore: vi.fn()
+      restore: vi.fn(),
+      renameList: vi.fn()
     })
 
     useWorkstation.getState().toggleTask('t2')
@@ -192,7 +193,8 @@ describe('持久化', () => {
       create: vi.fn(),
       update: vi.fn(),
       remove: vi.fn(),
-      restore: vi.fn()
+      restore: vi.fn(),
+      renameList: vi.fn()
     })
 
     useWorkstation.getState().resolvePermission('allow')
@@ -218,7 +220,8 @@ describe('持久化', () => {
       create: vi.fn(),
       update: vi.fn(),
       remove: vi.fn(),
-      restore: vi.fn()
+      restore: vi.fn(),
+      renameList: vi.fn()
     })
 
     useWorkstation.getState().resolvePermission('deny')
@@ -234,7 +237,8 @@ describe('持久化', () => {
       create: vi.fn(),
       update: vi.fn(),
       remove: vi.fn(),
-      restore: vi.fn()
+      restore: vi.fn(),
+      renameList: vi.fn()
     })
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
@@ -379,7 +383,8 @@ describe('删除与撤销', () => {
       create: vi.fn(),
       update: vi.fn(),
       remove: vi.fn(),
-      restore
+      restore,
+      renameList: vi.fn()
     })
 
     const before = useWorkstation.getState().tasks.map((task) => task.id)
@@ -401,7 +406,8 @@ describe('删除与撤销', () => {
       create: vi.fn(),
       update: vi.fn(),
       remove: vi.fn(),
-      restore
+      restore,
+      renameList: vi.fn()
     })
 
     const before = useWorkstation.getState().tasks.map((task) => task.id)

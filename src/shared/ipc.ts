@@ -67,6 +67,7 @@ export interface TaskApi {
   update: (id: string, patch: TaskPatch) => Promise<void>
   remove: (id: string) => Promise<void>
   restore: (id: string) => Promise<void>
+  renameList: (from: string, to: string) => Promise<void>
 }
 
 export interface NoteRecord {
@@ -185,6 +186,7 @@ export const IPC_CHANNELS = {
   tasksCreate: 'tasks:create',
   tasksUpdate: 'tasks:update',
   tasksRemove: 'tasks:remove',
+  tasksRenameList: 'tasks:rename-list',
   tasksRestore: 'tasks:restore',
   notesBootstrap: 'notes:bootstrap',
   notesPage: 'notes:page',

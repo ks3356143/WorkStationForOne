@@ -5,6 +5,7 @@ import {
   groupTasksByDate,
   isInToday,
   isOverdue,
+  listNameError,
   searchTasks,
   taskCounts,
   taskDueLabel,
@@ -159,5 +160,33 @@ describe('searchTasks', () => {
 
   it('空格查询返回空数组', () => {
     expect(searchTasks(searchable, '   ')).toEqual([])
+  })
+})
+
+describe('listNameError', () => {
+  const existing = ['工作', '学习']
+
+  it('合法新名字通过', () => {
+    expect(listNameError('工作流', existing, '工作')).toBeNull()
+  })
+
+  it('空名与纯空白被拒', () => {
+    expect(listNameError('', existing, '工作')).toBe('清单名不能为空')
+    expect(listNameError('   ', existing, '工作')).toBe('清单名不能为空')
+  })
+
+  it('超长被拒', () => {
+    expect(listNameError('x'.repeat(81), existing, '工作')).toBe('清单名最多 80 字')
+    expect(listNameError('x'.repeat(80), existing, '工作')).toBeNull()
+  })
+
+  it('与其它清单重名被拒，改名成自己没有影响', () => {
+    expect(listNameError('学习', existing, '工作')).toBe('已存在同名清单')
+    expect(listNameError('工作', existing, '工作')).toBeNull()
+  })
+
+  it('前后空格会被裁掉再比较', () => {
+    expect(listNameError('  学习  ', existing, '工作')).toBe('已存在同名清单')
+    expect(listNameError('  工作流 ', existing, '工作')).toBeNull()
   })
 })

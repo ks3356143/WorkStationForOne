@@ -17,6 +17,7 @@ const api: WsApi = {
     update: (id, patch) => ipcRenderer.invoke(IPC_CHANNELS.tasksUpdate, id, patch),
     remove: (id) => ipcRenderer.invoke(IPC_CHANNELS.tasksRemove, id),
     restore: (id) => ipcRenderer.invoke(IPC_CHANNELS.tasksRestore, id),
+    renameList: (from, to) => ipcRenderer.invoke(IPC_CHANNELS.tasksRenameList, from, to),
     onChanged: (callback) => {
       const handler = () => callback()
       ipcRenderer.on(IPC_CHANNELS.tasksChanged, handler)

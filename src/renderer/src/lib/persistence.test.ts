@@ -17,6 +17,7 @@ function deps(overrides: Partial<HydrateDeps> = {}): HydrateDeps {
     update: vi.fn().mockResolvedValue(undefined),
     remove: vi.fn().mockResolvedValue(undefined),
     restore: vi.fn().mockResolvedValue(undefined),
+    renameList: vi.fn().mockResolvedValue(undefined),
     ...overrides
   }
 }

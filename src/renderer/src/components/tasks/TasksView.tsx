@@ -5,6 +5,7 @@ import type { TaskScope, TaskViewMode } from '../../types'
 import {
   filterTasksByScope,
   groupTasksByDate,
+  listNameError,
   searchTasks,
   taskCounts,
   taskLists
@@ -79,6 +80,10 @@ export function TasksView({ notify }: TasksViewProps) {
   const [planningOpen, setPlanningOpen] = useState(false)
   const [dragTarget, setDragTarget] = useState<string | null>(null)
   const [scheduleOpen, setScheduleOpen] = useState(false)
+  const renameTaskList = useWorkstation((state) => state.renameTaskList)
+  const [renaming, setRenaming] = useState<string | null>(null)
+  const [renameDraft, setRenameDraft] = useState('')
+  const [renameError, setRenameError] = useState<string | null>(null)
   const now = useNow(60_000)
   const today = dateKey(now)
   const nowMinutes = now.getHours() * 60 + now.getMinutes()
@@ -92,6 +97,30 @@ export function TasksView({ notify }: TasksViewProps) {
   const visible = searching ? searchTasks(tasks, query) : filterTasksByScope(tasks, scope, today)
   const completedVisible = visible.reduce((count, task) => count + (task.done ? 1 : 0), 0)
   const title = activeList ?? SMART_LISTS.find((item) => item.scope === scope)?.label ?? '任务'
+
+  const beginRename = (name: string) => {
+    setRenaming(name)
+    setRenameDraft(name)
+    setRenameError(null)
+  }
+
+  const cancelRename = () => {
+    setRenaming(null)
+    setRenameError(null)
+  }
+
+  const commitRename = () => {
+    if (!renaming) return
+    const error = listNameError(renameDraft, listNames, renaming)
+    if (error) {
+      setRenameError(error)
+      return
+    }
+    const next = renameDraft.trim()
+    if (next !== renaming) renameTaskList(renaming, next)
+    setRenaming(null)
+    setRenameError(null)
+  }
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scope/query 是触发条件，切换清单或改搜索词时收起详情
   useEffect(() => {
@@ -213,24 +242,74 @@ export function TasksView({ notify }: TasksViewProps) {
             <span className="w1-todogrouplabel">// 清单</span>
             {lists.map((item) => {
               const target = `list:${item.name}` as const
+              if (renaming === item.name) {
+                return (
+                  <div key={item.name} className="w1-todolistrow renaming">
+                    <input
+                      className="w1-todorenaming"
+                      value={renameDraft}
+                      autoFocus
+                      maxLength={80}
+                      aria-label={`重命名清单 ${item.name}`}
+                      onChange={(event) => {
+                        setRenameDraft(event.target.value)
+                        setRenameError(null)
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.nativeEvent.isComposing || event.keyCode === 229) return
+                        if (event.key === 'Enter') {
+                          event.preventDefault()
+                          commitRename()
+                        } else if (event.key === 'Escape') {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          cancelRename()
+                        }
+                      }}
+                      onBlur={cancelRename}
+                    />
+                    {renameError ? (
+                      <span className="w1-todolisthint" role="alert">
+                        {renameError}
+                      </span>
+                    ) : null}
+                  </div>
+                )
+              }
               return (
-                <button
-                  key={item.name}
-                  type="button"
-                  className={`w1-todorow${scope === target ? ' on' : ''}${
-                    dragTarget === target ? ' drop' : ''
-                  }`}
-                  aria-pressed={scope === target}
-                  onClick={() => {
-                    setQuery('')
-                    setScope(target)
-                  }}
-                  {...dragProps(target)}
-                >
-                  <span className="w1-todokey">#</span>
-                  <span className="w1-todolabel">{item.name}</span>
-                  <span className="w1-todocount">{item.count}</span>
-                </button>
+                <div key={item.name} className="w1-todolistrow">
+                  <button
+                    type="button"
+                    className={`w1-todorow${scope === target ? ' on' : ''}${
+                      dragTarget === target ? ' drop' : ''
+                    }`}
+                    aria-pressed={scope === target}
+                    onClick={() => {
+                      setQuery('')
+                      setScope(target)
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'F2') {
+                        event.preventDefault()
+                        beginRename(item.name)
+                      }
+                    }}
+                    {...dragProps(target)}
+                  >
+                    <span className="w1-todokey">#</span>
+                    <span className="w1-todolabel">{item.name}</span>
+                    <span className="w1-todocount">{item.count}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="w1-todolistedit"
+                    aria-label={`重命名清单 ${item.name}`}
+                    title="重命名（F2）"
+                    onClick={() => beginRename(item.name)}
+                  >
+                    ✎
+                  </button>
+                </div>
               )
             })}
           </div>
