@@ -15,7 +15,7 @@
 - `npm run check` — Biome 检查格式与 lint（Rust 单二进制，不依赖 Prettier / ESLint）。
 - `npm run check:fix` — 自动修复格式与可安全修复的 lint 问题。
 - `npm run fmt` — 只格式化，不跑 lint。
-- `npm run smoke` — 先构建，再跑 194 项 UI 交互冒烟。加载真实主进程与 preload，UI 操作直接写进临时 SQLite（`userData`、`sessionData`、数据库都隔离到 `%TEMP%`），并断言「preload 桥可用」与「操作已落库」；跨重启持久化仍由 `npm run verify` 覆盖。到点提醒那条按分钟匹配，冒烟会检测是否跨过分钟边界并在跨界时重建重试。
+- `npm run smoke` — 先构建，再跑 201 项 UI 交互冒烟。加载真实主进程与 preload，UI 操作直接写进临时 SQLite（`userData`、`sessionData`、数据库都隔离到 `%TEMP%`），并断言「preload 桥可用」与「操作已落库」；跨重启持久化仍由 `npm run verify` 覆盖。到点提醒那条按分钟匹配，冒烟会检测是否跨过分钟边界并在跨界时重建重试。
 - `npm run verify` — 构建后启动真实主进程（临时 `WS_DATA_DIR`），运行 251–253 项运行时断言（起始主题不同会差 2 项分支）：五视图互斥、双主题/双皮肤持久化、跨重启数据。
 - `npm run capture -- .screenshots/shell-1440.png 1440 900 .screenshots/audit-1440.json` — 构建、保存截图并写入布局审计。
 - `npm run capture -- .screenshots/shell-1180.png 1180 720 .screenshots/audit-1180.json dark` — 在最小窗口尺寸下做同样的检查；主题参数为 `dark|light`，视图参数为 `today|tasks|agent|notes|learning`，均可省略审计路径后按任意顺序追加（如 `... 1440 900 light tasks`）。
@@ -71,6 +71,10 @@
 - 清单重命名走单条 `UPDATE tasks SET list = ? WHERE list = ?`（`tasks:rename-list`），不要逐条 `updateTask`；校验在 `lib/todo.ts` 的 `listNameError()`：空名、超 80 字、与其它清单重名都拦下（重名等于静默合并两个清单）。入口是清单行的 `✎` 或该行按 `F2`，`Enter` 提交、`Esc` 取消。
 - 新增应用入口加到 `WorkspaceNav` 的 `VIEWS`，并为其提供独立工作区与导航命令；不要挤进顶栏或状态栏。视图切换用 `aria-current="page"` 标记当前项。
 - 笔记是独立全宽工作区，不是弹窗；搜索框内有查询时 Esc 清空搜索，不关闭笔记页。Agent 与笔记的滚动容器各自独立，切换视图后保持原外壳尺寸。
+- 笔记行是 `<button>`（`.w1-nvrowbtn`），点开的是**弹层详情**而不是行内展开：全部笔记页用固定行高虚拟滚动，行内展开会让 `ROW_HEIGHT` 与真实高度脱节、整片列表错位。详情里改正文/标签、二次确认删除、转成学习卡。
+- 笔记写入必须先落库再 bump `noteRevision`：`updateNote` / `removeNote` 先改内存副本让面板立刻反映，等 IPC 成功才递增 revision。反过来的话笔记页会抢在落库前重读数据库，读回旧正文（冒烟「笔记编辑后列表同步」就是抓这个的）。删除失败（主进程返回 `false`）要把那一行放回去。
+- 挖空卡：`shared/cloze.ts` 解析 `{{c1::答案}}`，`parseCloze` 同时给出答案区间（`start`/`end`，用于高亮）与整段标记区间（`markerStart`/`markerEnd`，用于正面替换成 `[1]`）。正面由 `clozeFrontText()` 推导并存进 `title`，**改原文必须同步重算正面**（主进程校验与 store 各做一次），否则库里的标题和复习时看到的不一致。`learning_items` 的 `kind` / `cloze_source` / `note_id` 来自 DB v12，普通卡保持默认值、历史数据不改写。
+- 笔记转卡走 `lib/note-card.ts` 的 `noteToCard()`：按第一句拆成问句正面、全段作背面；只有一句时退化成自述卡（正面截 40 字）。不要把整段同时塞进 title 和 notes——那样翻面等于什么都没问。
 - 表单里的日期、时间与带建议的单行字段一律用 `components/fields/` 的自建控件（`DatePicker` / `TimePicker` / `ComboSelect`），不要退回 `input[type=date|time]` 或 `datalist`：这些由系统绘制，CSS 盖不住，会露出生硬的白色弹层。三者共用 `Popover`（portal 到 `.w1` 根节点，因为 `.w1-view` 带 transform），弹层是「不透明玻璃 + 1px 棱镜边」，`.w1-pop` 已加进 `11-motion.css` 与无障碍/浅色/经典皮肤的白名单。日历网格与时间刻度规则在 `lib/pickers.ts`，改动先改那里的测试。弹层按 Esc 只关自己（`stopImmediatePropagation`）并把焦点还给触发按钮。
 - 学习视图内部两态：卡片库（默认，科目栏 + 卡片列表）与复习态（占满整块舞台，`.w1-learn.review` 覆盖两栏 grid）。到期口径固定为 `active` 且 `nextReviewOn <= 今天`，排序与时长在 `lib/learning.ts`，组件不要自行比较日期；复习卡进入时对队列做一次快照，评分 1 的卡排到本场队尾但库里的 `next_review_on` 仍是今天。复习卡翻面用 `Space` / 点击，评分用 `1`–`4`，Esc 退出。
 - 复习卡是 `<button>`，必须显式 `background-color: transparent`（UA 的 `buttonface` 会从玻璃层后透出灰块），并把 `.w1-lcard` 加进 `11-motion.css` 定义 `--glass-rim` 的选择器白名单，否则棱镜描边不生效。大块玻璃面要自带 `::before` 光场，否则整片压成实色。

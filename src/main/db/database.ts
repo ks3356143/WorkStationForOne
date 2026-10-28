@@ -220,6 +220,18 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX idx_audit_at ON audit_log(at DESC);
       CREATE INDEX idx_audit_target ON audit_log(domain, target_id);
     `
+  },
+  {
+    // 挖空卡：kind 区分卡型，cloze_source 存带 {{c1::…}} 标记的原文。
+    // 普通卡两个字段保持默认值，历史数据不需要改写。
+    version: 12,
+    sql: `
+      ALTER TABLE learning_items ADD COLUMN kind TEXT NOT NULL DEFAULT 'basic'
+        CHECK (kind IN ('basic', 'cloze'));
+      ALTER TABLE learning_items ADD COLUMN cloze_source TEXT NOT NULL DEFAULT '';
+      ALTER TABLE learning_items ADD COLUMN note_id TEXT;
+      CREATE INDEX idx_learning_note ON learning_items(note_id);
+    `
   }
 ]
 

@@ -22,9 +22,12 @@ interface LearningRow {
   next_review_on: string
   last_reviewed_at: number | null
   active: number
+  kind: string
+  cloze_source: string
+  note_id: string | null
 }
 
-const COLUMNS = `id, subject, title, source, notes, repetitions, interval_days, ease, next_review_on, last_reviewed_at, active`
+const COLUMNS = `id, subject, title, source, notes, repetitions, interval_days, ease, next_review_on, last_reviewed_at, active, kind, cloze_source, note_id`
 
 const LIST_SQL = `SELECT ${COLUMNS} FROM learning_items
   ORDER BY active DESC, next_review_on ASC, title ASC`
@@ -32,8 +35,8 @@ const LIST_SQL = `SELECT ${COLUMNS} FROM learning_items
 const FIND_SQL = `SELECT ${COLUMNS} FROM learning_items WHERE id = ?`
 
 const INSERT_SQL = `INSERT INTO learning_items
-  (id, subject, title, source, notes, repetitions, interval_days, ease, next_review_on, last_reviewed_at, active, created_at, updated_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  (id, subject, title, source, notes, repetitions, interval_days, ease, next_review_on, last_reviewed_at, active, created_at, updated_at, kind, cloze_source, note_id)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 const REVIEW_SQL = `INSERT INTO learning_reviews (id, item_id, rating, reviewed_at) VALUES (?, ?, ?, ?)`
 
@@ -43,11 +46,12 @@ const PATCH_COLUMNS: Record<keyof LearningPatch, string> = {
   source: 'source',
   notes: 'notes',
   nextReviewOn: 'next_review_on',
-  active: 'active'
+  active: 'active',
+  clozeSource: 'cloze_source'
 }
 
 function toRecord(row: LearningRow): LearningItemRecord {
-  return {
+  const record: LearningItemRecord = {
     id: row.id,
     subject: row.subject,
     title: row.title,
@@ -60,6 +64,12 @@ function toRecord(row: LearningRow): LearningItemRecord {
     lastReviewedAt: row.last_reviewed_at ?? undefined,
     active: row.active === 1
   }
+  if (row.kind === 'cloze') {
+    record.kind = 'cloze'
+    record.clozeSource = row.cloze_source
+  }
+  if (row.note_id) record.noteId = row.note_id
+  return record
 }
 
 export class LearningRepository {
@@ -122,7 +132,10 @@ export class LearningRepository {
           item.lastReviewedAt ?? null,
           item.active ? 1 : 0,
           now,
-          now
+          now,
+          item.kind === 'cloze' ? 'cloze' : 'basic',
+          item.clozeSource ?? '',
+          item.noteId ?? null
         )
       }
     })
@@ -156,7 +169,10 @@ export class LearningRepository {
       null,
       1,
       now,
-      now
+      now,
+      draft.kind === 'cloze' ? 'cloze' : 'basic',
+      draft.clozeSource ?? '',
+      draft.noteId ?? null
     )
     const created = this.find(id)
     if (!created) throw new Error('卡片写入失败')

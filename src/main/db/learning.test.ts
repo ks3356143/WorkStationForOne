@@ -218,3 +218,78 @@ describe('LearningRepository · 复习', () => {
     db.close()
   })
 })
+
+describe('挖空卡与来源笔记', () => {
+  it('挖空卡保留 kind、原文与来源笔记', () => {
+    const { db, repo } = seedDb()
+    const created = repo.create({
+      subject: '互联网',
+      title: '[1] 是面向连接的',
+      kind: 'cloze',
+      clozeSource: '{{c1::TCP}} 是面向连接的',
+      noteId: 'n2'
+    })
+    expect(created).toMatchObject({
+      kind: 'cloze',
+      clozeSource: '{{c1::TCP}} 是面向连接的',
+      noteId: 'n2'
+    })
+    db.close()
+  })
+
+  it('普通卡不带挖空字段', () => {
+    const { db, repo } = seedDb()
+    const created = repo.create({ subject: '英语二', title: 'analyze', notes: '分析' })
+    expect(created.kind).toBeUndefined()
+    expect(created.clozeSource).toBeUndefined()
+    expect(created.noteId).toBeUndefined()
+    db.close()
+  })
+
+  it('改挖空原文不会破坏复习进度', () => {
+    const { db, repo } = seedDb()
+    const created = repo.create({
+      subject: '互联网',
+      title: '[1] 是面向连接的',
+      kind: 'cloze',
+      clozeSource: '{{c1::TCP}} 是面向连接的'
+    })
+    repo.review(created.id, 3, '2026-10-28')
+    repo.update(created.id, {
+      clozeSource: '{{c1::TCP}} 是可靠的、面向连接的',
+      title: '[1] 是可靠的、面向连接的'
+    })
+    const after = repo.find(created.id)
+    expect(after?.clozeSource).toBe('{{c1::TCP}} 是可靠的、面向连接的')
+    expect(after?.repetitions).toBe(1)
+    expect(before(after?.intervalDays)).toBeGreaterThan(0)
+    db.close()
+  })
+
+  it('重启后挖空字段仍然存在', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wsfo-learning-'))
+    dirs.push(dir)
+    const file = join(dir, 'workstation.db')
+
+    const first = openDatabase(file)
+    migrate(first)
+    new LearningRepository(first).create({
+      subject: '互联网',
+      title: '[1] 是面向连接的',
+      kind: 'cloze',
+      clozeSource: '{{c1::TCP}} 是面向连接的',
+      noteId: 'n7'
+    })
+    first.close()
+
+    const second = openDatabase(file)
+    migrate(second)
+    const [stored] = new LearningRepository(second).list()
+    expect(stored).toMatchObject({ kind: 'cloze', noteId: 'n7' })
+    second.close()
+  })
+})
+
+function before(value: number | undefined): number {
+  return value ?? 0
+}

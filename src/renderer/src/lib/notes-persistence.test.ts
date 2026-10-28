@@ -85,3 +85,105 @@ describe('hydrateNotes', () => {
     })
   })
 })
+
+describe('hydrateNotes · 编辑与删除', () => {
+  it('hydrate 后编辑笔记会调用数据库更新并递增 revision', async () => {
+    const update = vi.fn().mockResolvedValue({ id: 'a', text: '改了', time: '12:00' })
+    await hydrateNotes(
+      deps({
+        page: vi
+          .fn()
+          .mockResolvedValue({ items: [{ id: 'a', text: '原文', time: '12:00' }], total: 1 }),
+        update
+      })
+    )
+    const before = useWorkstation.getState().noteRevision
+
+    useWorkstation.getState().updateNote('a', { text: '改了' })
+
+    expect(useWorkstation.getState().notes[0].text).toBe('改了')
+    await vi.waitFor(() => {
+      expect(update).toHaveBeenCalledWith('a', { text: '改了' })
+      expect(useWorkstation.getState().noteRevision).toBe(before + 1)
+    })
+  })
+
+  it('revision 等写库成功后才递增，避免笔记页抢在落库前重读', async () => {
+    let resolve: ((value: unknown) => void) | undefined
+    const update = vi.fn().mockReturnValue(new Promise((r) => (resolve = r)))
+    await hydrateNotes(
+      deps({
+        page: vi
+          .fn()
+          .mockResolvedValue({ items: [{ id: 'a', text: '原文', time: '12:00' }], total: 1 }),
+        update
+      })
+    )
+    const before = useWorkstation.getState().noteRevision
+
+    useWorkstation.getState().updateNote('a', { text: '改了' })
+    await Promise.resolve()
+    expect(useWorkstation.getState().noteRevision).toBe(before)
+
+    resolve?.({ id: 'a', text: '改了', time: '12:00' })
+    await vi.waitFor(() => {
+      expect(useWorkstation.getState().noteRevision).toBe(before + 1)
+    })
+  })
+
+  it('删除笔记会同步总数并调用数据库', async () => {
+    const remove = vi.fn().mockResolvedValue(true)
+    await hydrateNotes(
+      deps({
+        page: vi.fn().mockResolvedValue({
+          items: [
+            { id: 'a', text: '一', time: '12:00' },
+            { id: 'b', text: '二', time: '11:00' }
+          ],
+          total: 2
+        }),
+        remove
+      })
+    )
+
+    useWorkstation.getState().removeNote('a')
+
+    expect(useWorkstation.getState().notes.map((note) => note.id)).toEqual(['b'])
+    expect(useWorkstation.getState().noteTotal).toBe(1)
+    await vi.waitFor(() => expect(remove).toHaveBeenCalledWith('a'))
+  })
+
+  it('数据库说没删掉时把那一行放回去', async () => {
+    const remove = vi.fn().mockResolvedValue(false)
+    await hydrateNotes(
+      deps({
+        page: vi
+          .fn()
+          .mockResolvedValue({ items: [{ id: 'a', text: '一', time: '12:00' }], total: 1 }),
+        remove
+      })
+    )
+
+    useWorkstation.getState().removeNote('a')
+
+    await vi.waitFor(() => {
+      expect(useWorkstation.getState().notes.map((note) => note.id)).toContain('a')
+    })
+  })
+
+  it('标签清空后不留下空字符串标签', async () => {
+    await hydrateNotes(
+      deps({
+        page: vi.fn().mockResolvedValue({
+          items: [{ id: 'a', text: '一', time: '12:00', tag: '旧标签' }],
+          total: 1
+        }),
+        update: vi.fn().mockResolvedValue({ id: 'a', text: '一', time: '12:00' })
+      })
+    )
+
+    useWorkstation.getState().updateNote('a', { tag: '' })
+
+    expect(useWorkstation.getState().notes[0].tag).toBeUndefined()
+  })
+})

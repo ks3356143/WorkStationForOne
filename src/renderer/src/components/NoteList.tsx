@@ -15,6 +15,7 @@ interface NoteListProps {
   mode: 'browse' | 'search'
   endLabel?: string
   resetKey?: string
+  onOpen: (row: NoteListRow) => void
 }
 
 export const ROW_HEIGHT = 68
@@ -47,7 +48,7 @@ function highlight(text: string, snippet?: string): string {
   return snippet && snippet.length > 0 ? snippet : text
 }
 
-export function NoteList({ rows, loading, mode, endLabel, resetKey }: NoteListProps) {
+export function NoteList({ rows, loading, mode, endLabel, resetKey, onOpen }: NoteListProps) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [height, setHeight] = useState(420)
@@ -103,12 +104,19 @@ export function NoteList({ rows, loading, mode, endLabel, resetKey }: NoteListPr
               key={row.id}
               data-index={range.start + index}
             >
-              <div className="w1-nvrowtop">
-                {row.pinned ? <span className="w1-nvpin">置顶</span> : null}
-                {row.tag ? <span className="w1-nvtag">{row.tag}</span> : null}
-                <time>{row.time}</time>
-              </div>
-              <p className="w1-nvtext">{highlight(row.text, row.snippet)}</p>
+              <button
+                className="w1-nvrowbtn"
+                type="button"
+                onClick={() => onOpen(row)}
+                aria-label={`打开笔记：${row.text.slice(0, 40)}`}
+              >
+                <span className="w1-nvrowtop">
+                  {row.pinned ? <span className="w1-nvpin">置顶</span> : null}
+                  {row.tag ? <span className="w1-nvtag">{row.tag}</span> : null}
+                  <time>{row.time}</time>
+                </span>
+                <p className="w1-nvtext">{highlight(row.text, row.snippet)}</p>
+              </button>
             </article>
           ))}
           {showEnd ? (

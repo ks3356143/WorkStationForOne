@@ -31,7 +31,9 @@ const api: WsApi = {
     page: (offset, limit) => ipcRenderer.invoke(IPC_CHANNELS.notesPage, offset, limit),
     search: (query, limit) => ipcRenderer.invoke(IPC_CHANNELS.notesSearch, query, limit),
     create: (text, tag) => ipcRenderer.invoke(IPC_CHANNELS.notesCreate, text, tag),
-    togglePin: (id) => ipcRenderer.invoke(IPC_CHANNELS.notesTogglePin, id)
+    togglePin: (id) => ipcRenderer.invoke(IPC_CHANNELS.notesTogglePin, id),
+    update: (id, patch) => ipcRenderer.invoke(IPC_CHANNELS.notesUpdate, id, patch),
+    remove: (id) => ipcRenderer.invoke(IPC_CHANNELS.notesRemove, id)
   },
   capture: {
     open: () => ipcRenderer.invoke(IPC_CHANNELS.captureOpen),

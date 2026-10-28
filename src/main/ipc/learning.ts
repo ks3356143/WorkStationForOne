@@ -1,10 +1,12 @@
 import { ipcMain } from 'electron'
+import { clozeFrontText, validateCloze } from '../../shared/cloze'
 import { isDateKey } from '../../shared/date-key'
 import type { LearningRepository } from '../db/learning'
 import {
   IPC_CHANNELS,
   type LearningDraft,
   type LearningItemRecord,
+  type LearningKind,
   type LearningPatch,
   type LearningRating
 } from '../../shared/ipc'
@@ -40,6 +42,18 @@ function assertFreeText(value: unknown, label: string): string {
 function assertDate(value: unknown): string {
   if (!isDateKey(value)) throw new TypeError('复习日期无效')
   return value
+}
+
+function assertKind(value: unknown): LearningKind {
+  if (value !== 'basic' && value !== 'cloze') throw new TypeError('卡片类型无效')
+  return value
+}
+
+function assertClozeSource(value: unknown): string {
+  const text = assertText(value, '挖空原文', MAX_TEXT)
+  const error = validateCloze(text)
+  if (error) throw new TypeError(error)
+  return text
 }
 
 export function assertLearningId(value: unknown): string {
@@ -87,13 +101,26 @@ export function assertLearningRecord(value: unknown): LearningItemRecord {
               throw new TypeError('卡片最近复习时间无效')
             return record.lastReviewedAt
           })(),
-    active: record.active
+    active: record.active,
+    ...(record.kind === 'cloze' ? { kind: assertKind(record.kind) } : {}),
+    ...(record.kind === 'cloze'
+      ? {
+          clozeSource:
+            record.clozeSource === undefined
+              ? ''
+              : assertText(record.clozeSource, '挖空原文', MAX_TEXT)
+        }
+      : {}),
+    ...(typeof record.noteId === 'string' && record.noteId.length > 0
+      ? { noteId: record.noteId }
+      : {})
   }
 }
 
 export function assertLearningDraft(value: unknown): LearningDraft {
   if (typeof value !== 'object' || value === null) throw new TypeError('卡片草稿必须是对象')
   const draft = value as Record<string, unknown>
+  const kind = draft.kind === undefined ? 'basic' : assertKind(draft.kind)
   const result: LearningDraft = {
     subject: assertSubject(draft.subject),
     title: assertTitle(draft.title)
@@ -101,6 +128,14 @@ export function assertLearningDraft(value: unknown): LearningDraft {
   if (draft.source !== undefined) result.source = assertFreeText(draft.source, '来源')
   if (draft.notes !== undefined) result.notes = assertFreeText(draft.notes, '卡片背面')
   if (draft.nextReviewOn !== undefined) result.nextReviewOn = assertDate(draft.nextReviewOn)
+  if (kind === 'cloze') {
+    if (draft.clozeSource === undefined) throw new TypeError('挖空卡缺少原文')
+    result.kind = 'cloze'
+    result.clozeSource = assertClozeSource(draft.clozeSource)
+    // 正面由挖空原文推导，避免两处不一致
+    result.title = clozeFrontText(result.clozeSource).slice(0, MAX_TITLE)
+  }
+  if (typeof draft.noteId === 'string' && draft.noteId.length > 0) result.noteId = draft.noteId
   return result
 }
 
@@ -118,6 +153,11 @@ export function assertLearningPatch(value: unknown): LearningPatch {
     if (typeof patch.active !== 'boolean') throw new TypeError('卡片启用状态无效')
     result.active = patch.active
   }
+  if (patch.clozeSource !== undefined) {
+    result.clozeSource = assertClozeSource(patch.clozeSource)
+    // 挖空原文改了，正面必须跟着改，否则库里的标题和复习时看到的对不上
+    result.title = clozeFrontText(result.clozeSource).slice(0, MAX_TITLE)
+  }
 
   if (Object.keys(result).length === 0) throw new TypeError('卡片补丁没有可更新字段')
   return result
@@ -128,7 +168,9 @@ export const registerLearningHandlersIPC = {
   assertLearningRecord,
   assertLearningDraft,
   assertLearningPatch,
-  assertRating
+  assertRating,
+  assertKind,
+  assertClozeSource
 } as const
 
 export function registerLearningHandlers(repository: LearningRepository): void {

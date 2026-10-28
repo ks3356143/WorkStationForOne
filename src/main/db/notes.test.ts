@@ -233,3 +233,82 @@ describe('planSearch', () => {
     expect(planSearch('  ')).toBeNull()
   })
 })
+
+describe('NoteRepository 编辑与删除', () => {
+  it('更新正文后列表与全文索引都跟着变', () => {
+    const { db, repo } = seedDb()
+    repo.bootstrap(notes)
+    repo.update('n2', { text: '线代 · 特征向量的几何意义' })
+    expect(repo.page(0, 10).items.find((note) => note.id === 'n2')?.text).toBe(
+      '线代 · 特征向量的几何意义'
+    )
+    // FTS 由触发器同步：旧词查不到、新词查得到
+    expect(repo.search('特征值', 10).some((hit) => hit.id === 'n2')).toBe(false)
+    expect(repo.search('特征向量', 10).map((hit) => hit.id)).toContain('n2')
+    db.close()
+  })
+
+  it('更新标签与置顶状态', () => {
+    const { db, repo } = seedDb()
+    repo.bootstrap(notes)
+    repo.update('n3', { tag: '提示词', pinned: true })
+    const row = repo.page(0, 10).items.find((note) => note.id === 'n3')
+    expect(row).toMatchObject({ tag: '提示词', pinned: true })
+    db.close()
+  })
+
+  it('标签传空字符串表示清除', () => {
+    const { db, repo } = seedDb()
+    repo.bootstrap(notes)
+    repo.update('n1', { tag: '' })
+    expect(repo.page(0, 10).items.find((note) => note.id === 'n1')?.tag).toBeUndefined()
+    db.close()
+  })
+
+  it('删除后总数与搜索都不再返回它', () => {
+    const { db, repo } = seedDb()
+    repo.bootstrap(notes)
+    repo.remove('n4')
+    expect(repo.count()).toBe(3)
+    expect(repo.search('session', 10)).toEqual([])
+    expect(repo.page(0, 10).items.some((note) => note.id === 'n4')).toBe(false)
+    db.close()
+  })
+
+  it('删除不存在的 id 不抛错', () => {
+    const { db, repo } = seedDb()
+    repo.bootstrap(notes)
+    expect(() => repo.remove('missing')).not.toThrow()
+    expect(repo.count()).toBe(4)
+    db.close()
+  })
+
+  it('更新不存在的 id 返回 undefined 而不是写脏数据', () => {
+    const { db, repo } = seedDb()
+    repo.bootstrap(notes)
+    expect(repo.update('missing', { text: '不存在' })).toBeUndefined()
+    expect(repo.count()).toBe(4)
+    db.close()
+  })
+
+  it('编辑后重新打开仍然保留修改', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wsfo-notes-'))
+    dirs.push(dir)
+    const file = join(dir, 'workstation.db')
+
+    const first = openDatabase(file)
+    migrate(first)
+    const repo = new NoteRepository(first)
+    repo.bootstrap(notes)
+    repo.update('n2', { text: '改写后的正文' })
+    repo.remove('n3')
+    first.close()
+
+    const second = openDatabase(file)
+    migrate(second)
+    const reopened = new NoteRepository(second)
+    expect(reopened.page(0, 10).items.find((note) => note.id === 'n2')?.text).toBe('改写后的正文')
+    expect(reopened.page(0, 10).items.some((note) => note.id === 'n3')).toBe(false)
+    second.close()
+  })
+})

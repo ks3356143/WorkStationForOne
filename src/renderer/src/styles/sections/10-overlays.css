@@ -536,6 +536,102 @@
   box-shadow: 0 8px 22px rgb(var(--vio-rgb) / 0.26);
 }
 
+/* ---------- note detail ---------- */
+
+.w1-notedetail {
+  width: min(680px, calc(100vw - 48px));
+}
+
+.w1-notedetail-text {
+  min-height: 220px;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.w1-notedetail-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 11px;
+}
+
+.w1-notedetail-tag {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--bd);
+  outline: none;
+  background: rgb(var(--field-rgb) / 0.7);
+  color: var(--fg);
+  font: 13px / 1.4 var(--sans);
+  transition:
+    border-color var(--dur-ui),
+    box-shadow var(--dur-ui);
+}
+
+.w1-notedetail-tag::placeholder {
+  color: var(--su);
+}
+
+.w1-notedetail-tag:focus {
+  border-color: rgb(var(--ac2-rgb) / 0.4);
+  box-shadow: 0 0 20px rgb(var(--ac2-rgb) / 0.06);
+}
+
+.w1-notedetail-count {
+  flex: none;
+  font: 11.5px / 1 var(--mono);
+  color: var(--su);
+}
+
+.w1-notedetail .w1-modalacts {
+  justify-content: flex-start;
+}
+
+/* 删除放左边一点，和保存分开，避免手滑 */
+.w1-notedetail-del {
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgb(var(--dg-rgb) / 0.34);
+  background: rgb(var(--dg-rgb) / 0.08);
+  color: var(--dg);
+  font-size: 13px;
+  transition:
+    background-color var(--dur-ui),
+    border-color var(--dur-ui);
+}
+
+.w1-notedetail-del:hover {
+  background: rgb(var(--dg-rgb) / 0.16);
+  border-color: rgb(var(--dg-rgb) / 0.5);
+}
+
+.w1-notedetail-card {
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgb(var(--ac2-rgb) / 0.34);
+  background: rgb(var(--ac2-rgb) / 0.1);
+  color: var(--ac2);
+  font-size: 13px;
+  transition:
+    background-color var(--dur-ui),
+    border-color var(--dur-ui);
+}
+
+.w1-notedetail-card:hover {
+  background: rgb(var(--ac2-rgb) / 0.18);
+  border-color: rgb(var(--ac2-rgb) / 0.5);
+}
+
+.w1-nvnotice {
+  margin: 0 8px 8px;
+  padding: 7px 10px;
+  border-left: 2px solid rgb(var(--ac2-rgb) / 0.6);
+  background: rgb(var(--ac2-rgb) / 0.08);
+  color: var(--fs);
+  font: 12.5px / 1.5 var(--sans);
+}
+
 /* ---------- command palette ---------- */
 
 .w1-paletteback {

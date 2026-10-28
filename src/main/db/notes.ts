@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { DatabaseSync, StatementSync } from 'node:sqlite'
 import type { AuditLog } from './audit'
-import type { NotePage, NoteRecord, NoteSearchHit } from '../../shared/ipc'
+import type { NotePage, NotePatch, NoteRecord, NoteSearchHit } from '../../shared/ipc'
 
 interface NoteRow {
   id: string
@@ -195,6 +195,70 @@ export class NoteRepository {
     const at = Date.now()
     this.sql('UPDATE notes SET pinned = 1 - pinned, updated_at = ? WHERE id = ?').run(at, id)
     this.audit?.record({ at, domain: 'note', action: 'toggle-pin', targetId: id })
+  }
+
+  /**
+   * 改正文 / 标签 / 置顶。标签传空字符串表示清除，undefined 表示不动。
+   * FTS 索引由 notes_fts_update 触发器同步，这里不需要手动重建。
+   */
+  update(id: string, patch: NotePatch): NoteRecord | undefined {
+    const assignments: string[] = []
+    const values: (string | number | null)[] = []
+
+    if (patch.text !== undefined) {
+      assignments.push('body = ?', 'title = ?')
+      values.push(patch.text, patch.text.slice(0, 40))
+    }
+    if (patch.tag !== undefined) {
+      assignments.push('tag = ?')
+      values.push(patch.tag.trim() === '' ? null : patch.tag.trim())
+    }
+    if (patch.pinned !== undefined) {
+      assignments.push('pinned = ?')
+      values.push(patch.pinned ? 1 : 0)
+    }
+    if (assignments.length === 0) return this.find(id)
+
+    const at = Date.now()
+    this.sql(`UPDATE notes SET ${assignments.join(', ')}, updated_at = ? WHERE id = ?`).run(
+      ...values,
+      at,
+      id
+    )
+    const updated = this.find(id)
+    if (!updated) return undefined
+
+    this.audit?.record({
+      at,
+      domain: 'note',
+      action: 'update',
+      targetId: id,
+      title: updated.text.slice(0, 60)
+    })
+    return updated
+  }
+
+  /** 硬删：笔记没有引用关系，留着只是占位；FTS 由触发器清理。 */
+  remove(id: string): boolean {
+    const at = Date.now()
+    const existing = this.find(id)
+    if (!existing) return false
+    this.sql('DELETE FROM notes WHERE id = ?').run(id)
+    this.audit?.record({
+      at,
+      domain: 'note',
+      action: 'delete',
+      targetId: id,
+      title: existing.text.slice(0, 60)
+    })
+    return true
+  }
+
+  find(id: string): NoteRecord | undefined {
+    const row = this.sql('SELECT id, body, tag, pinned, time_label FROM notes WHERE id = ?').get(
+      id
+    ) as NoteRow | undefined
+    return row ? toRecord(row) : undefined
   }
 
   private insert(

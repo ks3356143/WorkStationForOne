@@ -1,5 +1,5 @@
 import { bindNotePersistence, replaceNotes, useWorkstation } from '../store/useWorkstation'
-import type { NoteRecord } from '../../../shared/ipc'
+import type { NotePatch, NoteRecord } from '../../../shared/ipc'
 import type { Note } from '../types'
 
 export interface HydrateNoteDeps {
@@ -8,6 +8,8 @@ export interface HydrateNoteDeps {
   create: (text: string, tag?: string) => Promise<NoteRecord>
   search?: (query: string, limit: number) => Promise<unknown>
   togglePin?: (id: string) => Promise<void>
+  update?: (id: string, patch: NotePatch) => Promise<NoteRecord | undefined>
+  remove?: (id: string) => Promise<boolean>
 }
 
 export async function hydrateNotes(
@@ -15,8 +17,13 @@ export async function hydrateNotes(
 ): Promise<void> {
   if (!deps) return
 
+  // 老桥没有这两个方法时不要绑定空实现，否则 store 会以为写入成功了
+  const update = deps.update
+  const remove = deps.remove
   bindNotePersistence({
-    create: (text, tag) => deps.create(text, tag)
+    create: (text, tag) => deps.create(text, tag),
+    ...(update ? { update: (id: string, patch: NotePatch) => update(id, patch) } : {}),
+    ...(remove ? { remove: (id: string) => remove(id) } : {})
   })
 
   try {

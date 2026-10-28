@@ -328,20 +328,35 @@
 
 .w1-nvrow {
   height: 68px;
+}
+
+/* 行内容是一个按钮：整行可点，键盘也能用。布局从行上移到按钮里。 */
+.w1-nvrowbtn {
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 5px;
   padding: 8px 8px;
+  border: 0;
   border-bottom: 1px solid rgb(var(--ac-rgb) / 0.1);
+  background: transparent;
+  color: inherit;
+  text-align: left;
   transition:
     background-color var(--dur-ui),
     box-shadow var(--dur-ui);
 }
 
-.w1-nvrow:hover {
+.w1-nvrow:hover .w1-nvrowbtn {
   background: linear-gradient(90deg, rgb(var(--vio-rgb) / 0.075), transparent 82%);
   box-shadow: inset 2px 0 rgb(var(--ac2-rgb) / 0.5);
+}
+
+.w1-nvrowbtn:focus-visible {
+  outline: 1px solid rgb(var(--ac2-rgb) / 0.75);
+  outline-offset: -2px;
 }
 
 .w1-nvrowtop {

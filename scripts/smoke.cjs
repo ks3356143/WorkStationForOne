@@ -1040,6 +1040,52 @@ async function run() {
     await sleep(400)
     check('Esc 不关闭笔记工作区', activeNav() === '笔记' && !!one('.w1-notesview'), activeNav())
 
+    // 笔记详情：编辑正文、改标签、删除
+    const noteRow = all('.w1-nvrowbtn')[0]
+    noteRow?.click()
+    await sleep(400)
+    const detail = one('.w1-notedetail')
+    check('笔记行可打开详情', Boolean(detail) && !!one('.w1-notedetail-text'))
+    const detailText = one('.w1-notedetail-text')
+    const originalText = detailText?.value ?? ''
+    setValue(detailText, originalText + '［冒烟改写］')
+    await sleep(150)
+    byText('.w1-notedetail .w1-pb.pri', '保存修改')?.click()
+    await sleep(600)
+    check(
+      '笔记编辑后列表同步',
+      !one('.w1-notedetail') && (one('.w1-nvlist')?.textContent ?? '').includes('冒烟改写'),
+      (one('.w1-nvrow')?.textContent ?? '').slice(0, 40)
+    )
+
+    // 删除：详情里连点两次确认，删掉刚才那条
+    all('.w1-nvrowbtn')[0]?.click()
+    await sleep(400)
+    byText('.w1-notedetail-del', '删除')?.click()
+    await sleep(150)
+    byText('.w1-notedetail-del', '再次点击确认删除')?.click()
+    await sleep(600)
+    check(
+      '笔记删除后从列表消失',
+      !one('.w1-notedetail') && !(one('.w1-nvlist')?.textContent ?? '').includes('冒烟改写'),
+      String(all('.w1-nvrow').length)
+    )
+
+    // 笔记转卡：详情里点「变成卡片」应跳到学习视图并留下这张卡
+    all('.w1-nvrowbtn')[0]?.click()
+    await sleep(400)
+    const noteTitle = (one('.w1-notedetail-text')?.value ?? '').slice(0, 12)
+    byText('.w1-notedetail-card', '变成卡片')?.click()
+    await sleep(800)
+    check(
+      '笔记可转成学习卡',
+      activeNav() === '学习' &&
+        all('.w1-litem').some((el) => el.textContent?.includes(noteTitle)),
+      activeNav() + '|' + noteTitle
+    )
+    await navTo('笔记')
+    await sleep(400)
+
     // ---------- 学习域 ----------
     await navTo('学习')
     check('导航切换到学习', activeNav() === '学习' && !!one('.w1-learn'), activeNav())
@@ -1050,9 +1096,16 @@ async function run() {
     )
     check('学习左栏列出科目', all('.w1-learnrail .w1-todorow').length >= 3, String(all('.w1-learnrail .w1-todorow').length))
     check(
-      '学习科目按卡片数降序（全部/英语二/互联网/已停用）',
-      all('.w1-learnrail .w1-todolabel').map((node) => node.textContent).join('/') ===
-        '全部/英语二/互联网/已停用',
+      '学习科目按卡片数降序（全部/英语二/互联网/…/已停用）',
+      (() => {
+        const labels = all('.w1-learnrail .w1-todolabel').map((node) => node.textContent)
+        if (labels[0] !== '全部' || labels.at(-1) !== '已停用') return false
+        // 中间是科目：数量必须单调不增（前面刚把一条笔记转成了卡，可能多出一个科目）
+        const counts = all('.w1-learnrail .w1-todocount')
+          .slice(1, -1)
+          .map((node) => Number(node.textContent))
+        return counts.every((value, index) => index === 0 || counts[index - 1] >= value)
+      })(),
       all('.w1-learnrail .w1-todolabel').map((node) => node.textContent).join('/')
     )
     check(
@@ -1100,6 +1153,30 @@ async function run() {
       '新建卡片出现在列表',
       all('.w1-litem').some((el) => el.textContent?.includes('幂等键')) && !one('.w1-lnew'),
       String(all('.w1-litem').length)
+    )
+
+    // 挖空卡：切到挖空卡型，用 {{c1::}} 标记建一张
+    byText('.w1-learnrail button', '新建')?.click()
+    await sleep(300)
+    byText('.w1-lkindtabs button', '挖空')?.click()
+    await sleep(250)
+    const clozeField = one('#learn-new-cloze')
+    check('挖空卡型切出原文输入框', Boolean(clozeField))
+    setValue(one('#learn-new-subject'), '互联网')
+    setValue(clozeField, '冒烟：{{c1::TCP}} 是面向连接的')
+    await sleep(250)
+    check(
+      '挖空正面预览隐藏答案',
+      (one('.w1-lclozehint')?.textContent ?? '').includes('[1] 是面向连接的'),
+      one('.w1-lclozehint')?.textContent ?? ''
+    )
+    byText('.w1-lnew button', '保存卡片')?.click()
+    await sleep(600)
+    const clozeRow = all('.w1-litem').find((el) => el.textContent?.includes('[1] 是面向连接的'))
+    check(
+      '挖空卡进入卡片库并带标记',
+      Boolean(clozeRow) && clozeRow?.textContent?.includes('挖空'),
+      clozeRow?.textContent?.slice(0, 40) ?? ''
     )
 
     const dueBefore = Number(one('.w1-learnmain .w1-todosub b')?.textContent ?? -1)

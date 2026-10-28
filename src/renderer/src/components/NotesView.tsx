@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { NoteRecord, NoteSearchHit } from '../../../shared/ipc'
+import type { NotePatch, NoteRecord, NoteSearchHit } from '../../../shared/ipc'
 import { useWorkstation } from '../store/useWorkstation'
+import { noteToCard } from '../lib/note-card'
 import { PlusIcon } from './Glyphs'
+import { NoteDetail, type NoteDetailValue } from './NoteDetail'
 import { NoteList, NoteListFooter, type NoteListRow } from './NoteList'
 
 type Mode = 'browse' | 'search'
@@ -35,6 +37,10 @@ export function NotesView() {
   const memoryNotes = useWorkstation((state) => state.notes)
   const noteRevision = useWorkstation((state) => state.noteRevision)
   const openQuickNote = useWorkstation((state) => state.openQuickNote)
+  const updateNote = useWorkstation((state) => state.updateNote)
+  const removeNote = useWorkstation((state) => state.removeNote)
+  const setView = useWorkstation((state) => state.setView)
+  const addLearningItem = useWorkstation((state) => state.addLearningItem)
 
   const [query, setQuery] = useState('')
   const [mode, setMode] = useState<Mode>('browse')
@@ -43,12 +49,28 @@ export function NotesView() {
   const [loading, setLoading] = useState(false)
   const [searchRefresh, setSearchRefresh] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [detail, setDetail] = useState<NoteDetailValue | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const offsetRef = useRef(0)
   const searchSeq = useRef(0)
   const revisionRef = useRef(noteRevision)
+  const noticeTimer = useRef<number | null>(null)
   // 用 ref 而不是 state 做互斥：清空搜索时要在同一次提交里取消在途加载，
   // 闭包里的 loading 永远是旧值，会把 loadPage 挡在门外并卡住载入态。
   const loadingRef = useRef(false)
+
+  const flash = useCallback((text: string) => {
+    setNotice(text)
+    if (noticeTimer.current) window.clearTimeout(noticeTimer.current)
+    noticeTimer.current = window.setTimeout(() => setNotice(null), 2400)
+  }, [])
+
+  useEffect(
+    () => () => {
+      if (noticeTimer.current) window.clearTimeout(noticeTimer.current)
+    },
+    []
+  )
 
   const loadPage = useCallback(
     async (reset: boolean) => {
@@ -158,6 +180,40 @@ export function NotesView() {
 
   const hasMore = mode === 'browse' && rows.length < total
 
+  const openDetail = (row: NoteListRow) => {
+    setDetail({ id: row.id, text: row.text, tag: row.tag, pinned: row.pinned, time: row.time })
+  }
+
+  const closeDetail = () => setDetail(null)
+
+  const saveDetail = (patch: NotePatch) => {
+    if (!detail) return
+    updateNote(detail.id, patch)
+    setDetail(null)
+    flash('已保存修改')
+  }
+
+  const deleteDetail = () => {
+    if (!detail) return
+    removeNote(detail.id)
+    setDetail(null)
+    flash('笔记已删除')
+  }
+
+  const makeCard = (text: string) => {
+    const card = noteToCard(text)
+    if (!card) return
+    addLearningItem({
+      subject: '笔记',
+      title: card.title,
+      notes: card.notes,
+      source: detail?.tag ?? '',
+      ...(detail ? { noteId: detail.id } : {})
+    })
+    setDetail(null)
+    setView('learning')
+  }
+
   return (
     <section className="w1-notesview" aria-label="全部笔记">
       <div className="w1-nvbox">
@@ -212,12 +268,14 @@ export function NotesView() {
         </div>
 
         {error ? <div className="w1-nverror">{error}</div> : null}
+        {notice ? <div className="w1-nvnotice">{notice}</div> : null}
 
         <NoteList
           rows={rows}
           loading={loading}
           mode={mode}
           resetKey={`${mode}:${query}`}
+          onOpen={openDetail}
           endLabel={
             !hasMore && rows.length > 0
               ? `// END · ${mode === 'search' ? '命中' : '共'} ${total} 条`
@@ -241,6 +299,16 @@ export function NotesView() {
           </span>
         </div>
       </div>
+
+      {detail ? (
+        <NoteDetail
+          note={detail}
+          onSave={saveDetail}
+          onDelete={deleteDetail}
+          onClose={closeDetail}
+          onMakeCard={makeCard}
+        />
+      ) : null}
     </section>
   )
 }

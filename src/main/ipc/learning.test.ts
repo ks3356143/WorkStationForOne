@@ -150,3 +150,57 @@ describe('卡片记录与评分校验', () => {
     expect(registerLearningHandlersIPC.assertLearningId('l1')).toBe('l1')
   })
 })
+
+describe('挖空卡草稿校验', () => {
+  it('由原文推导正面', () => {
+    expect(
+      registerLearningHandlersIPC.assertLearningDraft({
+        subject: '互联网',
+        title: '随便写的正面会被覆盖',
+        kind: 'cloze',
+        clozeSource: '{{c1::TCP}} 是面向连接的'
+      })
+    ).toMatchObject({
+      kind: 'cloze',
+      title: '[1] 是面向连接的',
+      clozeSource: '{{c1::TCP}} 是面向连接的'
+    })
+  })
+
+  it('挖空卡缺少原文被拒', () => {
+    expect(() =>
+      registerLearningHandlersIPC.assertLearningDraft({
+        subject: '互联网',
+        title: 'x',
+        kind: 'cloze'
+      })
+    ).toThrow(TypeError)
+  })
+
+  it('没有挖空内容的原文被拒', () => {
+    expect(() =>
+      registerLearningHandlersIPC.assertLearningDraft({
+        subject: '互联网',
+        title: 'x',
+        kind: 'cloze',
+        clozeSource: '纯文本没有挖空'
+      })
+    ).toThrow(TypeError)
+  })
+
+  it('未知卡型被拒', () => {
+    expect(() =>
+      registerLearningHandlersIPC.assertLearningDraft({
+        subject: '互联网',
+        title: 'x',
+        kind: 'reverse'
+      })
+    ).toThrow(TypeError)
+  })
+
+  it('改挖空原文时正面同步重算', () => {
+    expect(
+      registerLearningHandlersIPC.assertLearningPatch({ clozeSource: '{{c1::UDP}} 不面向连接' })
+    ).toEqual({ clozeSource: '{{c1::UDP}} 不面向连接', title: '[1] 不面向连接' })
+  })
+})

@@ -4,10 +4,12 @@ import type {
   LearningItemRecord,
   LearningPatch,
   LearningRating,
+  NotePatch,
   TaskDraft,
   TaskPatch
 } from '../../../shared/ipc'
 import { appendStreamText } from '../../../shared/agent-stream'
+import { clozeFrontText } from '../../../shared/cloze'
 import { createInitialData } from '../data/mock'
 import { dateKey } from '../../../shared/date-key'
 import { toggleCheckin } from '../lib/habits'
@@ -57,6 +59,8 @@ interface TaskPersistence {
 
 interface NotePersistence {
   create: (text: string, tag?: string) => Promise<Note>
+  update?: (id: string, patch: NotePatch) => Promise<Note | undefined>
+  remove?: (id: string) => Promise<boolean>
 }
 
 interface LearningPersistence {
@@ -134,6 +138,8 @@ interface WorkstationActions {
   openQuickNote: () => void
   closeQuickNote: () => void
   addNote: (text: string) => void
+  updateNote: (noteId: string, patch: NotePatch) => void
+  removeNote: (noteId: string) => void
   openNotesView: () => void
   setLearningScope: (scope: LearningScope) => void
   addLearningItem: (draft: LearningDraft) => void
@@ -587,6 +593,74 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
 
   openNotesView: () => set({ activeView: 'notes' }),
 
+  updateNote: (noteId, patch) => {
+    const next: NotePatch = {}
+    if (patch.text !== undefined) {
+      const text = patch.text.trim()
+      if (!text) return
+      next.text = text
+    }
+    if (patch.tag !== undefined) next.tag = patch.tag.trim()
+    if (patch.pinned !== undefined) next.pinned = patch.pinned
+    if (Object.keys(next).length === 0) return
+
+    // 先改内存副本让面板立刻反映，等写库成功再 bump revision——
+    // 反过来的话笔记页会抢在 IPC 落库前重读，读回的还是旧正文。
+    set((state) => ({
+      notes: state.notes.map((note) =>
+        note.id === noteId
+          ? {
+              ...note,
+              ...(next.text !== undefined ? { text: next.text } : {}),
+              ...(next.tag !== undefined ? { tag: next.tag || undefined } : {}),
+              ...(next.pinned !== undefined ? { pinned: next.pinned } : {})
+            }
+          : note
+      )
+    }))
+
+    const update = notePersistence?.update
+    if (!update) {
+      set((state) => ({ noteRevision: state.noteRevision + 1 }))
+      return
+    }
+    void update(noteId, next)
+      .then(() => set((state) => ({ noteRevision: state.noteRevision + 1 })))
+      .catch(reportPersistenceError)
+  },
+
+  removeNote: (noteId) => {
+    const removed = get().notes.find((note) => note.id === noteId)
+    set((state) => ({
+      notes: state.notes.filter((note) => note.id !== noteId),
+      noteTotal: Math.max(0, state.noteTotal - 1)
+    }))
+    if (!removed) return
+
+    const restore = () =>
+      set((state) => ({
+        notes: [removed, ...state.notes],
+        noteTotal: state.noteTotal + 1,
+        noteRevision: state.noteRevision + 1
+      }))
+
+    const remove = notePersistence?.remove
+    if (!remove) {
+      set((state) => ({ noteRevision: state.noteRevision + 1 }))
+      return
+    }
+    // 同样等落库再刷新；主进程说没删掉（false）就回滚那一行
+    void remove(noteId)
+      .then((ok) => {
+        if (ok) set((state) => ({ noteRevision: state.noteRevision + 1 }))
+        else restore()
+      })
+      .catch((error) => {
+        restore()
+        reportPersistenceError(error)
+      })
+  },
+
   setLearningScope: (learningScope) => set({ learningScope }),
 
   addLearningItem: (draft) => {
@@ -603,7 +677,11 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       intervalDays: 0,
       ease: 2.5,
       nextReviewOn: draft.nextReviewOn ?? dateKey(),
-      active: true
+      active: true,
+      ...(draft.kind === 'cloze'
+        ? { kind: 'cloze' as const, clozeSource: draft.clozeSource ?? '' }
+        : {}),
+      ...(draft.noteId ? { noteId: draft.noteId } : {})
     }
     set((state) => ({
       learningItems: [local, ...state.learningItems],
@@ -632,6 +710,10 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       const subject = next.subject.trim()
       if (!subject) return
       next.subject = subject
+    }
+    if (next.clozeSource !== undefined) {
+      // 正面跟着原文走，和主进程校验保持同一规则
+      next.title = clozeFrontText(next.clozeSource).slice(0, 200)
     }
     if (Object.keys(next).length === 0) return
 

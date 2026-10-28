@@ -167,6 +167,52 @@
   white-space: nowrap;
 }
 
+/* 挖空卡标记：和科目标签同形但换色，一眼区分卡型 */
+.w1-lkind {
+  flex: none;
+  padding: 3px 6px;
+  border: 1px solid rgb(var(--ac-rgb) / 0.34);
+  background: rgb(var(--vio-rgb) / 0.1);
+  color: var(--ac-fg);
+  font: 10.5px / 1 var(--mono);
+  white-space: nowrap;
+}
+
+.w1-lkindtabs {
+  display: flex;
+  gap: 4px;
+}
+
+.w1-lkindtabs button {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--bd);
+  background: rgb(var(--panel-2-rgb) / 0.34);
+  color: var(--mu);
+  font: 500 12px / 1 var(--sans);
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui),
+    color var(--dur-ui);
+}
+
+.w1-lkindtabs button.on {
+  border-color: rgb(var(--ac-rgb) / 0.46);
+  background: rgb(var(--vio-rgb) / 0.16);
+  color: var(--fg-strong);
+}
+
+.w1-lclozehint {
+  margin-top: 6px;
+  font: 11.5px / 1.6 var(--mono);
+  color: var(--su);
+  word-break: break-word;
+}
+
+.w1-lclozehint.bad {
+  color: var(--dg);
+}
+
 .w1-ldue {
   justify-self: end;
   font: 11.5px / 1 var(--mono);

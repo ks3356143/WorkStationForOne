@@ -100,12 +100,21 @@ export interface NoteSearchHit extends NoteRecord {
   snippet: string
 }
 
+/** 笔记编辑补丁：字段缺省表示不改；tag 传空字符串表示清除。 */
+export interface NotePatch {
+  text?: string
+  tag?: string
+  pinned?: boolean
+}
+
 export interface NoteApi {
   bootstrap: (notes: NoteRecord[]) => Promise<void>
   page: (offset: number, limit: number) => Promise<NotePage>
   search: (query: string, limit: number) => Promise<NoteSearchHit[]>
   create: (text: string, tag?: string) => Promise<NoteRecord>
   togglePin: (id: string) => Promise<void>
+  update: (id: string, patch: NotePatch) => Promise<NoteRecord | undefined>
+  remove: (id: string) => Promise<boolean>
 }
 
 export interface CaptureApi {
@@ -113,6 +122,8 @@ export interface CaptureApi {
   close: () => Promise<void>
   create: (draft: TaskDraft) => Promise<TaskRecord>
 }
+
+export type LearningKind = 'basic' | 'cloze'
 
 export interface LearningItemRecord {
   id: string
@@ -126,6 +137,12 @@ export interface LearningItemRecord {
   nextReviewOn: string
   lastReviewedAt?: number
   active: boolean
+  /** 卡型：basic 是普通问答，cloze 用 {{c1::…}} 挖空 */
+  kind?: LearningKind
+  /** 挖空原文（只有 kind=cloze 时有意义） */
+  clozeSource?: string
+  /** 来源笔记 id：从笔记转出来的卡片会记住出处 */
+  noteId?: string
 }
 
 export interface LearningDraft {
@@ -134,6 +151,9 @@ export interface LearningDraft {
   source?: string
   notes?: string
   nextReviewOn?: string
+  kind?: LearningKind
+  clozeSource?: string
+  noteId?: string
 }
 
 export interface LearningPatch {
@@ -143,6 +163,7 @@ export interface LearningPatch {
   notes?: string
   nextReviewOn?: string
   active?: boolean
+  clozeSource?: string
 }
 
 export type LearningRating = 1 | 2 | 3 | 4
@@ -236,6 +257,8 @@ export const IPC_CHANNELS = {
   notesSearch: 'notes:search',
   notesCreate: 'notes:create',
   notesTogglePin: 'notes:toggle-pin',
+  notesUpdate: 'notes:update',
+  notesRemove: 'notes:remove',
   tasksChanged: 'tasks:changed',
   captureOpen: 'capture:open',
   captureClose: 'capture:close',

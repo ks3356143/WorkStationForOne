@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { m } from 'motion/react'
+import { clozePlainText } from '../../../../shared/cloze'
 import { dateKey } from '../../../../shared/date-key'
 import { scheduleReview, type SrsRating } from '../../../../shared/srs'
 import { DURATION, EASE_OUT } from '../../lib/motion'
@@ -119,7 +120,11 @@ export function ReviewSession({ onExit }: ReviewSessionProps) {
           >
             <span className="w1-lcardtag">正面</span>
             <strong className="w1-lcardtitle">{current?.title}</strong>
-            <span className="w1-lcardhint">按 Space 或点击翻面</span>
+            {current?.clozeSource ? (
+              <span className="w1-lcardhint">挖空卡 · 回忆被标记的部分</span>
+            ) : (
+              <span className="w1-lcardhint">按 Space 或点击翻面</span>
+            )}
           </m.div>
 
           <m.div
@@ -131,7 +136,11 @@ export function ReviewSession({ onExit }: ReviewSessionProps) {
           >
             <span className="w1-lcardtag">背面</span>
             {current?.source ? <span className="w1-lcardsource">{current.source}</span> : null}
-            <p className="w1-lcardnotes">{current?.notes || '这张卡还没有背面。'}</p>
+            {current?.clozeSource ? (
+              <p className="w1-lcardnotes w1-lcardcloze">{clozePlainText(current.clozeSource)}</p>
+            ) : (
+              <p className="w1-lcardnotes">{current?.notes || '这张卡还没有背面。'}</p>
+            )}
           </m.div>
         </button>
 
