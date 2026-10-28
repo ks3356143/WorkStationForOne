@@ -3,6 +3,7 @@ import type { TaskPatch } from '../../../../shared/ipc'
 import { TASK_DRAG_TYPE } from '../../lib/dnd'
 import type { Task } from '../../types'
 import { DURATION, EASE_OUT } from '../../lib/motion'
+import { repeatLabel } from '../../lib/repeat'
 import { isStale, staleDays, taskDueLabel } from '../../lib/todo'
 import { CheckIcon } from '../Glyphs'
 import { TaskEditor } from './TaskEditor'
@@ -91,6 +92,7 @@ export function TaskItem({
           {task.tag ? (
             <span className={`w1-tag${task.tone ? ` ${task.tone}` : ''}`}>{task.tag}</span>
           ) : null}
+          {task.repeat ? <span className="w1-todorepeat">{repeatLabel(task.repeat)}</span> : null}
           {task.notes ? <span className="w1-todonote">备注</span> : null}
           {stale ? (
             <span className="w1-todostale" title={`创建于 ${staleAge} 天前，仍没完成`}>

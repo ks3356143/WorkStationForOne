@@ -5,7 +5,7 @@ import type { Task } from '../types'
 export interface HydrateDeps {
   list: () => Promise<TaskRecord[]>
   bootstrap: (tasks: TaskRecord[]) => Promise<void>
-  setDone: (id: string, done: boolean) => Promise<void>
+  setDone: (id: string, done: boolean) => Promise<TaskRecord | null>
   applySchedule: (
     changes: {
       taskId: string

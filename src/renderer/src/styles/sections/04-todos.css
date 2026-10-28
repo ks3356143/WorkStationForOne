@@ -1132,3 +1132,14 @@
   border-color: rgb(var(--ac2-rgb) / 0.7);
   background: rgb(var(--ac2-rgb) / 0.14);
 }
+
+/* 重复任务标记：与「备注」同级别的小标签，用青色区别于优先级 */
+.w1-todorepeat {
+  flex: none;
+  padding: 1px 5px;
+  border: 1px solid rgb(var(--ac2-rgb) / 0.3);
+  background: rgb(var(--ac2-rgb) / 0.08);
+  color: var(--ac2-fg);
+  font: 10px / 1 var(--mono);
+  white-space: nowrap;
+}

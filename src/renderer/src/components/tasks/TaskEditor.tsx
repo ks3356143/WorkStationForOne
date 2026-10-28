@@ -2,11 +2,19 @@ import { useEffect, useState } from 'react'
 import { addDaysKey } from '../../../../shared/date-key'
 import type { TaskPatch } from '../../../../shared/ipc'
 import type { Task } from '../../types'
+import type { RepeatRule } from '../../../../shared/repeat'
 import { ComboSelect } from '../fields/ComboSelect'
 import { DatePicker } from '../fields/DatePicker'
 import { TimePicker } from '../fields/TimePicker'
 
 const ESTIMATES = [0, 15, 30, 60, 90, 120] as const
+
+const REPEAT_OPTIONS: { value: RepeatRule | null; label: string }[] = [
+  { value: null, label: '不重复' },
+  { value: 'daily', label: '每天' },
+  { value: 'weekly', label: '每周' },
+  { value: 'monthly', label: '每月' }
+]
 
 const PRIORITIES: { value: 0 | 1 | 2 | 3; label: string }[] = [
   { value: 0, label: '无' },
@@ -33,6 +41,7 @@ export function TaskEditor({ task, lists, today, onSave, onDelete, onClose }: Ta
   const [list, setList] = useState(task.list ?? '')
   const [plannedFor, setPlannedFor] = useState(task.plannedFor ?? '')
   const [estimate, setEstimate] = useState(task.estimateMinutes ?? 0)
+  const [repeat, setRepeat] = useState<RepeatRule | null>(task.repeat ?? null)
   const [confirming, setConfirming] = useState(false)
 
   useEffect(() => {
@@ -52,7 +61,8 @@ export function TaskEditor({ task, lists, today, onSave, onDelete, onClose }: Ta
       priority,
       list: list.trim() || null,
       plannedFor: plannedFor || null,
-      estimateMinutes: estimate
+      estimateMinutes: estimate,
+      repeat
     })
   }
 
@@ -191,6 +201,22 @@ export function TaskEditor({ task, lists, today, onSave, onDelete, onClose }: Ta
                 清除
               </button>
             ) : null}
+          </div>
+        </div>
+        <div className="w1-todofield">
+          <span className="w1-todofieldlabel">重复</span>
+          <div className="w1-todoprirow" role="group" aria-label="重复规则">
+            {REPEAT_OPTIONS.map((option) => (
+              <button
+                key={option.value ?? 'none'}
+                type="button"
+                className={`w1-todopriopt${repeat === option.value ? ' on' : ''}`}
+                aria-pressed={repeat === option.value}
+                onClick={() => setRepeat(option.value)}
+              >
+                {option.label}
+              </button>
+            ))}
           </div>
         </div>
         <div className="w1-todofield">

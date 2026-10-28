@@ -188,6 +188,13 @@ export const MIGRATIONS: Migration[] = [
 
       CREATE INDEX idx_habit_checkins_day ON habit_checkins(day);
     `
+  },
+  {
+    version: 9,
+    sql: `
+      ALTER TABLE tasks ADD COLUMN repeat TEXT
+        CHECK (repeat IS NULL OR repeat IN ('daily', 'weekly', 'monthly'));
+    `
   }
 ]
 

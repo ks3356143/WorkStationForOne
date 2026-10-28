@@ -39,7 +39,7 @@ import type {
 } from '../types'
 
 interface TaskPersistence {
-  setDone: (id: string, done: boolean) => Promise<void>
+  setDone: (id: string, done: boolean) => Promise<Task | null>
   applySchedule: (
     changes: {
       taskId: string
@@ -188,7 +188,14 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
         item.id === taskId ? { ...item, done, completedAt: done ? Date.now() : undefined } : item
       )
     }))
-    persistQuietly(() => persistence?.setDone(taskId, done) ?? Promise.resolve())
+    if (!persistence) return
+    void persistence
+      .setDone(taskId, done)
+      .then((next) => {
+        // 重复任务完成时会带回下一条，直接并进列表，省掉一次全量刷新
+        if (next) set((state) => ({ tasks: [...state.tasks, next] }))
+      })
+      .catch(reportPersistenceError)
   },
 
   addTask: (draft) => {
@@ -250,6 +257,8 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
         if (next.plannedFor === null) delete updated.plannedFor
         else if (next.plannedFor !== undefined) updated.plannedFor = next.plannedFor
         if (next.estimateMinutes !== undefined) updated.estimateMinutes = next.estimateMinutes
+        if (next.repeat === null) delete updated.repeat
+        else if (next.repeat !== undefined) updated.repeat = next.repeat
         return updated
       })
     }))

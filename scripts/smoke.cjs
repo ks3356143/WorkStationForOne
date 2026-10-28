@@ -391,6 +391,72 @@ async function run() {
       firstTitle
     )
 
+    // 重复任务：设成每周后完成，应自动生成下一周的实例（落在「即将到来」）
+    const repeatInput = one('.w1-todoinput')
+    setValue(repeatInput, '每周复盘')
+    await sleep(120)
+    repeatInput.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    await sleep(600)
+    all('.w1-todorowwrap')
+      .find((row) => row.textContent?.includes('每周复盘'))
+      ?.querySelector('.w1-todobody')
+      ?.click()
+    await sleep(400)
+    byText('.w1-todoedit .w1-todopriopt', '每周')?.click()
+    await sleep(120)
+    byText('.w1-todoedit .w1-todosave', '保存')?.click()
+    await sleep(600)
+    const badge = all('.w1-todorowwrap')
+      .find((row) => row.textContent?.includes('每周复盘'))
+      ?.querySelector('.w1-todorepeat')?.textContent
+    check('保存后任务显示重复标记', badge === '↻ 每周', badge ?? 'missing')
+
+    all('.w1-todorowwrap')
+      .find((row) => row.textContent?.includes('每周复盘'))
+      ?.querySelector('.w1-todocb')
+      ?.click()
+    await sleep(800)
+    const repeated = await window.ws.tasks.list()
+    const copies = repeated.filter((task) => task.title === '每周复盘')
+    const openCopy = copies.find((task) => !task.done)
+    const todayKey = new Date().toLocaleDateString('sv-SE')
+    const expectedDue = new Date(Date.now() + 7 * 86_400_000).toLocaleDateString('sv-SE')
+    check(
+      '完成后自动生成下一周的实例',
+      copies.length === 2 && Boolean(openCopy) && openCopy.dueDate === expectedDue,
+      copies.map((task) => (task.done ? 'done@' : 'open@') + (task.dueDate ?? '-')).join(' / ')
+    )
+    check('新实例落在今天之后', openCopy?.dueDate !== todayKey, openCopy?.dueDate ?? '-')
+
+    // 收尾：完成态在「已完成」里，下一轮在「即将到来」里，分别删掉
+    const removeRow = async (row) => {
+      row?.querySelector('.w1-todobody')?.click()
+      await sleep(300)
+      byText('.w1-todoedit .w1-tododelete', '删除任务')?.click()
+      await sleep(150)
+      byText('.w1-todoedit .w1-tododelete', '再次点击确认删除')?.click()
+      await sleep(400)
+    }
+    byText('.w1-todorow', '已完成')?.click()
+    await sleep(400)
+    await removeRow(
+      all('.w1-todorowwrap').find((item) => item.textContent?.includes('每周复盘'))
+    )
+    byText('.w1-todorow', '即将到来')?.click()
+    await sleep(400)
+    await removeRow(
+      all('.w1-todorowwrap').find((item) => item.textContent?.includes('每周复盘'))
+    )
+    byText('.w1-todorow', '今天')?.click()
+    await sleep(400)
+    check(
+      '循环任务两条都已清理',
+      !all('.w1-todorowwrap').some((item) => item.textContent?.includes('每周复盘')),
+      String(all('.w1-todorowwrap').length)
+    )
+
 
     const planButton = byText('button', '计划今天')
     check('任务区有计划今天入口', Boolean(planButton))

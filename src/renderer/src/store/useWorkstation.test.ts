@@ -242,7 +242,8 @@ describe('持久化', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     expect(() => useWorkstation.getState().toggleTask('t2')).not.toThrow()
-    await Promise.resolve()
+    // 失败回调挂在 .then 之后，要多等一个节拍才会执行
+    await new Promise((resolve) => setTimeout(resolve, 0))
 
     expect(useWorkstation.getState().tasks.find((task) => task.id === 't2')?.done).toBe(true)
     expect(spy).toHaveBeenCalled()

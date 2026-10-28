@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { isDateKey } from '../../shared/date-key'
+import { isRepeatRule } from '../../shared/repeat'
 import type { TaskRepository } from '../db/tasks'
 import {
   IPC_CHANNELS,
@@ -141,6 +142,10 @@ export function assertTaskPatch(value: unknown): TaskPatch {
   if (patch.estimateMinutes !== undefined) {
     result.estimateMinutes = assertEstimate(patch.estimateMinutes)
   }
+  if (patch.repeat !== undefined) {
+    if (patch.repeat !== null && !isRepeatRule(patch.repeat)) throw new TypeError('重复规则无效')
+    result.repeat = patch.repeat as TaskPatch['repeat']
+  }
 
   if (Object.keys(result).length === 0) throw new TypeError('任务补丁没有可更新字段')
   return result
@@ -186,7 +191,11 @@ export function registerTaskHandlers(repository: TaskRepository): void {
   ipcMain.handle(IPC.tasksSetDone, (_event, id: unknown, done: unknown) => {
     const taskId = assertTaskId(id)
     if (typeof done !== 'boolean') throw new TypeError('完成状态无效')
-    repository.setDone(taskId, done)
+    if (!done) {
+      repository.setDone(taskId, false)
+      return null
+    }
+    return repository.completeTask(taskId)
   })
 
   ipcMain.handle(IPC.tasksApplySchedule, (_event, value: unknown) => {

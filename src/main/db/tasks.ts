@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { DatabaseSync, StatementSync } from 'node:sqlite'
+import { dateKey } from '../../shared/date-key'
+import { nextDueDate } from '../../shared/repeat'
 import type {
   TaskDraft,
   TaskPatch,
@@ -22,10 +24,11 @@ interface TaskRow {
   completed_at: number | null
   planned_for: string | null
   estimate_minutes: number
+  repeat: 'daily' | 'weekly' | 'monthly' | null
   created_at: number
 }
 
-const COLUMNS = `id, title, time_label, tag, tone, done, notes, due_date, priority, list, completed_at, planned_for, estimate_minutes, created_at`
+const COLUMNS = `id, title, time_label, tag, tone, done, notes, due_date, priority, list, completed_at, planned_for, estimate_minutes, repeat, created_at`
 
 const LIST_SQL = `SELECT ${COLUMNS}
   FROM tasks
@@ -35,8 +38,8 @@ const LIST_SQL = `SELECT ${COLUMNS}
 const FIND_SQL = `SELECT ${COLUMNS} FROM tasks WHERE id = ? AND deleted_at IS NULL`
 
 const INSERT_SQL = `INSERT INTO tasks
-  (id, title, time_label, tag, tone, done, notes, due_date, priority, list, completed_at, planned_for, estimate_minutes, sort_order, created_at, updated_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  (id, title, time_label, tag, tone, done, notes, due_date, priority, list, completed_at, planned_for, estimate_minutes, repeat, sort_order, created_at, updated_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 const SET_DONE_SQL =
   'UPDATE tasks SET done = ?, completed_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
@@ -63,7 +66,8 @@ const PATCH_COLUMNS: Record<keyof TaskPatch, string> = {
   priority: 'priority',
   list: 'list',
   plannedFor: 'planned_for',
-  estimateMinutes: 'estimate_minutes'
+  estimateMinutes: 'estimate_minutes',
+  repeat: 'repeat'
 }
 
 function toRecord(row: TaskRow): TaskRecord {
@@ -81,6 +85,7 @@ function toRecord(row: TaskRow): TaskRecord {
     completedAt: row.completed_at ?? undefined,
     plannedFor: row.planned_for ?? undefined,
     estimateMinutes: row.estimate_minutes,
+    ...(row.repeat ? { repeat: row.repeat } : {}),
     createdAt: row.created_at
   }
 }
@@ -144,6 +149,7 @@ export class TaskRepository {
           task.done ? now : null,
           task.plannedFor ?? null,
           task.estimateMinutes ?? 0,
+          task.repeat ?? null,
           index,
           now,
           now
@@ -171,6 +177,7 @@ export class TaskRepository {
       null,
       draft.plannedFor ?? null,
       draft.estimateMinutes ?? 0,
+      draft.repeat ?? null,
       Number(next.n),
       now,
       now
@@ -211,6 +218,40 @@ export class TaskRepository {
   setDone(id: string, done: boolean): void {
     const now = Date.now()
     this.sql(SET_DONE_SQL).run(done ? 1 : 0, done ? now : null, now, id)
+  }
+
+  /**
+   * 勾选完成。重复任务在同一事务里生成下一轮：先落完成态，再插入新条目，
+   * 任一步失败就整体回滚，不会出现「完成了但没生成下一次」的半截状态。
+   */
+  completeTask(id: string): TaskRecord | null {
+    const current = this.find(id)
+    if (!current || current.done) {
+      this.setDone(id, true)
+      return null
+    }
+
+    let created: TaskRecord | null = null
+    this.transaction(() => {
+      this.setDone(id, true)
+      if (!current.repeat) return
+      // 以本次到期日为基准推下一次；没有截止日期就从今天算
+      const base = current.dueDate ?? dateKey()
+      const dueDate = nextDueDate(current.repeat, base)
+      created = this.create({
+        title: current.title,
+        time: current.time === '—' ? undefined : current.time,
+        tag: current.tag,
+        tone: current.tone,
+        notes: current.notes,
+        dueDate,
+        priority: current.priority,
+        list: current.list,
+        repeat: current.repeat,
+        estimateMinutes: current.estimateMinutes
+      })
+    })
+    return created
   }
 
   /** 一次 UPDATE 改完整组任务，不逐条走 update，避免半途失败留下两个清单。 */

@@ -1,6 +1,9 @@
 import type { AgentRunEvent } from './agent-stream'
+import type { RepeatRule } from './repeat'
 
 export type TaskTone = 'agent' | 'hot'
+
+export type { RepeatRule } from './repeat'
 
 export type TaskPriority = 0 | 1 | 2 | 3
 
@@ -22,6 +25,8 @@ export interface TaskRecord {
   completedAt?: number
   plannedFor?: string
   estimateMinutes?: number
+  /** 重复规则；完成时自动生成下一条 */
+  repeat?: RepeatRule
   /** 创建时间戳（毫秒），用于判断任务挂了多久没动 */
   createdAt?: number
 }
@@ -37,6 +42,7 @@ export interface TaskDraft {
   list?: string
   plannedFor?: string
   estimateMinutes?: number
+  repeat?: RepeatRule | null
 }
 
 export interface TaskPatch {
@@ -50,6 +56,7 @@ export interface TaskPatch {
   list?: string | null
   plannedFor?: string | null
   estimateMinutes?: number
+  repeat?: RepeatRule | null
 }
 
 export interface TaskScheduleChange {
@@ -63,7 +70,8 @@ export interface TaskApi {
   list: () => Promise<TaskRecord[]>
   onChanged: (callback: () => void) => () => void
   bootstrap: (tasks: TaskRecord[]) => Promise<void>
-  setDone: (id: string, done: boolean) => Promise<void>
+  /** 完成重复任务时返回自动生成的下一实例 */
+  setDone: (id: string, done: boolean) => Promise<TaskRecord | null>
   applySchedule: (changes: TaskScheduleChange[]) => Promise<void>
   create: (draft: TaskDraft) => Promise<TaskRecord>
   update: (id: string, patch: TaskPatch) => Promise<void>
