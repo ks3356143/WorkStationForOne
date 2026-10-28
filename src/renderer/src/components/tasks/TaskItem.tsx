@@ -3,7 +3,7 @@ import type { TaskPatch } from '../../../../shared/ipc'
 import { TASK_DRAG_TYPE } from '../../lib/dnd'
 import type { Task } from '../../types'
 import { DURATION, EASE_OUT } from '../../lib/motion'
-import { taskDueLabel } from '../../lib/todo'
+import { isStale, staleDays, taskDueLabel } from '../../lib/todo'
 import { CheckIcon } from '../Glyphs'
 import { TaskEditor } from './TaskEditor'
 
@@ -36,6 +36,9 @@ export function TaskItem({
 }: TaskItemProps) {
   const due = taskDueLabel(task, today)
   const overdue = Boolean(task.dueDate && task.dueDate < today && !task.done)
+  // 挂了很久又一直没有截止日期提醒的任务：给一个「N 天未动」的小标记
+  const stale = isStale(task, today)
+  const staleAge = stale ? staleDays(task, today) : 0
   const priority = task.priority ?? 0
   const editorId = `todo-edit-${task.id}`
 
@@ -89,6 +92,11 @@ export function TaskItem({
             <span className={`w1-tag${task.tone ? ` ${task.tone}` : ''}`}>{task.tag}</span>
           ) : null}
           {task.notes ? <span className="w1-todonote">备注</span> : null}
+          {stale ? (
+            <span className="w1-todostale" title={`创建于 ${staleAge} 天前，仍没完成`}>
+              {staleAge} 天未动
+            </span>
+          ) : null}
         </button>
 
         <span

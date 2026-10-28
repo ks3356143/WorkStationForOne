@@ -22,9 +22,10 @@ interface TaskRow {
   completed_at: number | null
   planned_for: string | null
   estimate_minutes: number
+  created_at: number
 }
 
-const COLUMNS = `id, title, time_label, tag, tone, done, notes, due_date, priority, list, completed_at, planned_for, estimate_minutes`
+const COLUMNS = `id, title, time_label, tag, tone, done, notes, due_date, priority, list, completed_at, planned_for, estimate_minutes, created_at`
 
 const LIST_SQL = `SELECT ${COLUMNS}
   FROM tasks
@@ -79,7 +80,8 @@ function toRecord(row: TaskRow): TaskRecord {
     list: row.list ?? undefined,
     completedAt: row.completed_at ?? undefined,
     plannedFor: row.planned_for ?? undefined,
-    estimateMinutes: row.estimate_minutes
+    estimateMinutes: row.estimate_minutes,
+    createdAt: row.created_at
   }
 }
 

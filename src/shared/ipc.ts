@@ -22,6 +22,8 @@ export interface TaskRecord {
   completedAt?: number
   plannedFor?: string
   estimateMinutes?: number
+  /** 创建时间戳（毫秒），用于判断任务挂了多久没动 */
+  createdAt?: number
 }
 
 export interface TaskDraft {

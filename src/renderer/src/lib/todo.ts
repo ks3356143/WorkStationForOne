@@ -115,6 +115,31 @@ function dateText(key: string, today: string): string {
   return key.slice(0, 4) === today.slice(0, 4) ? key.slice(5) : key
 }
 
+/** 挂了多少天没动才算「过期」：两周。太短会天天报警，太长就没人看。 */
+export const STALE_DAYS = 14
+
+/**
+ * 任务从创建到今天过了几天。用本地日期零点对齐，
+ * 避免「昨晚 23:59 建的、今早看就显示 1 天」这种按小时算出来的误差。
+ */
+export function staleDays(task: Task, today: string): number {
+  if (task.createdAt === undefined) return 0
+  const created = new Date(task.createdAt)
+  const createdKey = `${created.getFullYear()}-${String(created.getMonth() + 1).padStart(2, '0')}-${String(
+    created.getDate()
+  ).padStart(2, '0')}`
+  const [y1, m1, d1] = createdKey.split('-').map(Number)
+  const [y2, m2, d2] = today.split('-').map(Number)
+  const diff = Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)
+  return Math.max(0, Math.round(diff / 86_400_000))
+}
+
+/** 未完成且挂了超过阈值的任务才算 stale；已完成的不再提醒。 */
+export function isStale(task: Task, today: string, threshold = STALE_DAYS): boolean {
+  if (task.done) return false
+  return staleDays(task, today) >= threshold
+}
+
 export const LIST_NAME_MAX = 80
 
 /**

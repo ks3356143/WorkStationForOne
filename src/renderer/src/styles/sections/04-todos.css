@@ -1065,3 +1065,15 @@
 .w1-todolistrow.renaming {
   z-index: 3;
 }
+
+/* 「N 天未动」：琥珀色，与逾期（品红）区分开——这条不是过期，是被遗忘 */
+.w1-todostale {
+  flex: none;
+  padding: 1px 5px;
+  border: 1px solid rgb(var(--wn-rgb) / 0.34);
+  background: rgb(var(--wn-rgb) / 0.1);
+  color: var(--wn-fg);
+  font: 10px / 1 var(--mono);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}

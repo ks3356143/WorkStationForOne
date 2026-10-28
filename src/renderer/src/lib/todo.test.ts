@@ -5,7 +5,9 @@ import {
   groupTasksByDate,
   isInToday,
   isOverdue,
+  isStale,
   listNameError,
+  staleDays,
   searchTasks,
   taskCounts,
   taskDueLabel,
@@ -188,5 +190,44 @@ describe('listNameError', () => {
   it('前后空格会被裁掉再比较', () => {
     expect(listNameError('  学习  ', existing, '工作')).toBe('已存在同名清单')
     expect(listNameError('  工作流 ', existing, '工作')).toBeNull()
+  })
+})
+
+describe('staleDays / isStale', () => {
+  const at = (key: string, hour = 9) => {
+    const [y, m, d] = key.split('-').map(Number)
+    return new Date(y, m - 1, d, hour).getTime()
+  }
+  const base = (createdAt?: number, done = false): Task => ({
+    id: 't',
+    title: '挂了很久的任务',
+    time: '—',
+    done,
+    ...(createdAt === undefined ? {} : { createdAt })
+  })
+
+  it('按自然日计算，不受创建时刻的小时影响', () => {
+    expect(staleDays(base(at('2026-10-28', 23)), '2026-10-28')).toBe(0)
+    expect(staleDays(base(at('2026-10-27', 23)), '2026-10-28')).toBe(1)
+    expect(staleDays(base(at('2026-10-14')), '2026-10-28')).toBe(14)
+  })
+
+  it('没有 createdAt 的旧数据不算过期', () => {
+    expect(staleDays(base(), '2026-10-28')).toBe(0)
+    expect(isStale(base(), '2026-10-28')).toBe(false)
+  })
+
+  it('达到阈值即过期，差一天不算', () => {
+    expect(isStale(base(at('2026-10-15')), '2026-10-28')).toBe(false)
+    expect(isStale(base(at('2026-10-14')), '2026-10-28')).toBe(true)
+  })
+
+  it('已完成的永不提醒', () => {
+    expect(isStale(base(at('2026-09-01'), true), '2026-10-28')).toBe(false)
+  })
+
+  it('自定义阈值生效', () => {
+    expect(isStale(base(at('2026-10-21')), '2026-10-28', 7)).toBe(true)
+    expect(isStale(base(at('2026-10-25')), '2026-10-28', 7)).toBe(false)
   })
 })

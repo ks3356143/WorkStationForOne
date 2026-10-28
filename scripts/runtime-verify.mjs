@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { readFile, readdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { gzipSync } from 'node:zlib'
 import { setTimeout as sleep } from 'node:timers/promises'
 
@@ -495,6 +496,24 @@ async function clickNav(label) {
 
 let runtimeTask = null
 
+/**
+ * 把刚建的任务「变老」：直接改库里的 created_at。
+ * 过期标记只有跨过 14 天才会出现，走 UI 造不出这种数据。
+ */
+function ageRuntimeTask(days) {
+  if (!runtimeTask) return false
+  const file = join(dataDir, 'workstation.db')
+  const db = new DatabaseSync(file)
+  try {
+    const at = Date.now() - days * 86_400_000
+    db.prepare('UPDATE tasks SET created_at = ? WHERE id = ?').run(at, runtimeTask.id)
+    runtimeTask.ageDays = days
+    return true
+  } finally {
+    db.close()
+  }
+}
+
 async function createRuntimeTask() {
   const title = `运行时校验 ${Date.now()}`
   await clickNav('任务')
@@ -519,6 +538,7 @@ async function createRuntimeTask() {
   )
   if (result?.saved) runtimeTask = { id: result.saved.id, title }
   record('运行时：快速添加任务出现在列表', result?.row === true, result)
+  record('运行时：可把任务创建时间改到 30 天前', ageRuntimeTask(30), runtimeTask)
   record('运行时：新任务写入 SQLite', Boolean(result?.saved), result?.saved ?? result)
   record(
     '运行时：新任务保留清单与优先级',
@@ -716,6 +736,19 @@ async function verifyAndRemoveRuntimeTask() {
   )
   record('运行时：重启后任务仍在 SQLite', found?.found === true, found?.task ?? found)
   record('运行时：重启后任务重新渲染', found?.row === true, found?.row)
+
+  const stale = await pageEval(
+    `(() => {
+      const row = [...document.querySelectorAll('.w1-todorowwrap')].find((element) =>
+        element.textContent.includes(${JSON.stringify(runtimeTask.title)})
+      )
+      const chip = row?.querySelector('.w1-todostale')
+      return { text: chip?.textContent?.trim() ?? null, title: chip?.getAttribute('title') ?? null }
+    })()`,
+    'stale marker'
+  )
+  record('运行时：挂了 30 天的任务显示过期标记', stale?.text === '30 天未动', stale)
+  record('运行时：标记带创建时间说明', (stale?.title ?? '').includes('30 天前'), stale?.title)
 
   const deleted = await pageEval(
     `(async () => {
