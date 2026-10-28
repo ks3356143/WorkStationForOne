@@ -40,6 +40,8 @@ export interface Session {
 }
 
 export interface ToolCall {
+  /** CLI 的 tool_use id；种子数据没有 id，key 退回 name */
+  id?: string
   name: string
   meta: string
   status: string
@@ -51,6 +53,8 @@ export interface ChatMessage {
   text: string
   time: string
   tools?: ToolCall[]
+  /** 这一轮失败时的提示，渲染层用危险色标出，不与正常回复混在一起 */
+  error?: boolean
 }
 
 export interface PermissionChange {
@@ -110,6 +114,10 @@ export interface WorkstationData {
   threads: Record<string, ChatMessage[]>
   typing: boolean
   pendingReplyTo: string | null
+  /** 待发送的提示词：Composer 写入，订阅层取走后调用真实 CLI */
+  pendingPrompt: string | null
+  /** 正在流式写入的助手消息，null 表示当前没有真实回合在跑 */
+  streaming: { runId: string | null; sessionId: string; messageId: string } | null
   permission: Permission | null
   resolution: ResolutionRecord | null
   motionOn: boolean

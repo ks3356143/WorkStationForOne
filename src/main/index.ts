@@ -3,6 +3,7 @@ import { pathToFileURL } from 'node:url'
 import { app, BrowserWindow, session, shell } from 'electron'
 import { initDatabase, type DatabaseContext } from './db'
 import { disposeCaptureShortcut, registerCaptureHandlers, registerCaptureShortcut } from './capture'
+import { registerAgentHandlers } from './ipc/agent'
 import { registerAppHandlers, TITLE_BAR_HEIGHT, WINDOW_PALETTE } from './ipc/app'
 import { registerLearningHandlers } from './ipc/learning'
 import { registerNoteHandlers } from './ipc/notes'
@@ -35,6 +36,8 @@ function isAllowedNavigation(url: string): boolean {
   return url === rendererFileUrl || url.startsWith(`${rendererFileUrl}#`)
 }
 
+let mainWindow: BrowserWindow | null = null
+
 function createWindow(): void {
   const win = new BrowserWindow({
     width: 1440,
@@ -60,6 +63,10 @@ function createWindow(): void {
     }
   })
 
+  mainWindow = win
+  win.on('closed', () => {
+    if (mainWindow === win) mainWindow = null
+  })
   win.once('ready-to-show', () => win.show())
 
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -104,6 +111,8 @@ if (!gotTheLock) {
     registerTaskHandlers(database.tasks)
     registerNoteHandlers(database.notes)
     registerLearningHandlers(database.learning)
+    // 捕获窗是另一个 BrowserWindow，Agent 事件只回主窗口
+    registerAgentHandlers(() => mainWindow)
     registerCaptureHandlers(database.tasks)
     registerCaptureShortcut()
 

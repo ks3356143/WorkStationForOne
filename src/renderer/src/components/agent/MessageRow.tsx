@@ -37,9 +37,9 @@ export const MessageRow = memo(function MessageRow({
           <span>·</span>
           <span>{meta.model}</span>
         </div>
-        <div className="w1-atext">{message.text}</div>
+        <div className={`w1-atext${message.error ? ' error' : ''}`}>{message.text}</div>
         {message.tools?.map((tool) => (
-          <div className="w1-tool" key={tool.name}>
+          <div className="w1-tool" key={tool.id ?? tool.name}>
             <ArrowIcon width={9} height={9} />
             <b>{tool.name}</b>
             <span>{tool.meta}</span>

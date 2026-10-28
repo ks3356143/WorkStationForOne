@@ -7,6 +7,7 @@ import type {
   TaskDraft,
   TaskPatch
 } from '../../../shared/ipc'
+import { appendStreamText } from '../../../shared/agent-stream'
 import { createInitialData } from '../data/mock'
 import { dateKey } from '../../../shared/date-key'
 import { dueQueue } from '../lib/learning'
@@ -104,6 +105,13 @@ interface WorkstationActions {
   setActiveSession: (sessionId: string) => void
   openAgentSession: (sessionId: string) => void
   sendMessage: (text: string) => void
+  takePendingPrompt: () => { sessionId: string; prompt: string } | null
+  beginAgentReply: (sessionId: string, runId: string | null) => void
+  bindAgentRun: (runId: string) => void
+  appendAgentText: (chunk: string) => void
+  upsertAgentTool: (tool: ToolCall, status: string) => void
+  setAgentToolStatus: (toolId: string, status: string) => void
+  finishAgentReply: (error?: string) => void
   receiveReply: (text: string, tools?: ToolCall[]) => void
   resolvePermission: (decision: 'allow' | 'deny') => void
   toggleMotion: () => void
@@ -303,7 +311,103 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     set((state) => ({
       threads: { ...state.threads, [sessionId]: [...(state.threads[sessionId] ?? []), message] },
       typing: true,
-      pendingReplyTo: sessionId
+      pendingReplyTo: sessionId,
+      pendingPrompt: trimmed
+    }))
+  },
+
+  takePendingPrompt: () => {
+    const state = get()
+    if (!state.pendingPrompt) return null
+    set({ pendingPrompt: null })
+    return { sessionId: state.activeSessionId, prompt: state.pendingPrompt }
+  },
+
+  beginAgentReply: (sessionId, runId) => {
+    const message: ChatMessage = {
+      id: nextMessageId('a'),
+      role: 'assistant',
+      text: '',
+      time: '刚刚'
+    }
+    set((state) => ({
+      threads: { ...state.threads, [sessionId]: [...(state.threads[sessionId] ?? []), message] },
+      typing: true,
+      pendingReplyTo: sessionId,
+      streaming: { runId, sessionId, messageId: message.id }
+    }))
+  },
+
+  bindAgentRun: (runId) => {
+    set((state) => (state.streaming ? { streaming: { ...state.streaming, runId } } : {}))
+  },
+
+  appendAgentText: (chunk) => {
+    const streaming = get().streaming
+    if (!streaming || !chunk) return
+    set((state) => ({
+      threads: {
+        ...state.threads,
+        [streaming.sessionId]: (state.threads[streaming.sessionId] ?? []).map((entry) =>
+          entry.id === streaming.messageId
+            ? { ...entry, text: appendStreamText(entry.text, chunk) }
+            : entry
+        )
+      }
+    }))
+  },
+
+  upsertAgentTool: (tool, status) => {
+    const streaming = get().streaming
+    if (!streaming) return
+    set((state) => ({
+      threads: {
+        ...state.threads,
+        [streaming.sessionId]: (state.threads[streaming.sessionId] ?? []).map((entry) => {
+          if (entry.id !== streaming.messageId) return entry
+          const tools = entry.tools ? [...entry.tools] : []
+          const index = tool.id ? tools.findIndex((item) => item.id === tool.id) : -1
+          if (index >= 0) tools[index] = { ...tools[index], ...tool, status }
+          else tools.push({ ...tool, status })
+          return { ...entry, tools }
+        })
+      }
+    }))
+  },
+
+  setAgentToolStatus: (toolId, status) => {
+    const streaming = get().streaming
+    if (!streaming) return
+    set((state) => ({
+      threads: {
+        ...state.threads,
+        [streaming.sessionId]: (state.threads[streaming.sessionId] ?? []).map((entry) => {
+          if (entry.id !== streaming.messageId || !entry.tools) return entry
+          return {
+            ...entry,
+            tools: entry.tools.map((tool) => (tool.id === toolId ? { ...tool, status } : tool))
+          }
+        })
+      }
+    }))
+  },
+
+  finishAgentReply: (error) => {
+    const streaming = get().streaming
+    if (!streaming) return
+    set((state) => ({
+      threads: {
+        ...state.threads,
+        [streaming.sessionId]: (state.threads[streaming.sessionId] ?? []).map((entry) => {
+          if (entry.id !== streaming.messageId) return entry
+          if (error) return { ...entry, text: entry.text || error, error: true }
+          // 空回复也要留个痕迹，否则界面像「什么都没发生」
+          return entry.text ? entry : { ...entry, text: '（本轮没有输出）' }
+        })
+      },
+      typing: false,
+      pendingReplyTo: null,
+      streaming: null
     }))
   },
 

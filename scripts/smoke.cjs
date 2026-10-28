@@ -30,6 +30,8 @@ mkdirSync(sessionDir, { recursive: true })
 app.setPath('userData', userDir)
 app.setPath('sessionData', sessionDir)
 process.env.WS_DATA_DIR = join(dataDir, 'db')
+// Agent 走 stub CLI：验证真实 IPC → 子进程 → 渲染整条链路，但不调用模型、不消耗额度
+process.env.WS_AGENT_CLI = join(__dirname, 'stub-agent.cjs')
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -492,6 +494,35 @@ async function run() {
     await navTo('Agent')
     check('切换视图后仍收到助手回复', all('.w1-amsg').length >= 2, String(all('.w1-amsg').length))
     check('等待动画结束', !one('.w1-typing'))
+
+    const streamedText = all('.w1-amsg').at(-1)?.querySelector('.w1-atext')?.textContent ?? ''
+    check(
+      '回复来自 CLI 的流式文本',
+      streamedText.includes('先把当前看板读一遍') && streamedText.includes('读完了'),
+      streamedText
+    )
+    const toolCard = all('.w1-amsg').at(-1)?.querySelector('.w1-tool')
+    check(
+      '工具调用渲染成卡片且状态已完成',
+      toolCard?.textContent?.includes('Read') &&
+        toolCard?.textContent?.includes('src/main/index.ts') &&
+        toolCard?.textContent?.includes('完成'),
+      toolCard?.textContent ?? 'missing'
+    )
+    check('真实回复不是演示文案', !streamedText.includes('我先读取今天的看板'), streamedText)
+
+    const failInput = one('#composer-input')
+    setValue(failInput, '这次注定失败')
+    await sleep(80)
+    failInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }))
+    await sleep(900)
+    const failedText = all('.w1-amsg').at(-1)?.querySelector('.w1-atext')
+    check(
+      'CLI 失败时明确报错',
+      failedText?.classList.contains('error') === true && failedText.textContent.includes('模拟失败'),
+      failedText?.textContent ?? 'missing'
+    )
+    check('失败后不残留等待动画', !one('.w1-typing'))
 
     await navTo('今日')
     check(

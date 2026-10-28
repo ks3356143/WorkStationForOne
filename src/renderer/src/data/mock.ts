@@ -30,6 +30,8 @@ export function createInitialData(): WorkstationData {
     activeSessionId: 's-c1',
     threads: createSeedThreads(),
     typing: false,
+    pendingPrompt: null,
+    streaming: null,
     pendingReplyTo: null,
     permission: createSeedPermission(),
     resolution: null,

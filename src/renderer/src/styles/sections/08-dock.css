@@ -287,6 +287,13 @@
   user-select: text;
 }
 
+/* 这一轮失败时的文字：与正常回复区分开，但不用大块红色背景抢满屏 */
+.w1-atext.error {
+  padding-left: 9px;
+  border-left: 2px solid rgb(var(--dg-rgb) / 0.75);
+  color: var(--dg-fg);
+}
+
 .w1-tool {
   display: flex;
   align-items: center;

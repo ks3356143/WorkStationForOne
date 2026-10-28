@@ -1,5 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { IPC_CHANNELS, type TaskScheduleChange, type WsApi } from '../shared/ipc'
+import {
+  type AgentEventEnvelope,
+  IPC_CHANNELS,
+  type TaskScheduleChange,
+  type WsApi
+} from '../shared/ipc'
 
 const api: WsApi = {
   tasks: {
@@ -38,6 +43,16 @@ const api: WsApi = {
     create: (draft) => ipcRenderer.invoke(IPC_CHANNELS.learningCreate, draft),
     update: (id, patch) => ipcRenderer.invoke(IPC_CHANNELS.learningUpdate, id, patch),
     review: (id, rating) => ipcRenderer.invoke(IPC_CHANNELS.learningReview, id, rating)
+  },
+  agent: {
+    send: (input) => ipcRenderer.invoke(IPC_CHANNELS.agentSend, input),
+    cancel: (runId) => ipcRenderer.invoke(IPC_CHANNELS.agentCancel, runId),
+    onEvent: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, payload: AgentEventEnvelope) =>
+        listener(payload)
+      ipcRenderer.on(IPC_CHANNELS.agentEvent, handler)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.agentEvent, handler)
+    }
   },
   app: {
     setTheme: (theme) => ipcRenderer.invoke(IPC_CHANNELS.appSetTheme, theme)

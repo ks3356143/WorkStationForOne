@@ -1,3 +1,5 @@
+import type { AgentRunEvent } from './agent-stream'
+
 export type TaskTone = 'agent' | 'hot'
 
 export type TaskPriority = 0 | 1 | 2 | 3
@@ -139,6 +141,29 @@ export interface LearningApi {
   review: (id: string, rating: LearningRating) => Promise<LearningItemRecord>
 }
 
+export interface AgentSendInput {
+  /** 应用内的会话 id（s-c1），用于把事件归到正确的线程 */
+  sessionId: string
+  prompt: string
+  /** 续接上一轮时传 Claude 自己的会话 id */
+  resumeId?: string
+}
+
+export interface AgentRunStart {
+  runId: string
+}
+
+export interface AgentEventEnvelope {
+  runId: string
+  event: AgentRunEvent
+}
+
+export interface AgentApi {
+  send: (input: AgentSendInput) => Promise<AgentRunStart>
+  cancel: (runId: string) => Promise<void>
+  onEvent: (listener: (payload: AgentEventEnvelope) => void) => () => void
+}
+
 export interface AppApi {
   setTheme: (theme: Theme) => Promise<void>
 }
@@ -148,6 +173,7 @@ export interface WsApi {
   notes: NoteApi
   capture: CaptureApi
   learning: LearningApi
+  agent: AgentApi
   app: AppApi
 }
 
@@ -174,5 +200,8 @@ export const IPC_CHANNELS = {
   learningCreate: 'learning:create',
   learningUpdate: 'learning:update',
   learningReview: 'learning:review',
+  agentSend: 'agent:send',
+  agentCancel: 'agent:cancel',
+  agentEvent: 'agent:event',
   appSetTheme: 'app:set-theme'
 } as const

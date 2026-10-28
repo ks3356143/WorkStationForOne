@@ -27,7 +27,7 @@ import { hydrateTasks, refreshTasks } from './lib/persistence'
 import { hydrateNotes } from './lib/notes-persistence'
 import { hydrateLearning } from './lib/learning-persistence'
 import { isTypingTarget } from './lib/shortcuts'
-import { useDemoReply } from './lib/useDemoReply'
+import { useAgentRun } from './lib/useAgentRun'
 
 export default function App() {
   const motionOn = useWorkstation((state) => state.motionOn)
@@ -55,7 +55,7 @@ export default function App() {
   const paletteTriggerRef = useRef<HTMLElement | null>(null)
   const reducedMotion = useReducedMotion()
 
-  useDemoReply()
+  useAgentRun()
 
   const notify = useCallback(
     (text: string, action?: { label: string; run: () => void }, duration = 2400) => {
