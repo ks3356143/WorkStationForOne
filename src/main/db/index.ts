@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import type { DatabaseSync } from 'node:sqlite'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { migrate, openDatabase } from './database'
@@ -8,6 +9,9 @@ import { NoteRepository } from './notes'
 import { TaskRepository } from './tasks'
 
 export interface DatabaseContext {
+  /** 库文件路径与原始连接：备份模块要直接对连接做 VACUUM INTO */
+  file: string
+  db: DatabaseSync
   tasks: TaskRepository
   notes: NoteRepository
   learning: LearningRepository
@@ -22,6 +26,8 @@ export function initDatabase(): DatabaseContext {
   const db = openDatabase(join(dir, 'workstation.db'))
   migrate(db)
   return {
+    file: join(dir, 'workstation.db'),
+    db,
     tasks: new TaskRepository(db),
     notes: new NoteRepository(db),
     learning: new LearningRepository(db),

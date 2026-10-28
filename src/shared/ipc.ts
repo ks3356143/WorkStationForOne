@@ -180,8 +180,15 @@ export interface AgentApi {
   onEvent: (listener: (payload: AgentEventEnvelope) => void) => () => void
 }
 
+export interface BackupResult {
+  file: string
+  bytes: number
+  at: number
+}
+
 export interface AppApi {
   setTheme: (theme: Theme) => Promise<void>
+  backupNow: () => Promise<BackupResult>
 }
 
 export interface WsApi {
@@ -224,5 +231,6 @@ export const IPC_CHANNELS = {
   agentSend: 'agent:send',
   agentCancel: 'agent:cancel',
   agentEvent: 'agent:event',
-  appSetTheme: 'app:set-theme'
+  appSetTheme: 'app:set-theme',
+  appBackupNow: 'app:backup-now'
 } as const

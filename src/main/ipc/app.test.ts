@@ -21,7 +21,8 @@ function windowStub(destroyed = false) {
 }
 
 function lastHandler() {
-  registerAppHandlers()
+  // 备份连接在这些断言里用不到，给个空壳即可
+  registerAppHandlers({ db: {} as never, dir: '' })
   return handle.mock.calls.at(-1)![1] as (event: unknown, value: unknown) => void
 }
 

@@ -15,6 +15,7 @@ export type PaletteAction =
   | { kind: 'theme' }
   | { kind: 'review' }
   | { kind: 'shortcuts' }
+  | { kind: 'backup' }
   | { kind: 'send'; text: string }
 
 export interface PaletteCommand {
@@ -107,6 +108,14 @@ export function buildPaletteCommands(input: PaletteInput): PaletteCommand[] {
       hint: '工作区',
       value: '学习 卡片库 复习 闪卡 learning cards',
       action: { kind: 'view', view: 'learning' }
+    },
+    {
+      id: 'action:backup',
+      group: '操作',
+      label: '立即备份数据',
+      hint: 'VACUUM INTO',
+      value: '备份 导出 backup 快照 数据安全',
+      action: { kind: 'backup' }
     },
     {
       id: 'action:shortcuts',

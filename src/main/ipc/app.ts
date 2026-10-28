@@ -1,5 +1,6 @@
 import { BrowserWindow, ipcMain } from 'electron'
 import { IPC_CHANNELS, type Theme } from '../../shared/ipc'
+import { backupSize, createBackup } from '../db/backup'
 
 export const WINDOW_PALETTE: Record<Theme, { background: string; symbol: string }> = {
   dark: { background: '#070812', symbol: '#B7C9DC' },
@@ -15,7 +16,17 @@ function assertTheme(value: unknown): Theme {
 
 export const registerAppHandlersIPC = { assertTheme } as const
 
-export function registerAppHandlers(): void {
+export interface BackupTarget {
+  db: import('node:sqlite').DatabaseSync
+  dir: string
+}
+
+export function registerAppHandlers(backup: BackupTarget): void {
+  ipcMain.handle(IPC_CHANNELS.appBackupNow, () => {
+    const file = createBackup(backup.db, backup.dir)
+    return { file, bytes: backupSize(file), at: Date.now() }
+  })
+
   ipcMain.handle(IPC_CHANNELS.appSetTheme, (event, value: unknown) => {
     const theme = assertTheme(value)
     const win = BrowserWindow.fromWebContents(event.sender)

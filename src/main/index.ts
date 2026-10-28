@@ -5,6 +5,7 @@ import { initDatabase, type DatabaseContext } from './db'
 import { disposeCaptureShortcut, registerCaptureHandlers, registerCaptureShortcut } from './capture'
 import { registerAgentHandlers } from './ipc/agent'
 import { registerAppHandlers, TITLE_BAR_HEIGHT, WINDOW_PALETTE } from './ipc/app'
+import { backupDirFor, ensureDailyBackup } from './db/backup'
 import { registerHabitHandlers } from './ipc/habits'
 import { registerLearningHandlers } from './ipc/learning'
 import { registerNoteHandlers } from './ipc/notes'
@@ -108,13 +109,20 @@ if (!gotTheLock) {
     database = initDatabase()
     // 软删任务保留 30 天后清掉，避免已删行无限堆积。
     database.tasks.purgeDeleted(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    registerAppHandlers()
+    registerAppHandlers({ db: database.db, dir: backupDirFor(database.file) })
     registerTaskHandlers(database.tasks)
     registerNoteHandlers(database.notes)
     registerLearningHandlers(database.learning)
     registerHabitHandlers(database.habits)
     // 捕获窗是另一个 BrowserWindow，Agent 事件只回主窗口
     registerAgentHandlers(() => mainWindow)
+    // 每天首次启动补一份快照：库只有一份，坏掉就全没了
+    try {
+      const created = ensureDailyBackup(database.db, backupDirFor(database.file))
+      if (created) console.log('[db] 已创建每日备份', created)
+    } catch (error) {
+      console.error('[db] 每日备份失败', error)
+    }
     registerCaptureHandlers(database.tasks)
     registerCaptureShortcut()
 

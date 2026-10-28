@@ -28,6 +28,7 @@ const ACTION_GLYPH: Record<PaletteCommand['action']['kind'], string> = {
   filter: '▤',
   motion: '◐',
   shortcuts: '?',
+  backup: '⌸',
   theme: '◑',
   review: '◈',
   send: '↵'
@@ -108,6 +109,23 @@ export function CommandPalette({ onClose, notify, onShortcuts }: CommandPaletteP
       case 'shortcuts':
         onShortcuts()
         break
+      case 'backup': {
+        const bridge = window.ws?.app
+        if (!bridge?.backupNow) {
+          notify('当前环境不支持备份')
+          break
+        }
+        void bridge
+          .backupNow()
+          .then((result) => {
+            const size = (result.bytes / 1024).toFixed(0)
+            notify(`已备份 ${size} KB · ${result.file.split(/[/]/).pop() ?? ''}`)
+          })
+          .catch((error: unknown) => {
+            notify(error instanceof Error ? `备份失败：${error.message}` : '备份失败')
+          })
+        break
+      }
       case 'review':
         startLearningReview()
         notify('已进入复习')

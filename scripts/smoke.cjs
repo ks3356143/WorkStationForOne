@@ -1001,6 +1001,20 @@ async function run() {
     )
     busyInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
     await sleep(500)
+    await openPalette()
+    const backupInput = one('.w1-paletteinput')
+    setValue(backupInput, '立即备份数据')
+    await sleep(300)
+    backupInput.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    await sleep(1200)
+    check(
+      '命令面板可立即备份',
+      one('.w1-toast')?.textContent?.includes('已备份') === true,
+      one('.w1-toast')?.textContent ?? 'no toast'
+    )
+
     check('Esc 关闭命令面板', !one('.w1-palette'))
     check(
       'Esc 后焦点归位',
@@ -1118,13 +1132,21 @@ async function run() {
   const dbReady = Boolean(
     dbStats && dbStats.tasks > 0 && dbStats.notes > 0 && dbStats.learning > 0 && dbStats.reviews > 0
   )
+  let backupFiles = []
+  try {
+    const { readdirSync } = require('node:fs')
+    backupFiles = readdirSync(join(dataDir, 'db', 'backups')).filter((name) => name.endsWith('.db'))
+  } catch (error) {
+    console.error(`[smoke] 读取备份目录失败：${error}`)
+  }
   const failed = results.checks.filter((check) => !check.ok)
-  const failures = failed.length + (dbReady ? 0 : 1)
+  const failures = failed.length + (dbReady ? 0 : 1) + (backupFiles.length > 0 ? 0 : 1)
   console.log(
     JSON.stringify(
       {
         ...results,
         database: { file: dbFile, ...dbStats, ready: dbReady },
+        backups: backupFiles,
         consoleErrors,
         failures
       },
