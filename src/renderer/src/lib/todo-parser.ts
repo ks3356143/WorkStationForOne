@@ -2,12 +2,24 @@ import { addDaysKey, dateKey, isDateKey } from '../../../shared/date-key'
 
 export type ParsedPriority = 1 | 2 | 3
 
+export type TokenKind = 'date' | 'time' | 'priority' | 'list'
+
+export interface TokenSpan {
+  start: number
+  end: number
+  kind: TokenKind
+}
+
 export interface ParsedTaskInput {
   title: string
   dueDate?: string
   time?: string
   priority?: ParsedPriority
   list?: string
+}
+
+export interface TokenizedTaskInput extends ParsedTaskInput {
+  spans: TokenSpan[]
 }
 
 const WEEKDAYS: Record<string, number> = {
@@ -94,21 +106,38 @@ function validKey(year: number, month: number, day: number): string | undefined 
   return isDateKey(key) ? key : undefined
 }
 
-function remove(rest: string, match: RegExpExecArray): string {
-  return `${rest.slice(0, match.index)} ${rest.slice(match.index + match[0].length)}`
+/**
+ * 用等长空白覆盖命中片段：长度不变，后续正则的 index 仍然映射到原始输入，
+ * 才能把区间交回给高亮层。拼空格的边界语义与原先「删掉再补一个空格」一致。
+ */
+function blank(rest: string, length: number, index: number): string {
+  return `${rest.slice(0, index)}${' '.repeat(length)}${rest.slice(index + length)}`
 }
 
-export function parseTaskInput(input: string, today = dateKey()): ParsedTaskInput {
+export function tokenizeTaskInput(input: string, today = dateKey()): TokenizedTaskInput {
   let rest = input
   let dueDate: string | undefined
   let time: string | undefined
   let priority: ParsedPriority | undefined
   let list: string | undefined
+  const spans: TokenSpan[] = []
+
+  const take = (match: RegExpExecArray, kind: TokenKind) => {
+    // 正则里的 \s* 会把尾随空格吃进匹配（如「下午三点 交周报」），
+    // 高亮框不该跟着拖出一截空格，所以记录区间时裁掉首尾空白；
+    // 覆盖仍按完整匹配进行，解析结果与旧实现保持一致。
+    let start = match.index
+    let end = match.index + match[0].length
+    while (start < end && /\s/.test(input[start])) start += 1
+    while (end > start && /\s/.test(input[end - 1])) end -= 1
+    spans.push({ start, end, kind })
+    rest = blank(rest, match[0].length, match.index)
+  }
 
   const iso = /\b(\d{4})-(\d{2})-(\d{2})\b/.exec(rest)
   if (iso && isDateKey(iso[0])) {
     dueDate = iso[0]
-    rest = remove(rest, iso)
+    take(iso, 'date')
   }
 
   if (!dueDate) {
@@ -123,7 +152,7 @@ export function parseTaskInput(input: string, today = dateKey()): ParsedTaskInpu
           candidate = validKey(year + 1, Number(chineseDate[1]), Number(chineseDate[2]))
         if (candidate) {
           dueDate = candidate
-          rest = remove(rest, chineseDate)
+          take(chineseDate, 'date')
         }
       }
     }
@@ -140,7 +169,7 @@ export function parseTaskInput(input: string, today = dateKey()): ParsedTaskInpu
       if (count !== null) {
         const days = offsetDate[2] === '天' ? count : count * 7
         dueDate = addDaysKey(today, days)
-        rest = remove(rest, offsetDate)
+        take(offsetDate, 'date')
       }
     }
   }
@@ -152,7 +181,7 @@ export function parseTaskInput(input: string, today = dateKey()): ParsedTaskInpu
     if (relative) {
       const offset = relative[1] === '今天' ? 0 : relative[1] === '明天' ? 1 : 2
       dueDate = addDaysKey(today, offset)
-      rest = remove(rest, relative)
+      take(relative, 'date')
     }
   }
 
@@ -163,7 +192,7 @@ export function parseTaskInput(input: string, today = dateKey()): ParsedTaskInpu
       const index = weekdayIndex(today)
       const offset = weekday[1] === '下周' ? 7 - index + target : (target - index + 7) % 7
       dueDate = addDaysKey(today, offset)
-      rest = remove(rest, weekday)
+      take(weekday, 'date')
     }
   }
 
@@ -173,7 +202,7 @@ export function parseTaskInput(input: string, today = dateKey()): ParsedTaskInpu
     const minute = Number(clock[2])
     if (hour < 24 && minute < 60) {
       time = `${pad(hour)}:${pad(minute)}`
-      rest = remove(rest, clock)
+      take(clock, 'time')
     }
   }
 
@@ -212,7 +241,7 @@ export function parseTaskInput(input: string, today = dateKey()): ParsedTaskInpu
         if ((period === '上午' || period === '早上') && hour === 12) hour = 0
         if (hour < 24 && minute < 60) {
           time = `${pad(hour)}:${pad(minute)}`
-          rest = remove(rest, chineseTime)
+          take(chineseTime, 'time')
         }
       }
     }
@@ -221,13 +250,13 @@ export function parseTaskInput(input: string, today = dateKey()): ParsedTaskInpu
   const priorityMatch = /!(高|中|低)/.exec(rest)
   if (priorityMatch) {
     priority = PRIORITIES[priorityMatch[1]]
-    rest = remove(rest, priorityMatch)
+    take(priorityMatch, 'priority')
   }
 
   const listMatch = /(?<![\w])#([^\s#]+)/.exec(rest)
   if (listMatch) {
     list = listMatch[1]
-    rest = remove(rest, listMatch)
+    take(listMatch, 'list')
   }
 
   return {
@@ -235,6 +264,12 @@ export function parseTaskInput(input: string, today = dateKey()): ParsedTaskInpu
     ...(dueDate ? { dueDate } : {}),
     ...(time ? { time } : {}),
     ...(priority ? { priority } : {}),
-    ...(list ? { list } : {})
+    ...(list ? { list } : {}),
+    spans: spans.sort((a, b) => a.start - b.start)
   }
+}
+
+export function parseTaskInput(input: string, today = dateKey()): ParsedTaskInput {
+  const { spans: _spans, ...parsed } = tokenizeTaskInput(input, today)
+  return parsed
 }

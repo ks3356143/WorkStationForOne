@@ -202,6 +202,20 @@ async function run() {
       ),
       one('.w1-todoquickhint')?.textContent ?? ''
     )
+    const hlMarks = all('.w1-hlk')
+    check(
+      '输入框内联高亮四类 token',
+      hlMarks.length === 4 &&
+        hlMarks.map((el) => el.textContent).join('|') === '明天|15:00|!高|#工作',
+      hlMarks.map((el) => el.textContent).join('|')
+    )
+    check(
+      '高亮按种类着色',
+      hlMarks
+        .map((el) => [...el.classList].find((name) => name.startsWith('w1-hlk-')) ?? '')
+        .join(',') === 'w1-hlk-date,w1-hlk-time,w1-hlk-priority,w1-hlk-list',
+      hlMarks.map((el) => [...el.classList].join('.')).join(' / ')
+    )
     quickInput.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', isComposing: true, bubbles: true })
     )

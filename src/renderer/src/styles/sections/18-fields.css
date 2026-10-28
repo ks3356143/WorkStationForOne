@@ -393,3 +393,129 @@
   font-style: normal;
   text-shadow: 0 0 8px rgb(var(--ac2-rgb) / 0.7);
 }
+
+/* ---------- inline highlight input ---------- */
+
+/*
+ * input 内部无法给子串上色：镜像层负责铺 token 底纹，input 自己画字与光标。
+ * 两者的字体度量必须完全一致，所以字号/行高/内边距只在这里定义一次。
+ */
+.w1-hlinput {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  --hl-font: 14.5px / 1.4 var(--sans);
+  --hl-pad: 0;
+}
+
+.w1-hlmirror,
+.w1-hlinput > input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: var(--hl-pad);
+  border: 0;
+  font: var(--hl-font);
+  letter-spacing: normal;
+}
+
+.w1-hlmirror {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  color: transparent;
+  z-index: 0;
+}
+
+/* 单行内联容器：与 input 的垂直居中保持一致 */
+.w1-hlline {
+  white-space: pre;
+}
+
+.w1-hlinput > input {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  background: transparent;
+  color: var(--fg);
+  outline: none;
+}
+
+.w1-hlinput > input::placeholder {
+  color: var(--su);
+}
+
+/* mark 默认是黄底黑字，全部清掉只留底纹 */
+.w1-hlk {
+  padding: 1px 0;
+  border-radius: 0;
+  background: transparent;
+  color: transparent;
+  box-shadow: inset 0 -1px 0 currentColor;
+}
+
+.w1-hlk-date {
+  background: linear-gradient(180deg, rgb(var(--ac-rgb) / 0.26), rgb(var(--ac-rgb) / 0.14));
+  box-shadow: inset 0 -1px 0 rgb(var(--ac-rgb) / 0.75);
+}
+
+.w1-hlk-time {
+  background: linear-gradient(180deg, rgb(var(--ac2-rgb) / 0.24), rgb(var(--ac2-rgb) / 0.12));
+  box-shadow: inset 0 -1px 0 rgb(var(--ac2-rgb) / 0.75);
+}
+
+.w1-hlk-priority {
+  background: linear-gradient(180deg, rgb(var(--dg-rgb) / 0.26), rgb(var(--dg-rgb) / 0.13));
+  box-shadow: inset 0 -1px 0 rgb(var(--dg-rgb) / 0.8);
+}
+
+.w1-hlk-list {
+  background: linear-gradient(180deg, rgb(var(--ok-rgb) / 0.24), rgb(var(--ok-rgb) / 0.12));
+  box-shadow: inset 0 -1px 0 rgb(var(--ok-rgb) / 0.75);
+}
+
+/* 聚焦时底纹提亮一档，与输入框焦点态同步 */
+.w1-hlinput.on .w1-hlk-date {
+  background: linear-gradient(180deg, rgb(var(--ac-rgb) / 0.34), rgb(var(--ac-rgb) / 0.18));
+}
+
+.w1-hlinput.on .w1-hlk-time {
+  background: linear-gradient(180deg, rgb(var(--ac2-rgb) / 0.32), rgb(var(--ac2-rgb) / 0.16));
+}
+
+.w1-hlinput.on .w1-hlk-priority {
+  background: linear-gradient(180deg, rgb(var(--dg-rgb) / 0.34), rgb(var(--dg-rgb) / 0.17));
+}
+
+.w1-hlinput.on .w1-hlk-list {
+  background: linear-gradient(180deg, rgb(var(--ok-rgb) / 0.32), rgb(var(--ok-rgb) / 0.16));
+}
+
+/* 捕获窗与任务视图字号不同，由父级改一个变量即可 */
+.cap-row .w1-hlinput {
+  --hl-font: 15px / 1.3 var(--sans);
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .w1-hlk-date {
+    background: rgb(var(--ac-rgb) / 0.3);
+  }
+
+  .w1-hlk-time {
+    background: rgb(var(--ac2-rgb) / 0.28);
+  }
+
+  .w1-hlk-priority {
+    background: rgb(var(--dg-rgb) / 0.3);
+  }
+
+  .w1-hlk-list {
+    background: rgb(var(--ok-rgb) / 0.28);
+  }
+}

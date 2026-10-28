@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { addDaysKey, dateKey } from '../../../shared/date-key'
 import type { TaskDraft } from '../../../shared/ipc'
 import { parseTaskInput } from '../lib/todo-parser'
+import { HighlightedInput } from '../components/fields/HighlightedInput'
 
 export function CaptureApp() {
   const [value, setValue] = useState('')
@@ -63,14 +64,14 @@ export function CaptureApp() {
           <span className="cap-prompt" aria-hidden="true">
             &gt;
           </span>
-          <input
+          <HighlightedInput
             ref={inputRef}
-            className="cap-input"
             value={value}
-            maxLength={500}
+            today={today}
             placeholder="明天 15:00 交周报 #工作"
-            aria-label="快速捕获任务"
-            onChange={(event) => setValue(event.target.value)}
+            ariaLabel="快速捕获任务"
+            className="cap-input"
+            onChange={setValue}
             onKeyDown={(event) => {
               if (event.nativeEvent.isComposing || event.keyCode === 229) return
               if (event.key === 'Enter') {

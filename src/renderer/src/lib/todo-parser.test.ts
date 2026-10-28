@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseTaskInput } from './todo-parser'
+import { parseTaskInput, tokenizeTaskInput } from './todo-parser'
 
 const TODAY = '2026-10-24' // 周六
 
@@ -207,5 +207,60 @@ describe('相对天数', () => {
   it('「天后」「周末」这类词不被误判', () => {
     expect(parseTaskInput('关注天后现象', TODAY)).toEqual({ title: '关注天后现象' })
     expect(parseTaskInput('周末复盘', TODAY)).toEqual({ title: '周末复盘' })
+  })
+})
+
+describe('tokenizeTaskInput · 区间', () => {
+  const kinds = (input: string) =>
+    tokenizeTaskInput(input, TODAY).spans.map((s) => ({
+      text: input.slice(s.start, s.end),
+      kind: s.kind
+    }))
+
+  it('完整语句的四个区间按出现顺序排列', () => {
+    expect(kinds('明天 15:00 提交周报 !高 #工作')).toEqual([
+      { text: '明天', kind: 'date' },
+      { text: '15:00', kind: 'time' },
+      { text: '!高', kind: 'priority' },
+      { text: '#工作', kind: 'list' }
+    ])
+  })
+
+  it('区间下标能在原串上原样切回原文', () => {
+    const input = '下周一 下午三点 交周报 #工作'
+    const spans = tokenizeTaskInput(input, TODAY).spans
+    for (const span of spans) {
+      expect(input.slice(span.start, span.end)).toBe(
+        span.kind === 'date' ? '下周一' : span.kind === 'time' ? '下午三点' : '#工作'
+      )
+    }
+    expect(spans.map((s) => s.start)).toEqual([...spans.map((s) => s.start)].sort((a, b) => a - b))
+  })
+
+  it('截止语并入日期区间', () => {
+    expect(kinds('周五前交报告')).toEqual([{ text: '周五前', kind: 'date' }])
+    expect(kinds('3 天后前交报告')).toEqual([{ text: '3 天后前', kind: 'date' }])
+  })
+
+  it('不命中时区间为空', () => {
+    expect(kinds('随便写点什么')).toEqual([])
+    expect(kinds('C#学习')).toEqual([])
+    expect(kinds('关注天后现象')).toEqual([])
+  })
+
+  it('中文数字时间整段高亮', () => {
+    expect(kinds('晚上八点半开会')).toEqual([{ text: '晚上八点半', kind: 'time' }])
+    expect(kinds('早上九点十五分 晨跑')).toEqual([{ text: '早上九点十五分', kind: 'time' }])
+  })
+
+  it('多个同类 token 只标记第一个，与解析结果一致', () => {
+    expect(kinds('明天 后天 提交')).toEqual([{ text: '明天', kind: 'date' }])
+  })
+
+  it('解析结果与区间保持一致', () => {
+    const input = '明天 15:00 提交周报 !高 #工作'
+    const { spans, ...parsed } = tokenizeTaskInput(input, TODAY)
+    expect(parsed).toEqual(parseTaskInput(input, TODAY))
+    expect(spans).toHaveLength(4)
   })
 })

@@ -3,6 +3,7 @@ import { addDaysKey } from '../../../../shared/date-key'
 import type { TaskDraft, TaskPriority } from '../../../../shared/ipc'
 import type { TaskScope } from '../../types'
 import { parseTaskInput } from '../../lib/todo-parser'
+import { HighlightedInput } from '../fields/HighlightedInput'
 import { PlusIcon } from '../Glyphs'
 
 const PRIORITY_LABEL: Record<Exclude<TaskPriority, 0>, string> = { 1: '高', 2: '中', 3: '低' }
@@ -56,14 +57,14 @@ export function QuickAdd({ scope, today, focusSignal, onAdd }: QuickAddProps) {
         <span className="w1-todoquickprompt" aria-hidden="true">
           &gt;
         </span>
-        <input
+        <HighlightedInput
           ref={inputRef}
-          className="w1-todoinput"
           value={value}
-          maxLength={500}
+          today={today}
           placeholder="添加任务，试试「明天 15:00 提交周报 !高 #工作」"
-          aria-label="快速添加任务"
-          onChange={(event) => setValue(event.target.value)}
+          ariaLabel="快速添加任务"
+          className="w1-todoinput"
+          onChange={setValue}
           onKeyDown={(event) => {
             if (event.nativeEvent.isComposing || event.keyCode === 229) return
             if (event.key === 'Enter') {
