@@ -3,6 +3,7 @@ import type { AgentCli } from '../agent/claude'
 import { startClaudeRun } from '../agent/claude'
 import { startCodexRun } from '../agent/codex'
 import type { AgentRepository } from '../db/agent'
+import type { McpEndpoint } from '../mcp/server'
 import type { ProviderRuntime } from '../providers'
 import {
   IPC_CHANNELS,
@@ -160,6 +161,11 @@ interface ActiveRun {
   respondPermission: (requestId: string, behavior: 'allow' | 'deny', message?: string) => boolean
 }
 
+export interface McpAccess {
+  issue: (sessionId: string) => McpEndpoint | null
+  revoke: (token: string) => void
+}
+
 /**
  * 当前只支持一个并发回合：Agent 视图一次只跟一个会话说话，
  * 多开会话的排队与并发留给后续版本，避免 v1 出现交叉写入。
@@ -169,7 +175,8 @@ export function registerAgentHandlers(
   repository: AgentRepository,
   cli?: AgentCli | null,
   getProvider?: () => ProviderRuntime | undefined,
-  codexCli?: AgentCli | null
+  codexCli?: AgentCli | null,
+  mcp?: McpAccess | null
 ): void {
   const runs = new Map<string, ActiveRun>()
   const permissionRuns = new Map<string, string>()
@@ -211,6 +218,7 @@ export function registerAgentHandlers(
       win.webContents.send(IPC.agentEvent, { runId, event: runEvent })
     }
 
+    const mcpEndpoint = input.agent === 'claude' ? (mcp?.issue(input.sessionId) ?? null) : null
     const onExit = ({
       code,
       stderr,
@@ -221,6 +229,7 @@ export function registerAgentHandlers(
       cancelled: boolean
     }) => {
       runs.delete(runId)
+      if (mcpEndpoint) mcp?.revoke(mcpEndpoint.token)
       for (const [requestId, owner] of permissionRuns) {
         if (owner === runId) permissionRuns.delete(requestId)
       }
@@ -250,6 +259,7 @@ export function registerAgentHandlers(
             resumeId: input.resumeId,
             cwd: process.cwd(),
             ...(provider ? { provider } : {}),
+            ...(mcpEndpoint ? { mcp: mcpEndpoint } : {}),
             ...(cli === undefined ? {} : { cli }),
             onEvent: emit,
             onExit

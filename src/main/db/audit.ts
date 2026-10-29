@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 
-export type AuditDomain = 'task' | 'note' | 'learning' | 'habit'
+export type AuditDomain = 'task' | 'note' | 'learning' | 'habit' | 'mcp'
 export type AuditAction =
   | 'create'
   | 'update'
@@ -13,6 +13,7 @@ export type AuditAction =
   | 'review'
   | 'import'
   | 'toggle-pin'
+  | 'read'
 
 export interface AuditEntry {
   at: number

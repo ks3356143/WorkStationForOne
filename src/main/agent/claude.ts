@@ -1,5 +1,8 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import {
   parseAgentLine,
   summarizeToolInput,
@@ -14,8 +17,19 @@ export { resolveAgentCli, type AgentCli } from './cli'
 /**
  * 只读工具白名单。写入类工具一律不开，也不允许 --dangerously-* 之类的开关：
  * v1 的 Agent 只能读，不能静默改用户的文件。
+ * MCP 只读桥由本应用注入，工具名固定为 mcp__workstationforone__*。
  */
-export const CLAUDE_ALLOWED_TOOLS = ['Read', 'Glob', 'Grep', 'LS'] as const
+export const CLAUDE_ALLOWED_TOOLS = [
+  'Read',
+  'Glob',
+  'Grep',
+  'LS',
+  'mcp__workstationforone__tasks_list',
+  'mcp__workstationforone__notes_search',
+  'mcp__workstationforone__learning_due',
+  'mcp__workstationforone__habits_summary',
+  'mcp__workstationforone__today_overview'
+] as const
 
 const RUN_TIMEOUT_MS = 10 * 60 * 1000
 
@@ -35,7 +49,8 @@ export function buildClaudeArgs(
   cli: AgentCli,
   resumeId?: string,
   provider?: ProviderRuntime,
-  sessionId?: string
+  sessionId?: string,
+  mcpConfigPath?: string
 ): string[] {
   const args = [
     ...cli.prefixArgs,
@@ -53,9 +68,15 @@ export function buildClaudeArgs(
     ...CLAUDE_ALLOWED_TOOLS
   ]
   if (provider) args.push('--setting-sources', 'project', '--model', provider.model)
+  if (mcpConfigPath) args.push('--mcp-config', mcpConfigPath)
   if (resumeId) args.push('--resume', resumeId)
   else if (sessionId) args.push('--session-id', sessionId)
   return args
+}
+
+export interface McpRuntimeEndpoint {
+  url: string
+  token: string
 }
 
 export interface ClaudeRunOptions {
@@ -64,10 +85,46 @@ export interface ClaudeRunOptions {
   resumeId?: string
   cwd: string
   provider?: ProviderRuntime
+  /** 本地只读 MCP 桥；token 只写进临时配置文件 */
+  mcp?: McpRuntimeEndpoint
   onEvent: (event: AgentRunEvent) => void
   onExit: (info: { code: number | null; stderr: string; cancelled: boolean }) => void
   /** 省略时按环境解析；显式传 null 表示「没有可用的 CLI」 */
   cli?: AgentCli | null
+}
+
+interface McpConfigFile {
+  path: string
+  cleanup: () => void
+}
+
+function writeMcpConfig(mcp: McpRuntimeEndpoint): McpConfigFile | null {
+  try {
+    const dir = mkdtempSync(join(tmpdir(), 'ws-mcp-'))
+    const path = join(dir, 'mcp.json')
+    const config = {
+      mcpServers: {
+        workstationforone: {
+          type: 'http',
+          url: mcp.url,
+          headers: { Authorization: `Bearer ${mcp.token}` }
+        }
+      }
+    }
+    writeFileSync(path, JSON.stringify(config), { encoding: 'utf8', mode: 0o600 })
+    return {
+      path,
+      cleanup: () => {
+        try {
+          rmSync(dir, { recursive: true, force: true })
+        } catch {
+          // 临时配置删不掉不影响本轮结束
+        }
+      }
+    }
+  } catch {
+    return null
+  }
 }
 
 export interface RunHandle {
@@ -95,7 +152,11 @@ export function startClaudeRun(options: ClaudeRunOptions): RunHandle {
     return { sessionId, cancel: () => {}, respondPermission: () => false }
   }
 
-  const args = buildClaudeArgs(cli, options.resumeId, options.provider, sessionId)
+  const mcpConfig = options.mcp ? writeMcpConfig(options.mcp) : null
+  if (options.mcp && !mcpConfig) {
+    console.error('[agent] MCP 临时配置写入失败，本轮不启用数据桥')
+  }
+  const args = buildClaudeArgs(cli, options.resumeId, options.provider, sessionId, mcpConfig?.path)
   const overrides = providerEnv(options.provider)
   const childEnv = {
     ...process.env,
@@ -215,6 +276,7 @@ export function startClaudeRun(options: ClaudeRunOptions): RunHandle {
     pendingPermissions.clear()
     inputClosed = true
     flush('', true)
+    mcpConfig?.cleanup()
     options.onExit({ code, stderr, cancelled })
   }
 

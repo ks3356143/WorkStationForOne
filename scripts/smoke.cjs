@@ -151,6 +151,11 @@ async function run() {
     check('初始完成 2 项', all('.w1-task.done').length === 2, String(all('.w1-task.done').length))
     check('状态栏初始无待审批', one('.w1-status')?.textContent?.includes('无待审批') ?? false)
     check(
+      '状态栏显示 MCP 只读',
+      one('.w1-st-mcp')?.textContent?.includes('MCP 只读') ?? false,
+      one('.w1-st-mcp')?.textContent ?? ''
+    )
+    check(
       '舰队总览初始为空',
       one('.w1-fleet .w1-frow')?.textContent?.includes('0会话') ?? false,
       one('.w1-fleet .w1-frow')?.textContent ?? ''
@@ -765,6 +770,20 @@ async function run() {
       '拒绝后 CLI 停止写入',
       !one('.w1-toolperm') && (one('.w1-thread')?.textContent ?? '').includes('权限被拒绝'),
       one('.w1-thread')?.textContent?.slice(-80) ?? ''
+    )
+
+    const mcpInput = one('#composer-input')
+    setValue(mcpInput, 'MCP 概览')
+    await sleep(80)
+    mcpInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }))
+    await sleep(1000)
+    const mcpText = all('.w1-amsg').at(-1)?.querySelector('.w1-atext')?.textContent ?? ''
+    const mcpTool = all('.w1-amsg').at(-1)?.querySelector('.w1-tool')
+    check('MCP 只读桥可被 Claude 调用', mcpText.includes('MCP 概览：读取成功'), mcpText)
+    check(
+      'MCP 工具调用显示为已完成',
+      mcpTool?.textContent?.includes('today_overview') && mcpTool?.textContent?.includes('完成'),
+      mcpTool?.textContent ?? 'missing'
     )
 
     document.querySelector('[aria-label="新建 Codex 会话"]')?.click()
@@ -1594,6 +1613,10 @@ async function run() {
       codexResume: count(
         "SELECT COUNT(*) AS n FROM agent_sessions WHERE agent = 'codex' AND resume_id IS NOT NULL"
       ),
+      mcpAudit: count("SELECT COUNT(*) AS n FROM audit_log WHERE domain = 'mcp'"),
+      mcpAuditLeak: count(
+        "SELECT COUNT(*) AS n FROM audit_log WHERE domain = 'mcp' AND (detail LIKE '%Bearer%' OR detail LIKE '%token%')"
+      ),
       providers: count('SELECT COUNT(*) AS n FROM provider_profiles'),
       providerTokens: count(
         'SELECT COUNT(*) AS n FROM provider_profiles WHERE token_encrypted IS NOT NULL'
@@ -1631,6 +1654,16 @@ async function run() {
     name: 'Codex 会话与 resume id 已落库',
     ok: Boolean(dbStats && dbStats.codexSessions === 1 && dbStats.codexResume === 1),
     detail: dbStats ? `${dbStats.codexSessions} 会话 / resume ${dbStats.codexResume}` : '无数据'
+  })
+  results.checks.push({
+    name: 'MCP 调用已写审计',
+    ok: Boolean(dbStats && dbStats.mcpAudit > 0),
+    detail: dbStats ? String(dbStats.mcpAudit) : '无数据'
+  })
+  results.checks.push({
+    name: 'MCP 审计不含 token',
+    ok: Boolean(dbStats && dbStats.mcpAuditLeak === 0),
+    detail: dbStats ? String(dbStats.mcpAuditLeak) : '无数据'
   })
   results.checks.push({
     name: 'Provider 配置与加密 Key 已落库',

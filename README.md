@@ -2,15 +2,15 @@
 
 Windows 上的个人 AI 工作站。把「今日看板 + 任务清单 + Agent 工作区 + 笔记库 + 闪卡复习」收进一个窗口：左侧导航一次只打开一个全宽工作区，Agent 视图里驱动本机 Claude Code CLI 对话，任务、笔记、学习与习惯全部落在本机 SQLite。
 
-> 当前版本 v0.10.0（2026-10-29）。任务（含清单、计划、重复、子任务）、笔记（含双链）、学习（MEM 科目 + FSRS-6 + CSV 导入导出 + 统计）、习惯、审计、Agent 会话与 Provider 配置均已落库（DB v17）；Agent 通过本机 `claude` / `codex` CLI 流式对话：Claude 读工具自动放行、写操作逐次审批，Codex 以只读沙箱运行，会话与消息重启后仍在；便携版可用。Codex 写入与本地 MCP 桥尚未实现。
+> 当前版本 v0.11.0（2026-10-29）。任务（含清单、计划、重复、子任务）、笔记（含双链）、学习（MEM 科目 + FSRS-6 + CSV 导入导出 + 统计）、习惯、审计、Agent 会话与 Provider 配置均已落库（DB v17）；Agent 通过本机 `claude` / `codex` CLI 流式对话：Claude 读工具自动放行、写操作逐次审批，Codex 以只读沙箱运行；Main 进程内嵌 MCP 只读数据桥（任务 / 笔记搜索 / 学习到期 / 习惯 / 今日概览），Token 按回合发放，配置只进临时文件。便携版可用。Codex 写入与 MCP 写入尚未实现。
 
 ## 特点
 
 - **一个窗口完成一天的调度**：左侧一级导航在今日 / 任务 / Agent / 笔记 / 学习之间切换；今日聚合任务摘要、习惯打卡、学习与复习、快速笔记四块看板，配时间轴与舰队状态。
 - **完整的任务工作区**：收集箱、今天、即将到来、全部、已完成与自定义清单；快速添加支持「明天 15:00 提交周报 !高 #工作」这类中文输入，输入时预览解析结果、提交后提示去向；行内详情支持今天/明天/清除快捷日期、备注与优先级；今日卡标题栏也能「快速添加」，直接切到任务工作区并聚焦输入框。另有「计划今天」与容量条、排程预览、拖拽改期、重复任务、子任务、到点提醒、「只做三件事」、清单重命名与完成记录热力图。
-- **Agent 是独立工作区**：默认空态，新建 Claude 会话后真实调用本机 `claude` CLI（stream-json），流式文本与工具调用卡直接进线程；会话标题取自首条消息，消息与工具卡落 SQLite，Claude 的 resume id 也保存下来，重启后能继续。读工具（Read / Glob / Grep / LS）自动放行；编辑、写入、Bash 等工具会弹出「允许一次 / 拒绝」审批卡，逐次裁决。设置里可切「继承 Claude CLI」或自定义 Provider；自定义配置只影响本应用启动的进程，API Key 用系统加密存本机，绝不回显。
+- **Agent 是独立工作区**：默认空态，可新建 Claude 或 Codex 会话；Claude 走本机 `claude` CLI（stream-json），流式文本与工具调用卡直接进线程；会话标题取自首条消息，消息与工具卡落 SQLite，resume id 也保存下来，重启后能继续。读工具（Read / Glob / Grep / LS）自动放行；编辑、写入、Bash 等工具会弹出「允许一次 / 拒绝」审批卡，逐次裁决。Codex 走 `codex exec --json` 的只读沙箱。设置里可切「继承 Claude CLI」或自定义 Provider；自定义配置只影响本应用启动的进程，API Key 用系统加密存本机，绝不回显。
 - **可扩展的外壳**：新应用作为一级导航项接入，各自拥有全宽工作区；看板与 Agent 不同屏，也不存在常驻右栏。
-- **本地优先**：数据只存在本机 SQLite；不使用云同步、不上传遥测、不保存 API Key。
+- **本地优先**：数据只存在本机 SQLite；不使用云同步、不上传遥测；默认不保存 API Key，只有显式保存的自定义 Provider Key 会以系统加密存本机。
 - **中文优先的 HUD 界面**：极光玻璃、直角、终端式元素；夜色与白天双主题，动效可整体关闭，也尊重系统的「减少动效」设置。
 - **间隔重复复习**：面向 MEM 初试的闪卡，默认科目为英语二 / 管综数学 / 管综逻辑 / 管综写作；调度使用 **FSRS-6**（默认参数、90% 目标保留率），每张卡维护稳定度 / 难度 / 失误次数，评分 1 留在今天，当天重复复习走短期公式。支持 `{{c1::答案}}` 挖空卡与一键把笔记转成卡片。
 - **学习统计**：学习视图的「统计」弹层用 FSRS 稳定度估算当前记忆保持率，按复习日分桶展示未来 7 天到期负载，按新卡 / 学习中（稳定度 < 21 天）/ 成熟卡展示掌握分布，并给出最近 14 天复习量与四档评分占比。
@@ -56,9 +56,9 @@ npm run dev
 | `npm run build` | 生产构建，输出到 `out/` |
 | `npm start` | 预览上一次构建 |
 | `npm run typecheck` | 类型检查（main/preload 与 renderer 各一套配置） |
-| `npm test` | 运行全部单元测试（586 项） |
+| `npm test` | 运行全部单元测试（601 项） |
 | `npm run check` | Biome 检查格式与 lint（Rust 单二进制，不依赖 Prettier / ESLint） |
-| `npm run smoke` | 构建后跑 UI 交互冒烟（217 项，真实主进程 + 临时 SQLite） |
+| `npm run smoke` | 构建后跑 UI 交互冒烟（222 项，真实主进程 + 临时 SQLite） |
 | `npm run verify` | 启动真实主进程跑 251–253 项运行时断言（五视图、双主题/皮肤、跨重启） |
 | `npm run capture -- .screenshots/home.png 1440 900 .screenshots/audit.json` | 截图并输出布局审计 |
 | `npm run capture -- .screenshots/notes-1180.png 1180 720 .screenshots/audit-notes.json dark notes` | 指定主题 `dark|light` 与视图 `today|tasks|agent|notes|learning` 截图 |
@@ -75,6 +75,7 @@ src/
     db/                 连接、迁移与任务 / 笔记 / 学习 / 习惯 / 审计 / 智能体会话仓储
     ipc/                IPC handler 与入参校验
     agent/              Claude / Codex CLI 适配器与事件流
+    mcp/                本地只读 MCP 桥（HTTP JSON-RPC、工具与审计）
   preload/              暴露 window.ws 的窄类型化桥
   renderer/             界面（无 Node、无数据库、无文件系统权限）
     src/components/     左侧导航、今日看板、任务 / Agent / 笔记 / 学习工作区、自建表单控件
@@ -105,6 +106,7 @@ docs/superpowers/specs/ 产品与架构设计规格
 
 - 渲染进程没有 Node、数据库或文件系统访问权；所有能力经 `src/shared/ipc.ts` 的类型契约 + 主进程入参校验。
 - Agent 提示词只走 stdin，子进程 `shell: false`，不添加 `--dangerously-*`；Claude 只开放只读工具白名单，Codex 固定 `read-only` 沙箱，不写 `~/.codex/config.toml`。
+- MCP 只读桥只绑 `127.0.0.1` 随机端口，Bearer Token 按 Agent 回合生成并回收；配置只写临时文件，回合结束即删，Token 不进日志、审计或命令行。
 - 应用是单实例的；关闭窗口即退出。
 - 仓库不包含任何密钥、登录态或个人配置。
 
@@ -113,7 +115,7 @@ docs/superpowers/specs/ 产品与架构设计规格
 - 工具审批只有「允许一次 / 拒绝」，没有「本会话始终允许」或持久规则；宿主内问答（AskUserQuestion）会被自动拒绝。
 - Agent 依赖本机 `claude` CLI 已登录且模型可用；继承模式下若全局配置指向的模型被网关拒绝，会明确显示 API 错误，可在设置里改用自定义 Provider。
 - 自定义 Provider 优先于全局 Claude settings，但仍会加载当前目录的项目级 settings；API Key 不写入日志、命令行或渲染层。
-- Codex 以只读沙箱运行，不提供写入或审批；本地 MCP 服务器尚未实现。Agent 页不预置演示会话，首次进入是空态。
+- Codex 以只读沙箱运行，不提供写入或审批；MCP 只提供读取工具，尚无写入与按域授权。Agent 页不预置演示会话，首次进入是空态。
 - 审计日志已有记录，但还没有查看入口。
 - 笔记双链只按「唯一首行」解析：重名或找不到的目标不建立链接；目标改首行后旧链接仍指向它，但正文里显示的是保存时的标题快照。
 - 学习域使用 FSRS-6 默认参数，不提供参数优化器；暂无导入导出、拼写与作文题型。

@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { McpBridge } from '../mcp/server'
 import {
   buildClaudeArgs,
   providerEnv,
@@ -86,6 +87,22 @@ describe('Provider 隔离', () => {
     expect(args).not.toContain('--model')
     expect(providerEnv(undefined)).toBeUndefined()
   })
+
+  it('MCP 配置只以临时文件路径进入参数，只读工具在允许列表里', () => {
+    const path = 'C:\\Temp\\ws-mcp-test\\mcp.json'
+    const args = buildClaudeArgs(cli, undefined, undefined, undefined, path)
+    expect(args).toEqual(expect.arrayContaining(['--mcp-config', path]))
+    expect(args).toEqual(
+      expect.arrayContaining([
+        'mcp__workstationforone__tasks_list',
+        'mcp__workstationforone__notes_search',
+        'mcp__workstationforone__learning_due',
+        'mcp__workstationforone__habits_summary',
+        'mcp__workstationforone__today_overview'
+      ])
+    )
+    expect(args.join(' ')).not.toMatch(/Bearer|token/i)
+  })
 })
 
 describe('startClaudeRun · stub 链路', () => {
@@ -105,6 +122,42 @@ describe('startClaudeRun · stub 链路', () => {
     expect(events[5]).toMatchObject({ kind: 'result', ok: true, costUsd: 0.001 })
     expect(exit.code).toBe(0)
     expect(exit.cancelled).toBe(false)
+  })
+
+  it('MCP 配置通过临时文件交给 CLI，并真的调通只读桥', async () => {
+    const bridge = new McpBridge(
+      {
+        tasks: { list: () => [] },
+        notes: { count: () => 0, search: () => [] },
+        learning: { list: () => [] },
+        habits: { list: () => [] },
+        audit: { record: () => {} }
+      },
+      'test'
+    )
+    await bridge.start()
+    const endpoint = bridge.issue('s-mcp')
+    if (!endpoint) throw new Error('MCP 端点创建失败')
+
+    const events: AgentRunEvent[] = []
+    const exit = await new Promise<{ code: number | null }>((done) => {
+      startClaudeRun({
+        prompt: 'MCP 概览',
+        cwd: process.cwd(),
+        cli: { bin: process.execPath, prefixArgs: [STUB], viaNode: true },
+        mcp: endpoint,
+        onEvent: (event) => events.push(event),
+        onExit: (info) => done({ code: info.code })
+      })
+    })
+    bridge.revoke(endpoint.token)
+    bridge.close()
+
+    expect(exit.code).toBe(0)
+    expect(events).toContainEqual({ kind: 'text', text: 'MCP 概览：读取成功。' })
+    expect(
+      events.some((event) => event.kind === 'tool' && event.name.includes('today_overview'))
+    ).toBe(true)
   })
 
   it('CLI 报错时给出 error 事件而不是假装成功', async () => {

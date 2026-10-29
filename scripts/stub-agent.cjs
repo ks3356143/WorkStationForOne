@@ -6,6 +6,7 @@
  * 用法：WS_AGENT_CLI=<此文件路径>，应用会用它替代真实 claude。
  */
 const pendingPermissions = new Map()
+const { readFileSync } = require('node:fs')
 let buffer = ''
 let started = false
 
@@ -23,6 +24,102 @@ function promptFromMessage(message) {
 }
 
 async function runFlow(prompt) {
+  if (prompt.includes('MCP')) {
+    emit({ type: 'system', subtype: 'init', model: 'stub-model', session_id: 'stub-mcp' })
+    await wait(80)
+    const index = process.argv.indexOf('--mcp-config')
+    const path = index >= 0 ? process.argv[index + 1] : ''
+    let server = null
+    try {
+      const config = JSON.parse(readFileSync(path, 'utf8'))
+      server = config?.mcpServers?.workstationforone ?? null
+    } catch {
+      server = null
+    }
+    const token =
+      typeof server?.headers?.Authorization === 'string'
+        ? server.headers.Authorization.replace(/^Bearer\s+/i, '')
+        : ''
+    if (!server?.url || !token) {
+      emit({
+        type: 'assistant',
+        message: { role: 'assistant', content: [{ type: 'text', text: 'MCP 配置缺失。' }] }
+      })
+      emit({ type: 'result', subtype: 'success', is_error: false, num_turns: 1 })
+      return
+    }
+    const leaked = process.argv.join(' ').includes(token)
+    let overview = ''
+    let error = ''
+    try {
+      const response = await fetch(server.url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: { name: 'today_overview', arguments: {} }
+        })
+      })
+      const data = await response.json()
+      overview = data?.result?.content?.[0]?.text ?? ''
+      if (!overview) error = `HTTP ${response.status}`
+    } catch (issue) {
+      error = issue instanceof Error ? issue.message : '请求失败'
+    }
+    emit({
+      type: 'assistant',
+      message: {
+        role: 'assistant',
+        content: [
+          {
+            type: 'tool_use',
+            id: 'stub-mcp-tool',
+            name: 'mcp__workstationforone__today_overview',
+            input: {}
+          }
+        ]
+      }
+    })
+    await wait(40)
+    emit({
+      type: 'user',
+      message: {
+        role: 'user',
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 'stub-mcp-tool',
+            content: overview || error,
+            is_error: Boolean(error)
+          }
+        ]
+      }
+    })
+    await wait(60)
+    emit({
+      type: 'assistant',
+      message: {
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text:
+              overview && !leaked
+                ? 'MCP 概览：读取成功。'
+                : `MCP 概览：${leaked ? 'token 泄漏' : error || '返回为空'}。`
+          }
+        ]
+      }
+    })
+    emit({ type: 'result', subtype: 'success', is_error: false, num_turns: 1 })
+    return
+  }
+
   if (prompt.includes('失败')) {
     emit({ type: 'system', subtype: 'init', model: 'stub-model', session_id: 'stub-fail' })
     await wait(120)

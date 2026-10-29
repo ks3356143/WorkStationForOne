@@ -13,6 +13,7 @@ import { registerHabitHandlers } from './ipc/habits'
 import { registerLearningHandlers } from './ipc/learning'
 import { registerNoteHandlers } from './ipc/notes'
 import { registerTaskHandlers } from './ipc/tasks'
+import { McpBridge } from './mcp/server'
 
 const devUrl = process.env.ELECTRON_RENDERER_URL
 const rendererFileUrl = pathToFileURL(join(__dirname, '../renderer/index.html')).href
@@ -43,6 +44,7 @@ function isAllowedNavigation(url: string): boolean {
 
 let mainWindow: BrowserWindow | null = null
 let stopReminders: (() => void) | null = null
+let mcpBridge: McpBridge | null = null
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -103,7 +105,7 @@ if (!gotTheLock) {
     win.focus()
   })
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     app.setAppUserModelId('com.workstationforone.app')
     session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) =>
       callback(false)
@@ -124,6 +126,24 @@ if (!gotTheLock) {
     registerLearningHandlers(database.learning)
     registerHabitHandlers(database.habits)
     registerProviderHandlers(providers)
+    // 本地只读 MCP 桥：只绑 127.0.0.1 随机端口，token 按 Agent 回合发放
+    const bridge = new McpBridge(
+      {
+        tasks: database.tasks,
+        notes: database.notes,
+        learning: database.learning,
+        habits: database.habits,
+        audit: database.audit
+      },
+      app.getVersion()
+    )
+    try {
+      await bridge.start()
+      mcpBridge = bridge
+    } catch (error) {
+      bridge.close()
+      console.error('[mcp] 只读数据桥启动失败，本轮 Agent 不启用', error)
+    }
     // 上次进程退出后 run/wait 已不存在，重启时统一回落为 idle。
     database.agent.resetTransientStatuses()
     // 捕获窗是另一个 BrowserWindow，Agent 事件只回主窗口
@@ -131,7 +151,9 @@ if (!gotTheLock) {
       () => mainWindow,
       database.agent,
       undefined,
-      () => providers.runtime()
+      () => providers.runtime(),
+      undefined,
+      mcpBridge
     )
     // 到点提醒：轮询数据库，命中「今天 + 正好到点 + 没提醒过」就弹系统通知
     stopReminders = startReminderLoop(database.tasks, {
@@ -159,9 +181,11 @@ if (!gotTheLock) {
 }
 
 app.on('before-quit', () => {
-  // 先停轮询再关库：反过来的话 tick 会读到已关闭的连接
+  // 先停轮询/桥再关库：反过来的话 tick 或 MCP 请求会读到已关闭的连接
   stopReminders?.()
   stopReminders = null
+  mcpBridge?.close()
+  mcpBridge = null
   disposeCaptureShortcut()
   database?.close()
   database = null

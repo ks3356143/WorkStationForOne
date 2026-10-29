@@ -6,6 +6,21 @@
 
 暂无。
 
+## [0.11.0] - 2026-10-29
+
+### 新增
+
+- **MCP 只读数据桥**：Main 进程内嵌 Streamable HTTP JSON-RPC 服务，只监听 `127.0.0.1` 随机端口，Bearer Token 按 Agent 回合发放并在回合结束回收。五个只读工具：`tasks_list`（今天 / 逾期 / 即将到来 / 全部 / 已完成）、`notes_search`（FTS5 / 短词回退，只回片段）、`learning_due`（FSRS 到期卡）、`habits_summary`（今天与最近 7 天）、`today_overview`（今日概览）。
+- **Claude 自动注入**：每轮把 MCP 地址与 Token 写进临时 `--mcp-config` 文件，子进程结束即删除；只读工具名进入 Claude 的允许列表，不修改 Claude / Codex 的 MCP 配置、登录或 CC Switch。
+- **审计**：每次 MCP 调用写 `audit_log`（domain `mcp`、action `read`、target 会话 id），不记录 Token。
+- 状态栏把「MCP 未接入」改为「MCP 只读」，点击只提示能力范围。
+
+### 验证
+
+- 601 项单元测试、222 项冒烟、251 项运行时断言；冒烟里的 stub Claude 会读取临时 MCP 配置并真实调用 `today_overview`，断言回复、工具卡与审计无 Token。
+- MCP HTTP 协议、无 Token/错 Token、通知 202、未知方法、撤销 Token 均有测试。
+- 真实 Claude 的 MCP 客户端握手仍未验证（需要可用模型），只验证了本应用的协议实现与 stub 端到端链路。
+
 ## [0.10.0] - 2026-10-29
 
 ### 新增
