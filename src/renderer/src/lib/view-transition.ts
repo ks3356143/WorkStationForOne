@@ -30,5 +30,8 @@ export function withViewTransition(update: () => void): void {
     update()
     return
   }
-  document.startViewTransition(() => flushSync(update))
+  const transition = document.startViewTransition(() => flushSync(update))
+  // 新过渡会打断旧过渡；这是预期行为，吞掉 AbortError，别让冒烟把它当控制台错误。
+  transition.ready.catch(() => {})
+  transition.finished.catch(() => {})
 }
