@@ -33,7 +33,10 @@ const api: WsApi = {
     create: (text, tag) => ipcRenderer.invoke(IPC_CHANNELS.notesCreate, text, tag),
     togglePin: (id) => ipcRenderer.invoke(IPC_CHANNELS.notesTogglePin, id),
     update: (id, patch) => ipcRenderer.invoke(IPC_CHANNELS.notesUpdate, id, patch),
-    remove: (id) => ipcRenderer.invoke(IPC_CHANNELS.notesRemove, id)
+    remove: (id) => ipcRenderer.invoke(IPC_CHANNELS.notesRemove, id),
+    links: (id) => ipcRenderer.invoke(IPC_CHANNELS.notesLinks, id),
+    titles: (query, limit, excludeId) =>
+      ipcRenderer.invoke(IPC_CHANNELS.notesTitles, query, limit, excludeId)
   },
   capture: {
     open: () => ipcRenderer.invoke(IPC_CHANNELS.captureOpen),

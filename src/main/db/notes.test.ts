@@ -234,6 +234,118 @@ describe('planSearch', () => {
   })
 })
 
+describe('NoteRepository 链接', () => {
+  it('保存正文时建立出链与反向链接', () => {
+    const { db, repo } = seedDb()
+    const target = repo.create('线代 · 特征值\n三条性质')
+    const source = repo.create('复习计划\n先看 [[线代 · 特征值]]')
+
+    const links = repo.links(source.id)
+    expect(links.outgoing).toHaveLength(1)
+    expect(links.outgoing[0]).toMatchObject({
+      title: '线代 · 特征值',
+      status: 'ok',
+      targetId: target.id
+    })
+    expect(repo.links(target.id).backlinks.map((note) => note.id)).toEqual([source.id])
+    db.close()
+  })
+
+  it('更新正文会重写链接', () => {
+    const { db, repo } = seedDb()
+    const target = repo.create('目标笔记')
+    const source = repo.create('来源\n[[目标笔记]]')
+
+    repo.update(source.id, { text: '来源\n不再引用' })
+    expect(repo.links(source.id).outgoing).toEqual([])
+    expect(repo.links(target.id).backlinks).toEqual([])
+
+    repo.update(source.id, { text: '来源\n重新引用 [[目标笔记]]' })
+    expect(repo.links(target.id).backlinks.map((note) => note.id)).toEqual([source.id])
+    db.close()
+  })
+
+  it('重名标题不建立链接并标记歧义', () => {
+    const { db, repo } = seedDb()
+    repo.create('重名\n第一篇')
+    repo.create('重名\n第二篇')
+    const source = repo.create('来源\n[[重名]]')
+
+    expect(repo.links(source.id).outgoing[0]).toMatchObject({ status: 'ambiguous' })
+    expect(repo.links(source.id).outgoing[0].targetId).toBeUndefined()
+    db.close()
+  })
+
+  it('不存在的标题标记为缺失', () => {
+    const { db, repo } = seedDb()
+    const source = repo.create('来源\n[[不存在的笔记]]')
+    expect(repo.links(source.id).outgoing[0]).toMatchObject({
+      title: '不存在的笔记',
+      status: 'missing'
+    })
+    db.close()
+  })
+
+  it('目标笔记改名后旧链接仍指向它', () => {
+    const { db, repo } = seedDb()
+    const target = repo.create('旧名字\n正文')
+    const source = repo.create('来源\n[[旧名字]]')
+
+    repo.update(target.id, { text: '新名字\n正文' })
+    const link = repo.links(source.id).outgoing[0]
+    expect(link).toMatchObject({ title: '旧名字', status: 'ok', targetId: target.id })
+    expect(link.target?.text).toBe('新名字\n正文')
+    expect(repo.links(target.id).backlinks.map((note) => note.id)).toEqual([source.id])
+    db.close()
+  })
+
+  it('删除目标笔记后级联清掉链接', () => {
+    const { db, repo } = seedDb()
+    const target = repo.create('目标笔记')
+    const source = repo.create('来源\n[[目标笔记]]')
+
+    repo.remove(target.id)
+    expect(repo.links(source.id).outgoing[0]).toMatchObject({ status: 'missing' })
+    expect((db.prepare('SELECT COUNT(*) AS n FROM note_links').get() as { n: number }).n).toBe(0)
+    db.close()
+  })
+
+  it('补全只返回唯一的笔记名并排除自己', () => {
+    const { db, repo } = seedDb()
+    const a = repo.create('项目计划\nA')
+    repo.create('项目计划\nB')
+    const c = repo.create('项目复盘\nC')
+
+    expect(repo.titles('项目', 10, c.id)).toEqual([])
+    expect(repo.titles('项目复盘', 10, a.id)).toEqual(['项目复盘'])
+    expect(repo.titles('项目计划', 10, a.id)).toEqual([])
+    db.close()
+  })
+
+  it('重开后链接仍在', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wsfo-notes-'))
+    dirs.push(dir)
+    const file = join(dir, 'workstation.db')
+
+    const first = openDatabase(file)
+    migrate(first)
+    const repo = new NoteRepository(first)
+    const target = repo.create('持久化目标')
+    const source = repo.create('持久化来源\n[[持久化目标]]')
+    first.close()
+
+    const second = openDatabase(file)
+    migrate(second)
+    const reopened = new NoteRepository(second)
+    expect(reopened.links(source.id).outgoing[0]).toMatchObject({
+      status: 'ok',
+      targetId: target.id
+    })
+    expect(reopened.links(target.id).backlinks.map((note) => note.id)).toEqual([source.id])
+    second.close()
+  })
+})
+
 describe('NoteRepository 编辑与删除', () => {
   it('更新正文后列表与全文索引都跟着变', () => {
     const { db, repo } = seedDb()

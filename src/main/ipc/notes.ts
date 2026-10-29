@@ -35,6 +35,23 @@ function assertNoteId(value: unknown): string {
   return value
 }
 
+function assertTitlesArgs(
+  query: unknown,
+  limit: unknown,
+  excludeId: unknown
+): { query: string; limit: number; excludeId?: string } {
+  if (typeof query !== 'string') throw new TypeError('查询必须是字符串')
+  if (typeof limit !== 'number' || !Number.isFinite(limit)) throw new TypeError('结果数量无效')
+  if (excludeId !== undefined && (typeof excludeId !== 'string' || excludeId.length === 0)) {
+    throw new TypeError('排除的笔记 id 无效')
+  }
+  return {
+    query: query.trim(),
+    limit: Math.min(Math.max(1, Math.trunc(limit)), 50),
+    ...(excludeId === undefined ? {} : { excludeId })
+  }
+}
+
 export function assertNotePatch(value: unknown): NotePatch {
   if (typeof value !== 'object' || value === null) throw new TypeError('笔记补丁必须是对象')
   const patch = value as Record<string, unknown>
@@ -62,7 +79,13 @@ export function assertNotePatch(value: unknown): NotePatch {
   return result
 }
 
-export const noteValidators = { assertNote, assertPageArgs, assertNotePatch, assertNoteId }
+export const noteValidators = {
+  assertNote,
+  assertPageArgs,
+  assertNotePatch,
+  assertNoteId,
+  assertTitlesArgs
+}
 
 export function registerNoteHandlers(repository: NoteRepository): void {
   ipcMain.handle(IPC_CHANNELS.notesBootstrap, (_event, value: unknown) => {
@@ -96,5 +119,17 @@ export function registerNoteHandlers(repository: NoteRepository): void {
 
   ipcMain.handle(IPC_CHANNELS.notesRemove, (_event, id: unknown) =>
     repository.remove(assertNoteId(id))
+  )
+
+  ipcMain.handle(IPC_CHANNELS.notesLinks, (_event, id: unknown) =>
+    repository.links(assertNoteId(id))
+  )
+
+  ipcMain.handle(
+    IPC_CHANNELS.notesTitles,
+    (_event, query: unknown, limit: unknown, exclude: unknown) => {
+      const args = assertTitlesArgs(query, limit, exclude)
+      return repository.titles(args.query, args.limit, args.excludeId)
+    }
   )
 }

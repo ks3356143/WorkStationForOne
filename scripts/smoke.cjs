@@ -1086,6 +1086,43 @@ async function run() {
     await navTo('笔记')
     await sleep(400)
 
+    // 笔记双链：建两篇，来源引用目标，详情里能来回跳
+    const createNote = async (value) => {
+      one('.w1-nvnew')?.click()
+      await sleep(300)
+      setValue(one('.w1-modal .w1-noteinput'), value)
+      byText('.w1-modalacts .w1-pb.pri', '保存笔记')?.click()
+      await sleep(600)
+    }
+    await createNote('冒烟目标笔记\\n这是被引用的目标')
+    await createNote('冒烟来源\\n先看 [[冒烟目标笔记]]')
+    all('.w1-nvrowbtn')[0]?.click()
+    await sleep(500)
+    const linkChip = one('.w1-nlchip')
+    check(
+      '笔记出链可见',
+      Boolean(linkChip) && (linkChip?.textContent ?? '').includes('冒烟目标笔记'),
+      linkChip?.textContent ?? ''
+    )
+    linkChip?.click()
+    await sleep(400)
+    check(
+      '链接跳到目标并显示反向链接',
+      (one('.w1-notedetail-text')?.value ?? '').startsWith('冒烟目标笔记') &&
+        (one('.w1-nlback')?.textContent ?? '').includes('冒烟来源'),
+      (one('.w1-notedetail-text')?.value ?? '').slice(0, 20)
+    )
+    const detailBox = one('.w1-notedetail')?.getBoundingClientRect()
+    check(
+      '笔记详情在视口内',
+      Boolean(detailBox) && detailBox.top >= 0 && detailBox.bottom <= innerHeight,
+      detailBox
+        ? Math.round(detailBox.top) + '–' + Math.round(detailBox.bottom) + ' / ' + innerHeight
+        : '无详情'
+    )
+    one('.w1-modalx')?.click()
+    await sleep(300)
+
     // ---------- 学习域 ----------
     await navTo('学习')
     check('导航切换到学习', activeNav() === '学习' && !!one('.w1-learn'), activeNav())
@@ -1398,7 +1435,8 @@ async function run() {
       tasks: count('SELECT COUNT(*) AS n FROM tasks WHERE deleted_at IS NULL'),
       notes: count('SELECT COUNT(*) AS n FROM notes'),
       learning: count('SELECT COUNT(*) AS n FROM learning_items'),
-      reviews: count('SELECT COUNT(*) AS n FROM learning_reviews')
+      reviews: count('SELECT COUNT(*) AS n FROM learning_reviews'),
+      links: count('SELECT COUNT(*) AS n FROM note_links')
     }
     db.close()
   } catch (error) {
@@ -1407,6 +1445,11 @@ async function run() {
   const dbReady = Boolean(
     dbStats && dbStats.tasks > 0 && dbStats.notes > 0 && dbStats.learning > 0 && dbStats.reviews > 0
   )
+  results.checks.push({
+    name: '笔记双链已落库',
+    ok: Boolean(dbStats && dbStats.links > 0),
+    detail: dbStats ? String(dbStats.links) : '无数据'
+  })
   // 审计：UI 操作必须留下记录（这里读库，不依赖渲染层）
   let auditRows = []
   try {

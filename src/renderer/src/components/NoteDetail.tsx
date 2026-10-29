@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { m } from 'motion/react'
-import type { NotePatch } from '../../../shared/ipc'
+import { noteLinkName } from '../../../shared/note-links'
+import type { NoteLinks, NotePatch, NoteRecord } from '../../../shared/ipc'
+import { applyLink, linkTrigger } from '../lib/note-link-input'
 import { DURATION, EASE_OUT } from '../lib/motion'
 
 export interface NoteDetailValue {
@@ -17,17 +19,44 @@ interface NoteDetailProps {
   onDelete: () => void
   onClose: () => void
   onMakeCard: (text: string) => void
+  onOpenNote: (note: NoteDetailValue) => void
 }
 
 const MAX_TAG = 40
+const SUGGEST_LIMIT = 8
 
-export function NoteDetail({ note, onSave, onDelete, onClose, onMakeCard }: NoteDetailProps) {
+function toDetail(record: NoteRecord): NoteDetailValue {
+  return {
+    id: record.id,
+    text: record.text,
+    tag: record.tag,
+    pinned: record.pinned,
+    time: record.time
+  }
+}
+
+export function NoteDetail({
+  note,
+  onSave,
+  onDelete,
+  onClose,
+  onMakeCard,
+  onOpenNote
+}: NoteDetailProps) {
   const [text, setText] = useState(note.text)
   const [tag, setTag] = useState(note.tag ?? '')
   const [confirming, setConfirming] = useState(false)
+  const [links, setLinks] = useState<NoteLinks | null>(null)
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [active, setActive] = useState(0)
+  const [trigger, setTrigger] = useState<{ start: number; caret: number; query: string } | null>(
+    null
+  )
   const boxRef = useRef<HTMLDivElement>(null)
   const textRef = useRef<HTMLTextAreaElement>(null)
   const restoreRef = useRef<HTMLElement | null>(null)
+  const suggestSeq = useRef(0)
+  const suggestTimer = useRef<number | null>(null)
 
   useEffect(() => {
     const root = boxRef.current
@@ -40,6 +69,77 @@ export function NoteDetail({ note, onSave, onDelete, onClose, onMakeCard }: Note
       if (!active || active === document.body || root?.contains(active)) restoreRef.current?.focus()
     }
   }, [note.text])
+
+  const api = typeof window === 'undefined' ? undefined : window.ws?.notes
+
+  useEffect(() => {
+    if (!api) return
+    let cancelled = false
+    api
+      .links(note.id)
+      .then((next) => {
+        if (!cancelled) setLinks(next)
+      })
+      .catch((cause) => console.error('[notes] 读取链接失败', cause))
+    return () => {
+      cancelled = true
+    }
+  }, [api, note.id])
+
+  useEffect(
+    () => () => {
+      if (suggestTimer.current) window.clearTimeout(suggestTimer.current)
+    },
+    []
+  )
+
+  const closeSuggestions = () => {
+    suggestSeq.current += 1
+    if (suggestTimer.current) window.clearTimeout(suggestTimer.current)
+    setSuggestions([])
+    setTrigger(null)
+  }
+
+  const syncTrigger = (value: string, caret: number) => {
+    const found = api ? linkTrigger(value, caret) : null
+    if (!found) {
+      closeSuggestions()
+      return
+    }
+    setTrigger({ start: found.start, caret, query: found.query })
+    setActive(0)
+    if (suggestTimer.current) window.clearTimeout(suggestTimer.current)
+    const seq = ++suggestSeq.current
+    suggestTimer.current = window.setTimeout(() => {
+      void api
+        ?.titles(found.query, SUGGEST_LIMIT, note.id)
+        .then((names) => {
+          if (seq === suggestSeq.current) setSuggestions(names)
+        })
+        .catch((cause) => {
+          console.error('[notes] 读取补全失败', cause)
+          if (seq === suggestSeq.current) setSuggestions([])
+        })
+    }, 120)
+  }
+
+  const choose = (title: string) => {
+    if (!trigger) return
+    const result = applyLink(
+      text,
+      { start: trigger.start, query: trigger.query },
+      trigger.caret,
+      title
+    )
+    setText(result.text)
+    closeSuggestions()
+    window.requestAnimationFrame(() => {
+      const node = textRef.current
+      if (!node) return
+      node.focus()
+      node.setSelectionRange(result.caret, result.caret)
+    })
+  }
 
   const dirty = text.trim() !== note.text || (note.tag ?? '') !== tag.trim()
 
@@ -101,15 +201,61 @@ export function NoteDetail({ note, onSave, onDelete, onClose, onMakeCard }: Note
           rows={8}
           maxLength={4000}
           aria-label="笔记正文"
-          onChange={(event) => setText(event.target.value)}
+          onChange={(event) => {
+            const value = event.target.value
+            setText(value)
+            syncTrigger(value, event.target.selectionStart ?? value.length)
+          }}
           onKeyDown={(event) => {
             if (event.nativeEvent.isComposing || event.keyCode === 229) return
+            if (suggestions.length > 0) {
+              if (event.key === 'ArrowDown') {
+                event.preventDefault()
+                setActive((index) => (index + 1) % suggestions.length)
+                return
+              }
+              if (event.key === 'ArrowUp') {
+                event.preventDefault()
+                setActive((index) => (index - 1 + suggestions.length) % suggestions.length)
+                return
+              }
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                choose(suggestions[active] ?? suggestions[0])
+                return
+              }
+              if (event.key === 'Escape') {
+                event.stopPropagation()
+                closeSuggestions()
+                return
+              }
+            }
             if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
               event.preventDefault()
               save()
             }
           }}
         />
+
+        {suggestions.length > 0 ? (
+          <div className="w1-nlsuggest" role="listbox" aria-label="链接笔记建议">
+            {suggestions.map((name, index) => (
+              <button
+                key={name}
+                className={index === active ? 'on' : ''}
+                type="button"
+                role="option"
+                aria-selected={index === active}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => choose(name)}
+              >
+                <i>[[</i>
+                {name}
+                <i>]]</i>
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         <div className="w1-notedetail-meta">
           <input
@@ -121,6 +267,67 @@ export function NoteDetail({ note, onSave, onDelete, onClose, onMakeCard }: Note
             onChange={(event) => setTag(event.target.value)}
           />
           <span className="w1-notedetail-count">{text.length} 字</span>
+        </div>
+
+        <div className="w1-nllinks">
+          {links && links.outgoing.length > 0 ? (
+            <div className="w1-nlgroup">
+              <span className="w1-nllabel">引用</span>
+              <div className="w1-nlchips">
+                {links.outgoing.map((link) => {
+                  const target = link.status === 'ok' ? link.target : undefined
+                  if (target) {
+                    return (
+                      <button
+                        key={link.title}
+                        className="w1-nlchip"
+                        type="button"
+                        onClick={() => onOpenNote(toDetail(target))}
+                      >
+                        [[{link.title}]]
+                      </button>
+                    )
+                  }
+                  return (
+                    <span
+                      key={link.title}
+                      className="w1-nlchip bad"
+                      title={
+                        link.status === 'ambiguous'
+                          ? '有多篇同名笔记，不建立链接'
+                          : '找不到同名笔记'
+                      }
+                    >
+                      [[{link.title}]] · {link.status === 'ambiguous' ? '重名' : '未找到'}
+                    </span>
+                  )
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          {links && links.backlinks.length > 0 ? (
+            <div className="w1-nlgroup">
+              <span className="w1-nllabel">被引用 · {links.backlinks.length}</span>
+              <div className="w1-nlbacklist">
+                {links.backlinks.map((row) => (
+                  <button
+                    key={row.id}
+                    className="w1-nlback"
+                    type="button"
+                    onClick={() => onOpenNote(toDetail(row))}
+                  >
+                    <span>{noteLinkName(row.text) || row.text.slice(0, 24)}</span>
+                    <small>{row.time}</small>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {links && links.outgoing.length === 0 && links.backlinks.length === 0 ? (
+            <span className="w1-nlhint">输入 [[笔记首行]] 引用另一篇笔记</span>
+          ) : null}
         </div>
 
         <div className="w1-modalacts">

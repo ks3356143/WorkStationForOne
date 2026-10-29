@@ -107,6 +107,21 @@ export interface NotePatch {
   pinned?: boolean
 }
 
+export type NoteLinkStatus = 'ok' | 'missing' | 'ambiguous'
+
+export interface NoteLinkRef {
+  /** 正文里写的链接名（保存时的快照）。 */
+  title: string
+  status: NoteLinkStatus
+  targetId?: string
+  target?: NoteRecord
+}
+
+export interface NoteLinks {
+  outgoing: NoteLinkRef[]
+  backlinks: NoteRecord[]
+}
+
 export interface NoteApi {
   bootstrap: (notes: NoteRecord[]) => Promise<void>
   page: (offset: number, limit: number) => Promise<NotePage>
@@ -115,6 +130,8 @@ export interface NoteApi {
   togglePin: (id: string) => Promise<void>
   update: (id: string, patch: NotePatch) => Promise<NoteRecord | undefined>
   remove: (id: string) => Promise<boolean>
+  links: (id: string) => Promise<NoteLinks>
+  titles: (query: string, limit: number, excludeId?: string) => Promise<string[]>
 }
 
 export interface CaptureApi {
@@ -259,6 +276,8 @@ export const IPC_CHANNELS = {
   notesTogglePin: 'notes:toggle-pin',
   notesUpdate: 'notes:update',
   notesRemove: 'notes:remove',
+  notesLinks: 'notes:links',
+  notesTitles: 'notes:titles',
   tasksChanged: 'tasks:changed',
   captureOpen: 'capture:open',
   captureClose: 'capture:close',

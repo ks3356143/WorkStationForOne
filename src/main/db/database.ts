@@ -232,6 +232,21 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE learning_items ADD COLUMN note_id TEXT;
       CREATE INDEX idx_learning_note ON learning_items(note_id);
     `
+  },
+  {
+    // 笔记双链：保存时把 [[笔记首行]] 解析成 target_id，title 留快照便于展示。
+    version: 13,
+    sql: `
+      CREATE TABLE note_links (
+        source_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+        target_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (source_id, title)
+      );
+
+      CREATE INDEX idx_note_links_target ON note_links(target_id);
+    `
   }
 ]
 

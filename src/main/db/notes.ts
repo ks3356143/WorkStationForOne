@@ -1,7 +1,15 @@
 import { randomUUID } from 'node:crypto'
 import type { DatabaseSync, StatementSync } from 'node:sqlite'
+import { noteLinkName, parseNoteLinks } from '../../shared/note-links'
+import type {
+  NoteLinkRef,
+  NoteLinks,
+  NotePage,
+  NotePatch,
+  NoteRecord,
+  NoteSearchHit
+} from '../../shared/ipc'
 import type { AuditLog } from './audit'
-import type { NotePage, NotePatch, NoteRecord, NoteSearchHit } from '../../shared/ipc'
 
 interface NoteRow {
   id: string
@@ -147,6 +155,10 @@ export class NoteRepository {
       notes.forEach((note, index) => {
         this.insert(note.text, note.tag, note.pinned === true, now - index, note.id, note.time)
       })
+      // 全部插入后再解析，种子里的链接才能互相看到对方。
+      notes.forEach((note, index) => {
+        this.rewriteLinks(note.id, note.text, now - index)
+      })
     })
   }
 
@@ -180,7 +192,11 @@ export class NoteRepository {
 
   create(text: string, tag?: string): NoteRecord {
     const now = Date.now()
-    const record = this.insert(text, tag, false, now)
+    const record = this.transaction(() => {
+      const created = this.insert(text, tag, false, now)
+      this.rewriteLinks(created.id, text, now)
+      return created
+    })
     this.audit?.record({
       at: now,
       domain: 'note',
@@ -202,6 +218,9 @@ export class NoteRepository {
    * FTS 索引由 notes_fts_update 触发器同步，这里不需要手动重建。
    */
   update(id: string, patch: NotePatch): NoteRecord | undefined {
+    const existing = this.find(id)
+    if (!existing) return undefined
+
     const assignments: string[] = []
     const values: (string | number | null)[] = []
 
@@ -217,14 +236,17 @@ export class NoteRepository {
       assignments.push('pinned = ?')
       values.push(patch.pinned ? 1 : 0)
     }
-    if (assignments.length === 0) return this.find(id)
+    if (assignments.length === 0) return existing
 
     const at = Date.now()
-    this.sql(`UPDATE notes SET ${assignments.join(', ')}, updated_at = ? WHERE id = ?`).run(
-      ...values,
-      at,
-      id
-    )
+    this.transaction(() => {
+      this.sql(`UPDATE notes SET ${assignments.join(', ')}, updated_at = ? WHERE id = ?`).run(
+        ...values,
+        at,
+        id
+      )
+      if (patch.text !== undefined) this.rewriteLinks(id, patch.text, at)
+    })
     const updated = this.find(id)
     if (!updated) return undefined
 
@@ -252,6 +274,100 @@ export class NoteRepository {
       title: existing.text.slice(0, 60)
     })
     return true
+  }
+
+  /** 当前笔记的出链（按正文出现顺序）与被引用列表。 */
+  links(id: string): NoteLinks {
+    const source = this.find(id)
+    if (!source) return { outgoing: [], backlinks: [] }
+
+    const stored = this.sql('SELECT title, target_id FROM note_links WHERE source_id = ?').all(
+      id
+    ) as unknown as { title: string; target_id: string }[]
+    const storedByTitle = new Map(stored.map((row) => [row.title, row.target_id]))
+    const names = this.nameIndex(id)
+    const outgoing: NoteLinkRef[] = []
+    const seen = new Set<string>()
+
+    for (const token of parseNoteLinks(source.text)) {
+      if (seen.has(token.title)) continue
+      seen.add(token.title)
+      const targetId = storedByTitle.get(token.title)
+      const target = targetId ? this.find(targetId) : undefined
+      if (targetId && target) {
+        outgoing.push({ title: token.title, status: 'ok', targetId, target })
+        continue
+      }
+      const count = names.get(token.title)?.length ?? 0
+      outgoing.push({ title: token.title, status: count > 1 ? 'ambiguous' : 'missing' })
+    }
+
+    const rows = this.sql(
+      `SELECT n.id, n.body, n.tag, n.pinned, n.time_label
+       FROM note_links l JOIN notes n ON n.id = l.source_id
+       WHERE l.target_id = ?
+       GROUP BY n.id
+       ORDER BY MAX(n.updated_at) DESC, MAX(n.rowid) DESC`
+    ).all(id) as unknown as NoteRow[]
+
+    return { outgoing, backlinks: rows.map(toRecord) }
+  }
+
+  /** 链接名补全：只给唯一命中，重名的不猜。 */
+  titles(raw: string, limit: number, excludeId?: string): string[] {
+    const query = raw.trim().toLowerCase()
+    const safeLimit = Math.min(Math.max(1, Math.trunc(limit)), 50)
+    const own = excludeId ? noteLinkName(this.find(excludeId)?.text ?? '') : ''
+    const rows = this.sql(
+      'SELECT id, body FROM notes ORDER BY pinned DESC, updated_at DESC, rowid DESC'
+    ).all() as unknown as { id: string; body: string }[]
+
+    const counts = new Map<string, number>()
+    for (const row of rows) {
+      if (row.id === excludeId) continue
+      const name = noteLinkName(row.body)
+      if (!name || name === own) continue
+      if (query && !name.toLowerCase().startsWith(query)) continue
+      counts.set(name, (counts.get(name) ?? 0) + 1)
+    }
+
+    return [...counts.entries()]
+      .filter(([, count]) => count === 1)
+      .map(([name]) => name)
+      .slice(0, safeLimit)
+  }
+
+  private nameIndex(excludeId: string): Map<string, string[]> {
+    const rows = this.sql('SELECT id, body FROM notes WHERE id != ?').all(excludeId) as unknown as {
+      id: string
+      body: string
+    }[]
+    const names = new Map<string, string[]>()
+    for (const row of rows) {
+      const name = noteLinkName(row.body)
+      if (!name) continue
+      const list = names.get(name)
+      if (list) list.push(row.id)
+      else names.set(name, [row.id])
+    }
+    return names
+  }
+
+  /** 先删后建：保存后的正文就是当前真相，不保留历史边。 */
+  private rewriteLinks(sourceId: string, text: string, at: number): void {
+    this.sql('DELETE FROM note_links WHERE source_id = ?').run(sourceId)
+    const names = this.nameIndex(sourceId)
+    const seen = new Set<string>()
+    for (const link of parseNoteLinks(text)) {
+      if (seen.has(link.title)) continue
+      seen.add(link.title)
+      const targets = names.get(link.title)
+      if (targets?.length !== 1) continue
+      this.sql(
+        `INSERT OR REPLACE INTO note_links (source_id, target_id, title, created_at)
+         VALUES (?, ?, ?, ?)`
+      ).run(sourceId, targets[0], link.title, at)
+    }
   }
 
   find(id: string): NoteRecord | undefined {

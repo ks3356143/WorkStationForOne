@@ -302,11 +302,13 @@ export function NotesView() {
 
       {detail ? (
         <NoteDetail
+          key={detail.id}
           note={detail}
           onSave={saveDetail}
           onDelete={deleteDetail}
           onClose={closeDetail}
           onMakeCard={makeCard}
+          onOpenNote={setDetail}
         />
       ) : null}
     </section>
