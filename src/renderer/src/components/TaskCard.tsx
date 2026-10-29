@@ -4,7 +4,7 @@ import { filterTasks, useWorkstation } from '../store/useWorkstation'
 import { tasksForTodayCard } from '../lib/todo'
 import { useNow } from '../lib/useNow'
 import type { TaskFilter } from '../types'
-import { CheckIcon, SparkIcon } from './Glyphs'
+import { CheckIcon, PlusIcon, SparkIcon } from './Glyphs'
 
 const FILTERS: { id: TaskFilter; label: string }[] = [
   { id: 'all', label: '全部' },
@@ -21,6 +21,7 @@ export function TaskCard({ nextTaskId }: TaskCardProps) {
   const filter = useWorkstation((state) => state.taskFilter)
   const setFilter = useWorkstation((state) => state.setFilter)
   const setView = useWorkstation((state) => state.setView)
+  const composeTask = useWorkstation((state) => state.composeTask)
   const toggleTask = useWorkstation((state) => state.toggleTask)
   const resolution = useWorkstation((state) => state.resolution)
   const now = useNow(60_000)
@@ -49,6 +50,10 @@ export function TaskCard({ nextTaskId }: TaskCardProps) {
           <span>
             {todayTasks.length} 项 · {doneCount} 完成
           </span>
+          <button className="w1-quickadd" type="button" onClick={composeTask}>
+            <PlusIcon width={9} height={9} />
+            快速添加
+          </button>
           <button className="w1-ctlink" type="button" onClick={() => setView('tasks')}>
             任务工作区 ›
           </button>

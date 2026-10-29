@@ -430,6 +430,28 @@
   font-variant-numeric: tabular-nums;
 }
 
+.w1-quickadd {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid rgb(var(--ac2-rgb) / 0.34);
+  background: rgb(var(--ac2-rgb) / 0.08);
+  color: var(--ac2);
+  font: 11px / 1 var(--mono);
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-ui),
+    border-color var(--dur-ui);
+}
+
+.w1-quickadd:hover {
+  border-color: rgb(var(--ac2-rgb) / 0.58);
+  background: rgb(var(--ac2-rgb) / 0.16);
+}
+
 .w1-ctlink {
   border: 0;
   background: transparent;

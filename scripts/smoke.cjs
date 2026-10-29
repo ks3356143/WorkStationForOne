@@ -184,6 +184,17 @@ async function run() {
     check('主题可切回', document.documentElement.dataset.theme === themeBefore, document.documentElement.dataset.theme)
     one('.w1-theme')?.blur()
 
+    const quickAddLink = one('.w1-tasks .w1-quickadd')
+    check('今日卡有快速添加入口', Boolean(quickAddLink))
+    quickAddLink?.click()
+    await sleep(500)
+    check(
+      '快速添加切到任务并聚焦输入',
+      activeNav() === '任务' &&
+        document.activeElement?.classList.contains('w1-todoinput') === true,
+      activeNav() + '|' + (document.activeElement?.className ?? '')
+    )
+
     await navTo('任务')
     check('导航切换到任务', activeNav() === '任务' && !!one('.w1-todos'), activeNav())
     check(
