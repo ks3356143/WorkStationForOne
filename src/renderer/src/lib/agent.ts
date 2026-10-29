@@ -63,7 +63,9 @@ export function agentCommandPreview(
   }
   return {
     bin: 'claude',
-    args: resumeId ? `--resume ${resumeId} --permission-mode default` : '--permission-mode default'
+    args: resumeId
+      ? `--resume ${resumeId} --permission-mode manual --permission-prompts host`
+      : '--permission-mode manual --permission-prompts host'
   }
 }
 

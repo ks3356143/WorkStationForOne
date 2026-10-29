@@ -8,17 +8,17 @@ import {
 } from './agent'
 
 describe('agentCommandPreview', () => {
-  it('Claude 新会话显示真实权限模式', () => {
+  it('Claude 新会话显示真实权限模式与宿主审批', () => {
     expect(agentCommandPreview('claude')).toEqual({
       bin: 'claude',
-      args: '--permission-mode default'
+      args: '--permission-mode manual --permission-prompts host'
     })
   })
 
   it('Claude 有 resume id 时才显示 --resume', () => {
     expect(agentCommandPreview('claude', 'cli-1')).toEqual({
       bin: 'claude',
-      args: '--resume cli-1 --permission-mode default'
+      args: '--resume cli-1 --permission-mode manual --permission-prompts host'
     })
   })
 
