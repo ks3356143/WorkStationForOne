@@ -5,19 +5,19 @@
 | 日期 | 2026-10-23（2026-10-29 修订） |
 | 状态 | 已实现，随迭代更新 |
 | 平台 | Windows 10 / 11 x64 |
-| 产品版本 | v0.9.0 |
+| 产品版本 | v0.10.0 |
 | 视觉方向 | B‴ 极光 HUD（直角 + 玻璃 + 中文优先 + 全动效） |
 
 ## 0. 实现状态与偏差（2026-10-29）
 
 本文件保留 2026-10-23 的设计基线，后续章节未逐条改写；与实现冲突时，以本节、代码与 `AGENTS.md` 为准。
 
-当前 v0.9.0，数据库 v17。已实现五视图外壳（今日 / 任务 / Agent / 笔记 / 学习）、任务规划与重复、笔记 v2 与双链、学习 FSRS-6（MEM 科目）、CSV 导入导出、学习统计（含 14 天复习历史与评分分布）与挖空卡、习惯打卡、审计、备份、提醒、设置、快速捕获与便携版；Agent 页支持真实新建 Claude 会话、消息与工具卡持久化、resume id 跨重启续接、写工具逐次审批与自定义 Provider（Key 系统加密）。未实现：Codex 适配器、本地 MCP 桥。
+当前 v0.10.0，数据库 v17。已实现五视图外壳（今日 / 任务 / Agent / 笔记 / 学习）、任务规划与重复、笔记 v2 与双链、学习 FSRS-6（MEM 科目）、CSV 导入导出、学习统计（含 14 天复习历史与评分分布）与挖空卡、习惯打卡、审计、备份、提醒、设置、快速捕获与便携版；Agent 页支持真实新建 Claude / Codex 会话、消息与工具卡持久化、resume id 跨重启续接、Claude 写工具逐次审批、Codex 只读沙箱与自定义 Provider（Key 系统加密）。未实现：Codex 写入与审批、本地 MCP 桥。
 
 | 范围 | 设计基线 | 当前实现 |
 | --- | --- | --- |
 | 外壳 | 四视图 | 五视图，新增「学习」；学习内部为卡片库 / 复习态两态 |
-| Agent 接入 | 官方 SDK | 主进程 spawn 本机 `claude` CLI（stream-json），不依赖 SDK |
+| Agent 接入 | 官方 SDK | 主进程 spawn 本机 `claude` CLI（stream-json）与 `codex exec --json`（只读），不依赖 SDK；`.cmd` 包装解析到原生入口 |
 | 工具审批 | 权限卡逐行 diff，写操作需允许 | 读工具自动放行；写工具通过 can_use_tool 弹通用审批卡，允许一次 / 拒绝；AskUserQuestion 自动拒绝 |
 | 会话 | 恢复 / Fork / 持久化 | `--session-id` / `--resume` 续接；会话、消息与 resume id 持久化（DB v16），空库从空态开始 |
 | 本地 MCP | 11 个工具 + 分区授权 | 未实现 |
@@ -28,7 +28,7 @@
 | 审计 | 只读列表 | 仓储层 `audit_log` 已写入，暂无查看入口 |
 | 表单控件 | 系统日期 / 时间 | 自建 `Popover` 控件（`components/fields/`） |
 | 打包 | NSIS 安装包 | 便携版输出到 `dist/WorkStationForOne/`，不引入打包器 |
-| 验证基线 | — | 568 单元测试 / 212 冒烟 / 251–253 运行时断言 / 20 张截图审计 |
+| 验证基线 | — | 586 单元测试 / 217 冒烟 / 251–253 运行时断言 / Agent 视图 1440×900 与 1180×720 双主题截图 |
 
 ## 1. 摘要
 
@@ -152,7 +152,7 @@ Agent 通过本地 MCP 读取和写入看板数据，写入受分区授权约束
 
 ## 6. Agent 接入
 
-> 实现状态（2026-10-29）：Claude 适配器走本机 CLI 子进程而非 SDK；已用 stream-json 输入 + `--permission-prompts host` 实现写工具逐次审批（允许一次 / 拒绝）。Codex 未接入。本节保留原规划，偏差见 §0。
+> 实现状态（2026-10-29）：Claude 适配器走本机 CLI 子进程而非 SDK；已用 stream-json 输入 + `--permission-prompts host` 实现写工具逐次审批（允许一次 / 拒绝）。Codex 已接入 `codex exec --json` 的只读会话，续接 thread id，未接入写入审批。本节保留原规划，偏差见 §0。
 
 ### 6.1 支持矩阵
 
@@ -206,12 +206,9 @@ type AgentEvent =
 
 ### 6.4 Codex
 
-- 使用官方 SDK 启动 thread，消费结构化流式事件。
-- 默认策略固定为 `sandbox = workspace-write`、`approval = on-request`；禁止任何 `--dangerously-*`。
-- P3 首先验证 SDK 能否把审批事件回传到应用：
-  - 能回传：接入统一权限卡，与 Claude 一致。
-  - 不能回传：评估官方 `app-server` 审批协议作为受支持备选。
-  - 两者都不可用：应用内 Codex 降级为只读会话，并明确提示到 CLI 处理写入；不启用绕过参数。
+- 当前实现（2026-10-29，v0.10.0）：走本机 `codex exec --json`，提示词只走 stdin，解析 `thread.started / item.* / turn.completed|failed / error`；`reasoning` 不渲染。续接用 `codex exec resume <thread_id> -`，thread id 存 `agent_sessions.resume_id`。
+- 应用内策略固定为只读：新会话 `--sandbox read-only`，并统一用进程级 `-c sandbox_mode="read-only"` 与 `-c approval_policy="never"`，续接也保持只读；不写 `~/.codex/config.toml`、不改登录状态。`codex exec` 没有 Claude 的宿主审批信道，因此本版不提供写入；不要用 `--dangerously-*` 换能力。
+- 后续若验证官方 `app-server` 的审批回传，再接入统一权限卡；在验证前应用内 Codex 保持只读，并明确提示到 CLI 处理写入。
 - 启动前做与 Claude 相同的工作目录校验。
 
 ### 6.5 会话生命周期

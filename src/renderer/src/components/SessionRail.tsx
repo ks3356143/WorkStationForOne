@@ -22,6 +22,15 @@ export function SessionRail() {
         </span>
         <span className="w1-aname">{agent === 'claude' ? 'Claude Code' : 'Codex'}</span>
         <span className="w1-acount">[{list.length}]</span>
+        <button
+          className="w1-plus w1-gadd"
+          type="button"
+          aria-label={`新建 ${agent === 'claude' ? 'Claude' : 'Codex'} 会话`}
+          title={`新建 ${agent === 'claude' ? 'Claude' : 'Codex'} 会话`}
+          onClick={() => createAgentSession(agent)}
+        >
+          <PlusIcon width={9} height={9} />
+        </button>
       </div>
       {list.map((session) => (
         <button
@@ -50,15 +59,6 @@ export function SessionRail() {
       <div className="w1-rhead">
         <span className="w1-eyebrow">// 会话</span>
         <span className="w1-acount">{sessions.length}</span>
-        <button
-          className="w1-plus"
-          type="button"
-          aria-label="新建 Claude 会话"
-          title="新建 Claude 会话"
-          onClick={createAgentSession}
-        >
-          <PlusIcon width={10} height={10} />
-        </button>
       </div>
 
       <div className="w1-railscroll">

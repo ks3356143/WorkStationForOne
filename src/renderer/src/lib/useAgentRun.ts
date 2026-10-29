@@ -82,9 +82,16 @@ export function useAgentRun(): void {
 
     store.takePendingPrompt()
     store.beginAgentReply(sessionId, null)
-    const resumeId = store.sessions.find((session) => session.id === sessionId)?.resumeId
+    const session = store.sessions.find((item) => item.id === sessionId)
+    if (!session) return
+    const resumeId = session.resumeId
     void bridge
-      .send({ sessionId, prompt: pendingPrompt, ...(resumeId ? { resumeId } : {}) })
+      .send({
+        sessionId,
+        agent: session.agent,
+        prompt: pendingPrompt,
+        ...(resumeId ? { resumeId } : {})
+      })
       .then(({ runId }) => {
         useWorkstation.getState().bindAgentRun(runId)
         const queued = buffered.current

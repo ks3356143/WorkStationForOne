@@ -2,7 +2,7 @@
 
 Windows 上的个人 AI 工作站。把「今日看板 + 任务清单 + Agent 工作区 + 笔记库 + 闪卡复习」收进一个窗口：左侧导航一次只打开一个全宽工作区，Agent 视图里驱动本机 Claude Code CLI 对话，任务、笔记、学习与习惯全部落在本机 SQLite。
 
-> 当前版本 v0.9.0（2026-10-29）。任务（含清单、计划、重复、子任务）、笔记（含双链）、学习（MEM 科目 + FSRS-6 + CSV 导入导出 + 统计）、习惯、审计、Agent 会话与 Provider 配置均已落库（DB v17）；Agent 通过本机 `claude` CLI 流式对话，读工具自动放行、写操作逐次审批，会话与消息重启后仍在；便携版可用。Codex 适配器与本地 MCP 桥尚未实现。
+> 当前版本 v0.10.0（2026-10-29）。任务（含清单、计划、重复、子任务）、笔记（含双链）、学习（MEM 科目 + FSRS-6 + CSV 导入导出 + 统计）、习惯、审计、Agent 会话与 Provider 配置均已落库（DB v17）；Agent 通过本机 `claude` / `codex` CLI 流式对话：Claude 读工具自动放行、写操作逐次审批，Codex 以只读沙箱运行，会话与消息重启后仍在；便携版可用。Codex 写入与本地 MCP 桥尚未实现。
 
 ## 特点
 
@@ -56,9 +56,9 @@ npm run dev
 | `npm run build` | 生产构建，输出到 `out/` |
 | `npm start` | 预览上一次构建 |
 | `npm run typecheck` | 类型检查（main/preload 与 renderer 各一套配置） |
-| `npm test` | 运行全部单元测试（568 项） |
+| `npm test` | 运行全部单元测试（586 项） |
 | `npm run check` | Biome 检查格式与 lint（Rust 单二进制，不依赖 Prettier / ESLint） |
-| `npm run smoke` | 构建后跑 UI 交互冒烟（212 项，真实主进程 + 临时 SQLite） |
+| `npm run smoke` | 构建后跑 UI 交互冒烟（217 项，真实主进程 + 临时 SQLite） |
 | `npm run verify` | 启动真实主进程跑 251–253 项运行时断言（五视图、双主题/皮肤、跨重启） |
 | `npm run capture -- .screenshots/home.png 1440 900 .screenshots/audit.json` | 截图并输出布局审计 |
 | `npm run capture -- .screenshots/notes-1180.png 1180 720 .screenshots/audit-notes.json dark notes` | 指定主题 `dark|light` 与视图 `today|tasks|agent|notes|learning` 截图 |
@@ -74,7 +74,7 @@ src/
   main/                 主进程：唯一持有数据库、子进程与权限
     db/                 连接、迁移与任务 / 笔记 / 学习 / 习惯 / 审计 / 智能体会话仓储
     ipc/                IPC handler 与入参校验
-    agent/              Claude CLI 适配器与事件流
+    agent/              Claude / Codex CLI 适配器与事件流
   preload/              暴露 window.ws 的窄类型化桥
   renderer/             界面（无 Node、无数据库、无文件系统权限）
     src/components/     左侧导航、今日看板、任务 / Agent / 笔记 / 学习工作区、自建表单控件
@@ -104,7 +104,7 @@ docs/superpowers/specs/ 产品与架构设计规格
 ## 安全边界
 
 - 渲染进程没有 Node、数据库或文件系统访问权；所有能力经 `src/shared/ipc.ts` 的类型契约 + 主进程入参校验。
-- Agent 提示词只走 stdin，子进程 `shell: false`，不添加 `--dangerously-*`，只开放只读工具白名单。
+- Agent 提示词只走 stdin，子进程 `shell: false`，不添加 `--dangerously-*`；Claude 只开放只读工具白名单，Codex 固定 `read-only` 沙箱，不写 `~/.codex/config.toml`。
 - 应用是单实例的；关闭窗口即退出。
 - 仓库不包含任何密钥、登录态或个人配置。
 
@@ -113,7 +113,7 @@ docs/superpowers/specs/ 产品与架构设计规格
 - 工具审批只有「允许一次 / 拒绝」，没有「本会话始终允许」或持久规则；宿主内问答（AskUserQuestion）会被自动拒绝。
 - Agent 依赖本机 `claude` CLI 已登录且模型可用；继承模式下若全局配置指向的模型被网关拒绝，会明确显示 API 错误，可在设置里改用自定义 Provider。
 - 自定义 Provider 优先于全局 Claude settings，但仍会加载当前目录的项目级 settings；API Key 不写入日志、命令行或渲染层。
-- Codex 适配器与本地 MCP 服务器尚未实现；Agent 页不预置演示会话，首次进入是空态。
+- Codex 以只读沙箱运行，不提供写入或审批；本地 MCP 服务器尚未实现。Agent 页不预置演示会话，首次进入是空态。
 - 审计日志已有记录，但还没有查看入口。
 - 笔记双链只按「唯一首行」解析：重名或找不到的目标不建立链接；目标改首行后旧链接仍指向它，但正文里显示的是保存时的标题快照。
 - 学习域使用 FSRS-6 默认参数，不提供参数优化器；暂无导入导出、拼写与作文题型。

@@ -76,6 +76,35 @@ describe('工具审批响应', () => {
   })
 })
 
+describe('发送请求', () => {
+  it('保留 agent 类型并校验提示词', () => {
+    expect(
+      registerAgentHandlersIPC.assertAgentSendInput({
+        sessionId: 's-1',
+        agent: 'codex',
+        prompt: '  读一下入口  '
+      })
+    ).toEqual({ sessionId: 's-1', agent: 'codex', prompt: '读一下入口' })
+    expect(() =>
+      registerAgentHandlersIPC.assertAgentSendInput({ sessionId: 's-1', prompt: 'x' })
+    ).toThrow(TypeError)
+    expect(() =>
+      registerAgentHandlersIPC.assertAgentSendInput({
+        sessionId: 's-1',
+        agent: 'gemini',
+        prompt: 'x'
+      })
+    ).toThrow(TypeError)
+    expect(() =>
+      registerAgentHandlersIPC.assertAgentSendInput({
+        sessionId: 's-1',
+        agent: 'claude',
+        prompt: '   '
+      })
+    ).toThrow(TypeError)
+  })
+})
+
 describe('智能体消息参数', () => {
   const message = {
     id: 'm-1',

@@ -32,6 +32,7 @@ app.setPath('sessionData', sessionDir)
 process.env.WS_DATA_DIR = join(dataDir, 'db')
 // Agent 走 stub CLI：验证真实 IPC → 子进程 → 渲染整条链路，但不调用模型、不消耗额度
 process.env.WS_AGENT_CLI = join(__dirname, 'stub-agent.cjs')
+process.env.WS_CODEX_CLI = join(__dirname, 'stub-codex.cjs')
 // 不抢 Cherry Studio 等外部应用的 Ctrl+Alt+Space
 process.env.WS_DISABLE_CAPTURE_SHORTCUT = '1'
 // 提醒轮询调快，并把命中记录写到文件，供主进程侧断言
@@ -764,6 +765,40 @@ async function run() {
       '拒绝后 CLI 停止写入',
       !one('.w1-toolperm') && (one('.w1-thread')?.textContent ?? '').includes('权限被拒绝'),
       one('.w1-thread')?.textContent?.slice(-80) ?? ''
+    )
+
+    document.querySelector('[aria-label="新建 Codex 会话"]')?.click()
+    await sleep(700)
+    check(
+      '新建 Codex 只读会话',
+      all('.w1-sess').length === 2 &&
+        (one('.w1-term')?.textContent ?? '').includes('codex') &&
+        (one('.w1-term')?.textContent ?? '').includes('read-only'),
+      one('.w1-term')?.textContent ?? ''
+    )
+
+    const codexInput = one('#composer-input')
+    setValue(codexInput, '读一下入口')
+    await sleep(80)
+    codexInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }))
+    await sleep(1000)
+    const codexText = all('.w1-amsg').at(-1)?.querySelector('.w1-atext')?.textContent ?? ''
+    check('Codex 回复来自 JSONL 流', codexText.includes('Codex 只读回复'), codexText)
+    const codexTool = all('.w1-amsg').at(-1)?.querySelector('.w1-tool')
+    check(
+      'Codex 命令渲染成工具卡',
+      codexTool?.textContent?.includes('Shell') &&
+        codexTool?.textContent?.includes('Get-Content') &&
+        codexTool?.textContent?.includes('完成'),
+      codexTool?.textContent ?? 'missing'
+    )
+
+    byText('.w1-sess', '测一下多会话回复')?.click()
+    await sleep(400)
+    check(
+      '可切回 Claude 会话',
+      (one('.w1-term')?.textContent ?? '').includes('claude'),
+      one('.w1-term')?.textContent ?? ''
     )
 
     await navTo('今日')
@@ -1555,6 +1590,10 @@ async function run() {
       agentSessions: count('SELECT COUNT(*) AS n FROM agent_sessions'),
       agentMessages: count('SELECT COUNT(*) AS n FROM agent_messages'),
       agentResume: count('SELECT COUNT(*) AS n FROM agent_sessions WHERE resume_id IS NOT NULL'),
+      codexSessions: count("SELECT COUNT(*) AS n FROM agent_sessions WHERE agent = 'codex'"),
+      codexResume: count(
+        "SELECT COUNT(*) AS n FROM agent_sessions WHERE agent = 'codex' AND resume_id IS NOT NULL"
+      ),
       providers: count('SELECT COUNT(*) AS n FROM provider_profiles'),
       providerTokens: count(
         'SELECT COUNT(*) AS n FROM provider_profiles WHERE token_encrypted IS NOT NULL'
@@ -1580,13 +1619,18 @@ async function run() {
   })
   results.checks.push({
     name: '智能体会话与消息已落库',
-    ok: Boolean(dbStats && dbStats.agentSessions > 0 && dbStats.agentMessages >= 7),
+    ok: Boolean(dbStats && dbStats.agentSessions >= 2 && dbStats.agentMessages >= 10),
     detail: dbStats ? `${dbStats.agentSessions} 会话 / ${dbStats.agentMessages} 条` : '无数据'
   })
   results.checks.push({
-    name: 'Claude resume id 已保存',
-    ok: Boolean(dbStats && dbStats.agentResume > 0),
+    name: 'Claude 与 Codex 的 resume id 已保存',
+    ok: Boolean(dbStats && dbStats.agentResume >= 2),
     detail: dbStats ? String(dbStats.agentResume) : '无数据'
+  })
+  results.checks.push({
+    name: 'Codex 会话与 resume id 已落库',
+    ok: Boolean(dbStats && dbStats.codexSessions === 1 && dbStats.codexResume === 1),
+    detail: dbStats ? `${dbStats.codexSessions} 会话 / resume ${dbStats.codexResume}` : '无数据'
   })
   results.checks.push({
     name: 'Provider 配置与加密 Key 已落库',

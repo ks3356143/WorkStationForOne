@@ -31,6 +31,7 @@ import {
   readStoredTheme
 } from '../lib/theme'
 import type {
+  AgentId,
   ChatMessage,
   FocusSession,
   LearningItem,
@@ -139,7 +140,7 @@ interface WorkstationActions {
   toggleHabitToday: (habitId: string) => void
   setActiveSession: (sessionId: string) => void
   openAgentSession: (sessionId: string) => void
-  createAgentSession: () => void
+  createAgentSession: (agent?: AgentId) => void
   setAgentResume: (sessionId: string, resumeId: string) => void
   setToolPermission: (sessionId: string, request: AgentPermissionRequest) => void
   clearToolPermission: () => void
@@ -433,12 +434,12 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     browserStorage()?.setItem(ACTIVE_AGENT_KEY, sessionId)
   },
 
-  createAgentSession: () => {
+  createAgentSession: (agent = 'claude') => {
     const now = Date.now()
     const id = `s-${crypto.randomUUID()}`
     const session: Session = {
       id,
-      agent: 'claude',
+      agent,
       title: '新会话',
       meta: agentSessionMeta(now, 0, now),
       status: 'idle',
@@ -457,7 +458,7 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     const persistence = agentPersistence
     if (!persistence) return
     persistQuietly(async () => {
-      await persistence.createSession({ id, agent: 'claude', title: '新会话' })
+      await persistence.createSession({ id, agent, title: '新会话' })
     })
   },
 

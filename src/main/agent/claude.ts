@@ -1,7 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { existsSync } from 'node:fs'
-import { delimiter, join } from 'node:path'
 import {
   parseAgentLine,
   summarizeToolInput,
@@ -9,13 +7,9 @@ import {
   type AgentRunEvent
 } from '../../shared/agent-stream'
 import type { ProviderRuntime } from '../providers'
+import { resolveAgentCli, type AgentCli } from './cli'
 
-export interface AgentCli {
-  bin: string
-  /** 用 node 执行脚本时的前置参数（WS_AGENT_CLI 指向 .cjs 的场景） */
-  prefixArgs: string[]
-  viaNode: boolean
-}
+export { resolveAgentCli, type AgentCli } from './cli'
 
 /**
  * 只读工具白名单。写入类工具一律不开，也不允许 --dangerously-* 之类的开关：
@@ -24,43 +18,6 @@ export interface AgentCli {
 export const CLAUDE_ALLOWED_TOOLS = ['Read', 'Glob', 'Grep', 'LS'] as const
 
 const RUN_TIMEOUT_MS = 10 * 60 * 1000
-
-function isScript(path: string): boolean {
-  return /\.(c?js|mjs)$/i.test(path)
-}
-
-/** 在 PATH 里找可执行文件；Windows 上优先 .exe，其次 .cmd。 */
-function findByPath(name: string, env: NodeJS.ProcessEnv): string | null {
-  const dirs = (env.PATH ?? env.Path ?? '').split(delimiter).filter(Boolean)
-  const candidates = process.platform === 'win32' ? [`${name}.exe`, `${name}.cmd`] : [name]
-  for (const dir of dirs) {
-    for (const candidate of candidates) {
-      const full = join(dir, candidate)
-      if (existsSync(full)) return full
-    }
-  }
-  return null
-}
-
-/**
- * 解析要启动的 CLI：
- * 1. WS_AGENT_CLI 显式指定（冒烟用 stub，绝不碰真实模型与额度）
- * 2. PATH 上的 claude
- * 找不到返回 null，由调用方明确报错，不要静默退回演示数据。
- */
-export function resolveAgentCli(env: NodeJS.ProcessEnv = process.env): AgentCli | null {
-  const override = env.WS_AGENT_CLI?.trim()
-  if (override) {
-    if (isScript(override)) {
-      return { bin: process.execPath, prefixArgs: [override], viaNode: true }
-    }
-    return { bin: override, prefixArgs: [], viaNode: false }
-  }
-  const found = findByPath('claude', env)
-  if (!found) return null
-  if (isScript(found)) return { bin: process.execPath, prefixArgs: [found], viaNode: true }
-  return { bin: found, prefixArgs: [], viaNode: false }
-}
 
 export function providerEnv(provider?: ProviderRuntime): NodeJS.ProcessEnv | undefined {
   if (!provider) return undefined

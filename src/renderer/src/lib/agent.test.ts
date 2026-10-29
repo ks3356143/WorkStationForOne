@@ -22,10 +22,14 @@ describe('agentCommandPreview', () => {
     })
   })
 
-  it('Codex 固定为 workspace-write 沙箱', () => {
+  it('Codex 固定为只读沙箱与 JSONL', () => {
     expect(agentCommandPreview('codex')).toEqual({
       bin: 'codex',
-      args: '--sandbox workspace-write'
+      args: 'exec --json --sandbox read-only'
+    })
+    expect(agentCommandPreview('codex', 'thread-1')).toEqual({
+      bin: 'codex',
+      args: 'exec resume thread-1 --json'
     })
   })
 })
@@ -42,7 +46,8 @@ describe('AGENT_META', () => {
       name: 'Codex',
       shortName: 'Codex',
       badge: 'X',
-      model: '本地 CLI'
+      model: '本地 CLI',
+      cli: 'Codex · read-only 沙箱 · 本地 CLI'
     })
   })
 })

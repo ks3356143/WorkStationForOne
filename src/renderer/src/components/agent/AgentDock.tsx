@@ -76,10 +76,15 @@ export function AgentDock() {
         <div className="w1-agentempty">
           <span className="w1-eyebrow">// Agent</span>
           <h2>还没有会话。</h2>
-          <p>新建一个 Claude 会话。对话会存在本机，重启后还能继续。</p>
-          <button className="w1-pb pri" type="button" onClick={createAgentSession}>
-            新建 Claude 会话
-          </button>
+          <p>新建一个 Claude 或 Codex 会话。对话会存在本机，重启后还能继续。</p>
+          <div className="w1-agentempty-actions">
+            <button className="w1-pb pri" type="button" onClick={() => createAgentSession()}>
+              新建 Claude 会话
+            </button>
+            <button className="w1-pb" type="button" onClick={() => createAgentSession('codex')}>
+              新建 Codex 会话（只读）
+            </button>
+          </div>
         </div>
       </aside>
     )

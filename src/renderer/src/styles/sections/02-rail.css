@@ -328,6 +328,13 @@
   transform: rotate(90deg) scale(0.95);
 }
 
+.w1-ahead .w1-gadd {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  margin-left: -2px;
+}
+
 /* ---------- agent session rail ---------- */
 
 .w1-rail {

@@ -6,6 +6,18 @@
 
 暂无。
 
+## [0.10.0] - 2026-10-29
+
+### 新增
+
+- **Codex 只读适配器**：Agent 页可新建 Codex 会话，主进程用 `codex exec --json` 启动本机 Codex CLI，提示词只走 stdin，JSONL 事件归一化成正文、工具卡与结果；续接用 `codex exec resume <thread_id> -`，`resume_id` 与会话一起落库。新增 `scripts/stub-codex.cjs` 覆盖协议回放、失败与 resume。
+- **Windows CLI 包装解析**：npm 生成的 `.cmd` 不能直接 `spawn`（EINVAL）。新增统一的 `main/agent/cli.ts`，从包装里解析原生 `.exe` 或 node 脚本，Claude 与 Codex 共用；顺带修复了 Claude 在本机只解析到 `claude.cmd` 时无法启动的问题。
+
+### 安全边界
+
+- Codex 固定 `--sandbox read-only`，并用进程级 `-c sandbox_mode="read-only"`、`-c approval_policy="never"` 续接也保持只读；不添加任何 `--dangerously-*`，不写入 `~/.codex/config.toml`、不改登录状态。`codex exec` 没有宿主审批通道，所以本版不提供 Codex 写入。
+- 自动化只用 stub，不调用真实 Codex/Claude，也不消耗模型额度；真实 Codex 端到端仍待用户单独同意后验证。
+
 ## [0.9.0] - 2026-10-29
 
 ### 新增

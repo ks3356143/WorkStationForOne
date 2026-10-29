@@ -884,3 +884,9 @@
   color: var(--su);
   font: 12px / 1.7 var(--mono);
 }
+
+.w1-agentempty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}

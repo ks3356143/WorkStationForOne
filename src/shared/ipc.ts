@@ -288,8 +288,10 @@ export interface AgentSessionPatch {
 export interface AgentSendInput {
   /** 应用内的会话 id（s-c1），用于把事件归到正确的线程 */
   sessionId: string
+  /** 决定主进程启动哪个 CLI；只读/审批策略各自独立 */
+  agent: AgentKind
   prompt: string
-  /** 续接上一轮时传 Claude 自己的会话 id */
+  /** 续接上一轮时传 CLI 自己的会话 id */
   resumeId?: string
 }
 

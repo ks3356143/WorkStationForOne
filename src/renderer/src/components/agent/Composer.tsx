@@ -24,7 +24,7 @@ export function Composer({ agent, typing, onSend }: ComposerProps) {
       <div className="w1-perms">
         <span>权限</span>
         <b className="ro">工具 只读</b>
-        <b className="ro">审批 未接入</b>
+        <b className="ro">{agent === 'claude' ? '写入 需审批' : '沙箱 read-only'}</b>
       </div>
       <div className="w1-input">
         <span className="w1-iprompt">&gt;</span>

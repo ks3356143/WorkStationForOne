@@ -1,6 +1,7 @@
 import { ipcMain, type BrowserWindow } from 'electron'
 import type { AgentCli } from '../agent/claude'
 import { startClaudeRun } from '../agent/claude'
+import { startCodexRun } from '../agent/codex'
 import type { AgentRepository } from '../db/agent'
 import type { ProviderRuntime } from '../providers'
 import {
@@ -39,6 +40,7 @@ export function assertAgentSendInput(value: unknown): AgentSendInput {
   if (trimmed.length > MAX_PROMPT) throw new TypeError('提示词过长')
   const result: AgentSendInput = {
     sessionId: assertId(input.sessionId, '会话 id'),
+    agent: assertAgentKind(input.agent),
     prompt: trimmed
   }
   if (input.resumeId !== undefined) result.resumeId = assertId(input.resumeId, '续接会话 id')
@@ -166,7 +168,8 @@ export function registerAgentHandlers(
   getWindow: () => BrowserWindow | null,
   repository: AgentRepository,
   cli?: AgentCli | null,
-  getProvider?: () => ProviderRuntime | undefined
+  getProvider?: () => ProviderRuntime | undefined,
+  codexCli?: AgentCli | null
 ): void {
   const runs = new Map<string, ActiveRun>()
   const permissionRuns = new Map<string, string>()
@@ -208,29 +211,49 @@ export function registerAgentHandlers(
       win.webContents.send(IPC.agentEvent, { runId, event: runEvent })
     }
 
-    const provider = getProvider?.()
-    const handle = startClaudeRun({
-      prompt: input.prompt,
-      resumeId: input.resumeId,
-      cwd: process.cwd(),
-      ...(provider ? { provider } : {}),
-      ...(cli === undefined ? {} : { cli }),
-      onEvent: emit,
-      onExit: ({ code, stderr, cancelled }) => {
-        runs.delete(runId)
-        for (const [requestId, owner] of permissionRuns) {
-          if (owner === runId) permissionRuns.delete(requestId)
-        }
-        if (cancelled) {
-          emit({ kind: 'error', message: '已取消' })
-          return
-        }
-        if (code !== 0) {
-          const detail = stderr.trim().split(/\r?\n/).at(-1) ?? ''
-          emit({ kind: 'error', message: detail || `CLI 退出码 ${code}` })
-        }
+    const onExit = ({
+      code,
+      stderr,
+      cancelled
+    }: {
+      code: number | null
+      stderr: string
+      cancelled: boolean
+    }) => {
+      runs.delete(runId)
+      for (const [requestId, owner] of permissionRuns) {
+        if (owner === runId) permissionRuns.delete(requestId)
       }
-    })
+      if (cancelled) {
+        emit({ kind: 'error', message: '已取消' })
+        return
+      }
+      if (code !== 0) {
+        const detail = stderr.trim().split(/\r?\n/).at(-1) ?? ''
+        emit({ kind: 'error', message: detail || `CLI 退出码 ${code}` })
+      }
+    }
+
+    const provider = getProvider?.()
+    const handle =
+      input.agent === 'codex'
+        ? startCodexRun({
+            prompt: input.prompt,
+            ...(input.resumeId ? { resumeId: input.resumeId } : {}),
+            cwd: process.cwd(),
+            ...(codexCli === undefined ? {} : { cli: codexCli }),
+            onEvent: emit,
+            onExit
+          })
+        : startClaudeRun({
+            prompt: input.prompt,
+            resumeId: input.resumeId,
+            cwd: process.cwd(),
+            ...(provider ? { provider } : {}),
+            ...(cli === undefined ? {} : { cli }),
+            onEvent: emit,
+            onExit
+          })
 
     runs.set(runId, {
       sessionId: input.sessionId,

@@ -22,7 +22,7 @@ export const AGENT_META: Record<AgentId, AgentMeta> = {
     shortName: 'Codex',
     badge: 'X',
     model: '本地 CLI',
-    cli: 'Codex · workspace-write · 本地 CLI'
+    cli: 'Codex · read-only 沙箱 · 本地 CLI'
   }
 }
 
@@ -55,7 +55,12 @@ export function agentCommandPreview(
   agent: AgentId,
   resumeId?: string
 ): { bin: string; args: string } {
-  if (agent === 'codex') return { bin: 'codex', args: '--sandbox workspace-write' }
+  if (agent === 'codex') {
+    return {
+      bin: 'codex',
+      args: resumeId ? `exec resume ${resumeId} --json` : 'exec --json --sandbox read-only'
+    }
+  }
   return {
     bin: 'claude',
     args: resumeId ? `--resume ${resumeId} --permission-mode default` : '--permission-mode default'

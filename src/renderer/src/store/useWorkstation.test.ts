@@ -144,6 +144,16 @@ describe('对话', () => {
     expect(state.threads['s-2']).not.toBe(state.threads['s-1'])
   })
 
+  it('新建 Codex 会话保留 agent 类型', () => {
+    useWorkstation.getState().createAgentSession('codex')
+
+    const state = useWorkstation.getState()
+    const created = state.sessions[0]
+    expect(created).toMatchObject({ agent: 'codex', title: '新会话' })
+    expect(state.activeSessionId).toBe(created.id)
+    expect(state.threads[created.id]).toEqual([])
+  })
+
   it('切换会话后回复仍回到发起消息的会话', () => {
     useWorkstation.getState().sendMessage('先只改任务')
     useWorkstation.getState().setActiveSession('s-x1')
