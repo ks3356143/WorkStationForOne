@@ -52,6 +52,35 @@ describe('迁移 v7', () => {
     db.close()
   })
 
+  it('v15 只给已有学习数据的库补管综起步卡', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wsfo-learning-'))
+    dirs.push(dir)
+    const db = openDatabase(join(dir, 'workstation.db'))
+    migrate(
+      db,
+      MIGRATIONS.filter((migration) => migration.version <= 14)
+    )
+    db.prepare(
+      `INSERT INTO learning_items
+        (id, subject, title, next_review_on, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).run('existing', '英语二', 'existing card', '2026-10-29', 1, 1)
+
+    migrate(db)
+
+    const cards = new LearningRepository(db).list()
+    expect(cards).toHaveLength(9)
+    expect(cards.filter((card) => card.subject.startsWith('管综'))).toHaveLength(8)
+    expect(cards.filter((card) => card.subject === '互联网')).toHaveLength(0)
+    db.close()
+  })
+
+  it('空库迁移不写管综起步卡，交给首次种子', () => {
+    const { db, repo } = seedDb()
+    expect(repo.list()).toEqual([])
+    db.close()
+  })
+
   it('从 v13 升级时保留学习进度，FSRS 字段保持为空', () => {
     const dir = mkdtempSync(join(tmpdir(), 'wsfo-learning-'))
     dirs.push(dir)

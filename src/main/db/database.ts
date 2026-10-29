@@ -1,10 +1,34 @@
 import { readdirSync, unlinkSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
+import { MEM_STARTERS } from '../../shared/mem-starters'
 
 export interface Migration {
   version: number
   sql: string
+}
+
+function sqlLiteral(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`
+}
+
+/**
+ * v15：只给已有学习数据的库补 8 张管综起步卡。
+ * 空库必须留给渲染层首次种子（16 英语二 + 8 管综），否则只会写进 8 张。
+ */
+function memStarterSeedSql(): string {
+  return MEM_STARTERS.map((card) => {
+    const offset = Math.trunc(card.dayOffset)
+    return `INSERT OR IGNORE INTO learning_items
+      (id, subject, title, source, notes, repetitions, interval_days, ease,
+       next_review_on, active, created_at, updated_at)
+    SELECT ${sqlLiteral(card.id)}, ${sqlLiteral(card.subject)}, ${sqlLiteral(card.title)},
+      ${sqlLiteral(card.source)}, ${sqlLiteral(card.notes)},
+      0, 0, 2.5, date('now', 'localtime', '+${offset} day'), 1,
+      CAST(strftime('%s', 'now') AS INTEGER) * 1000,
+      CAST(strftime('%s', 'now') AS INTEGER) * 1000
+    WHERE EXISTS (SELECT 1 FROM learning_items);`
+  }).join('\n')
 }
 
 export const MIGRATIONS: Migration[] = [
@@ -259,6 +283,11 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE learning_items ADD COLUMN last_review_on TEXT
         CHECK (last_review_on IS NULL OR last_review_on GLOB '????-??-??');
     `
+  },
+  {
+    // MEM 起步卡：现有库补 8 张管综卡；空库交给渲染层首次种子。
+    version: 15,
+    sql: memStarterSeedSql()
   }
 ]
 

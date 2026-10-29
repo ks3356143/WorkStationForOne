@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { AnimatePresence, m } from 'motion/react'
 import { clozeFrontText, validateCloze } from '../../../../shared/cloze'
 import { addDaysKey, dateKey } from '../../../../shared/date-key'
+import { MEM_SUBJECTS } from '../../../../shared/mem-starters'
 import type { LearningDraft, LearningPatch } from '../../../../shared/ipc'
 import type { LearningItem } from '../../types'
 import {
@@ -373,6 +374,8 @@ export function LearningLibrary({ onStartReview }: LearningLibraryProps) {
   const inactiveCount = items.length - active.length
   const subjectDue = learningSubjects(items)
   const subjects = subjectDue.map((entry) => entry.subject)
+  // MEM 四项始终排在前面，现有科目（含历史互联网卡）继续保留、可继续选。
+  const subjectOptions = [...new Set([...MEM_SUBJECTS, ...subjects])]
   const subjectCounts = new Map(subjectDue.map((entry) => [entry.subject, entry.count]))
   const visible = filterItems(items, scope, query)
   const searching = query.trim().length > 0
@@ -516,7 +519,7 @@ export function LearningLibrary({ onStartReview }: LearningLibraryProps) {
         <div className="w1-todoscroll w1-learnscroll">
           {creating ? (
             <NewCardForm
-              subjects={subjects.length > 0 ? subjects : ['英语二', '互联网']}
+              subjects={subjectOptions}
               today={today}
               onSubmit={(draft) => {
                 addItem(draft)

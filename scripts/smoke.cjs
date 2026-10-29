@@ -1133,7 +1133,7 @@ async function run() {
     )
     check('学习左栏列出科目', all('.w1-learnrail .w1-todorow').length >= 3, String(all('.w1-learnrail .w1-todorow').length))
     check(
-      '学习科目按卡片数降序（全部/英语二/互联网/…/已停用）',
+      '学习科目按卡片数降序（全部/英语二/管综…/…/已停用）',
       (() => {
         const labels = all('.w1-learnrail .w1-todolabel').map((node) => node.textContent)
         if (labels[0] !== '全部' || labels.at(-1) !== '已停用') return false
@@ -1168,11 +1168,11 @@ async function run() {
     await sleep(300)
     check('卡片搜索 Esc 清空', learnSearch.value === '' && all('.w1-litem').length >= 20, learnSearch.value)
 
-    byText('.w1-learnrail .w1-todorow', '互联网')?.click()
+    byText('.w1-learnrail .w1-todorow', '管综数学')?.click()
     await sleep(350)
     check(
       '按科目收窄卡片',
-      all('.w1-litem').length === 8,
+      all('.w1-litem').length === 3,
       String(all('.w1-litem').length)
     )
     byText('.w1-learnrail .w1-todorow', '全部')?.click()
@@ -1181,7 +1181,7 @@ async function run() {
     byText('.w1-learnrail button', '新建')?.click()
     await sleep(300)
     check('新建卡片表单内联展开', !!one('.w1-lnew'))
-    setValue(one('#learn-new-subject'), '互联网')
+    setValue(one('#learn-new-subject'), '管综逻辑')
     setValue(one('#learn-new-title'), '幂等键')
     setValue(one('#learn-new-notes'), '用于支付类接口去重')
     byText('.w1-lnew button', '保存卡片')?.click()
@@ -1199,7 +1199,7 @@ async function run() {
     await sleep(250)
     const clozeField = one('#learn-new-cloze')
     check('挖空卡型切出原文输入框', Boolean(clozeField))
-    setValue(one('#learn-new-subject'), '互联网')
+    setValue(one('#learn-new-subject'), '管综逻辑')
     setValue(clozeField, '冒烟：{{c1::TCP}} 是面向连接的')
     await sleep(250)
     check(

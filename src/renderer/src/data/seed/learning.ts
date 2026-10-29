@@ -1,4 +1,5 @@
 import { addDaysKey, dateKey } from '../../../../shared/date-key'
+import { MEM_STARTERS } from '../../../../shared/mem-starters'
 import type { LearningItem } from '../../types'
 
 interface SeedCard {
@@ -144,84 +145,10 @@ const ENGLISH: SeedCard[] = [
   }
 ]
 
-const INTERNET: SeedCard[] = [
-  {
-    id: 'net-http',
-    subject: '互联网',
-    title: 'HTTP',
-    source: '网络基础',
-    notes:
-      '超文本传输协议，请求-响应模型。无状态，靠 Cookie/Token 维持会话。HTTP/2 多路复用，HTTP/3 走 QUIC。',
-    dayOffset: 0
-  },
-  {
-    id: 'net-dns',
-    subject: '互联网',
-    title: 'DNS',
-    source: '网络基础',
-    notes:
-      '域名到 IP 的分布式解析系统。递归解析器逐级询问根 → 顶级域 → 权威服务器；结果按 TTL 缓存。',
-    dayOffset: 1
-  },
-  {
-    id: 'net-tls',
-    subject: '互联网',
-    title: 'TLS',
-    source: '网络基础',
-    notes:
-      '为传输层加密。握手协商协议版本与密码套件，用非对称交换密钥，之后走对称加密；证书链验证身份。',
-    dayOffset: 2
-  },
-  {
-    id: 'net-cdn',
-    subject: '互联网',
-    title: 'CDN',
-    source: '系统设计',
-    notes:
-      '内容分发网络，把静态资源缓存到离用户近的边缘节点。靠 DNS 调度或 Anycast 就近接入，回源拉取并预热。',
-    dayOffset: 3
-  },
-  {
-    id: 'net-cache',
-    subject: '互联网',
-    title: '缓存',
-    source: '系统设计',
-    notes:
-      '常见策略 Cache-Aside：读时未命中回源并回填，写时更新库再删缓存。要防穿透（空值缓存/布隆过滤器）、击穿（互斥重建）与雪崩（过期时间加抖动）。',
-    dayOffset: 4
-  },
-  {
-    id: 'net-idempotent',
-    subject: '互联网',
-    title: '幂等',
-    source: '系统设计',
-    notes:
-      '同一请求执行多次与执行一次结果相同。GET/PUT/DELETE 天然幂等，POST 不幂等；支付类接口用幂等键去重。',
-    dayOffset: 5
-  },
-  {
-    id: 'net-ratelimit',
-    subject: '互联网',
-    title: '限流',
-    source: '系统设计',
-    notes:
-      '保护下游的常用算法：固定窗口、滑动窗口、漏桶（恒定速率）、令牌桶（允许突发）。分布式限流依赖 Redis + Lua 保证原子性。',
-    dayOffset: 6
-  },
-  {
-    id: 'net-cap',
-    subject: '互联网',
-    title: 'CAP',
-    source: '系统设计',
-    notes:
-      '一致性、可用性、分区容错三者不可兼得。网络分区无法避免，实际是在 C 与 A 之间取舍：CP 如 ZooKeeper，AP 如 Cassandra。',
-    dayOffset: 0
-  }
-]
-
 export function createSeedLearning(): LearningItem[] {
   const today = dateKey()
-  return [...ENGLISH, ...INTERNET].map((card) => ({
+  const all: SeedCard[] = [...ENGLISH, ...MEM_STARTERS]
+  return all.map((card) => ({
     id: card.id,
     subject: card.subject,
     title: card.title,
