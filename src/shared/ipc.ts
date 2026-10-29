@@ -297,6 +297,32 @@ export interface AgentRunStart {
   runId: string
 }
 
+export interface ProviderProfileRecord {
+  id: string
+  name: string
+  baseUrl: string
+  model: string
+  hasToken: boolean
+  active: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+export interface ProviderSaveInput {
+  id?: string
+  name: string
+  baseUrl: string
+  model: string
+  /** 只写不读；省略表示保留旧 token */
+  apiKey?: string
+}
+
+export interface ProviderApi {
+  list: () => Promise<ProviderProfileRecord[]>
+  save: (input: ProviderSaveInput) => Promise<ProviderProfileRecord>
+  setActive: (id: string | null) => Promise<void>
+}
+
 export interface AgentPermissionResponse {
   requestId: string
   allow: boolean
@@ -341,6 +367,7 @@ export interface AppApi {
 }
 
 export interface WsApi {
+  provider: ProviderApi
   tasks: TaskApi
   notes: NoteApi
   capture: CaptureApi
@@ -392,6 +419,9 @@ export const IPC_CHANNELS = {
   agentCreateSession: 'agent:create-session',
   agentUpdateSession: 'agent:update-session',
   agentSaveMessage: 'agent:save-message',
+  providerList: 'provider:list',
+  providerSave: 'provider:save',
+  providerSetActive: 'provider:set-active',
   appSetTheme: 'app:set-theme',
   appBackupNow: 'app:backup-now',
   appInfo: 'app:info'

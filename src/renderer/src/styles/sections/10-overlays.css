@@ -1526,6 +1526,153 @@ button.w1-nlchip:hover {
   color: var(--mu);
 }
 
+/* ---------- provider card ---------- */
+
+.w1-provcard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 11px 12px;
+  border: 1px solid rgb(var(--ac2-rgb) / 0.22);
+  background:
+    linear-gradient(135deg, rgb(var(--ac2-rgb) / 0.07), transparent 58%),
+    rgb(var(--field-rgb) / 0.25);
+}
+
+.w1-provcard::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 42%;
+  height: 1px;
+  background: linear-gradient(90deg, var(--ac2), transparent);
+}
+
+.w1-provseg {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--bd);
+  background: rgb(var(--field-rgb) / 0.45);
+}
+
+.w1-provseg button {
+  flex: 1;
+  height: 26px;
+  border: 0;
+  background: transparent;
+  color: var(--su);
+  font: 11px / 1 var(--mono);
+  cursor: pointer;
+  transition:
+    color var(--dur-ui),
+    background-color var(--dur-ui);
+}
+
+.w1-provseg button.on {
+  background: linear-gradient(100deg, rgb(var(--ac-rgb) / 0.2), rgb(var(--ac2-rgb) / 0.18));
+  color: var(--fg);
+  box-shadow: inset 0 0 0 1px rgb(var(--ac2-rgb) / 0.3);
+}
+
+.w1-provfields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.w1-provfield {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.w1-provfield.wide {
+  grid-column: 1 / -1;
+}
+
+.w1-provfield span {
+  color: var(--su);
+  font: 10px / 1.2 var(--mono);
+  letter-spacing: 0.08em;
+}
+
+.w1-provfield input {
+  height: 30px;
+  min-width: 0;
+  padding: 0 9px;
+  border: 1px solid var(--bd);
+  outline: none;
+  background: rgb(var(--field-rgb) / 0.65);
+  color: var(--fg);
+  font: 12px / 1.4 var(--sans);
+  transition:
+    border-color var(--dur-ui),
+    box-shadow var(--dur-ui);
+}
+
+.w1-provfield input::placeholder {
+  color: var(--su);
+}
+
+.w1-provfield input:focus {
+  border-color: rgb(var(--ac2-rgb) / 0.55);
+  box-shadow: 0 0 18px rgb(var(--ac2-rgb) / 0.08);
+}
+
+.w1-provfoot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.w1-provstatus {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--su);
+  font: 10.5px / 1.5 var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.w1-provstatus.on {
+  color: var(--ac2-fg);
+}
+
+.w1-provsave {
+  flex: none;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid rgb(var(--ac2-rgb) / 0.4);
+  background: linear-gradient(100deg, rgb(var(--ac-rgb) / 0.18), rgb(var(--ac2-rgb) / 0.2));
+  color: var(--fg);
+  font: 11px / 1 var(--mono);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-ui),
+    filter var(--dur-ui);
+}
+
+.w1-provsave:hover:not(:disabled) {
+  border-color: rgb(var(--ac2-rgb) / 0.65);
+  filter: brightness(1.08);
+}
+
+.w1-provsave:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.w1-provnote {
+  margin: 0;
+  color: var(--su);
+  font: 10.5px / 1.6 var(--mono);
+}
+
 .w1-setpath {
   flex: 1;
   min-width: 0;

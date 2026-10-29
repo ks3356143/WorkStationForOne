@@ -8,6 +8,7 @@ import { migrate, openDatabase } from './database'
 import { HabitRepository } from './habits'
 import { LearningRepository } from './learning'
 import { NoteRepository } from './notes'
+import { ProviderRepository } from './providers'
 import { TaskRepository } from './tasks'
 
 export interface DatabaseContext {
@@ -19,6 +20,7 @@ export interface DatabaseContext {
   learning: LearningRepository
   habits: HabitRepository
   agent: AgentRepository
+  providers: ProviderRepository
   audit: AuditLog
   close: () => void
 }
@@ -39,6 +41,7 @@ export function initDatabase(): DatabaseContext {
     learning: new LearningRepository(db, audit),
     habits: new HabitRepository(db, audit),
     agent: new AgentRepository(db),
+    providers: new ProviderRepository(db),
     close: () => db.close()
   }
 }

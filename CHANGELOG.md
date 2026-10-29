@@ -6,6 +6,12 @@
 
 暂无。
 
+## [0.9.0] - 2026-10-29
+
+### 新增
+
+- **Agent Provider 配置**：设置面板新增 Provider 卡片，默认继承 Claude CLI；自定义模式保存名称、Base URL、模型与 API Key（DB v17）。API Key 用 Electron `safeStorage` 加密后存 SQLite，列表接口与渲染层永不回显。自定义模式只把 `ANTHROPIC_BASE_URL / AUTH_TOKEN / MODEL` 注入本应用启动的 Claude 子进程，并用 `--setting-sources project` 屏蔽用户级 settings，所以不改动 CC Switch、`~/.claude` 或其它智能体。
+
 ## [0.8.0] - 2026-10-29
 
 ### 新增
@@ -198,8 +204,8 @@
 
 当前基线（每次改动都以此为准，历史轮次数字不再追加）：
 
-- `npm run typecheck` 通过，`npm run check` 0 问题（211 个文件），`npm test` 554 项全绿。
-- `npm run smoke` 208/208：真实主进程 + 临时 SQLite，含 preload 桥、双链、FSRS、CSV 导入、统计、复习历史、智能体会话/消息/resume id、工具审批允许/拒绝与今日快速添加入口。
+- `npm run typecheck` 通过，`npm run check` 0 问题（217 个文件），`npm test` 568 项全绿。
+- `npm run smoke` 212/212：真实主进程 + 临时 SQLite，含 preload 桥、双链、FSRS、CSV 导入、统计、复习历史、智能体会话/消息/resume id、工具审批允许/拒绝、Provider 加密保存与今日快速添加入口。
 - `npm run verify` 251–253/253：五视图互斥、`aria-current`、双主题/双皮肤持久化、跨重启任务与学习数据（起始主题不同会差 2 项分支）。
 - 截图 20 张（五视图 × 双主题 × 1440×900 / 1180×720），横向溢出与越界元素为 0。
 - 控件交互另有探针覆盖：日期/时间/下拉弹层的定位、翻月、回填、焦点归还、Esc 与外部点击，四种尺寸/主题/皮肤组合均通过。

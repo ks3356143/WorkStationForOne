@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { m } from 'motion/react'
-import type { AppInfo } from '../../../shared/ipc'
+import type { AppInfo, ProviderProfileRecord } from '../../../shared/ipc'
 import { DURATION, EASE_OUT } from '../lib/motion'
 import { skinLabel, themeLabel } from '../lib/theme'
 import { useWorkstation } from '../store/useWorkstation'
@@ -21,6 +21,15 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
   const restoreRef = useRef<HTMLElement | null>(null)
   const [info, setInfo] = useState<AppInfo | null>(null)
   const [busy, setBusy] = useState(false)
+  const providerApi = typeof window === 'undefined' ? undefined : window.ws?.provider
+  const [profiles, setProfiles] = useState<ProviderProfileRecord[]>([])
+  const [providerMode, setProviderMode] = useState<'inherit' | 'custom'>('inherit')
+  const [providerName, setProviderName] = useState('')
+  const [providerUrl, setProviderUrl] = useState('')
+  const [providerModel, setProviderModel] = useState('')
+  const [providerKey, setProviderKey] = useState('')
+  const [providerBusy, setProviderBusy] = useState(false)
+  const activeProfile = profiles.find((profile) => profile.active)
 
   useEffect(() => {
     const root = boxRef.current
@@ -31,11 +40,79 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
       ?.info()
       .then(setInfo)
       .catch(() => setInfo(null))
+    void providerApi
+      ?.list()
+      .then((list) => {
+        setProfiles(list)
+        const active = list.find((profile) => profile.active)
+        if (active) {
+          setProviderMode('custom')
+          setProviderName(active.name)
+          setProviderUrl(active.baseUrl)
+          setProviderModel(active.model)
+        }
+      })
+      .catch(() => setProfiles([]))
     return () => {
       const active = document.activeElement
       if (!active || active === document.body || root?.contains(active)) restoreRef.current?.focus()
     }
-  }, [])
+  }, [providerApi])
+
+  const selectInheritedProvider = () => {
+    setProviderMode('inherit')
+    setProfiles((list) => list.map((profile) => ({ ...profile, active: false })))
+    if (!providerApi) return
+    setProviderBusy(true)
+    void providerApi
+      .setActive(null)
+      .then(() => notify('已改为继承 Claude CLI 配置'))
+      .catch((error: unknown) => notify(error instanceof Error ? error.message : '切换失败'))
+      .finally(() => setProviderBusy(false))
+  }
+
+  const saveProvider = () => {
+    if (!providerApi || providerBusy) return
+    const name = providerName.trim()
+    const baseUrl = providerUrl.trim()
+    const model = providerModel.trim()
+    const apiKey = providerKey.trim()
+    if (!name || !baseUrl || !model) {
+      notify('先填名称、Base URL 与模型')
+      return
+    }
+    if (!activeProfile?.hasToken && !apiKey) {
+      notify('还没有保存 API Key')
+      return
+    }
+    setProviderBusy(true)
+    void providerApi
+      .save({
+        ...(activeProfile ? { id: activeProfile.id } : {}),
+        name,
+        baseUrl,
+        model,
+        ...(apiKey ? { apiKey } : {})
+      })
+      .then((saved) => {
+        setProfiles((list) => [
+          ...list
+            .filter((profile) => profile.id !== saved.id)
+            .map((profile) => ({
+              ...profile,
+              active: false
+            })),
+          saved
+        ])
+        setProviderMode('custom')
+        setProviderKey('')
+        notify('Provider 已保存并启用')
+      })
+      .catch((error: unknown) =>
+        notify(error instanceof Error ? `保存失败：${error.message}` : '保存失败')
+      )
+      .finally(() => setProviderBusy(false))
+  }
 
   const backupNow = () => {
     const bridge = window.ws?.app
@@ -119,6 +196,101 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
             >
               {motionOn ? '开启' : '关闭'}
             </button>
+          </div>
+        </section>
+
+        <section className="w1-setgroup" aria-label="Agent Provider">
+          <h3>Agent Provider</h3>
+          <div className="w1-provcard">
+            <div className="w1-provseg" role="group" aria-label="Provider 模式">
+              <button
+                type="button"
+                className={providerMode === 'inherit' ? 'on' : ''}
+                aria-pressed={providerMode === 'inherit'}
+                disabled={providerBusy}
+                onClick={selectInheritedProvider}
+              >
+                继承 Claude CLI
+              </button>
+              <button
+                type="button"
+                className={providerMode === 'custom' ? 'on' : ''}
+                aria-pressed={providerMode === 'custom'}
+                disabled={providerBusy}
+                onClick={() => setProviderMode('custom')}
+              >
+                自定义
+              </button>
+            </div>
+
+            {providerMode === 'inherit' ? (
+              <p className="w1-provnote">
+                沿用 Claude CLI 自己的登录与 settings。只影响本应用启动的进程，不改 CC Switch。
+              </p>
+            ) : (
+              <>
+                <div className="w1-provfields">
+                  <label className="w1-provfield">
+                    <span>名称</span>
+                    <input
+                      value={providerName}
+                      placeholder="DeepSeek 代理"
+                      aria-label="Provider 名称"
+                      onChange={(event) => setProviderName(event.target.value)}
+                    />
+                  </label>
+                  <label className="w1-provfield">
+                    <span>模型</span>
+                    <input
+                      value={providerModel}
+                      placeholder="deepseek-v4-flash"
+                      aria-label="Provider 模型"
+                      onChange={(event) => setProviderModel(event.target.value)}
+                    />
+                  </label>
+                  <label className="w1-provfield wide">
+                    <span>Base URL</span>
+                    <input
+                      value={providerUrl}
+                      placeholder="http://127.0.0.1:23333"
+                      aria-label="Provider Base URL"
+                      onChange={(event) => setProviderUrl(event.target.value)}
+                    />
+                  </label>
+                  <label className="w1-provfield wide">
+                    <span>API Key</span>
+                    <input
+                      type="password"
+                      value={providerKey}
+                      autoComplete="off"
+                      placeholder={activeProfile?.hasToken ? '已保存，留空则保留' : '粘贴 API Key'}
+                      aria-label="Provider API Key"
+                      onChange={(event) => setProviderKey(event.target.value)}
+                    />
+                  </label>
+                </div>
+                <div className="w1-provfoot">
+                  <span className={`w1-provstatus${activeProfile ? ' on' : ''}`}>
+                    {activeProfile
+                      ? `${activeProfile.name} · 已加密保存`
+                      : providerApi
+                        ? '尚未保存'
+                        : '仅在桌面应用可用'}
+                  </span>
+                  <button
+                    className="w1-provsave"
+                    type="button"
+                    disabled={providerBusy || !providerApi}
+                    onClick={saveProvider}
+                  >
+                    {providerBusy ? '保存中…' : '保存并启用'}
+                  </button>
+                </div>
+                <p className="w1-provnote">
+                  只影响本应用启动的 Claude 进程；API Key 用系统加密存在本机，永不回显。
+                </p>
+              </>
+            )}
           </div>
         </section>
 

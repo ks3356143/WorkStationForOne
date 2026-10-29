@@ -901,6 +901,27 @@ async function run() {
       settingsText.includes('份 ·'),
       one('.w1-setpath')?.textContent ?? ''
     )
+    check('设置面板有 Provider 卡片', !!one('.w1-provcard'))
+    byText('.w1-provseg button', '自定义')?.click()
+    await sleep(200)
+    setValue(one('input[aria-label="Provider 名称"]'), 'Smoke Provider')
+    setValue(one('input[aria-label="Provider Base URL"]'), 'http://127.0.0.1:23333')
+    setValue(one('input[aria-label="Provider 模型"]'), 'smoke-model')
+    setValue(one('input[aria-label="Provider API Key"]'), 'sk-smoke-secret')
+    byText('.w1-provsave', '保存并启用')?.click()
+    await sleep(700)
+    check(
+      'Provider 加密保存并启用',
+      (one('.w1-provstatus')?.textContent ?? '').includes('已加密保存'),
+      one('.w1-provstatus')?.textContent ?? ''
+    )
+    byText('.w1-provseg button', '继承 Claude CLI')?.click()
+    await sleep(400)
+    check(
+      'Provider 可切回继承 CLI',
+      one('.w1-provseg button.on')?.textContent?.includes('继承 Claude CLI') === true,
+      one('.w1-provseg button.on')?.textContent ?? ''
+    )
     const themeBtnBefore = document.documentElement.dataset.theme
     const themeBtns = all('.w1-setbtn')
     themeBtns[0]?.click()
@@ -1533,7 +1554,12 @@ async function run() {
       fsrs: count('SELECT COUNT(*) AS n FROM learning_items WHERE stability IS NOT NULL'),
       agentSessions: count('SELECT COUNT(*) AS n FROM agent_sessions'),
       agentMessages: count('SELECT COUNT(*) AS n FROM agent_messages'),
-      agentResume: count('SELECT COUNT(*) AS n FROM agent_sessions WHERE resume_id IS NOT NULL')
+      agentResume: count('SELECT COUNT(*) AS n FROM agent_sessions WHERE resume_id IS NOT NULL'),
+      providers: count('SELECT COUNT(*) AS n FROM provider_profiles'),
+      providerTokens: count(
+        'SELECT COUNT(*) AS n FROM provider_profiles WHERE token_encrypted IS NOT NULL'
+      ),
+      providerActive: count('SELECT COUNT(*) AS n FROM provider_profiles WHERE active = 1')
     }
     db.close()
   } catch (error) {
@@ -1561,6 +1587,15 @@ async function run() {
     name: 'Claude resume id 已保存',
     ok: Boolean(dbStats && dbStats.agentResume > 0),
     detail: dbStats ? String(dbStats.agentResume) : '无数据'
+  })
+  results.checks.push({
+    name: 'Provider 配置与加密 Key 已落库',
+    ok: Boolean(
+      dbStats && dbStats.providers > 0 && dbStats.providerTokens > 0 && dbStats.providerActive === 0
+    ),
+    detail: dbStats
+      ? `${dbStats.providers} 条 / token ${dbStats.providerTokens} / active ${dbStats.providerActive}`
+      : '无数据'
   })
   // 审计：UI 操作必须留下记录（这里读库，不依赖渲染层）
   let auditRows = []

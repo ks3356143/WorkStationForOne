@@ -2,6 +2,7 @@ import { ipcMain, type BrowserWindow } from 'electron'
 import type { AgentCli } from '../agent/claude'
 import { startClaudeRun } from '../agent/claude'
 import type { AgentRepository } from '../db/agent'
+import type { ProviderRuntime } from '../providers'
 import {
   IPC_CHANNELS,
   type AgentCreateInput,
@@ -164,7 +165,8 @@ interface ActiveRun {
 export function registerAgentHandlers(
   getWindow: () => BrowserWindow | null,
   repository: AgentRepository,
-  cli?: AgentCli | null
+  cli?: AgentCli | null,
+  getProvider?: () => ProviderRuntime | undefined
 ): void {
   const runs = new Map<string, ActiveRun>()
   const permissionRuns = new Map<string, string>()
@@ -206,10 +208,12 @@ export function registerAgentHandlers(
       win.webContents.send(IPC.agentEvent, { runId, event: runEvent })
     }
 
+    const provider = getProvider?.()
     const handle = startClaudeRun({
       prompt: input.prompt,
       resumeId: input.resumeId,
       cwd: process.cwd(),
+      ...(provider ? { provider } : {}),
       ...(cli === undefined ? {} : { cli }),
       onEvent: emit,
       onExit: ({ code, stderr, cancelled }) => {

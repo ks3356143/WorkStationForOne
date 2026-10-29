@@ -4,7 +4,9 @@ import { app, BrowserWindow, session, shell } from 'electron'
 import { initDatabase, type DatabaseContext } from './db'
 import { disposeCaptureShortcut, registerCaptureHandlers, registerCaptureShortcut } from './capture'
 import { registerAgentHandlers } from './ipc/agent'
+import { registerProviderHandlers } from './ipc/providers'
 import { registerAppHandlers, TITLE_BAR_HEIGHT, WINDOW_PALETTE } from './ipc/app'
+import { ProviderService } from './providers'
 import { backupDirFor, ensureDailyBackup } from './db/backup'
 import { startReminderLoop } from './reminders'
 import { registerHabitHandlers } from './ipc/habits'
@@ -109,6 +111,7 @@ if (!gotTheLock) {
     session.defaultSession.setPermissionCheckHandler(() => false)
 
     database = initDatabase()
+    const providers = new ProviderService(database.providers)
     // 软删任务保留 30 天后清掉，避免已删行无限堆积。
     database.tasks.purgeDeleted(Date.now() - 30 * 24 * 60 * 60 * 1000)
     registerAppHandlers({
@@ -120,10 +123,16 @@ if (!gotTheLock) {
     registerNoteHandlers(database.notes)
     registerLearningHandlers(database.learning)
     registerHabitHandlers(database.habits)
+    registerProviderHandlers(providers)
     // 上次进程退出后 run/wait 已不存在，重启时统一回落为 idle。
     database.agent.resetTransientStatuses()
     // 捕获窗是另一个 BrowserWindow，Agent 事件只回主窗口
-    registerAgentHandlers(() => mainWindow, database.agent)
+    registerAgentHandlers(
+      () => mainWindow,
+      database.agent,
+      undefined,
+      () => providers.runtime()
+    )
     // 到点提醒：轮询数据库，命中「今天 + 正好到点 + 没提醒过」就弹系统通知
     stopReminders = startReminderLoop(database.tasks, {
       ...(process.env.WS_REMINDER_TICK_MS

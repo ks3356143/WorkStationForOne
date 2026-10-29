@@ -1,6 +1,12 @@
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { resolveAgentCli, startClaudeRun, type RunHandle } from './claude'
+import {
+  buildClaudeArgs,
+  providerEnv,
+  resolveAgentCli,
+  startClaudeRun,
+  type RunHandle
+} from './claude'
 import type { AgentRunEvent } from '../../shared/agent-stream'
 
 const STUB = join(process.cwd(), 'scripts/stub-agent.cjs')
@@ -43,6 +49,42 @@ describe('resolveAgentCli', () => {
 
   it('找不到 claude 时返回 null，而不是伪造一个', () => {
     expect(resolveAgentCli({ PATH: '' })).toBeNull()
+  })
+})
+
+describe('Provider 隔离', () => {
+  const cli = { bin: 'claude', prefixArgs: [], viaNode: false }
+  const provider = {
+    baseUrl: 'http://127.0.0.1:23333',
+    model: 'deepseek-v4-flash',
+    token: 'sk-secret'
+  }
+
+  it('自定义 provider 的 env 同时覆盖主模型与三档默认模型', () => {
+    expect(providerEnv(provider)).toMatchObject({
+      ANTHROPIC_BASE_URL: provider.baseUrl,
+      ANTHROPIC_AUTH_TOKEN: provider.token,
+      ANTHROPIC_MODEL: provider.model,
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: provider.model,
+      ANTHROPIC_DEFAULT_SONNET_MODEL: provider.model,
+      ANTHROPIC_DEFAULT_OPUS_MODEL: provider.model
+    })
+  })
+
+  it('自定义 provider 忽略用户级 settings 并固定模型，token 不进参数', () => {
+    const args = buildClaudeArgs(cli, undefined, provider)
+    expect(args).toEqual(
+      expect.arrayContaining(['--setting-sources', 'project', '--model', provider.model])
+    )
+    expect(args.join(' ')).not.toContain(provider.token)
+    expect(args.join(' ')).not.toContain('--dangerously')
+  })
+
+  it('继承模式不添加 provider 参数', () => {
+    const args = buildClaudeArgs(cli, undefined)
+    expect(args).not.toContain('--setting-sources')
+    expect(args).not.toContain('--model')
+    expect(providerEnv(undefined)).toBeUndefined()
   })
 })
 

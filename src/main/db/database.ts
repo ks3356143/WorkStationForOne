@@ -318,6 +318,24 @@ export const MIGRATIONS: Migration[] = [
 
       CREATE INDEX idx_agent_messages_session ON agent_messages(session_id, created_at ASC);
     `
+  },
+  {
+    // Provider 配置：token 只以加密 BLOB 保存，列表查询不返回。
+    version: 17,
+    sql: `
+      CREATE TABLE provider_profiles (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        base_url TEXT NOT NULL,
+        model TEXT NOT NULL,
+        token_encrypted BLOB,
+        active INTEGER NOT NULL DEFAULT 0 CHECK (active IN (0, 1)),
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE UNIQUE INDEX idx_provider_active ON provider_profiles(active) WHERE active = 1;
+    `
   }
 ]
 

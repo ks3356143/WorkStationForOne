@@ -7,6 +7,11 @@ import {
 } from '../shared/ipc'
 
 const api: WsApi = {
+  provider: {
+    list: () => ipcRenderer.invoke(IPC_CHANNELS.providerList),
+    save: (input) => ipcRenderer.invoke(IPC_CHANNELS.providerSave, input),
+    setActive: (id) => ipcRenderer.invoke(IPC_CHANNELS.providerSetActive, id)
+  },
   tasks: {
     list: () => ipcRenderer.invoke(IPC_CHANNELS.tasksList),
     bootstrap: (tasks) => ipcRenderer.invoke(IPC_CHANNELS.tasksBootstrap, tasks),

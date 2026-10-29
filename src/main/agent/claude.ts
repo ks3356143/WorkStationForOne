@@ -8,6 +8,7 @@ import {
   type AgentPermissionRequest,
   type AgentRunEvent
 } from '../../shared/agent-stream'
+import type { ProviderRuntime } from '../providers'
 
 export interface AgentCli {
   bin: string
@@ -61,11 +62,51 @@ export function resolveAgentCli(env: NodeJS.ProcessEnv = process.env): AgentCli 
   return { bin: found, prefixArgs: [], viaNode: false }
 }
 
+export function providerEnv(provider?: ProviderRuntime): NodeJS.ProcessEnv | undefined {
+  if (!provider) return undefined
+  return {
+    ANTHROPIC_BASE_URL: provider.baseUrl,
+    ANTHROPIC_AUTH_TOKEN: provider.token,
+    ANTHROPIC_MODEL: provider.model,
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: provider.model,
+    ANTHROPIC_DEFAULT_SONNET_MODEL: provider.model,
+    ANTHROPIC_DEFAULT_OPUS_MODEL: provider.model
+  }
+}
+
+export function buildClaudeArgs(
+  cli: AgentCli,
+  resumeId?: string,
+  provider?: ProviderRuntime,
+  sessionId?: string
+): string[] {
+  const args = [
+    ...cli.prefixArgs,
+    '-p',
+    '--input-format',
+    'stream-json',
+    '--output-format',
+    'stream-json',
+    '--verbose',
+    '--permission-mode',
+    'manual',
+    '--permission-prompts',
+    'host',
+    '--allowedTools',
+    ...CLAUDE_ALLOWED_TOOLS
+  ]
+  if (provider) args.push('--setting-sources', 'project', '--model', provider.model)
+  if (resumeId) args.push('--resume', resumeId)
+  else if (sessionId) args.push('--session-id', sessionId)
+  return args
+}
+
 export interface ClaudeRunOptions {
   prompt: string
   /** 续接上一轮时传 Claude 自己的 session id */
   resumeId?: string
   cwd: string
+  provider?: ProviderRuntime
   onEvent: (event: AgentRunEvent) => void
   onExit: (info: { code: number | null; stderr: string; cancelled: boolean }) => void
   /** 省略时按环境解析；显式传 null 表示「没有可用的 CLI」 */
@@ -97,27 +138,17 @@ export function startClaudeRun(options: ClaudeRunOptions): RunHandle {
     return { sessionId, cancel: () => {}, respondPermission: () => false }
   }
 
-  const args = [
-    ...cli.prefixArgs,
-    '-p',
-    '--input-format',
-    'stream-json',
-    '--output-format',
-    'stream-json',
-    '--verbose',
-    '--permission-mode',
-    'manual',
-    '--permission-prompts',
-    'host',
-    '--allowedTools',
-    ...CLAUDE_ALLOWED_TOOLS
-  ]
-  if (options.resumeId) args.push('--resume', options.resumeId)
-  else args.push('--session-id', sessionId)
+  const args = buildClaudeArgs(cli, options.resumeId, options.provider, sessionId)
+  const overrides = providerEnv(options.provider)
+  const childEnv = {
+    ...process.env,
+    ...(cli.viaNode ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
+    ...overrides
+  }
 
   const child: ChildProcessWithoutNullStreams = spawn(cli.bin, args, {
     cwd: options.cwd,
-    env: cli.viaNode ? { ...process.env, ELECTRON_RUN_AS_NODE: '1' } : process.env,
+    env: childEnv,
     stdio: ['pipe', 'pipe', 'pipe'],
     // 所有参数都是常量或 UUID，用户文本只走 stdin，因此不需要也不允许 shell
     shell: false,
