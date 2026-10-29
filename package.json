@@ -1,6 +1,6 @@
 {
   "name": "workstation-for-one",
-  "version": "0.14.1",
+  "version": "0.14.2",
   "private": true,
   "description": "WorkStationForOne — 个人 AI 工作站",
   "main": "./out/main/index.js",
@@ -33,7 +33,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
-    "electron": "^45.0.0",
+    "electron": "45.0.0",
     "electron-vite": "^6.0.0",
     "typescript": "^5.9.3",
     "vite": "^8.3.5",
