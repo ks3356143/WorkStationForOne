@@ -20,6 +20,9 @@ function apply(event: AgentRunEvent): void {
     case 'tool-result':
       store.setAgentToolStatus(event.id, event.ok ? '完成' : '失败')
       break
+    case 'permission':
+      if (store.streaming) store.setToolPermission(store.streaming.sessionId, event.request)
+      break
     case 'error':
       store.finishAgentReply(event.message)
       break

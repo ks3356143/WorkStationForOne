@@ -8,6 +8,7 @@ import { Composer } from './Composer'
 import { DockHeader } from './DockHeader'
 import { MessageRow } from './MessageRow'
 import { PermissionCard } from './PermissionCard'
+import { ToolApprovalCard } from './ToolApprovalCard'
 
 const EMPTY_TASKS: Task[] = []
 
@@ -22,6 +23,8 @@ export function AgentDock() {
   const typing = useWorkstation((state) => state.typing)
   const pendingReplyTo = useWorkstation((state) => state.pendingReplyTo)
   const permission = useWorkstation((state) => state.permission)
+  const toolPermission = useWorkstation((state) => state.toolPermission)
+  const clearToolPermission = useWorkstation((state) => state.clearToolPermission)
   const resolution = useWorkstation((state) => state.resolution)
   const taskCount = useWorkstation((state) => state.tasks.length)
   const noteCount = useWorkstation((state) => state.noteTotal)
@@ -84,6 +87,19 @@ export function AgentDock() {
 
   const command = agentCommandPreview(agent, activeSession.resumeId)
   const meta = AGENT_META[agent]
+  const respondPermission =
+    typeof window === 'undefined' ? undefined : window.ws?.agent?.respondPermission
+
+  const resolveToolPermission = (allow: boolean) => {
+    if (!toolPermission) return
+    const requestId = toolPermission.requestId
+    clearToolPermission()
+    void respondPermission?.({
+      requestId,
+      allow,
+      ...(allow ? {} : { message: '用户拒绝' })
+    }).catch((error) => console.error('[agent] 回写审批失败', error))
+  }
 
   return (
     <aside className="w1-dock">
@@ -142,6 +158,13 @@ export function AgentDock() {
           ) : null}
 
           <AnimatePresence initial={false}>
+            {toolPermission && toolPermission.sessionId === activeSession.id ? (
+              <ToolApprovalCard
+                key={toolPermission.requestId}
+                request={toolPermission}
+                onResolve={resolveToolPermission}
+              />
+            ) : null}
             {permission && permission.sessionId === activeSession.id ? (
               <PermissionCard
                 key={permission.id}

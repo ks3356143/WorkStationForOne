@@ -1,22 +1,134 @@
 #!/usr/bin/env node
 /**
- * 冒烟用的假 CLI：行为对齐 `claude -p --output-format stream-json --verbose`。
- * 分块回放并留出真实节奏的间隔——一次性喷完会让「等待动画」类断言来不及观察，
- * 也测不出流式追加是否真的生效。
+ * 冒烟用的假 CLI：行为对齐 `claude -p --input-format stream-json
+ * --output-format stream-json --verbose --permission-prompts host`。
+ * 分块回放并留出真实节奏的间隔；支持发 can_use_tool 控制请求并等待宿主响应。
  * 用法：WS_AGENT_CLI=<此文件路径>，应用会用它替代真实 claude。
  */
-const chunks = []
-process.stdin.setEncoding('utf8')
-process.stdin.on('data', (chunk) => chunks.push(chunk))
-process.stdin.on('end', async () => {
-  const prompt = chunks.join('').trim()
-  const emit = (payload) => process.stdout.write(`${JSON.stringify(payload)}\n`)
-  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+const pendingPermissions = new Map()
+let buffer = ''
+let started = false
 
+const emit = (payload) => process.stdout.write(`${JSON.stringify(payload)}\n`)
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+function promptFromMessage(message) {
+  const content = message?.message?.content
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
+  return content
+    .filter((block) => block?.type === 'text' && typeof block.text === 'string')
+    .map((block) => block.text)
+    .join('\n')
+}
+
+async function runFlow(prompt) {
   if (prompt.includes('失败')) {
     emit({ type: 'system', subtype: 'init', model: 'stub-model', session_id: 'stub-fail' })
     await wait(120)
     emit({ type: 'result', subtype: 'error_during_execution', is_error: true, result: '模拟失败' })
+    return
+  }
+
+  if (prompt.includes('需要问答')) {
+    emit({ type: 'system', subtype: 'init', model: 'stub-model', session_id: 'stub-question' })
+    await wait(80)
+    emit({
+      type: 'control_request',
+      request_id: 'question-1',
+      request: {
+        subtype: 'can_use_tool',
+        tool_name: 'AskUserQuestion',
+        input: { questions: [{ question: '选哪个？' }] },
+        tool_use_id: 'stub-question-tool',
+        description: '向用户提问'
+      }
+    })
+    const decision = await new Promise((resolve) => pendingPermissions.set('question-1', resolve))
+    emit({
+      type: 'assistant',
+      message: {
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: decision?.behavior === 'deny' ? '问答被拒绝，未继续。' : '不应允许宿主问答。'
+          }
+        ]
+      }
+    })
+    await wait(60)
+    emit({
+      type: 'result',
+      subtype: 'success',
+      is_error: false,
+      total_cost_usd: 0.001,
+      duration_ms: 8,
+      num_turns: 1
+    })
+    return
+  }
+
+  if (prompt.includes('需要审批')) {
+    emit({ type: 'system', subtype: 'init', model: 'stub-model', session_id: 'stub-permission' })
+    await wait(120)
+    emit({
+      type: 'assistant',
+      message: { role: 'assistant', content: [{ type: 'text', text: '需要写入临时文件。' }] }
+    })
+    emit({
+      type: 'control_request',
+      request_id: 'perm-1',
+      request: {
+        subtype: 'can_use_tool',
+        tool_name: 'Write',
+        display_name: 'Write',
+        input: { file_path: 'tmp/stub.txt', content: 'ok' },
+        tool_use_id: 'stub-perm-tool',
+        description: '写入临时文件'
+      }
+    })
+    const decision = await new Promise((resolve) => pendingPermissions.set('perm-1', resolve))
+    if (decision?.behavior === 'allow') {
+      emit({
+        type: 'assistant',
+        message: {
+          role: 'assistant',
+          content: [
+            { type: 'text', text: '已写入临时文件。' },
+            {
+              type: 'tool_use',
+              id: 'stub-perm-tool',
+              name: 'Write',
+              input: { file_path: 'tmp/stub.txt' }
+            }
+          ]
+        }
+      })
+      emit({
+        type: 'user',
+        message: {
+          role: 'user',
+          content: [
+            { type: 'tool_result', tool_use_id: 'stub-perm-tool', content: 'ok', is_error: false }
+          ]
+        }
+      })
+    } else {
+      emit({
+        type: 'assistant',
+        message: { role: 'assistant', content: [{ type: 'text', text: '权限被拒绝，未写入。' }] }
+      })
+    }
+    await wait(80)
+    emit({
+      type: 'result',
+      subtype: 'success',
+      is_error: false,
+      total_cost_usd: 0.001,
+      duration_ms: 12,
+      num_turns: 1
+    })
     return
   }
 
@@ -63,4 +175,44 @@ process.stdin.on('end', async () => {
     duration_ms: 12,
     num_turns: 1
   })
+}
+
+function handleLine(line) {
+  const text = line.trim()
+  if (!text) return
+  let message
+  try {
+    message = JSON.parse(text)
+  } catch {
+    return
+  }
+
+  if (message.type === 'user' && !started) {
+    started = true
+    void runFlow(promptFromMessage(message))
+    return
+  }
+  if (message.type === 'control_response') {
+    const response = message.response
+    const pending = pendingPermissions.get(response?.request_id)
+    if (pending) {
+      pendingPermissions.delete(response.request_id)
+      pending(response.response ?? response)
+    }
+  }
+}
+
+process.stdin.setEncoding('utf8')
+process.stdin.on('data', (chunk) => {
+  buffer += chunk
+  let index = buffer.indexOf('\n')
+  while (index >= 0) {
+    const line = buffer.slice(0, index)
+    buffer = buffer.slice(index + 1)
+    handleLine(line)
+    index = buffer.indexOf('\n')
+  }
+})
+process.stdin.on('end', () => {
+  if (buffer.trim()) handleLine(buffer)
 })

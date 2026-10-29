@@ -297,6 +297,13 @@ export interface AgentRunStart {
   runId: string
 }
 
+export interface AgentPermissionResponse {
+  requestId: string
+  allow: boolean
+  /** 拒绝时回给 CLI 的原因，省略时用“用户拒绝” */
+  message?: string
+}
+
 export interface AgentEventEnvelope {
   runId: string
   event: AgentRunEvent
@@ -305,6 +312,7 @@ export interface AgentEventEnvelope {
 export interface AgentApi {
   send: (input: AgentSendInput) => Promise<AgentRunStart>
   cancel: (runId: string) => Promise<void>
+  respondPermission: (response: AgentPermissionResponse) => Promise<boolean>
   onEvent: (listener: (payload: AgentEventEnvelope) => void) => () => void
   threads: () => Promise<AgentThreadBundle>
   createSession: (input: AgentCreateInput) => Promise<AgentSessionRecord>
@@ -378,6 +386,7 @@ export const IPC_CHANNELS = {
   habitsSetCheckin: 'habits:set-checkin',
   agentSend: 'agent:send',
   agentCancel: 'agent:cancel',
+  agentPermissionResponse: 'agent:permission-response',
   agentEvent: 'agent:event',
   agentThreads: 'agent:threads',
   agentCreateSession: 'agent:create-session',

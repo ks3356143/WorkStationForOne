@@ -6,6 +6,7 @@ import {
   IPC_CHANNELS,
   type AgentCreateInput,
   type AgentMessageRecord,
+  type AgentPermissionResponse,
   type AgentSendInput,
   type AgentSessionPatch,
   type AgentToolRecord
@@ -84,6 +85,23 @@ export function assertAgentSessionPatch(value: unknown): AgentSessionPatch {
   return result
 }
 
+export function assertPermissionResponse(value: unknown): AgentPermissionResponse {
+  if (typeof value !== 'object' || value === null) throw new TypeError('审批响应必须是对象')
+  const input = value as Record<string, unknown>
+  if (typeof input.allow !== 'boolean') throw new TypeError('审批结果无效')
+  const result: AgentPermissionResponse = {
+    requestId: assertId(input.requestId, '审批请求 id'),
+    allow: input.allow
+  }
+  if (input.message !== undefined) {
+    if (typeof input.message !== 'string') throw new TypeError('拒绝原因无效')
+    const message = input.message.trim()
+    if (message.length > 500) throw new TypeError('拒绝原因过长')
+    if (message) result.message = message
+  }
+  return result
+}
+
 function assertTools(value: unknown): AgentToolRecord[] | undefined {
   if (value === undefined) return undefined
   if (!Array.isArray(value)) throw new TypeError('工具记录必须是数组')
@@ -136,6 +154,7 @@ export function assertAgentMessage(value: unknown): AgentMessageRecord {
 interface ActiveRun {
   sessionId: string
   cancel: () => void
+  respondPermission: (requestId: string, behavior: 'allow' | 'deny', message?: string) => boolean
 }
 
 /**
@@ -148,6 +167,7 @@ export function registerAgentHandlers(
   cli?: AgentCli | null
 ): void {
   const runs = new Map<string, ActiveRun>()
+  const permissionRuns = new Map<string, string>()
   let seq = 0
 
   ipcMain.handle(IPC.agentThreads, () => ({
@@ -178,6 +198,9 @@ export function registerAgentHandlers(
     const runId = `run-${seq}`
 
     const emit = (runEvent: AgentRunEvent) => {
+      if (runEvent.kind === 'permission') {
+        permissionRuns.set(runEvent.request.requestId, runId)
+      }
       const win = getWindow()
       if (!win || win.isDestroyed()) return
       win.webContents.send(IPC.agentEvent, { runId, event: runEvent })
@@ -191,6 +214,9 @@ export function registerAgentHandlers(
       onEvent: emit,
       onExit: ({ code, stderr, cancelled }) => {
         runs.delete(runId)
+        for (const [requestId, owner] of permissionRuns) {
+          if (owner === runId) permissionRuns.delete(requestId)
+        }
         if (cancelled) {
           emit({ kind: 'error', message: '已取消' })
           return
@@ -202,7 +228,11 @@ export function registerAgentHandlers(
       }
     })
 
-    runs.set(runId, { sessionId: input.sessionId, cancel: handle.cancel })
+    runs.set(runId, {
+      sessionId: input.sessionId,
+      cancel: handle.cancel,
+      respondPermission: handle.respondPermission
+    })
     return { runId }
   })
 
@@ -211,11 +241,26 @@ export function registerAgentHandlers(
     runs.get(id)?.cancel()
     runs.delete(id)
   })
+
+  ipcMain.handle(IPC.agentPermissionResponse, (_event, value: unknown) => {
+    const response = assertPermissionResponse(value)
+    const runId = permissionRuns.get(response.requestId)
+    const run = runId ? runs.get(runId) : undefined
+    if (!run) return false
+    const ok = run.respondPermission(
+      response.requestId,
+      response.allow ? 'allow' : 'deny',
+      response.message
+    )
+    permissionRuns.delete(response.requestId)
+    return ok
+  })
 }
 
 export const registerAgentHandlersIPC = {
   assertAgentSendInput,
   assertAgentCreateInput,
   assertAgentSessionPatch,
-  assertAgentMessage
+  assertAgentMessage,
+  assertPermissionResponse
 } as const

@@ -1,9 +1,21 @@
+export interface AgentPermissionRequest {
+  requestId: string
+  toolName: string
+  toolUseId: string
+  /** 一行摘要，优先展示文件路径 / 命令 */
+  detail: string
+  description?: string
+  /** 输入 JSON 的截断预览，供审批卡展开查看 */
+  inputPreview: string
+}
+
 /** 一次 Agent 运行推给渲染层的事件。kind 是判别式，渲染层按它分支。 */
 export type AgentRunEvent =
   | { kind: 'init'; model?: string; sessionId?: string }
   | { kind: 'text'; text: string }
   | { kind: 'tool'; id: string; name: string; detail: string }
   | { kind: 'tool-result'; id: string; ok: boolean; detail: string }
+  | { kind: 'permission'; request: AgentPermissionRequest }
   | { kind: 'result'; ok: boolean; costUsd?: number; durationMs?: number; turns?: number }
   | { kind: 'error'; message: string }
 

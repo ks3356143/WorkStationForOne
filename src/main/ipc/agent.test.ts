@@ -42,6 +42,40 @@ describe('智能体会话参数', () => {
   })
 })
 
+describe('工具审批响应', () => {
+  it('接受允许与拒绝', () => {
+    expect(
+      registerAgentHandlersIPC.assertPermissionResponse({ requestId: 'p1', allow: true })
+    ).toEqual({
+      requestId: 'p1',
+      allow: true
+    })
+    expect(
+      registerAgentHandlersIPC.assertPermissionResponse({
+        requestId: 'p1',
+        allow: false,
+        message: '  用户拒绝  '
+      })
+    ).toEqual({ requestId: 'p1', allow: false, message: '用户拒绝' })
+  })
+
+  it('拒绝非法 requestId、allow 与超长原因', () => {
+    expect(() =>
+      registerAgentHandlersIPC.assertPermissionResponse({ requestId: '', allow: true })
+    ).toThrow(TypeError)
+    expect(() =>
+      registerAgentHandlersIPC.assertPermissionResponse({ requestId: 'p1', allow: 'yes' })
+    ).toThrow(TypeError)
+    expect(() =>
+      registerAgentHandlersIPC.assertPermissionResponse({
+        requestId: 'p1',
+        allow: false,
+        message: 'x'.repeat(501)
+      })
+    ).toThrow(TypeError)
+  })
+})
+
 describe('智能体消息参数', () => {
   const message = {
     id: 'm-1',

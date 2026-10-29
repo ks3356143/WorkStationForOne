@@ -15,7 +15,7 @@
 - `npm run check` — Biome 检查格式与 lint（Rust 单二进制，不依赖 Prettier / ESLint）。
 - `npm run check:fix` — 自动修复格式与可安全修复的 lint 问题。
 - `npm run fmt` — 只格式化，不跑 lint。
-- `npm run smoke` — 先构建，再跑 205 项 UI 交互冒烟。加载真实主进程与 preload，UI 操作直接写进临时 SQLite（`userData`、`sessionData`、数据库都隔离到 `%TEMP%`），并断言「preload 桥可用」与「操作已落库」；跨重启持久化仍由 `npm run verify` 覆盖。到点提醒那条按分钟匹配，冒烟会检测是否跨过分钟边界并在跨界时重建重试。
+- `npm run smoke` — 先构建，再跑 208 项 UI 交互冒烟。加载真实主进程与 preload，UI 操作直接写进临时 SQLite（`userData`、`sessionData`、数据库都隔离到 `%TEMP%`），并断言「preload 桥可用」与「操作已落库」；跨重启持久化仍由 `npm run verify` 覆盖。到点提醒那条按分钟匹配，冒烟会检测是否跨过分钟边界并在跨界时重建重试。
 - `npm run verify` — 构建后启动真实主进程（临时 `WS_DATA_DIR`），运行 251–253 项运行时断言（起始主题不同会差 2 项分支）：五视图互斥、双主题/双皮肤持久化、跨重启数据。
 - `npm run capture -- .screenshots/shell-1440.png 1440 900 .screenshots/audit-1440.json` — 构建、保存截图并写入布局审计。
 - `npm run capture -- .screenshots/shell-1180.png 1180 720 .screenshots/audit-1180.json dark` — 在最小窗口尺寸下做同样的检查；主题参数为 `dark|light`，视图参数为 `today|tasks|agent|notes|learning`，均可省略审计路径后按任意顺序追加（如 `... 1440 900 light tasks`）。
@@ -45,7 +45,8 @@
 - 键盘速查表由 `lib/shortcuts.ts` 的 `SHORTCUT_GROUPS` 驱动：`?` 只在非输入场景打开（`isTypingTarget` 判定 input / textarea / select / contenteditable），状态栏与命令面板各有一个入口。改键位要同时改三处，`shortcuts.test.ts` 会先失败。
 - 快速添加与全局捕获窗都用 `components/fields/HighlightedInput`：`<input>` 内部无法给子串上色，所以用一层镜像只画 token 底纹，input 自己画字与光标。镜像与 input 的字体度量由同一个 `--hl-font` 变量驱动，父级改字号只改变量；组合输入期间不渲染 span，避免拼音候选阶段底纹乱跳。
 - 中文里「一点 / 两点」更常是量词（有一点问题、两点意见）：无时段前缀时不得当作钟点，带「下午 / 凌晨」等前缀才识别。截止语「前 / 之前 / 以前」并入日期，但不能吞掉「前台」「前面」，改动时保留这些边界测试。
-- Agent 现在真的驱动本机 CLI：`main/agent/claude.ts` 启动 `claude -p --output-format stream-json`，事件在 `shared/agent-stream.ts` 解析后经 `agent:event` 推给渲染层，渲染层用 `lib/useAgentRun.ts` 写入线程。提示词只走 stdin，命令行里不含用户文本；`shell: false`。只开只读工具白名单（`CLAUDE_ALLOWED_TOOLS`），不得加 `--dangerously-*` 或放开写入工具。CLI 路径可用 `WS_AGENT_CLI` 覆盖（冒烟指向 `scripts/stub-agent.cjs`），找不到 CLI 或执行失败必须明确报错，不得静默退回 `demoReply()`——它只用于无 preload 桥的浏览器调试。
+- Agent 现在真的驱动本机 CLI：`main/agent/claude.ts` 用 `claude -p --input-format stream-json --output-format stream-json --permission-prompts host --permission-mode manual`，用户消息以 stream-json 写入 stdin，事件在 `shared/agent-stream.ts` 解析后经 `agent:event` 推给渲染层。提示词只走 stdin，命令行里不含用户文本；`shell: false`。只把读工具放进 `CLAUDE_ALLOWED_TOOLS`；写工具不得加入白名单，只能走 `can_use_tool` 审批。stdin 必须保持打开到本轮 `result` 再关闭，否则无法回写 `control_response`。不得加 `--dangerously-*`。CLI 路径可用 `WS_AGENT_CLI` 覆盖（冒烟指向 `scripts/stub-agent.cjs`），找不到 CLI 或执行失败必须明确报错，不得静默退回 `demoReply()`——它只用于无 preload 桥的浏览器调试。
+- 工具审批：CLI 的 `can_use_tool` 控制请求由 `startClaudeRun` 转成 `permission` 事件，主进程保存原始 input 与 `tool_use_id`，用户点「允许一次」才回 `control_response`；拒绝要带原因。审批只对单次调用生效，没有「始终允许」规则；`AskUserQuestion` 在 v1 自动拒绝，不要把问答混进工具审批卡。自动化只用 stub 的 `control_request` 链路验证，真实模型验证必须有可用 provider 并单独征得用户同意。
 - 会话状态按 session ID 限定作用域：`threads` 以它为键，`pendingReplyTo` / `permission.sessionId` 用于选择当前会话。新增会话或审批流程时保持这一约定。
 - 智能体会话持久化（DB v16）：`agent_sessions` + `agent_messages`，消息工具卡存 JSON；`resume_id` 保存 Claude 自己的会话 id。Agent 页不播种演示会话，空库显示空态并提供「新建 Claude 会话」；用户消息立即落库，助手消息在本轮结束时连同工具卡落库，流式中间态不逐 token 写库。启动时把所有遗留 `run/wait` 重置为 `idle`，并按 localStorage 的 `workstation.agentActive` 恢复选中会话。`hydrateAgent()` 必须用数据库结果覆盖内存种子。
 - 自动化测试用 `WS_DISABLE_CAPTURE_SHORTCUT=1` 跳过全局捕获快捷键，避免和 Cherry Studio 抢 `Ctrl+Alt+Space`；不要为此关闭用户的应用。Agent 冒烟必须继续指向 `scripts/stub-agent.cjs`，绝不能调用真实 Claude/Codex。
@@ -117,7 +118,7 @@
 - 备份：每天首次启动用 `VACUUM INTO` 生成一份快照到 `<库目录>/backups/`（`workstation-YYYYMMDD-HHmmss.db`），只保留最近 10 份；命令面板「立即备份数据」可手动触发并在提示条显示文件名与大小。VACUUM INTO 是一致性快照，不需要停写入，也不要把库文件直接 `copyFile`（会拷到 WAL 中间态）。
 - 迁移前会自动 `VACUUM INTO` 备份到库文件旁。迁移 SQL 不得替用户伪造语义（例如给历史任务填「今天到期」）。
 - 已实现：智能体会话与消息持久化（DB v16）、真实新建 Claude 会话、resume id 跨重启续接；Agent 页首次进入为空态，不再显示演示会话或演示权限卡。
-- 未实现：Codex 适配器与多会话并发、交互式工具审批（当前只读工具自动放行、写操作会被 CLI 拒绝）、本地 MCP 服务器。
+- 未实现：Codex 适配器与多会话并发、本地 MCP 服务器；工具审批已实现「允许一次 / 拒绝」，暂无持久规则。
 - 渲染进程不直接访问数据库；新增数据能力必须走 `src/shared/ipc.ts` 的类型契约 + `src/main/ipc/` 的 handler，并在主进程校验入参。preload 桥目前暴露 `tasks / notes / capture / learning / habits / agent / app` 七组接口，`runtime-verify.mjs` 会断言这个集合，扩面时同步更新。
 
 ## 知识库取用规则

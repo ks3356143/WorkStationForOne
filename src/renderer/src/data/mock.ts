@@ -32,6 +32,7 @@ export function createInitialData(): WorkstationData {
     streaming: null,
     pendingReplyTo: null,
     permission: null,
+    toolPermission: null,
     resolution: null,
     motionOn: true,
     theme: 'dark',

@@ -732,6 +732,40 @@ async function run() {
     )
     check('失败后不残留等待动画', !one('.w1-typing'))
 
+    const askInput = one('#composer-input')
+    setValue(askInput, '需要审批')
+    await sleep(80)
+    askInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }))
+    await sleep(600)
+    check(
+      '工具审批卡出现并显示目标',
+      !!one('.w1-toolperm') &&
+        (one('.w1-toolperm')?.textContent ?? '').includes('Write') &&
+        (one('.w1-toolperm')?.textContent ?? '').includes('tmp/stub.txt'),
+      one('.w1-toolperm')?.textContent?.slice(0, 80) ?? ''
+    )
+    byText('.w1-toolperm .w1-pb.pri', '允许一次')?.click()
+    await sleep(600)
+    check(
+      '允许后 CLI 继续并写入工具卡',
+      !one('.w1-toolperm') &&
+        (one('.w1-thread')?.textContent ?? '').includes('已写入临时文件') &&
+        (one('.w1-thread')?.textContent ?? '').includes('tmp/stub.txt'),
+      one('.w1-thread')?.textContent?.slice(-80) ?? ''
+    )
+
+    setValue(askInput, '需要审批')
+    await sleep(80)
+    askInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }))
+    await sleep(600)
+    byText('.w1-toolperm .w1-pb', '拒绝')?.click()
+    await sleep(600)
+    check(
+      '拒绝后 CLI 停止写入',
+      !one('.w1-toolperm') && (one('.w1-thread')?.textContent ?? '').includes('权限被拒绝'),
+      one('.w1-thread')?.textContent?.slice(-80) ?? ''
+    )
+
     await navTo('今日')
     check('返回今日后仍有任务', all('.w1-task').length > 0, String(all('.w1-task').length))
 
@@ -1520,7 +1554,7 @@ async function run() {
   })
   results.checks.push({
     name: '智能体会话与消息已落库',
-    ok: Boolean(dbStats && dbStats.agentSessions > 0 && dbStats.agentMessages >= 4),
+    ok: Boolean(dbStats && dbStats.agentSessions > 0 && dbStats.agentMessages >= 7),
     detail: dbStats ? `${dbStats.agentSessions} 会话 / ${dbStats.agentMessages} 条` : '无数据'
   })
   results.checks.push({

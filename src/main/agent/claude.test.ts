@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { resolveAgentCli, startClaudeRun } from './claude'
+import { resolveAgentCli, startClaudeRun, type RunHandle } from './claude'
 import type { AgentRunEvent } from '../../shared/agent-stream'
 
 const STUB = join(process.cwd(), 'scripts/stub-agent.cjs')
@@ -69,6 +69,75 @@ describe('startClaudeRun · stub 链路', () => {
     const { events } = await run('这次注定失败')
     expect(events.at(-1)).toEqual({ kind: 'error', message: '模拟失败' })
     expect(events.some((event) => event.kind === 'result')).toBe(false)
+  })
+
+  it('转发 can_use_tool 请求，允许后继续本轮', async () => {
+    const events: AgentRunEvent[] = []
+    let handle: RunHandle | undefined
+    const exit = await new Promise<{ code: number | null }>((done) => {
+      handle = startClaudeRun({
+        prompt: '需要审批',
+        cwd: process.cwd(),
+        cli: { bin: process.execPath, prefixArgs: [STUB], viaNode: true },
+        onEvent: (event) => {
+          events.push(event)
+          if (event.kind === 'permission') {
+            expect(handle?.respondPermission(event.request.requestId, 'allow')).toBe(true)
+          }
+        },
+        onExit: (info) => done({ code: info.code })
+      })
+    })
+
+    const permission = events.find((event) => event.kind === 'permission')
+    expect(permission).toMatchObject({
+      kind: 'permission',
+      request: { toolName: 'Write', detail: 'tmp/stub.txt' }
+    })
+    expect(events.at(-1)).toMatchObject({
+      kind: 'result',
+      ok: true
+    })
+    expect(events.some((event) => event.kind === 'text' && event.text.includes('已写入'))).toBe(
+      true
+    )
+    expect(exit.code).toBe(0)
+  })
+
+  it('拒绝后 CLI 收到 deny，不会继续写入', async () => {
+    const events: AgentRunEvent[] = []
+    let handle: RunHandle | undefined
+    await new Promise<void>((done) => {
+      handle = startClaudeRun({
+        prompt: '需要审批',
+        cwd: process.cwd(),
+        cli: { bin: process.execPath, prefixArgs: [STUB], viaNode: true },
+        onEvent: (event) => {
+          events.push(event)
+          if (event.kind === 'permission') {
+            expect(handle?.respondPermission(event.request.requestId, 'deny', '用户拒绝')).toBe(
+              true
+            )
+          }
+        },
+        onExit: () => done()
+      })
+    })
+
+    expect(events.some((event) => event.kind === 'text' && event.text.includes('权限被拒绝'))).toBe(
+      true
+    )
+    expect(events.some((event) => event.kind === 'text' && event.text.includes('已写入'))).toBe(
+      false
+    )
+  })
+
+  it('宿主内问答自动拒绝，不把问题当普通工具审批', async () => {
+    const { events } = await run('需要问答')
+    expect(events.some((event) => event.kind === 'permission')).toBe(false)
+    expect(events.some((event) => event.kind === 'text' && event.text.includes('问答被拒绝'))).toBe(
+      true
+    )
   })
 
   it('没有 CLI 时明确报错并立刻结束', async () => {

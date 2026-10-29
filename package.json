@@ -1,6 +1,6 @@
 {
   "name": "workstation-for-one",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "description": "WorkStationForOne — 个人 AI 工作站",
   "main": "./out/main/index.js",

@@ -61,6 +61,8 @@ const api: WsApi = {
   agent: {
     send: (input) => ipcRenderer.invoke(IPC_CHANNELS.agentSend, input),
     cancel: (runId) => ipcRenderer.invoke(IPC_CHANNELS.agentCancel, runId),
+    respondPermission: (response) =>
+      ipcRenderer.invoke(IPC_CHANNELS.agentPermissionResponse, response),
     onEvent: (listener) => {
       const handler = (_event: Electron.IpcRendererEvent, payload: AgentEventEnvelope) =>
         listener(payload)

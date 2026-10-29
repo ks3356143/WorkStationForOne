@@ -1,3 +1,4 @@
+import type { AgentPermissionRequest } from '../../shared/agent-stream'
 import type { LearningItemRecord, Skin, TaskRecord, Theme } from '../../shared/ipc'
 
 export type AgentId = 'claude' | 'codex'
@@ -48,6 +49,10 @@ export interface ToolCall {
   name: string
   meta: string
   status: string
+}
+
+export interface ToolPermission extends AgentPermissionRequest {
+  sessionId: string
 }
 
 export interface ChatMessage {
@@ -122,6 +127,7 @@ export interface WorkstationData {
   /** 正在流式写入的助手消息，null 表示当前没有真实回合在跑 */
   streaming: { runId: string | null; sessionId: string; messageId: string } | null
   permission: Permission | null
+  toolPermission: ToolPermission | null
   resolution: ResolutionRecord | null
   motionOn: boolean
   theme: Theme

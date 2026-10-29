@@ -13,7 +13,7 @@ import type {
   TaskDraft,
   TaskPatch
 } from '../../../shared/ipc'
-import { appendStreamText } from '../../../shared/agent-stream'
+import { appendStreamText, type AgentPermissionRequest } from '../../../shared/agent-stream'
 import { clozeFrontText } from '../../../shared/cloze'
 import { createInitialData } from '../data/mock'
 import { dateKey } from '../../../shared/date-key'
@@ -141,6 +141,8 @@ interface WorkstationActions {
   openAgentSession: (sessionId: string) => void
   createAgentSession: () => void
   setAgentResume: (sessionId: string, resumeId: string) => void
+  setToolPermission: (sessionId: string, request: AgentPermissionRequest) => void
+  clearToolPermission: () => void
   sendMessage: (text: string) => void
   takePendingPrompt: () => { sessionId: string; prompt: string } | null
   beginAgentReply: (sessionId: string, runId: string | null) => void
@@ -448,6 +450,7 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       activeSessionId: id,
       activeView: 'agent',
       permission: null,
+      toolPermission: null,
       resolution: null
     }))
     browserStorage()?.setItem(ACTIVE_AGENT_KEY, id)
@@ -466,6 +469,10 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     }))
     persistAgentSession(sessionId, { resumeId })
   },
+
+  setToolPermission: (sessionId, request) => set({ toolPermission: { ...request, sessionId } }),
+
+  clearToolPermission: () => set({ toolPermission: null }),
 
   sendMessage: (text) => {
     const trimmed = text.trim()
@@ -494,7 +501,8 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       },
       typing: true,
       pendingReplyTo: sessionId,
-      pendingPrompt: trimmed
+      pendingPrompt: trimmed,
+      toolPermission: null
     }))
     persistAgentMessage(sessionId, message)
     persistAgentSession(sessionId, { status: 'run', ...(title !== session.title ? { title } : {}) })
@@ -610,7 +618,8 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       },
       typing: false,
       pendingReplyTo: null,
-      streaming: null
+      streaming: null,
+      toolPermission: null
     }))
     const finalMessage = get().threads[sessionId]?.find((message) => message.id === messageId)
     if (finalMessage) persistAgentMessage(sessionId, finalMessage)

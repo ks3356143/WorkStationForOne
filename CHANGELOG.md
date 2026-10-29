@@ -6,6 +6,17 @@
 
 暂无。
 
+## [0.8.0] - 2026-10-29
+
+### 新增
+
+- **交互式工具审批**：Agent 适配器改为 stream-json 输入，并通过 `--permission-prompts host` 接收 CLI 的 `can_use_tool` 控制请求。读工具仍自动放行；Edit / Write / Bash 等工具在 Agent 线程里弹出通用审批卡，显示工具名、目标与输入预览，用户「允许一次」或「拒绝」后才回写 `control_response`。允许仅作用于单次调用；宿主内问答（AskUserQuestion）自动拒绝。没有 `--dangerously-*`，写工具不进入白名单。
+
+### 验证边界
+
+- 自动化只用 stub 的 `control_request` 覆盖允许 / 拒绝 / 自动拒绝问答，没有调用真实模型。
+- 本机真实 CLI 验证未完成：当前配置的模型 `deepseek:deepseek-v4-flash` 不被 API 网关接受（400），需要一个可用 provider 才能做真实端到端验收。
+
 ## [0.7.0] - 2026-10-29
 
 ### 新增
@@ -187,8 +198,8 @@
 
 当前基线（每次改动都以此为准，历史轮次数字不再追加）：
 
-- `npm run typecheck` 通过，`npm run check` 0 问题（210 个文件），`npm test` 549 项全绿。
-- `npm run smoke` 205/205：真实主进程 + 临时 SQLite，含 preload 桥、双链、FSRS、CSV 导入、统计、复习历史、智能体会话/消息/resume id 与今日快速添加入口。
+- `npm run typecheck` 通过，`npm run check` 0 问题（211 个文件），`npm test` 554 项全绿。
+- `npm run smoke` 208/208：真实主进程 + 临时 SQLite，含 preload 桥、双链、FSRS、CSV 导入、统计、复习历史、智能体会话/消息/resume id、工具审批允许/拒绝与今日快速添加入口。
 - `npm run verify` 251–253/253：五视图互斥、`aria-current`、双主题/双皮肤持久化、跨重启任务与学习数据（起始主题不同会差 2 项分支）。
 - 截图 20 张（五视图 × 双主题 × 1440×900 / 1180×720），横向溢出与越界元素为 0。
 - 控件交互另有探针覆盖：日期/时间/下拉弹层的定位、翻月、回填、焦点归还、Esc 与外部点击，四种尺寸/主题/皮肤组合均通过。

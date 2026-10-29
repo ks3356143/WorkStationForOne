@@ -462,6 +462,52 @@
   white-space: nowrap;
 }
 
+.w1-toolinput {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 9px 11px;
+  border: 1px solid rgb(var(--wn-rgb) / 0.2);
+  background: rgb(var(--wn-rgb) / 0.045);
+}
+
+.w1-toolrow {
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+  font: 11px / 1.5 var(--mono);
+}
+
+.w1-toolrow span {
+  flex: none;
+  width: 2.8em;
+  color: var(--su);
+}
+
+.w1-toolrow b {
+  overflow: hidden;
+  color: var(--fs);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.w1-toolinput pre {
+  max-height: 150px;
+  margin: 5px 0 0;
+  overflow: auto;
+  color: var(--mu);
+  font: 10.5px / 1.5 var(--mono);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.w1-toolhint {
+  margin: 8px 0 0 !important;
+  color: var(--su) !important;
+  font: 11px / 1.5 var(--mono) !important;
+}
+
 .w1-perm p {
   margin: 10px 0;
   font-size: 14px;
