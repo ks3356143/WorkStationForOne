@@ -277,4 +277,29 @@ describe('MCP HTTP 桥', () => {
       })
     )
   })
+
+  it('服务关闭后在同一端口自动重启，旧 token 仍可用', async () => {
+    const source = data()
+    bridge = new McpBridge(source, 'test', {}, { restartDelayMs: 10 })
+    const port = await bridge.start()
+    const endpoint = bridge.issue('s-restart')
+    if (!endpoint) throw new Error('没有 issue token')
+
+    const raw = bridge as unknown as { server: import('node:http').Server | null }
+    raw.server?.close()
+    raw.server?.closeAllConnections?.()
+
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    const again = bridge.issue('s-restart')
+    expect(again?.url).toBe(`http://127.0.0.1:${port}/mcp`)
+
+    const response = await rpc(endpoint.url, endpoint.token, {
+      jsonrpc: '2.0',
+      id: 30,
+      method: 'tools/list'
+    })
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as { result: { tools: { name: string }[] } }
+    expect(body.result.tools).toHaveLength(11)
+  })
 })

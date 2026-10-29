@@ -67,10 +67,10 @@
 - 任务视图：容量条只统计 `planned_for = 今天` 且未完成的任务，可用时间按 09:00–22:00 窗口扣掉当前时刻计算（`lib/capacity.ts`）；「计划今天」面板只做计划/取消计划，时长在任务详情里设置；「排程预览」按截止日期 → 优先级贪心排入 09:00–22:00 空档、15 分钟对齐，已有时间的任务作为锚点，结果先预览再「接受全部」（`lib/planner.ts`）。
 - 任务视图：智能清单（收集箱 / 今天 / 即将到来 / 全部 / 已完成）与自定义清单都来自同一 `tasks` 数组；新增或删除任务必须同步 SQLite。快速添加的 Enter、`Ctrl+Shift+N` 聚焦、Esc 收起详情、搜索 Esc 清空、中文输入法组合期间不提交是既有契约。详情关闭后焦点回到行标题；日期支持今天/明天/清除快捷按钮。权限卡里的任务顺延可携带 `toDueDate`，允许后必须同时更新截止日期，不能只改时间与标签。任务行支持拖拽改期：拖到智能清单/自定义清单改截止日期或清单，拖到今日时间轴写入时间（15 分钟对齐，规则在 `lib/dnd.ts`）；拖拽只是鼠标增强，键盘用户仍走详情编辑。
 - 习惯连续天数：`lib/habits.ts` 的 `currentStreak()` 在今天就打卡时从今天数，否则从昨天数——一天还没过完就清零，会逼人提前打卡保数字；`bestStreak()` 用于对比历史最好值。两条都是纯函数，组件只负责展示。
-- MCP 数据桥（v0.13.0）：`src/main/mcp/server.ts` 在 Main 进程内嵌 Streamable HTTP JSON-RPC（`initialize / tools/list / tools/call`），只监听 `127.0.0.1` 随机端口，Bearer Token 按 Agent 回合发放并在回合结束时回收。11 个工具：5 个只读（`tasks_list / notes_search / learning_due / habits_summary / today_overview`）+ 6 个写入（`tasks_create / tasks_update / tasks_complete / habits_check / learning_review / notes_create`）。写入必须带 `idempotency_key`，同一会话重复键返回首次结果；每次调用写 `audit_log`（domain `mcp`, action `read|write|approve|deny`, target 会话 id，detail 只存参数摘要，不存 token）。工具名 `mcp__workstationforone__*` 进入 Claude 的允许列表；不改 Claude/Codex 的 MCP 配置。`WS_AGENT_CLI` 的 stub 会读临时配置并真实调用桥，冒烟断言读、写、任务刷新与审计。Codex 本轮不接 MCP。
+- MCP 数据桥（v0.14.0）：`src/main/mcp/server.ts` 在 Main 进程内嵌 Streamable HTTP JSON-RPC（`initialize / tools/list / tools/call`），只监听 `127.0.0.1` 随机端口，Bearer Token 按 Agent 回合发放并在回合结束时回收。11 个工具：5 个只读（`tasks_list / notes_search / learning_due / habits_summary / today_overview`）+ 6 个写入（`tasks_create / tasks_update / tasks_complete / habits_check / learning_review / notes_create`）。写入必须带 `idempotency_key`，同一会话重复键返回首次结果；每次调用写 `audit_log`（domain `mcp`, action `read|write|approve|deny`, target 会话 id，detail 只存参数摘要，不存 token）。工具名 `mcp__workstationforone__*` 进入 Claude 的允许列表；不改 Claude/Codex 的 MCP 配置。`WS_AGENT_CLI` 的 stub 会读临时配置并真实调用桥，冒烟断言读、写、任务刷新与审计。服务异常关闭后在同一端口指数退避重启，token 与幂等缓存保留；重启期间新回合拿不到端点，已有回合的调用可能失败，重启后重试即可。Codex 本轮不接 MCP。
 - MCP 按域权限（DB v19）：`mcp_domain_modes` 存 task / habit / learning / note 四域的 `read|ask|write`，默认任务可写、其余只读；设置页可切换，切换写 `system/settings` 审计。只读域直接返回 `denied_by_policy`；询问模式由 `main/mcp/permissions.ts` 串行排队，一次只展示一张审批卡，60 秒超时 / 回合取消 / 窗口不可用都按拒绝处理，决定写 `approve|deny` 审计；「本会话允许」只记住会话 + 当前工具。写入成功后主进程广播 `mcp:changed`，App 按域重新读库。
 - 审计查看：设置页「活动记录」通过 `audit:recent` 只读展示最近记录，可按域筛选；没有删除入口。`audit_log` 仍挂在仓储层，MCP 写工具的审计由 `runMcpTool` 记录，拒绝写入由 server 记录。
-- 设置与状态：状态栏显示「MCP 桥」，点击只提示能力范围；没有 MCP 总开关。MCP 启动失败只记 console，不阻断应用启动或普通对话。
+- 设置与状态：状态栏显示「MCP 桥」，点击只提示能力范围；没有 MCP 总开关。首次启动失败只记 console、不阻断应用启动（之后的重启由 server 自身负责）；没有崩溃后的 UI 状态提示。
 - 审计：`audit_log`（DB v11，domain/action/target/title/source/detail）**挂在仓储层**而不是各个 IPC handler——MCP 或定时任务只要走仓储就一定留痕。审计写入失败只记 console，绝不让业务写入回滚；设置页的活动记录与 MCP 调用读同一张表。
 - 子任务：`tasks.parent_id`（DB v10）。子任务**不进入任何清单、计数、排程与「只做三件事」**——所有聚合函数用 `lib/subtasks.ts` 的 `topLevel()` 先过滤；它们只在父任务详情里出现，行上显示 `1/2` 进度。删除父任务时在同一事务里连带软删子任务，避免留下看不见也删不掉的孤儿。
 - 设置面板由左侧导航的「设置」与命令面板打开：外观（主题/皮肤/动效）、Agent Provider、MCP 域权限、活动记录、数据（库目录、备份份数与目录、立即备份）、版本。数据路径来自 `app:info`，不要在渲染层拼路径。退出时 `before-quit` 必须先停 MCP 桥与提醒轮询再关库。
@@ -124,8 +124,8 @@
 - 数据库位置：`%APPDATA%\WorkStationForOne\data\workstation.db`；设置 `WS_DATA_DIR` 可覆盖，冒烟与运行时校验据此使用临时库，避免改写真实数据。
 - 备份：每天首次启动用 `VACUUM INTO` 生成一份快照到 `<库目录>/backups/`（`workstation-YYYYMMDD-HHmmss.db`），只保留最近 10 份；命令面板「立即备份数据」可手动触发并在提示条显示文件名与大小。VACUUM INTO 是一致性快照，不需要停写入，也不要把库文件直接 `copyFile`（会拷到 WAL 中间态）。
 - 迁移前会自动 `VACUUM INTO` 备份到库文件旁。迁移 SQL 不得替用户伪造语义（例如给历史任务填「今天到期」）。
-- 已实现：智能体会话与消息持久化（DB v16）、真实新建 Claude / Codex 会话、resume id 跨重启续接、Claude 写工具逐次审批、Codex 只读适配器、MCP 读写数据桥（11 个工具、按回合 Token、DB v19 三档域权限与写入审批卡）、审计查看入口、Provider 配置（DB v17，Key 加密存本机）；Agent 页首次进入为空态，不再显示演示会话或演示权限卡。
-- 未实现：Codex 写入与审批、多会话并发、MCP 服务崩溃自动重启；工具审批暂无持久规则，MCP 审计仍不与业务写入同事务。
+- 已实现：智能体会话与消息持久化（DB v16）、真实新建 Claude / Codex 会话、resume id 跨重启续接、Claude 写工具逐次审批、Codex 只读适配器、MCP 读写数据桥（11 个工具、按回合 Token、DB v19 三档域权限与写入审批卡、同端口自动重启）、审计查看入口、Provider 配置（DB v17，Key 加密存本机）；Agent 页首次进入为空态，不再显示演示会话或演示权限卡。
+- 未实现：Codex 写入与审批、多会话并发；工具审批暂无持久规则，MCP 审计仍不与业务写入同事务。
 - 渲染进程不直接访问数据库；新增数据能力必须走 `src/shared/ipc.ts` 的类型契约 + `src/main/ipc/` 的 handler，并在主进程校验入参。preload 桥目前暴露 `provider / tasks / notes / capture / learning / habits / agent / mcp / audit / app` 十组接口，`runtime-verify.mjs` 会断言这个集合，扩面时同步更新。
 
 ## 知识库取用规则

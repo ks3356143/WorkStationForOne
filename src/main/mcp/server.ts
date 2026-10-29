@@ -19,6 +19,11 @@ export interface McpHooks {
   isSessionAllowed?: (sessionId: string, tool: string) => boolean
 }
 
+export interface McpBridgeOptions {
+  /** 崩溃后的首次重启等待；之后指数退避到 30 秒 */
+  restartDelayMs?: number
+}
+
 const MAX_BODY = 256 * 1024
 const RATE_WINDOW_MS = 60 * 1000
 const RATE_LIMIT = 120
@@ -70,34 +75,49 @@ export class McpBridge {
   private readonly tokens = new Map<string, string>()
   private readonly limits = new Map<string, { count: number; resetAt: number }>()
   private readonly idempotency = new Map<string, McpToolResult>()
+  private closing = false
+  private restartTimer: NodeJS.Timeout | null = null
+  private restartAttempts = 0
 
   constructor(
     private readonly data: McpData,
     private readonly version = '0.0.0',
-    private readonly hooks: McpHooks = {}
+    private readonly hooks: McpHooks = {},
+    private readonly options: McpBridgeOptions = {}
   ) {}
 
   async start(): Promise<number> {
     if (this.server && this.port) return this.port
+    this.closing = false
+    this.restartAttempts = 0
+    return this.listen(0)
+  }
+
+  private async listen(port: number): Promise<number> {
     const server = createServer((req, res) => {
       void this.handle(req, res).catch(() => {
         if (!res.headersSent) res.statusCode = 500
         res.end()
       })
     })
-    await new Promise<void>((resolve, reject) => {
-      const onError = (error: Error) => {
-        server.off('listening', onListening)
-        reject(error)
-      }
-      const onListening = () => {
-        server.off('error', onError)
-        resolve()
-      }
-      server.once('error', onError)
-      server.once('listening', onListening)
-      server.listen(0, '127.0.0.1')
-    })
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const onError = (error: Error) => {
+          server.off('listening', onListening)
+          reject(error)
+        }
+        const onListening = () => {
+          server.off('error', onError)
+          resolve()
+        }
+        server.once('error', onError)
+        server.once('listening', onListening)
+        server.listen(port, '127.0.0.1')
+      })
+    } catch (error) {
+      server.close()
+      throw error
+    }
     const address = server.address()
     if (!address || typeof address === 'string') {
       server.close()
@@ -105,7 +125,52 @@ export class McpBridge {
     }
     this.server = server
     this.port = address.port
+    this.restartAttempts = 0
+    server.on('error', (error) => {
+      if (this.server !== server) return
+      this.handleServerError(error)
+    })
+    server.on('close', () => {
+      if (this.server !== server) return
+      this.handleServerClose()
+    })
     return this.port
+  }
+
+  private handleServerError(error: Error): void {
+    if (this.closing) return
+    console.error('[mcp] 服务异常，准备重启', error)
+    const server = this.server
+    this.server = null
+    server?.close()
+    server?.closeAllConnections?.()
+    this.scheduleRestart()
+  }
+
+  private handleServerClose(): void {
+    if (this.closing) return
+    this.server = null
+    this.scheduleRestart()
+  }
+
+  private scheduleRestart(): void {
+    if (this.closing || this.restartTimer) return
+    const base = this.options.restartDelayMs ?? 500
+    const delay = Math.min(base * 2 ** this.restartAttempts, 30_000)
+    this.restartAttempts += 1
+    this.restartTimer = setTimeout(() => {
+      this.restartTimer = null
+      if (this.closing) return
+      void this.listen(this.port)
+        .then((port) => {
+          console.log('[mcp] 数据桥已重启，端口', port)
+          this.restartAttempts = 0
+        })
+        .catch((error: unknown) => {
+          console.error('[mcp] 重启失败，稍后重试', error)
+          this.scheduleRestart()
+        })
+    }, delay)
   }
 
   issue(sessionId: string): McpEndpoint | null {
@@ -120,11 +185,16 @@ export class McpBridge {
   }
 
   close(): void {
+    this.closing = true
+    if (this.restartTimer) clearTimeout(this.restartTimer)
+    this.restartTimer = null
     this.tokens.clear()
     this.limits.clear()
     this.idempotency.clear()
-    this.server?.close()
+    const server = this.server
     this.server = null
+    server?.close()
+    server?.closeAllConnections?.()
     this.port = 0
   }
 
