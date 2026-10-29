@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { addDaysKey, dateKey } from '../../../shared/date-key'
+import { dateKey } from '../../../shared/date-key'
 import { createInitialData } from '../data/mock'
 import {
   bindTaskPersistence,
@@ -87,35 +87,28 @@ describe('计划字段', () => {
   })
 })
 
-describe('权限请求', () => {
-  it('允许后清空待确认并写入任务变更', () => {
-    expect(useWorkstation.getState().permission).not.toBeNull()
-
-    useWorkstation.getState().resolvePermission('allow')
-
-    const state = useWorkstation.getState()
-    expect(state.permission).toBeNull()
-    expect(state.resolution).toEqual({ sessionId: 's-c1', decision: 'allowed' })
-    expect(state.tasks.find((task) => task.id === 't8')?.time).toBe('09:00')
-    expect(state.tasks.find((task) => task.id === 't8')?.tag).toBe('明天')
-    expect(state.tasks.find((task) => task.id === 't6')?.time).toBe('22:00')
-    expect(state.sessions.find((session) => session.id === 's-c1')?.status).toBe('run')
-  })
-
-  it('拒绝后保持任务原样', () => {
-    const before = useWorkstation.getState().tasks
-
-    useWorkstation.getState().resolvePermission('deny')
-
-    const state = useWorkstation.getState()
-    expect(state.permission).toBeNull()
-    expect(state.resolution).toEqual({ sessionId: 's-c1', decision: 'denied' })
-    expect(state.tasks).toEqual(before)
-    expect(state.sessions.find((session) => session.id === 's-c1')?.status).toBe('run')
-  })
-})
-
 describe('对话', () => {
+  const session = (id: string, agent: 'claude' | 'codex', title: string) => ({
+    id,
+    agent,
+    title,
+    meta: '刚刚 · 0 条',
+    status: 'idle' as const,
+    threadDate: '今天'
+  })
+
+  beforeEach(() => {
+    useWorkstation.setState({
+      sessions: [
+        session('s-1', 'claude', '会话一'),
+        session('s-2', 'claude', '会话二'),
+        session('s-x1', 'codex', 'Codex 会话')
+      ],
+      activeSessionId: 's-1',
+      threads: { 's-1': [], 's-2': [], 's-x1': [] }
+    })
+  })
+
   it('发送消息后进入等待回复状态', () => {
     useWorkstation.getState().sendMessage('把复习放到晚上')
 
@@ -123,7 +116,7 @@ describe('对话', () => {
     const thread = state.threads[state.activeSessionId]
     expect(thread.at(-1)).toMatchObject({ role: 'user', text: '把复习放到晚上' })
     expect(state.typing).toBe(true)
-    expect(state.pendingReplyTo).toBe('s-c1')
+    expect(state.pendingReplyTo).toBe('s-1')
   })
 
   it('收到回复后追加助手消息并结束等待', () => {
@@ -144,11 +137,11 @@ describe('对话', () => {
   })
 
   it('每个会话拥有独立对话', () => {
-    useWorkstation.getState().setActiveSession('s-c2')
+    useWorkstation.getState().setActiveSession('s-2')
 
     const state = useWorkstation.getState()
-    expect(state.threads['s-c2']).toBeDefined()
-    expect(state.threads['s-c2']).not.toEqual(state.threads['s-c1'])
+    expect(state.threads['s-2']).toBeDefined()
+    expect(state.threads['s-2']).not.toBe(state.threads['s-1'])
   })
 
   it('切换会话后回复仍回到发起消息的会话', () => {
@@ -157,7 +150,7 @@ describe('对话', () => {
     useWorkstation.getState().receiveReply('好的，等待你的确认。')
 
     const state = useWorkstation.getState()
-    expect(state.threads['s-c1'].at(-1)).toMatchObject({
+    expect(state.threads['s-1'].at(-1)).toMatchObject({
       role: 'assistant',
       text: '好的，等待你的确认。'
     })
@@ -182,50 +175,6 @@ describe('持久化', () => {
     useWorkstation.getState().toggleTask('t2')
 
     expect(setDone).toHaveBeenCalledWith('t2', true)
-  })
-
-  it('允许权限变更时批量写入新时间与日期', () => {
-    const applySchedule = vi.fn().mockResolvedValue(undefined)
-    bindTaskPersistence({
-      setDone: vi.fn().mockResolvedValue(undefined),
-      applySchedule,
-      create: vi.fn(),
-      update: vi.fn(),
-      remove: vi.fn(),
-      restore: vi.fn(),
-      renameList: vi.fn()
-    })
-
-    useWorkstation.getState().resolvePermission('allow')
-
-    const tomorrow = addDaysKey(dateKey(), 1)
-    expect(applySchedule).toHaveBeenCalledTimes(1)
-    expect(applySchedule.mock.calls[0][0]).toEqual([
-      { taskId: 't8', toTime: '09:00', toTag: '明天', toDueDate: tomorrow },
-      { taskId: 't6', toTime: '22:00', toTag: '已顺延' },
-      { taskId: 't7', toTime: '20:00', toTag: '明天', toDueDate: tomorrow }
-    ])
-    const tasks = useWorkstation.getState().tasks
-    expect(tasks.find((task) => task.id === 't8')?.dueDate).toBe(tomorrow)
-    expect(tasks.find((task) => task.id === 't7')?.dueDate).toBe(tomorrow)
-    expect(tasks.find((task) => task.id === 't6')?.dueDate).toBe(dateKey())
-  })
-
-  it('拒绝权限变更时不写库', () => {
-    const applySchedule = vi.fn().mockResolvedValue(undefined)
-    bindTaskPersistence({
-      setDone: vi.fn().mockResolvedValue(undefined),
-      applySchedule,
-      create: vi.fn(),
-      update: vi.fn(),
-      remove: vi.fn(),
-      restore: vi.fn(),
-      renameList: vi.fn()
-    })
-
-    useWorkstation.getState().resolvePermission('deny')
-
-    expect(applySchedule).not.toHaveBeenCalled()
   })
 
   it('写库失败不阻断界面状态', async () => {
@@ -283,6 +232,31 @@ describe('笔记预览选择', () => {
 })
 
 describe('视图导航', () => {
+  beforeEach(() => {
+    useWorkstation.setState({
+      sessions: [
+        {
+          id: 's-c1',
+          agent: 'claude',
+          title: '会话一',
+          meta: '刚刚 · 0 条',
+          status: 'idle',
+          threadDate: '今天'
+        },
+        {
+          id: 's-x1',
+          agent: 'codex',
+          title: 'Codex 会话',
+          meta: '刚刚 · 0 条',
+          status: 'idle',
+          threadDate: '今天'
+        }
+      ],
+      activeSessionId: 's-c1',
+      threads: { 's-c1': [], 's-x1': [] }
+    })
+  })
+
   it('默认进入今日看板', () => {
     expect(useWorkstation.getState().activeView).toBe('today')
   })

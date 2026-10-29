@@ -25,6 +25,7 @@ import { WorkspaceNav } from './components/WorkspaceNav'
 import { useWorkstation } from './store/useWorkstation'
 import { DURATION, EASE_OUT } from './lib/motion'
 import { hydrateTasks, refreshTasks } from './lib/persistence'
+import { hydrateAgent } from './lib/agent-persistence'
 import { hydrateNotes } from './lib/notes-persistence'
 import { hydrateHabits } from './lib/habits-persistence'
 import { hydrateLearning } from './lib/learning-persistence'
@@ -86,6 +87,7 @@ export default function App() {
 
   useEffect(() => {
     void hydrateTasks()
+    void hydrateAgent()
     void hydrateNotes()
     void hydrateLearning()
     void hydrateHabits()
@@ -197,7 +199,7 @@ export default function App() {
                 {activeView === 'tasks' ? <TasksView notify={notify} /> : null}
                 {activeView === 'agent' ? (
                   <section className="w1-workspace w1-agent" aria-label="Agent 工作区">
-                    <SessionRail notify={notify} />
+                    <SessionRail />
                     <AgentDock />
                   </section>
                 ) : null}

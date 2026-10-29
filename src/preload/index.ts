@@ -66,7 +66,11 @@ const api: WsApi = {
         listener(payload)
       ipcRenderer.on(IPC_CHANNELS.agentEvent, handler)
       return () => ipcRenderer.removeListener(IPC_CHANNELS.agentEvent, handler)
-    }
+    },
+    threads: () => ipcRenderer.invoke(IPC_CHANNELS.agentThreads),
+    createSession: (input) => ipcRenderer.invoke(IPC_CHANNELS.agentCreateSession, input),
+    updateSession: (id, patch) => ipcRenderer.invoke(IPC_CHANNELS.agentUpdateSession, id, patch),
+    saveMessage: (message) => ipcRenderer.invoke(IPC_CHANNELS.agentSaveMessage, message)
   },
   app: {
     setTheme: (theme) => ipcRenderer.invoke(IPC_CHANNELS.appSetTheme, theme),

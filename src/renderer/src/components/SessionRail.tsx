@@ -1,14 +1,11 @@
 import { useWorkstation } from '../store/useWorkstation'
 import { ClaudeGlyph, CodexGlyph, PlusIcon } from './Glyphs'
 
-interface SessionRailProps {
-  notify: (text: string) => void
-}
-
-export function SessionRail({ notify }: SessionRailProps) {
+export function SessionRail() {
   const sessions = useWorkstation((state) => state.sessions)
   const activeSessionId = useWorkstation((state) => state.activeSessionId)
   const setActiveSession = useWorkstation((state) => state.setActiveSession)
+  const createAgentSession = useWorkstation((state) => state.createAgentSession)
 
   const claudeSessions = sessions.filter((session) => session.agent === 'claude')
   const codexSessions = sessions.filter((session) => session.agent === 'codex')
@@ -56,9 +53,9 @@ export function SessionRail({ notify }: SessionRailProps) {
         <button
           className="w1-plus"
           type="button"
-          aria-label="新建会话"
-          title="接入 CLI 后可用"
-          onClick={() => notify('新建会话将在接入真实 CLI 后开放')}
+          aria-label="新建 Claude 会话"
+          title="新建 Claude 会话"
+          onClick={createAgentSession}
         >
           <PlusIcon width={10} height={10} />
         </button>

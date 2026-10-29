@@ -23,9 +23,8 @@ export function Composer({ agent, typing, onSend }: ComposerProps) {
     <div className="w1-compose">
       <div className="w1-perms">
         <span>权限</span>
-        <b className="ok">任务 可写</b>
-        <b className="ask">学习 询问</b>
-        <b className="ro">习惯 只读</b>
+        <b className="ro">工具 只读</b>
+        <b className="ro">审批 未接入</b>
       </div>
       <div className="w1-input">
         <span className="w1-iprompt">&gt;</span>

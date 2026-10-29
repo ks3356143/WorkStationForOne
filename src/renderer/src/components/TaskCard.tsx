@@ -24,6 +24,7 @@ export function TaskCard({ nextTaskId }: TaskCardProps) {
   const composeTask = useWorkstation((state) => state.composeTask)
   const toggleTask = useWorkstation((state) => state.toggleTask)
   const resolution = useWorkstation((state) => state.resolution)
+  const permission = useWorkstation((state) => state.permission)
   const now = useNow(60_000)
   const today = dateKey(now)
   const todayTasks = tasksForTodayCard(tasks, today)
@@ -126,25 +127,27 @@ export function TaskCard({ nextTaskId }: TaskCardProps) {
         ))}
       </div>
 
-      <div className="w1-anote">
-        <SparkIcon width={12} height={12} />
-        {resolution?.decision === 'allowed' ? (
-          <>
-            <b>Claude</b> 已顺延 3 项任务，20:30 提醒你复习
-            <span className="w1-anote-status ok">完成</span>
-          </>
-        ) : resolution?.decision === 'denied' ? (
-          <>
-            <b>Claude</b> 变更已拒绝，任务保持原样
-            <span className="w1-anote-status deny">已拒绝</span>
-          </>
-        ) : (
-          <>
-            <b>Claude</b> 建议顺延 3 项未完成任务，等你确认
-            <span className="w1-anote-status pend">待确认</span>
-          </>
-        )}
-      </div>
+      {permission || resolution ? (
+        <div className="w1-anote">
+          <SparkIcon width={12} height={12} />
+          {resolution?.decision === 'allowed' ? (
+            <>
+              <b>Claude</b> 已顺延 3 项任务，20:30 提醒你复习
+              <span className="w1-anote-status ok">完成</span>
+            </>
+          ) : resolution?.decision === 'denied' ? (
+            <>
+              <b>Claude</b> 变更已拒绝，任务保持原样
+              <span className="w1-anote-status deny">已拒绝</span>
+            </>
+          ) : (
+            <>
+              <b>Claude</b> 建议顺延 3 项未完成任务，等你确认
+              <span className="w1-anote-status pend">待确认</span>
+            </>
+          )}
+        </div>
+      ) : null}
     </section>
   )
 }

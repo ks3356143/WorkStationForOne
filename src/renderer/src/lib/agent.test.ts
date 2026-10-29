@@ -1,16 +1,29 @@
 import { describe, expect, it } from 'vitest'
-import { AGENT_META, agentCommandPreview, demoReply } from './agent'
+import {
+  AGENT_META,
+  agentCommandPreview,
+  agentSessionDate,
+  agentSessionMeta,
+  demoReply
+} from './agent'
 
 describe('agentCommandPreview', () => {
-  it('Claude 使用会话续接参数', () => {
-    expect(agentCommandPreview('claude', 's-c1')).toEqual({
+  it('Claude 新会话显示真实权限模式', () => {
+    expect(agentCommandPreview('claude')).toEqual({
       bin: 'claude',
-      args: '--resume c1 --perm ask'
+      args: '--permission-mode default'
+    })
+  })
+
+  it('Claude 有 resume id 时才显示 --resume', () => {
+    expect(agentCommandPreview('claude', 'cli-1')).toEqual({
+      bin: 'claude',
+      args: '--resume cli-1 --permission-mode default'
     })
   })
 
   it('Codex 固定为 workspace-write 沙箱', () => {
-    expect(agentCommandPreview('codex', 's-x1')).toEqual({
+    expect(agentCommandPreview('codex')).toEqual({
       bin: 'codex',
       args: '--sandbox workspace-write'
     })
@@ -31,6 +44,29 @@ describe('AGENT_META', () => {
       badge: 'X',
       model: '本地 CLI'
     })
+  })
+})
+
+describe('会话时间标签', () => {
+  const now = new Date(2026, 9, 29, 15, 0).getTime()
+
+  it('今天显示时分，昨天带前缀', () => {
+    const today = new Date(2026, 9, 29, 14, 20).getTime()
+    const yesterday = new Date(2026, 9, 28, 18, 20).getTime()
+
+    expect(agentSessionMeta(today, 2, now)).toBe('14:20 · 2 条')
+    expect(agentSessionDate(today, now)).toBe('今天')
+    expect(agentSessionMeta(yesterday, 0, now)).toBe('昨天 18:20 · 0 条')
+    expect(agentSessionDate(yesterday, now)).toBe('昨天')
+  })
+
+  it('更早的日期用月日，跨年带年份', () => {
+    const older = new Date(2026, 9, 20, 9, 5).getTime()
+    const lastYear = new Date(2025, 11, 31, 9, 5).getTime()
+
+    expect(agentSessionMeta(older, 3, now)).toBe('10-20 · 3 条')
+    expect(agentSessionDate(older, now)).toBe('10-20')
+    expect(agentSessionMeta(lastYear, 1, now)).toBe('2025-12-31 · 1 条')
   })
 })
 

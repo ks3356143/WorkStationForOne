@@ -288,6 +288,36 @@ export const MIGRATIONS: Migration[] = [
     // MEM 起步卡：现有库补 8 张管综卡；空库交给渲染层首次种子。
     version: 15,
     sql: memStarterSeedSql()
+  },
+  {
+    // 智能体会话与消息持久化；空库保持为空，演示会话不再写入。
+    version: 16,
+    sql: `
+      CREATE TABLE agent_sessions (
+        id TEXT PRIMARY KEY,
+        agent TEXT NOT NULL CHECK (agent IN ('claude', 'codex')),
+        title TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'idle' CHECK (status IN ('run', 'wait', 'idle')),
+        resume_id TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE INDEX idx_agent_sessions_updated ON agent_sessions(updated_at DESC);
+
+      CREATE TABLE agent_messages (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES agent_sessions(id) ON DELETE CASCADE,
+        role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+        text TEXT NOT NULL DEFAULT '',
+        time_label TEXT NOT NULL DEFAULT '',
+        error INTEGER NOT NULL DEFAULT 0 CHECK (error IN (0, 1)),
+        tools_json TEXT,
+        created_at INTEGER NOT NULL
+      );
+
+      CREATE INDEX idx_agent_messages_session ON agent_messages(session_id, created_at ASC);
+    `
   }
 ]
 

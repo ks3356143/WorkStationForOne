@@ -14,8 +14,10 @@ const EMPTY_TASKS: Task[] = []
 export function AgentDock() {
   const sessions = useWorkstation((state) => state.sessions)
   const setActiveSession = useWorkstation((state) => state.setActiveSession)
+  const createAgentSession = useWorkstation((state) => state.createAgentSession)
   const activeSession = useWorkstation(selectActiveSession)
-  const agent = activeSession.agent
+  const activeId = activeSession?.id ?? ''
+  const agent = activeSession?.agent ?? 'claude'
   const thread = useWorkstation(selectActiveThread)
   const typing = useWorkstation((state) => state.typing)
   const pendingReplyTo = useWorkstation((state) => state.pendingReplyTo)
@@ -32,7 +34,7 @@ export function AgentDock() {
 
   const threadRef = useRef<HTMLDivElement>(null)
   const threadMeta = useRef({
-    sessionId: activeSession.id,
+    sessionId: activeId,
     length: thread.length,
     initialized: false
   })
@@ -40,23 +42,23 @@ export function AgentDock() {
     claude: sessions.filter((session) => session.agent === 'claude').length,
     codex: sessions.filter((session) => session.agent === 'codex').length
   }
-  const typingHere = typing && pendingReplyTo === activeSession.id
+  const typingHere = typing && pendingReplyTo === activeId && Boolean(activeId)
   const animateId =
     threadMeta.current.initialized &&
-    threadMeta.current.sessionId === activeSession.id &&
+    threadMeta.current.sessionId === activeId &&
     thread.length > threadMeta.current.length
       ? thread[thread.length - 1]?.id
       : undefined
 
   useEffect(() => {
-    threadMeta.current = { sessionId: activeSession.id, length: thread.length, initialized: true }
-  }, [activeSession.id, thread.length])
+    threadMeta.current = { sessionId: activeId, length: thread.length, initialized: true }
+  }, [activeId, thread.length])
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: thread.length / typingHere / permission 是滚动触发条件，用于在有新内容时贴底
   useLayoutEffect(() => {
     const node = threadRef.current
     if (node) node.scrollTop = node.scrollHeight
-  }, [thread.length, typingHere, permission, activeSession.id])
+  }, [thread.length, typingHere, permission, activeId])
 
   const switchAgent = (next: AgentId) => {
     if (agent === next) return
@@ -64,7 +66,23 @@ export function AgentDock() {
     if (session) setActiveSession(session.id)
   }
 
-  const command = agentCommandPreview(agent, activeSession.id)
+  if (!activeSession) {
+    return (
+      <aside className="w1-dock">
+        <DockHeader agent="claude" counts={counts} status="idle" onSwitch={switchAgent} />
+        <div className="w1-agentempty">
+          <span className="w1-eyebrow">// Agent</span>
+          <h2>还没有会话。</h2>
+          <p>新建一个 Claude 会话。对话会存在本机，重启后还能继续。</p>
+          <button className="w1-pb pri" type="button" onClick={createAgentSession}>
+            新建 Claude 会话
+          </button>
+        </div>
+      </aside>
+    )
+  }
+
+  const command = agentCommandPreview(agent, activeSession.resumeId)
   const meta = AGENT_META[agent]
 
   return (

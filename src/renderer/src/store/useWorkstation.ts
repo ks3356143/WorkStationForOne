@@ -1,5 +1,10 @@
 import { create } from 'zustand'
 import type {
+  AgentCreateInput,
+  AgentMessageRecord,
+  AgentSessionPatch,
+  AgentSessionRecord,
+  AgentToolRecord,
   LearningDraft,
   LearningItemRecord,
   LearningPatch,
@@ -12,6 +17,7 @@ import { appendStreamText } from '../../../shared/agent-stream'
 import { clozeFrontText } from '../../../shared/cloze'
 import { createInitialData } from '../data/mock'
 import { dateKey } from '../../../shared/date-key'
+import { agentSessionDate, agentSessionMeta } from '../lib/agent'
 import { toggleCheckin } from '../lib/habits'
 import { dueQueue } from '../lib/learning'
 import { scheduleReview } from '../../../shared/srs'
@@ -69,12 +75,21 @@ interface LearningPersistence {
   review: (id: string, rating: LearningRating) => Promise<LearningItemRecord>
 }
 
+export interface AgentPersistence {
+  createSession: (input: AgentCreateInput) => Promise<AgentSessionRecord>
+  updateSession: (id: string, patch: AgentSessionPatch) => Promise<void>
+  saveMessage: (message: AgentMessageRecord) => Promise<void>
+}
+
 let persistence: TaskPersistence | null = null
 let habitPersistence: {
   setCheckin: (id: string, day: string, done: boolean) => Promise<void>
 } | null = null
 let notePersistence: NotePersistence | null = null
 let learningPersistence: LearningPersistence | null = null
+let agentPersistence: AgentPersistence | null = null
+
+export const ACTIVE_AGENT_KEY = 'workstation.agentActive'
 
 export function bindHabitPersistence(
   next: { setCheckin: (id: string, day: string, done: boolean) => Promise<void> } | null
@@ -92,6 +107,10 @@ export function bindNotePersistence(next: NotePersistence | null): void {
 
 export function bindLearningPersistence(next: LearningPersistence | null): void {
   learningPersistence = next
+}
+
+export function bindAgentPersistence(next: AgentPersistence | null): void {
+  agentPersistence = next
 }
 
 function reportPersistenceError(error: unknown): void {
@@ -120,6 +139,8 @@ interface WorkstationActions {
   toggleHabitToday: (habitId: string) => void
   setActiveSession: (sessionId: string) => void
   openAgentSession: (sessionId: string) => void
+  createAgentSession: () => void
+  setAgentResume: (sessionId: string, resumeId: string) => void
   sendMessage: (text: string) => void
   takePendingPrompt: () => { sessionId: string; prompt: string } | null
   beginAgentReply: (sessionId: string, runId: string | null) => void
@@ -169,6 +190,55 @@ function nextTaskId(): string {
 function nextLearningId(): string {
   learningSeq += 1
   return `learn-${Date.now()}-${learningSeq}`
+}
+
+function messageTimeLabel(): string {
+  return new Date().toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  })
+}
+
+function withAgentMeta(session: Session, messageCount: number, now = Date.now()): Session {
+  return {
+    ...session,
+    meta: agentSessionMeta(now, messageCount, now),
+    threadDate: agentSessionDate(now, now)
+  }
+}
+
+function agentTools(tools?: ToolCall[]): AgentToolRecord[] | undefined {
+  if (!tools?.length) return undefined
+  return tools.map((tool) => ({
+    ...(tool.id ? { id: tool.id } : {}),
+    name: tool.name,
+    meta: tool.meta,
+    status: tool.status
+  }))
+}
+
+function persistAgentSession(sessionId: string, patch: AgentSessionPatch): void {
+  const persistence = agentPersistence
+  if (!persistence) return
+  persistQuietly(() => persistence.updateSession(sessionId, patch))
+}
+
+function persistAgentMessage(sessionId: string, message: ChatMessage): void {
+  const persistence = agentPersistence
+  if (!persistence) return
+  const record: AgentMessageRecord = {
+    id: message.id,
+    sessionId,
+    role: message.role,
+    text: message.text,
+    timeLabel: message.time,
+    createdAt: Date.now()
+  }
+  if (message.error) record.error = true
+  const tools = agentTools(message.tools)
+  if (tools) record.tools = tools
+  persistQuietly(() => persistence.saveMessage(record))
 }
 
 export const useWorkstation = create<WorkstationState>()((set, get) => ({
@@ -347,34 +417,87 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     persistQuietly(() => habitPersistence?.setCheckin(habitId, today, checked) ?? Promise.resolve())
   },
 
-  setActiveSession: (sessionId) =>
-    set((state) => {
-      if (!state.sessions.some((session) => session.id === sessionId)) return state
-      return { activeSessionId: sessionId }
-    }),
+  setActiveSession: (sessionId) => {
+    const exists = get().sessions.some((session) => session.id === sessionId)
+    if (!exists) return
+    set({ activeSessionId: sessionId })
+    browserStorage()?.setItem(ACTIVE_AGENT_KEY, sessionId)
+  },
 
-  openAgentSession: (sessionId) =>
-    set((state) => {
-      if (!state.sessions.some((session) => session.id === sessionId)) return state
-      return { activeSessionId: sessionId, activeView: 'agent' }
-    }),
+  openAgentSession: (sessionId) => {
+    const exists = get().sessions.some((session) => session.id === sessionId)
+    if (!exists) return
+    set({ activeSessionId: sessionId, activeView: 'agent' })
+    browserStorage()?.setItem(ACTIVE_AGENT_KEY, sessionId)
+  },
+
+  createAgentSession: () => {
+    const now = Date.now()
+    const id = `s-${crypto.randomUUID()}`
+    const session: Session = {
+      id,
+      agent: 'claude',
+      title: '新会话',
+      meta: agentSessionMeta(now, 0, now),
+      status: 'idle',
+      threadDate: '今天'
+    }
+    set((state) => ({
+      sessions: [session, ...state.sessions],
+      threads: { ...state.threads, [id]: [] },
+      activeSessionId: id,
+      activeView: 'agent',
+      permission: null,
+      resolution: null
+    }))
+    browserStorage()?.setItem(ACTIVE_AGENT_KEY, id)
+    const persistence = agentPersistence
+    if (!persistence) return
+    persistQuietly(async () => {
+      await persistence.createSession({ id, agent: 'claude', title: '新会话' })
+    })
+  },
+
+  setAgentResume: (sessionId, resumeId) => {
+    set((state) => ({
+      sessions: state.sessions.map((session) =>
+        session.id === sessionId ? { ...session, resumeId } : session
+      )
+    }))
+    persistAgentSession(sessionId, { resumeId })
+  },
 
   sendMessage: (text) => {
     const trimmed = text.trim()
     if (!trimmed) return
-    const sessionId = get().activeSessionId
+    const state = get()
+    const session = state.sessions.find((item) => item.id === state.activeSessionId)
+    if (!session) return
+    const sessionId = session.id
+    const now = Date.now()
     const message: ChatMessage = {
       id: nextMessageId('u'),
       role: 'user',
       text: trimmed,
-      time: '刚刚'
+      time: messageTimeLabel()
     }
-    set((state) => ({
-      threads: { ...state.threads, [sessionId]: [...(state.threads[sessionId] ?? []), message] },
+    const count = (state.threads[sessionId]?.length ?? 0) + 1
+    const title = session.title === '新会话' ? trimmed.slice(0, 40) : session.title
+    const touch = (item: Session) =>
+      item.id === sessionId ? withAgentMeta({ ...item, title, status: 'run' }, count, now) : item
+
+    set((current) => ({
+      sessions: current.sessions.map(touch),
+      threads: {
+        ...current.threads,
+        [sessionId]: [...(current.threads[sessionId] ?? []), message]
+      },
       typing: true,
       pendingReplyTo: sessionId,
       pendingPrompt: trimmed
     }))
+    persistAgentMessage(sessionId, message)
+    persistAgentSession(sessionId, { status: 'run', ...(title !== session.title ? { title } : {}) })
   },
 
   takePendingPrompt: () => {
@@ -385,18 +508,26 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
   },
 
   beginAgentReply: (sessionId, runId) => {
+    const now = Date.now()
     const message: ChatMessage = {
       id: nextMessageId('a'),
       role: 'assistant',
       text: '',
-      time: '刚刚'
+      time: messageTimeLabel()
     }
+    const count = (get().threads[sessionId]?.length ?? 0) + 1
     set((state) => ({
+      sessions: state.sessions.map((session) =>
+        session.id === sessionId
+          ? withAgentMeta({ ...session, status: 'run' }, count, now)
+          : session
+      ),
       threads: { ...state.threads, [sessionId]: [...(state.threads[sessionId] ?? []), message] },
       typing: true,
       pendingReplyTo: sessionId,
       streaming: { runId, sessionId, messageId: message.id }
     }))
+    persistAgentSession(sessionId, { status: 'run' })
   },
 
   bindAgentRun: (runId) => {
@@ -456,11 +587,22 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
   finishAgentReply: (error) => {
     const streaming = get().streaming
     if (!streaming) return
+    const { sessionId, messageId } = streaming
+    const now = Date.now()
     set((state) => ({
+      sessions: state.sessions.map((session) =>
+        session.id === sessionId
+          ? withAgentMeta(
+              { ...session, status: 'idle' },
+              (state.threads[sessionId] ?? []).length,
+              now
+            )
+          : session
+      ),
       threads: {
         ...state.threads,
-        [streaming.sessionId]: (state.threads[streaming.sessionId] ?? []).map((entry) => {
-          if (entry.id !== streaming.messageId) return entry
+        [sessionId]: (state.threads[sessionId] ?? []).map((entry) => {
+          if (entry.id !== messageId) return entry
           if (error) return { ...entry, text: entry.text || error, error: true }
           // 空回复也要留个痕迹，否则界面像「什么都没发生」
           return entry.text ? entry : { ...entry, text: '（本轮没有输出）' }
@@ -470,19 +612,30 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       pendingReplyTo: null,
       streaming: null
     }))
+    const finalMessage = get().threads[sessionId]?.find((message) => message.id === messageId)
+    if (finalMessage) persistAgentMessage(sessionId, finalMessage)
+    persistAgentSession(sessionId, { status: 'idle' })
   },
 
   receiveReply: (text, tools) => {
     const state = get()
     const sessionId = state.pendingReplyTo ?? state.activeSessionId
+    if (!sessionId) return
+    const now = Date.now()
     const message: ChatMessage = {
       id: nextMessageId('a'),
       role: 'assistant',
       text,
-      time: '刚刚',
+      time: messageTimeLabel(),
       tools
     }
+    const count = (state.threads[sessionId]?.length ?? 0) + 1
     set((current) => ({
+      sessions: current.sessions.map((session) =>
+        session.id === sessionId
+          ? withAgentMeta({ ...session, status: 'idle' }, count, now)
+          : session
+      ),
       threads: {
         ...current.threads,
         [sessionId]: [...(current.threads[sessionId] ?? []), message]
@@ -490,6 +643,8 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       typing: false,
       pendingReplyTo: null
     }))
+    persistAgentMessage(sessionId, message)
+    persistAgentSession(sessionId, { status: 'idle' })
   },
 
   resolvePermission: (decision) => {
@@ -817,8 +972,11 @@ export function selectActiveSession(state: WorkstationState) {
   return state.sessions.find((session) => session.id === state.activeSessionId) ?? state.sessions[0]
 }
 
+const EMPTY_THREAD: ChatMessage[] = []
+
 export function selectActiveThread(state: WorkstationState): ChatMessage[] {
-  return state.threads[state.activeSessionId] ?? []
+  // 必须返回稳定引用：空态下每次新建 [] 会让 useSyncExternalStore 进入无限重渲染。
+  return state.threads[state.activeSessionId] ?? EMPTY_THREAD
 }
 
 export function selectPreviewNotes(notes: Note[]): { pinned?: Note; rest: Note[] } {

@@ -17,7 +17,8 @@ const env = {
   ...Object.fromEntries(
     Object.entries(process.env).filter(([key]) => key.toUpperCase() !== 'ELECTRON_RUN_AS_NODE')
   ),
-  WS_DATA_DIR: dataDir
+  WS_DATA_DIR: dataDir,
+  WS_DISABLE_CAPTURE_SHORTCUT: '1'
 }
 process.on('exit', () => {
   try {
@@ -860,9 +861,9 @@ async function assertView(view, label) {
       state.agent.railWidth
     )
     record(
-      `${label}：聊天正文 ≥ 15px`,
-      parseFloat(state.fontSizes.chat) >= 15,
-      state.fontSizes.chat
+      `${label}：聊天正文 ≥ 15px（空态跳过）`,
+      state.fontSizes.chat === null || parseFloat(state.fontSizes.chat) >= 15,
+      state.fontSizes.chat ?? '空态'
     )
   }
   if (view === 'tasks') {

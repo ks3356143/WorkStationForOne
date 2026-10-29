@@ -21,15 +21,20 @@ export function StatusBar({ notify, onShortcuts }: StatusBarProps) {
   const openAgentSession = useWorkstation((state) => state.openAgentSession)
   const now = useNow(30_000)
 
-  const agentName = session.agent === 'claude' ? 'Claude Code' : 'Codex'
-  const stateLabel =
-    session.status === 'run' ? '运行中' : session.status === 'wait' ? '待确认' : '空闲'
+  const agentName = session ? (session.agent === 'claude' ? 'Claude Code' : 'Codex') : null
+  const stateLabel = session
+    ? session.status === 'run'
+      ? '运行中'
+      : session.status === 'wait'
+        ? '待确认'
+        : '空闲'
+    : null
 
   return (
     <footer className="w1-status">
       <span>
-        <i className={`w1-sdot${session.status === 'run' ? '' : ' idle'}`} />
-        {agentName} {stateLabel} · {session.meta.split(' · ')[0]}
+        <i className={`w1-sdot${session?.status === 'run' ? '' : ' idle'}`} />
+        {session ? `${agentName} ${stateLabel} · ${session.meta.split(' · ')[0]}` : '无活动会话'}
       </span>
       <i className="w1-sdiv" aria-hidden="true" />
       <button

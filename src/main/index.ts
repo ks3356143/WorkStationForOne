@@ -120,8 +120,10 @@ if (!gotTheLock) {
     registerNoteHandlers(database.notes)
     registerLearningHandlers(database.learning)
     registerHabitHandlers(database.habits)
+    // 上次进程退出后 run/wait 已不存在，重启时统一回落为 idle。
+    database.agent.resetTransientStatuses()
     // 捕获窗是另一个 BrowserWindow，Agent 事件只回主窗口
-    registerAgentHandlers(() => mainWindow)
+    registerAgentHandlers(() => mainWindow, database.agent)
     // 到点提醒：轮询数据库，命中「今天 + 正好到点 + 没提醒过」就弹系统通知
     stopReminders = startReminderLoop(database.tasks, {
       ...(process.env.WS_REMINDER_TICK_MS

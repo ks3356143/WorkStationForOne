@@ -811,3 +811,30 @@
   opacity: 0.35;
   box-shadow: none;
 }
+
+/* 空 Agent：没有演示会话，也不伪造历史 */
+.w1-agentempty {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 10px;
+  max-width: 460px;
+  margin: auto;
+  padding: 40px;
+  text-align: left;
+}
+
+.w1-agentempty h2 {
+  margin: 0;
+  color: var(--fg);
+  font: 700 28px / 1.2 var(--disp);
+  letter-spacing: -0.02em;
+}
+
+.w1-agentempty p {
+  margin: 0 0 8px;
+  color: var(--su);
+  font: 12px / 1.7 var(--mono);
+}

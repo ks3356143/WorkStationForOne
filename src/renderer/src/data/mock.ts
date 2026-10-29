@@ -2,8 +2,6 @@ import type { WorkstationData } from '../types'
 import { createSeedHabits } from './seed/habits'
 import { createSeedLearning } from './seed/learning'
 import { createSeedNotes } from './seed/notes'
-import { createSeedPermission } from './seed/permission'
-import { createSeedSessions, createSeedThreads } from './seed/sessions'
 import { createSeedTasks } from './seed/tasks'
 
 export function createInitialData(): WorkstationData {
@@ -26,14 +24,14 @@ export function createInitialData(): WorkstationData {
     notes,
     noteTotal: notes.length,
     noteRevision: 0,
-    sessions: createSeedSessions(),
-    activeSessionId: 's-c1',
-    threads: createSeedThreads(),
+    sessions: [],
+    activeSessionId: '',
+    threads: {},
     typing: false,
     pendingPrompt: null,
     streaming: null,
     pendingReplyTo: null,
-    permission: createSeedPermission(),
+    permission: null,
     resolution: null,
     motionOn: true,
     theme: 'dark',

@@ -38,6 +38,8 @@ export interface Session {
   meta: string
   status: SessionStatus
   threadDate: string
+  /** Claude CLI 自己的会话 id；重启后用于 --resume */
+  resumeId?: string
 }
 
 export interface ToolCall {

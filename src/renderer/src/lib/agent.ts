@@ -1,3 +1,4 @@
+import { addDaysKey, dateKey } from '../../../shared/date-key'
 import type { AgentId, ToolCall } from '../types'
 
 export interface AgentMeta {
@@ -25,12 +26,40 @@ export const AGENT_META: Record<AgentId, AgentMeta> = {
   }
 }
 
+function clockOf(at: number): string {
+  const date = new Date(at)
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+
+/** 会话列表的日期标签：今天 / 昨天 / 月日（跨年带年份）。 */
+export function agentSessionDate(updatedAt: number, now: number): string {
+  const day = dateKey(new Date(updatedAt))
+  const today = dateKey(new Date(now))
+  if (day === today) return '今天'
+  if (day === addDaysKey(today, -1)) return '昨天'
+  return day.slice(0, 4) === today.slice(0, 4) ? day.slice(5) : day
+}
+
+/** 会话列表的副标题：时间 + 消息条数。 */
+export function agentSessionMeta(updatedAt: number, messageCount: number, now: number): string {
+  const day = dateKey(new Date(updatedAt))
+  const today = dateKey(new Date(now))
+  let label: string
+  if (day === today) label = clockOf(updatedAt)
+  else if (day === addDaysKey(today, -1)) label = `昨天 ${clockOf(updatedAt)}`
+  else label = agentSessionDate(updatedAt, now)
+  return `${label} · ${messageCount} 条`
+}
+
 export function agentCommandPreview(
   agent: AgentId,
-  sessionId: string
+  resumeId?: string
 ): { bin: string; args: string } {
   if (agent === 'codex') return { bin: 'codex', args: '--sandbox workspace-write' }
-  return { bin: 'claude', args: `--resume ${sessionId.replace('s-', '')} --perm ask` }
+  return {
+    bin: 'claude',
+    args: resumeId ? `--resume ${resumeId} --permission-mode default` : '--permission-mode default'
+  }
 }
 
 export function demoReply(agent: AgentId): { text: string; tools: ToolCall[] } {

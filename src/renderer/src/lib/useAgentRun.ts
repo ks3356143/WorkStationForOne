@@ -40,8 +40,6 @@ export function useAgentRun(): void {
   const pendingPrompt = useWorkstation((state) => state.pendingPrompt)
   const streaming = useWorkstation((state) => state.streaming)
   const activeSessionId = useWorkstation((state) => state.activeSessionId)
-  // CLI 自己的 session id，按应用会话归档，用于下一轮 --resume
-  const resumeIds = useRef(new Map<string, string>())
   // runId 回来之前到达的事件先存着，避免丢首帧文本
   const buffered = useRef<AgentEventEnvelope[]>([])
 
@@ -51,7 +49,7 @@ export function useAgentRun(): void {
     return bridge.onEvent((envelope) => {
       const store = useWorkstation.getState()
       if (envelope.event.kind === 'init' && envelope.event.sessionId && store.streaming) {
-        resumeIds.current.set(store.streaming.sessionId, envelope.event.sessionId)
+        store.setAgentResume(store.streaming.sessionId, envelope.event.sessionId)
       }
       if (!store.streaming) {
         buffered.current.push(envelope)
@@ -81,7 +79,7 @@ export function useAgentRun(): void {
 
     store.takePendingPrompt()
     store.beginAgentReply(sessionId, null)
-    const resumeId = resumeIds.current.get(sessionId)
+    const resumeId = store.sessions.find((session) => session.id === sessionId)?.resumeId
     void bridge
       .send({ sessionId, prompt: pendingPrompt, ...(resumeId ? { resumeId } : {}) })
       .then(({ runId }) => {

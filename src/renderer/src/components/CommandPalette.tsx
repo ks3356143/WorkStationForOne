@@ -139,7 +139,7 @@ export function CommandPalette({ onClose, notify, onShortcuts, onSettings }: Com
         if (!activeSession) break
         setView('agent')
         sendMessage(command.action.text)
-        notify(`已交给 ${AGENT_META[activeSession.agent].shortName} · 演示回复`)
+        notify(`已发送给 ${AGENT_META[activeSession.agent].shortName}`)
         break
     }
 

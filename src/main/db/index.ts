@@ -2,6 +2,7 @@ import { app } from 'electron'
 import type { DatabaseSync } from 'node:sqlite'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { AgentRepository } from './agent'
 import { AuditLog } from './audit'
 import { migrate, openDatabase } from './database'
 import { HabitRepository } from './habits'
@@ -17,6 +18,7 @@ export interface DatabaseContext {
   notes: NoteRepository
   learning: LearningRepository
   habits: HabitRepository
+  agent: AgentRepository
   audit: AuditLog
   close: () => void
 }
@@ -36,6 +38,7 @@ export function initDatabase(): DatabaseContext {
     notes: new NoteRepository(db, audit),
     learning: new LearningRepository(db, audit),
     habits: new HabitRepository(db, audit),
+    agent: new AgentRepository(db),
     close: () => db.close()
   }
 }

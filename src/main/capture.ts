@@ -82,6 +82,9 @@ export function registerCaptureHandlers(repository: TaskRepository): void {
 }
 
 export function registerCaptureShortcut(): void {
+  // 自动化测试与 Cherry Studio 等外部应用可能占用同一组合键；
+  // 测试环境显式跳过，避免抢快捷键或把失败写进控制台断言。
+  if (process.env.WS_DISABLE_CAPTURE_SHORTCUT === '1') return
   if (!globalShortcut.register(CAPTURE_SHORTCUT, () => openCaptureWindow())) {
     console.error(`[capture] 全局快捷键注册失败：${CAPTURE_SHORTCUT}`)
   }

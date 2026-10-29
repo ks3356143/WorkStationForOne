@@ -32,6 +32,8 @@ app.setPath('sessionData', sessionDir)
 process.env.WS_DATA_DIR = join(dataDir, 'db')
 // Agent 走 stub CLI：验证真实 IPC → 子进程 → 渲染整条链路，但不调用模型、不消耗额度
 process.env.WS_AGENT_CLI = join(__dirname, 'stub-agent.cjs')
+// 不抢 Cherry Studio 等外部应用的 Ctrl+Alt+Space
+process.env.WS_DISABLE_CAPTURE_SHORTCUT = '1'
 // 提醒轮询调快，并把命中记录写到文件，供主进程侧断言
 const reminderLog = join(dataDir, 'reminders.log')
 process.env.WS_REMINDER_TICK_MS = '400'
@@ -146,11 +148,10 @@ async function run() {
     check('看板与 Agent 不同时可见', !one('.w1-dock') && !one('.w1-agent'))
     check('初始任务 8 项', all('.w1-task').length === 8, String(all('.w1-task').length))
     check('初始完成 2 项', all('.w1-task.done').length === 2, String(all('.w1-task.done').length))
-    check('状态栏待审批 1', byText('.w1-sbtn.pending', '待审批 1') !== undefined)
+    check('状态栏初始无待审批', one('.w1-status')?.textContent?.includes('无待审批') ?? false)
     check(
-      '舰队总览统计会话',
-      one('.w1-fleet .w1-frow')?.textContent?.includes('5') &&
-        one('.w1-fleet .w1-frow')?.textContent?.includes('待确认'),
+      '舰队总览初始为空',
+      one('.w1-fleet .w1-frow')?.textContent?.includes('0会话') ?? false,
       one('.w1-fleet .w1-frow')?.textContent ?? ''
     )
     const launchNames = all('.w1-launch .w1-lname')
@@ -672,35 +673,18 @@ async function run() {
     check('导航切换到 Agent', activeNav() === 'Agent', activeNav())
     check('Agent 工作区出现', !!one('.w1-agent') && !!one('.w1-dock') && !!one('.w1-rail'))
     check('切换后今日看板隐藏', !one('.w1-main'))
-    check('Agent 会话列表完整', all('.w1-sess').length === 5, String(all('.w1-sess').length))
-    check('初始权限卡存在', !!one('.w1-perm'))
     check(
-      '权限变更逐行可扫读',
-      all('.w1-dchange').length === 3 &&
-        all('.w1-dchange')[0]?.querySelector('.w1-dline.ins')?.textContent === '明天 09:00',
-      String(all('.w1-dchange').length)
+      'Agent 初始为空态',
+      !!one('.w1-agentempty') && all('.w1-sess').length === 0,
+      String(all('.w1-sess').length)
     )
-
-    await navTo('今日')
-    check('导航可回到今日', activeNav() === '今日' && !!one('.w1-main'))
-    check('回看板后 Agent 工作区隐藏', !one('.w1-dock') && !one('.w1-agent'))
-    one('.w1-sbtn.pending')?.click()
+    one('.w1-agentempty .w1-pb.pri')?.click()
     await sleep(600)
-    check('状态栏待审批跳到 Agent', activeNav() === 'Agent' && !!one('.w1-perm'), activeNav())
-
-    byText('.w1-sess', '修复登录 500')?.click()
-    await sleep(600)
-    check('切换会话标题', one('.w1-tdiv')?.textContent?.includes('修复登录 500'), one('.w1-tdiv')?.textContent ?? '')
-    check('其他会话不显示权限卡', !one('.w1-perm'))
-    byText('.w1-sess', '重构 auth 模块')?.click()
-    await sleep(300)
-    check('切回会话显示权限卡', !!one('.w1-perm'))
-
-    one('.w1-perm .w1-pb.pri')?.click()
-    await sleep(700)
-    check('允许后权限卡消失', !one('.w1-perm'))
-    check('允许后有结果提示', one('.w1-resolved')?.textContent?.includes('已允许'), one('.w1-resolved')?.textContent ?? '')
-    check('允许后状态栏无待审批', one('.w1-status')?.textContent?.includes('无待审批'))
+    check(
+      '新建真实会话',
+      all('.w1-sess').length === 1 && (one('.w1-tdiv')?.textContent ?? '').includes('新会话'),
+      one('.w1-tdiv')?.textContent ?? ''
+    )
 
     const input = one('#composer-input')
     setValue(input, '测一下多会话回复')
@@ -711,8 +695,13 @@ async function run() {
     await navTo('今日')
     await sleep(1300)
     await navTo('Agent')
-    check('切换视图后仍收到助手回复', all('.w1-amsg').length >= 2, String(all('.w1-amsg').length))
+    check('切换视图后仍收到助手回复', all('.w1-amsg').length >= 1, String(all('.w1-amsg').length))
     check('等待动画结束', !one('.w1-typing'))
+    check(
+      '会话标题取首条消息',
+      byText('.w1-sess', '测一下多会话回复') !== undefined,
+      one('.w1-sess')?.textContent ?? ''
+    )
 
     const streamedText = all('.w1-amsg').at(-1)?.querySelector('.w1-atext')?.textContent ?? ''
     check(
@@ -744,12 +733,7 @@ async function run() {
     check('失败后不残留等待动画', !one('.w1-typing'))
 
     await navTo('今日')
-    check(
-      '允许后任务时间写入',
-      byText('.w1-task', '周报收尾')?.textContent?.includes('22:00'),
-      byText('.w1-task', '周报收尾')?.textContent ?? ''
-    )
-    check('返回今日后仅保留今日任务', all('.w1-task').length === 6, String(all('.w1-task').length))
+    check('返回今日后仍有任务', all('.w1-task').length > 0, String(all('.w1-task').length))
 
     const cardRow = all('.w1-task').find(
       (el) => el.dataset.taskId && !el.classList.contains('done')
@@ -789,25 +773,28 @@ async function run() {
         ?.textContent?.trim()
       check('拖到时间轴写入 15:30', draggedTime === '15:30', String(draggedTime))
     }
-    check(
-      '顺延任务离开今日',
-      byText('.w1-task', '整理本周资料') === undefined && byText('.w1-task', '给妈妈回电话') === undefined
-    )
-    check('允许后任务提示完成', one('.w1-anote')?.textContent?.includes('已顺延 3 项任务'), one('.w1-anote')?.textContent ?? '')
-
     const undone = one('.w1-task:not(.done)')
     const undoneTitle = undone?.querySelector('.w1-ttext')?.textContent ?? ''
     undone?.click()
     await sleep(200)
     check('勾选任务后完成数 +1', all('.w1-task.done').length === 3, String(all('.w1-task.done').length))
-    check('任务进度同步', one('.w1-tprog b')?.textContent?.includes('3 / 6'), one('.w1-tprog b')?.textContent ?? '')
+    check(
+      '任务进度同步',
+      (one('.w1-tprog b')?.textContent ?? '').includes('3 / '),
+      one('.w1-tprog b')?.textContent ?? ''
+    )
 
     byText('.w1-filter', '已完成')?.click()
     await sleep(200)
     check('筛选已完成', all('.w1-task').length === 3, String(all('.w1-task').length))
     byText('.w1-filter', '全部')?.click()
     await sleep(200)
-    check('筛选恢复全部', all('.w1-task').length === 6, String(all('.w1-task').length))
+    check(
+      '筛选恢复全部',
+      all('.w1-task').length > all('.w1-task.done').length &&
+        all('.w1-task.done').length === 3,
+      String(all('.w1-task').length)
+    )
 
     // 子任务：父任务行显示进度，勾选后更新，删父任务连带清理
     await navTo('任务')
@@ -969,19 +956,19 @@ async function run() {
     )
 
     const paletteInput = one('.w1-paletteinput')
-    setValue(paletteInput, '登录')
+    setValue(paletteInput, '多会话')
     await sleep(300)
     const selectedSession = one('.w1-paletteitem[data-selected="true"]')?.textContent ?? ''
     check(
       '搜索命中会话时优先会话',
-      selectedSession.includes('修复登录 500') && !selectedSession.includes('发送给'),
+      selectedSession.includes('测一下多会话回复') && !selectedSession.includes('发送给'),
       selectedSession
     )
     paletteInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }))
     await sleep(700)
     check(
       '命令面板跳转会话并切换视图',
-      !one('.w1-palette') && activeNav() === 'Agent' && one('.w1-tdiv')?.textContent?.includes('修复登录 500'),
+      !one('.w1-palette') && activeNav() === 'Agent' && one('.w1-tdiv')?.textContent?.includes('测一下多会话回复'),
       activeNav() + ' · ' + (one('.w1-tdiv')?.textContent ?? '')
     )
     check(
@@ -1004,10 +991,18 @@ async function run() {
     )
     filterInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }))
     await sleep(700)
-    check('命令面板可执行筛选', all('.w1-task').length === 3, String(all('.w1-task').length))
+    check(
+      '命令面板可执行筛选',
+      all('.w1-task').length > 0 && all('.w1-task').every((el) => !el.classList.contains('done')),
+      String(all('.w1-task').length)
+    )
     byText('.w1-filter', '全部')?.click()
     await sleep(250)
-    check('筛选恢复全部', all('.w1-task').length === 6, String(all('.w1-task').length))
+    check(
+      '筛选恢复全部',
+      all('.w1-task').some((el) => el.classList.contains('done')),
+      String(all('.w1-task').length)
+    )
     one('.w1-motion')?.focus()
 
     await openPalette()
@@ -1361,7 +1356,7 @@ async function run() {
     const selectedSend = one('.w1-paletteitem[data-selected="true"]')?.textContent ?? ''
     check(
       '无匹配命令时回退为发送',
-      selectedSend.includes('发送给 Claude') && !selectedSend.includes('修复登录'),
+      selectedSend.includes('发送给 Claude') && !selectedSend.includes('测一下多会话'),
       selectedSend
     )
     sendInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }))
@@ -1459,13 +1454,6 @@ async function run() {
       document.activeElement?.className?.toString?.() ?? ''
     )
 
-    await navTo('Agent')
-    byText('.w1-sess', '重构 auth 模块')?.click()
-    await sleep(300)
-    byText('.w1-tab', 'Codex')?.click()
-    await sleep(350)
-    check('切换到 Codex 会话', one('.w1-tdiv')?.textContent?.includes('周报草稿'), one('.w1-tdiv')?.textContent ?? '')
-
     await navTo('今日')
     one('.w1-nall')?.click()
     await sleep(600)
@@ -1508,7 +1496,10 @@ async function run() {
       learning: count('SELECT COUNT(*) AS n FROM learning_items'),
       reviews: count('SELECT COUNT(*) AS n FROM learning_reviews'),
       links: count('SELECT COUNT(*) AS n FROM note_links'),
-      fsrs: count('SELECT COUNT(*) AS n FROM learning_items WHERE stability IS NOT NULL')
+      fsrs: count('SELECT COUNT(*) AS n FROM learning_items WHERE stability IS NOT NULL'),
+      agentSessions: count('SELECT COUNT(*) AS n FROM agent_sessions'),
+      agentMessages: count('SELECT COUNT(*) AS n FROM agent_messages'),
+      agentResume: count('SELECT COUNT(*) AS n FROM agent_sessions WHERE resume_id IS NOT NULL')
     }
     db.close()
   } catch (error) {
@@ -1526,6 +1517,16 @@ async function run() {
     name: 'FSRS 状态已落库',
     ok: Boolean(dbStats && dbStats.fsrs > 0),
     detail: dbStats ? String(dbStats.fsrs) : '无数据'
+  })
+  results.checks.push({
+    name: '智能体会话与消息已落库',
+    ok: Boolean(dbStats && dbStats.agentSessions > 0 && dbStats.agentMessages >= 4),
+    detail: dbStats ? `${dbStats.agentSessions} 会话 / ${dbStats.agentMessages} 条` : '无数据'
+  })
+  results.checks.push({
+    name: 'Claude resume id 已保存',
+    ok: Boolean(dbStats && dbStats.agentResume > 0),
+    detail: dbStats ? String(dbStats.agentResume) : '无数据'
   })
   // 审计：UI 操作必须留下记录（这里读库，不依赖渲染层）
   let auditRows = []

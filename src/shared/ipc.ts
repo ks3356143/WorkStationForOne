@@ -236,6 +236,55 @@ export interface HabitApi {
   setCheckin: (id: string, day: string, done: boolean) => Promise<void>
 }
 
+export type AgentKind = 'claude' | 'codex'
+export type AgentSessionStatus = 'run' | 'wait' | 'idle'
+
+export interface AgentToolRecord {
+  id?: string
+  name: string
+  meta: string
+  status: string
+}
+
+export interface AgentSessionRecord {
+  id: string
+  agent: AgentKind
+  title: string
+  status: AgentSessionStatus
+  /** Claude CLI 自己的 session id；重启后用于 --resume */
+  resumeId?: string
+  createdAt: number
+  updatedAt: number
+}
+
+export interface AgentMessageRecord {
+  id: string
+  sessionId: string
+  role: 'user' | 'assistant'
+  text: string
+  timeLabel: string
+  error?: boolean
+  tools?: AgentToolRecord[]
+  createdAt: number
+}
+
+export interface AgentThreadBundle {
+  sessions: AgentSessionRecord[]
+  messages: AgentMessageRecord[]
+}
+
+export interface AgentCreateInput {
+  id: string
+  agent: AgentKind
+  title: string
+}
+
+export interface AgentSessionPatch {
+  title?: string
+  status?: AgentSessionStatus
+  resumeId?: string
+}
+
 export interface AgentSendInput {
   /** 应用内的会话 id（s-c1），用于把事件归到正确的线程 */
   sessionId: string
@@ -257,6 +306,10 @@ export interface AgentApi {
   send: (input: AgentSendInput) => Promise<AgentRunStart>
   cancel: (runId: string) => Promise<void>
   onEvent: (listener: (payload: AgentEventEnvelope) => void) => () => void
+  threads: () => Promise<AgentThreadBundle>
+  createSession: (input: AgentCreateInput) => Promise<AgentSessionRecord>
+  updateSession: (id: string, patch: AgentSessionPatch) => Promise<void>
+  saveMessage: (message: AgentMessageRecord) => Promise<void>
 }
 
 export interface BackupResult {
@@ -326,6 +379,10 @@ export const IPC_CHANNELS = {
   agentSend: 'agent:send',
   agentCancel: 'agent:cancel',
   agentEvent: 'agent:event',
+  agentThreads: 'agent:threads',
+  agentCreateSession: 'agent:create-session',
+  agentUpdateSession: 'agent:update-session',
+  agentSaveMessage: 'agent:save-message',
   appSetTheme: 'app:set-theme',
   appBackupNow: 'app:backup-now',
   appInfo: 'app:info'

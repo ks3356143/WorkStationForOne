@@ -6,6 +6,16 @@
 
 暂无。
 
+## [0.7.0] - 2026-10-29
+
+### 新增
+
+- **智能体会话持久化**：DB v16 新增 `agent_sessions` / `agent_messages`。Agent 页首次进入是空态，不再预置演示会话或演示权限卡；新建 Claude 会话后，用户消息立即落库，助手消息在本轮结束时连同工具卡落库，Claude 的 resume id 也保存下来，重启后能继续原会话并恢复选中的会话。启动时把残留的 `run/wait` 状态重置为 `idle`，因为进程已经不存在。
+
+### 变更
+
+- 自动化测试通过 `WS_DISABLE_CAPTURE_SHORTCUT=1` 跳过全局捕获快捷键，避免与 Cherry Studio 等外部应用争抢 `Ctrl+Alt+Space`；Agent 测试继续只走 stub CLI，不调用真实 Claude/Codex。
+
 ## [0.6.1] - 2026-10-29
 
 ### 变更
@@ -177,8 +187,8 @@
 
 当前基线（每次改动都以此为准，历史轮次数字不再追加）：
 
-- `npm run typecheck` 通过，`npm run check` 0 问题（207 个文件），`npm test` 536 项全绿。
-- `npm run smoke` 216/216：真实主进程 + 临时 SQLite，含 preload 桥、双链、FSRS、CSV 导入、统计弹层、复习历史与今日快速添加入口。
+- `npm run typecheck` 通过，`npm run check` 0 问题（210 个文件），`npm test` 549 项全绿。
+- `npm run smoke` 205/205：真实主进程 + 临时 SQLite，含 preload 桥、双链、FSRS、CSV 导入、统计、复习历史、智能体会话/消息/resume id 与今日快速添加入口。
 - `npm run verify` 251–253/253：五视图互斥、`aria-current`、双主题/双皮肤持久化、跨重启任务与学习数据（起始主题不同会差 2 项分支）。
 - 截图 20 张（五视图 × 双主题 × 1440×900 / 1180×720），横向溢出与越界元素为 0。
 - 控件交互另有探针覆盖：日期/时间/下拉弹层的定位、翻月、回填、焦点归还、Esc 与外部点击，四种尺寸/主题/皮肤组合均通过。
