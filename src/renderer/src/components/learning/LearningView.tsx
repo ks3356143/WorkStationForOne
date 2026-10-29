@@ -19,6 +19,7 @@ import {
   learningDueLabel
 } from '../../lib/learning'
 import { planImport } from '../../lib/learning-import'
+import { learningStats } from '../../lib/learning-stats'
 import { replaceLearning } from '../../lib/learning-persistence'
 import { DURATION, EASE_OUT } from '../../lib/motion'
 import { useNow } from '../../lib/useNow'
@@ -379,6 +380,7 @@ export function LearningLibrary({ onStartReview }: LearningLibraryProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const [statsOpen, setStatsOpen] = useState(false)
   const [preview, setPreview] = useState<{
     fileName: string
     rows: LearningCsvRow[]
@@ -416,6 +418,15 @@ export function LearningLibrary({ onStartReview }: LearningLibraryProps) {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [preview])
+
+  useEffect(() => {
+    if (!statsOpen) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setStatsOpen(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [statsOpen])
 
   const pickFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -483,6 +494,12 @@ export function LearningLibrary({ onStartReview }: LearningLibraryProps) {
 
   const title =
     scope.kind === 'inactive' ? '已停用' : scope.kind === 'subject' ? scope.subject : '全部卡片'
+
+  const stats = learningStats(items, today)
+  const peak = Math.max(1, ...stats.forecast.map((day) => day.count))
+  const masteryTotal = stats.mastery.fresh + stats.mastery.learning + stats.mastery.mature
+  const share = (count: number) => (masteryTotal > 0 ? `${(count / masteryTotal) * 100}%` : '0%')
+  const retentionLabel = stats.retention === null ? '—' : `${Math.round(stats.retention * 100)}%`
 
   return (
     <section className="w1-workspace w1-learn" aria-label="学习工作区">
@@ -588,6 +605,14 @@ export function LearningLibrary({ onStartReview }: LearningLibraryProps) {
               <button className="w1-lrevbtn" type="button" onClick={onStartReview}>
                 开始复习{' '}
                 <span>{dueCount > 0 ? `约 ${estimatedMinutes(dueCount)} 分钟` : '今天已清空'}</span>
+              </button>
+              <button
+                className="w1-lfilebtn"
+                type="button"
+                title="查看未来 7 天负载与记忆保持率"
+                onClick={() => setStatsOpen(true)}
+              >
+                统计
               </button>
               <input
                 ref={fileRef}
@@ -770,6 +795,118 @@ export function LearningLibrary({ onStartReview }: LearningLibraryProps) {
                 onClick={() => void confirmImport()}
               >
                 导入 {preview.rows.length} 张
+              </button>
+            </div>
+          </m.div>
+        </m.div>
+      ) : null}
+
+      {statsOpen ? (
+        <m.div
+          className="w1-modalbackdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setStatsOpen(false)
+          }}
+        >
+          <m.div
+            className="w1-modal w1-lstats"
+            role="dialog"
+            aria-modal="true"
+            aria-label="学习统计"
+            tabIndex={-1}
+            initial={{ opacity: 0, transform: 'translateY(12px)' }}
+            animate={{ opacity: 1, transform: 'translateY(0px)' }}
+            transition={{ duration: DURATION.modal, ease: EASE_OUT }}
+          >
+            <div className="w1-modalhead">
+              <span className="w1-eyebrow">// 学习统计</span>
+              <button
+                className="w1-modalx"
+                type="button"
+                aria-label="关闭"
+                onClick={() => setStatsOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="w1-modaltitle">记忆与负载。</div>
+
+            <div className="w1-lstatgrid">
+              <div>
+                <span>今天到期</span>
+                <b>{stats.forecast[0].count}</b>
+                <small>约 {stats.forecast[0].minutes} 分钟</small>
+              </div>
+              <div>
+                <span>记忆保持率</span>
+                <b>{retentionLabel}</b>
+                <small>
+                  {stats.reviewed > 0 ? `${stats.reviewed} 张可估算` : '复习后开始估算'}
+                </small>
+              </div>
+              <div>
+                <span>成熟卡</span>
+                <b>{stats.mastery.mature}</b>
+                <small>稳定度 ≥ 21 天</small>
+              </div>
+            </div>
+
+            <div className="w1-lstatblock">
+              <span className="w1-lstatlabel">// 未来 7 天到期</span>
+              <div
+                className="w1-lstatforcast"
+                role="img"
+                aria-label={`未来 7 天到期：${stats.forecast
+                  .map((day) => `${day.label} ${day.count} 张`)
+                  .join('，')}`}
+              >
+                {stats.forecast.map((day) => (
+                  <div className="w1-lstatday" key={day.day}>
+                    <span className="w1-lstatbar" aria-hidden="true">
+                      <i
+                        style={{
+                          height:
+                            day.count === 0 ? '2px' : `${Math.max(10, (day.count / peak) * 100)}%`
+                        }}
+                      />
+                    </span>
+                    <b>{day.count}</b>
+                    <small>{day.label}</small>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="w1-lstatblock">
+              <span className="w1-lstatlabel">// 掌握分布</span>
+              <div className="w1-lstatstack" aria-hidden="true">
+                <i className="fresh" style={{ width: share(stats.mastery.fresh) }} />
+                <i className="learning" style={{ width: share(stats.mastery.learning) }} />
+                <i className="mature" style={{ width: share(stats.mastery.mature) }} />
+              </div>
+              <div className="w1-lstatlegend">
+                <span>
+                  <i className="fresh" />
+                  新卡 {stats.mastery.fresh}
+                </span>
+                <span>
+                  <i className="learning" />
+                  学习中 {stats.mastery.learning}
+                </span>
+                <span>
+                  <i className="mature" />
+                  成熟 {stats.mastery.mature}
+                </span>
+              </div>
+            </div>
+
+            <p className="w1-lstatnote">
+              保持率按 FSRS 稳定度估算，未复习的新卡不计入；未来 7 天按当前排期统计。
+            </p>
+            <div className="w1-modalacts">
+              <button className="w1-pb" type="button" onClick={() => setStatsOpen(false)}>
+                关闭
               </button>
             </div>
           </m.div>

@@ -1156,6 +1156,23 @@ async function run() {
       one('.w1-learnmain .w1-todosub')?.textContent ?? ''
     )
 
+    byText('.w1-lfilebtn', '统计')?.click()
+    await sleep(350)
+    check(
+      '学习统计弹层显示 7 天预测',
+      !!one('.w1-lstats') && all('.w1-lstatday').length === 7,
+      String(all('.w1-lstatday').length)
+    )
+    check(
+      '学习统计显示保持率与掌握分布',
+      (one('.w1-lstatgrid')?.textContent ?? '').includes('记忆保持率') &&
+        all('.w1-lstatlegend span').length === 3,
+      one('.w1-lstatgrid')?.textContent ?? ''
+    )
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
+    await sleep(300)
+    check('Esc 关闭学习统计', !one('.w1-lstats'))
+
     const learnSearch = one('.w1-learnmain .w1-todosearch input')
     setValue(learnSearch, 'analyze')
     await sleep(350)
