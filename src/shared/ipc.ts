@@ -153,6 +153,14 @@ export interface LearningItemRecord {
   ease: number
   nextReviewOn: string
   lastReviewedAt?: number
+  /** FSRS 稳定度（天）；旧卡为 undefined，首次评分时建立 */
+  stability?: number
+  /** FSRS 难度（1–10） */
+  difficulty?: number
+  /** FSRS 累计失误次数 */
+  lapses?: number
+  /** 上次复习的本地日期键，用于计算 elapsed */
+  lastReviewOn?: string
   active: boolean
   /** 卡型：basic 是普通问答，cloze 用 {{c1::…}} 挖空 */
   kind?: LearningKind

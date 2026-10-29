@@ -247,6 +247,18 @@ export const MIGRATIONS: Migration[] = [
 
       CREATE INDEX idx_note_links_target ON note_links(target_id);
     `
+  },
+  {
+    // FSRS-6 记忆状态：旧卡保持 NULL，首次评分时才建立，不伪造复习历史。
+    version: 14,
+    sql: `
+      ALTER TABLE learning_items ADD COLUMN stability REAL;
+      ALTER TABLE learning_items ADD COLUMN difficulty REAL;
+      ALTER TABLE learning_items ADD COLUMN lapses INTEGER NOT NULL DEFAULT 0
+        CHECK (lapses >= 0);
+      ALTER TABLE learning_items ADD COLUMN last_review_on TEXT
+        CHECK (last_review_on IS NULL OR last_review_on GLOB '????-??-??');
+    `
   }
 ]
 

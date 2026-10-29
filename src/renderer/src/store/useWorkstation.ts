@@ -755,11 +755,16 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
           {
             repetitions: item.repetitions,
             intervalDays: item.intervalDays,
-            ease: item.ease
+            stability: item.stability,
+            difficulty: item.difficulty,
+            lapses: item.lapses,
+            lastReviewOn: item.lastReviewOn,
+            lastReviewedAt: item.lastReviewedAt
           },
           rating,
           dateKey()
-        )
+        ),
+        lastReviewOn: dateKey()
       })
       return
     }

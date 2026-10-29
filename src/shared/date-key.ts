@@ -40,3 +40,12 @@ export function addDaysKey(key: string, days: number): string {
   const next = new Date(Date.UTC(year, month - 1, day + days))
   return `${next.getUTCFullYear()}-${pad(next.getUTCMonth() + 1)}-${pad(next.getUTCDate())}`
 }
+
+/** 两个日期键之间的日历天数，to 晚于 from 时为正。 */
+export function daysBetweenKeys(from: string, to: string): number {
+  const [fromYear, fromMonth, fromDay] = parts(from)
+  const [toYear, toMonth, toDay] = parts(to)
+  const start = Date.UTC(fromYear, fromMonth - 1, fromDay)
+  const end = Date.UTC(toYear, toMonth - 1, toDay)
+  return Math.round((end - start) / 86_400_000)
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addDaysKey, dateKey, isDateKey } from './date-key'
+import { addDaysKey, dateKey, daysBetweenKeys, isDateKey } from './date-key'
 
 describe('dateKey', () => {
   it('按本地日期分量格式化', () => {
@@ -19,6 +19,19 @@ describe('addDaysKey', () => {
   it('拒绝非法日期键', () => {
     expect(() => addDaysKey('2026-02-30', 1)).toThrow(RangeError)
     expect(() => addDaysKey('not-a-date', 1)).toThrow(RangeError)
+  })
+})
+
+describe('daysBetweenKeys', () => {
+  it('按日历日计算有符号差值', () => {
+    expect(daysBetweenKeys('2026-10-01', '2026-10-31')).toBe(30)
+    expect(daysBetweenKeys('2026-12-31', '2027-01-01')).toBe(1)
+    expect(daysBetweenKeys('2026-10-31', '2026-10-01')).toBe(-30)
+  })
+
+  it('同一天为 0，跨闰年正确', () => {
+    expect(daysBetweenKeys('2026-10-29', '2026-10-29')).toBe(0)
+    expect(daysBetweenKeys('2028-02-28', '2028-03-01')).toBe(2)
   })
 })
 

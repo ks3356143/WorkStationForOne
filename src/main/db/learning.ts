@@ -21,13 +21,17 @@ interface LearningRow {
   ease: number
   next_review_on: string
   last_reviewed_at: number | null
+  stability: number | null
+  difficulty: number | null
+  lapses: number
+  last_review_on: string | null
   active: number
   kind: string
   cloze_source: string
   note_id: string | null
 }
 
-const COLUMNS = `id, subject, title, source, notes, repetitions, interval_days, ease, next_review_on, last_reviewed_at, active, kind, cloze_source, note_id`
+const COLUMNS = `id, subject, title, source, notes, repetitions, interval_days, ease, next_review_on, last_reviewed_at, stability, difficulty, lapses, last_review_on, active, kind, cloze_source, note_id`
 
 const LIST_SQL = `SELECT ${COLUMNS} FROM learning_items
   ORDER BY active DESC, next_review_on ASC, title ASC`
@@ -62,8 +66,12 @@ function toRecord(row: LearningRow): LearningItemRecord {
     ease: row.ease,
     nextReviewOn: row.next_review_on,
     lastReviewedAt: row.last_reviewed_at ?? undefined,
+    lapses: row.lapses,
     active: row.active === 1
   }
+  if (row.stability !== null) record.stability = row.stability
+  if (row.difficulty !== null) record.difficulty = row.difficulty
+  if (row.last_review_on) record.lastReviewOn = row.last_review_on
   if (row.kind === 'cloze') {
     record.kind = 'cloze'
     record.clozeSource = row.cloze_source
@@ -205,7 +213,11 @@ export class LearningRepository {
       {
         repetitions: current.repetitions,
         intervalDays: current.intervalDays,
-        ease: current.ease
+        stability: current.stability,
+        difficulty: current.difficulty,
+        lapses: current.lapses,
+        lastReviewOn: current.lastReviewOn,
+        lastReviewedAt: current.lastReviewedAt
       },
       rating,
       today
@@ -215,10 +227,22 @@ export class LearningRepository {
     this.transaction(() => {
       this.sql(
         `UPDATE learning_items
-          SET repetitions = ?, interval_days = ?, ease = ?, next_review_on = ?,
+          SET repetitions = ?, interval_days = ?, next_review_on = ?,
+              stability = ?, difficulty = ?, lapses = ?, last_review_on = ?,
               last_reviewed_at = ?, updated_at = ?
           WHERE id = ?`
-      ).run(next.repetitions, next.intervalDays, next.ease, next.nextReviewOn, now, now, id)
+      ).run(
+        next.repetitions,
+        next.intervalDays,
+        next.nextReviewOn,
+        next.stability,
+        next.difficulty,
+        next.lapses,
+        today,
+        now,
+        now,
+        id
+      )
       this.sql(REVIEW_SQL).run(randomUUID(), id, rating, now)
     })
 

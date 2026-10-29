@@ -2,7 +2,7 @@
 
 Windows 上的个人 AI 工作站。把「今日看板 + 任务清单 + Agent 工作区 + 笔记库 + 闪卡复习」收进一个窗口：左侧导航一次只打开一个全宽工作区，Agent 视图里驱动本机 Claude Code CLI 对话，任务、笔记、学习与习惯全部落在本机 SQLite。
 
-> 当前版本 v0.2.0（2026-10-29）。任务（含清单、计划、重复、子任务）、笔记（含双链）、学习、习惯与审计均已落库（DB v13）；Agent 通过本机 `claude` CLI 流式对话（只读工具）；便携版可用。交互式工具审批、会话持久化、Codex 适配器与本地 MCP 桥尚未实现。
+> 当前版本 v0.3.0（2026-10-29）。任务（含清单、计划、重复、子任务）、笔记（含双链）、学习（FSRS-6）、习惯与审计均已落库（DB v14）；Agent 通过本机 `claude` CLI 流式对话（只读工具）；便携版可用。交互式工具审批、会话持久化、Codex 适配器与本地 MCP 桥尚未实现。
 
 ## 特点
 
@@ -12,7 +12,7 @@ Windows 上的个人 AI 工作站。把「今日看板 + 任务清单 + Agent �
 - **可扩展的外壳**：新应用作为一级导航项接入，各自拥有全宽工作区；看板与 Agent 不同屏，也不存在常驻右栏。
 - **本地优先**：数据只存在本机 SQLite；不使用云同步、不上传遥测、不保存 API Key。
 - **中文优先的 HUD 界面**：极光玻璃、直角、终端式元素；夜色与白天双主题，动效可整体关闭，也尊重系统的「减少动效」设置。
-- **间隔重复复习**：考研英语二与互联网知识的闪卡；到期队列按 SRS 排程，翻面评分（重来 / 困难 / 良好 / 简单）；支持 `{{c1::答案}}` 挖空卡与一键把笔记转成卡片。
+- **间隔重复复习**：考研英语二与互联网知识的闪卡；调度使用 **FSRS-6**（默认参数、90% 目标保留率），每张卡维护稳定度 / 难度 / 失误次数，评分 1 留在今天，当天重复复习走短期公式。支持 `{{c1::答案}}` 挖空卡与一键把笔记转成卡片。
 - **笔记全文搜索与双链**：SQLite FTS5 + trigram 分词，中文与英文都能检索，两字短词自动回退模糊匹配；弹层详情可编辑、删除与转卡。正文里用 `[[笔记首行]]` 互相引用，详情显示出链与被引用列表，输入 `[[` 自动补全唯一标题。
 - **习惯与审计**：打卡按本地日期存库，显示连续天数；任务、笔记、学习、习惯的写入在仓储层留下审计记录。
 
@@ -30,7 +30,7 @@ Windows 上的个人 AI 工作站。把「今日看板 + 任务清单 + Agent �
 | --- | --- |
 | 桌面壳 | Electron 45（sandbox + contextIsolation，仅暴露窄 preload 桥） |
 | 界面 | React 19、TypeScript、Zustand、Motion、cmdk |
-| 数据 | Electron 内置 `node:sqlite`（WAL、`PRAGMA user_version` 前向迁移、FTS5，DB v13） |
+| 数据 | Electron 内置 `node:sqlite`（WAL、`PRAGMA user_version` 前向迁移、FTS5，DB v14） |
 | 构建 | electron-vite、Vite 8、Vitest、Biome |
 
 不引入原生 SQLite 模块，因此没有 `@electron/rebuild` 与 ABI 匹配问题。
@@ -54,9 +54,9 @@ npm run dev
 | `npm run build` | 生产构建，输出到 `out/` |
 | `npm start` | 预览上一次构建 |
 | `npm run typecheck` | 类型检查（main/preload 与 renderer 各一套配置） |
-| `npm test` | 运行全部单元测试（494 项） |
+| `npm test` | 运行全部单元测试（500 项） |
 | `npm run check` | Biome 检查格式与 lint（Rust 单二进制，不依赖 Prettier / ESLint） |
-| `npm run smoke` | 构建后跑 UI 交互冒烟（205 项，真实主进程 + 临时 SQLite） |
+| `npm run smoke` | 构建后跑 UI 交互冒烟（206 项，真实主进程 + 临时 SQLite） |
 | `npm run verify` | 启动真实主进程跑 251–253 项运行时断言（五视图、双主题/皮肤、跨重启） |
 | `npm run capture -- .screenshots/home.png 1440 900 .screenshots/audit.json` | 截图并输出布局审计 |
 | `npm run capture -- .screenshots/notes-1180.png 1180 720 .screenshots/audit-notes.json dark notes` | 指定主题 `dark|light` 与视图 `today|tasks|agent|notes|learning` 截图 |
@@ -80,7 +80,7 @@ src/
     src/store/          Zustand 状态
   shared/ipc.ts         IPC 通道常量与跨进程类型契约
   shared/date-key.ts    本地日期键与日期运算
-  shared/srs.ts         间隔重复调度（纯函数，主进程执行）
+  shared/srs.ts         FSRS-6 调度（纯函数，主进程执行）
   shared/repeat.ts      重复任务推进规则
   shared/cloze.ts       挖空卡解析
 resources/              应用图标源文件与产物
@@ -91,7 +91,7 @@ docs/superpowers/specs/ 产品与架构设计规格
 ## 数据
 
 - 位置：`%APPDATA%\WorkStationForOne\data\workstation.db`
-- 已落库：任务（清单、截止/计划日期、时长、优先级、备注、完成时间、重复、子任务）、笔记（含 FTS5 索引与双链）、学习卡片与复习记录、习惯与按日打卡、审计日志
+- 已落库：任务（清单、截止/计划日期、时长、优先级、备注、完成时间、重复、子任务）、笔记（含 FTS5 索引与双链）、学习卡片（含 FSRS 稳定度 / 难度 / 失误次数）与复习记录、习惯与按日打卡、审计日志
 - 备份：每天首次启动用 `VACUUM INTO` 生成快照到 `<库目录>/backups/`，保留最近 10 份；命令面板可手动备份
 - 全局快速捕获：`Ctrl+Alt+Space` 随时记一条，落库后主窗口即时刷新
 - 尚未落库：Agent 会话与消息（仍在内存，重启会重置）
@@ -110,7 +110,8 @@ docs/superpowers/specs/ 产品与架构设计规格
 - 交互式工具审批尚未接入：只读工具自动放行，写操作由 CLI 拒绝；界面里的权限卡是演示数据。
 - Codex 适配器、Agent 会话持久化与本地 MCP 服务器均未实现。
 - 审计日志已有记录，但还没有查看入口。
-- 笔记双链只按「唯一首行」解析：重名或找不到的目标不建立链接；目标改首行后旧链接仍指向它，但正文里显示的是保存时的标题快照。学习域暂无导入导出、拼写与作文题型。
+- 笔记双链只按「唯一首行」解析：重名或找不到的目标不建立链接；目标改首行后旧链接仍指向它，但正文里显示的是保存时的标题快照。
+- 学习域使用 FSRS-6 默认参数，不提供参数优化器；暂无导入导出、拼写与作文题型。
 - 到点提醒只覆盖任务；学习到期不会推送系统通知。
 - 仅支持 Windows；默认夜间主题，可在状态栏或命令面板切换到白天模式。
 

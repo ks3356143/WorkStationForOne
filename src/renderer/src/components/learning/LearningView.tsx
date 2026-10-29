@@ -76,7 +76,11 @@ function LearningItemRow({
           {learningDueLabel(item, today)}
         </span>
         <span className="w1-linterval">
-          {item.intervalDays === 0 ? '新卡' : `${item.intervalDays} 天`}
+          {item.stability === undefined && item.repetitions === 0
+            ? '新卡'
+            : item.intervalDays === 0
+              ? '今天'
+              : `${item.intervalDays} 天`}
         </span>
       </div>
 

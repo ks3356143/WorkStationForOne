@@ -85,7 +85,15 @@ export function ReviewSession({ onExit }: ReviewSessionProps) {
   }
 
   const state = current
-    ? { repetitions: current.repetitions, intervalDays: current.intervalDays, ease: current.ease }
+    ? {
+        repetitions: current.repetitions,
+        intervalDays: current.intervalDays,
+        stability: current.stability,
+        difficulty: current.difficulty,
+        lapses: current.lapses,
+        lastReviewOn: current.lastReviewOn,
+        lastReviewedAt: current.lastReviewedAt
+      }
     : null
   const total = queue.length + tally.reviewed
   const position = Math.min(tally.reviewed + 1, total)

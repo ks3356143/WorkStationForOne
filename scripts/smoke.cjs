@@ -1436,7 +1436,8 @@ async function run() {
       notes: count('SELECT COUNT(*) AS n FROM notes'),
       learning: count('SELECT COUNT(*) AS n FROM learning_items'),
       reviews: count('SELECT COUNT(*) AS n FROM learning_reviews'),
-      links: count('SELECT COUNT(*) AS n FROM note_links')
+      links: count('SELECT COUNT(*) AS n FROM note_links'),
+      fsrs: count('SELECT COUNT(*) AS n FROM learning_items WHERE stability IS NOT NULL')
     }
     db.close()
   } catch (error) {
@@ -1449,6 +1450,11 @@ async function run() {
     name: '笔记双链已落库',
     ok: Boolean(dbStats && dbStats.links > 0),
     detail: dbStats ? String(dbStats.links) : '无数据'
+  })
+  results.checks.push({
+    name: 'FSRS 状态已落库',
+    ok: Boolean(dbStats && dbStats.fsrs > 0),
+    detail: dbStats ? String(dbStats.fsrs) : '无数据'
   })
   // 审计：UI 操作必须留下记录（这里读库，不依赖渲染层）
   let auditRows = []

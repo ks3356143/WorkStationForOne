@@ -52,6 +52,35 @@ describe('迁移 v7', () => {
     db.close()
   })
 
+  it('从 v13 升级时保留学习进度，FSRS 字段保持为空', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wsfo-learning-'))
+    dirs.push(dir)
+    const db = openDatabase(join(dir, 'workstation.db'))
+    migrate(
+      db,
+      MIGRATIONS.filter((migration) => migration.version <= 13)
+    )
+    db.prepare(
+      `INSERT INTO learning_items
+        (id, subject, title, next_review_on, repetitions, interval_days, ease, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run('old', '英语二', 'legacy', '2026-10-30', 3, 12, 2.2, 1, 1)
+
+    migrate(db)
+
+    const card = new LearningRepository(db).find('old')
+    expect(card).toMatchObject({
+      repetitions: 3,
+      intervalDays: 12,
+      ease: 2.2,
+      lapses: 0
+    })
+    expect(card?.stability).toBeUndefined()
+    expect(card?.difficulty).toBeUndefined()
+    expect(card?.lastReviewOn).toBeUndefined()
+    db.close()
+  })
+
   it('从 v6 升级时保留原有任务数据', () => {
     const dir = mkdtempSync(join(tmpdir(), 'wsfo-learning-'))
     dirs.push(dir)
@@ -163,23 +192,33 @@ describe('LearningRepository · 复习', () => {
 
     expect(updated).toMatchObject({
       repetitions: 1,
-      intervalDays: 1,
+      intervalDays: 2,
       ease: 2.5,
-      nextReviewOn: '2026-10-28'
+      nextReviewOn: '2026-10-29',
+      lastReviewOn: '2026-10-27'
     })
+    expect(updated.stability).toBeCloseTo(2.3065, 3)
+    expect(updated.difficulty).toBeCloseTo(2.117, 2)
+    expect(updated.lapses).toBe(0)
     expect(updated.lastReviewedAt).toBeTypeOf('number')
     expect(repo.reviewCount('l1')).toBe(1)
     db.close()
   })
 
-  it('重来不改动复习日', () => {
+  it('重来不改动复习日并累计失误', () => {
     const { db, repo } = seedDb()
     repo.bootstrap([item({ repetitions: 3, intervalDays: 20, nextReviewOn: '2026-10-20' })])
 
     const updated = repo.review('l1', 1, '2026-10-27')
 
-    expect(updated).toMatchObject({ repetitions: 0, intervalDays: 0, nextReviewOn: '2026-10-27' })
-    expect(updated.ease).toBeCloseTo(2.3)
+    expect(updated).toMatchObject({
+      repetitions: 0,
+      intervalDays: 0,
+      nextReviewOn: '2026-10-27',
+      lapses: 1,
+      lastReviewOn: '2026-10-27'
+    })
+    expect(updated.stability).toBeGreaterThan(0)
     db.close()
   })
 
@@ -215,7 +254,49 @@ describe('LearningRepository · 复习', () => {
       intervalDays: 0,
       nextReviewOn: '2026-10-27'
     })
+    expect(repo.find('l1')?.stability).toBeUndefined()
+    expect(repo.find('l1')?.lastReviewOn).toBeUndefined()
     db.close()
+  })
+
+  it('旧卡第一次走 FSRS 时沿用原间隔', () => {
+    const { db, repo } = seedDb()
+    repo.bootstrap([
+      item({ repetitions: 3, intervalDays: 20, nextReviewOn: '2026-10-20', ease: 2.2 })
+    ])
+
+    const updated = repo.review('l1', 3, '2026-10-27')
+
+    expect(updated).toMatchObject({ repetitions: 4, intervalDays: 20, stability: 20 })
+    expect(updated.nextReviewOn).toBe('2026-11-16')
+    db.close()
+  })
+
+  it('FSRS 状态随卡片持久化，重开后仍在', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wsfo-learning-'))
+    dirs.push(dir)
+    const file = join(dir, 'workstation.db')
+
+    const first = openDatabase(file)
+    migrate(first)
+    const repo = new LearningRepository(first)
+    repo.bootstrap([item()])
+    repo.review('l1', 4, '2026-10-27')
+    first.close()
+
+    const second = openDatabase(file)
+    migrate(second)
+    const reopened = new LearningRepository(second).find('l1')
+    expect(reopened).toMatchObject({
+      repetitions: 1,
+      intervalDays: 8,
+      nextReviewOn: '2026-11-04',
+      lastReviewOn: '2026-10-27',
+      lapses: 0
+    })
+    expect(reopened?.stability).toBeCloseTo(8.2956, 3)
+    expect(reopened?.difficulty).toBe(1)
+    second.close()
   })
 })
 
