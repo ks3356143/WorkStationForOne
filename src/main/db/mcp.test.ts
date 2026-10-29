@@ -40,15 +40,15 @@ describe('迁移 v18', () => {
 describe('McpPolicyRepository', () => {
   it('切换域权限并写 system/settings 审计', () => {
     const { db, audit, repo } = seedDb()
-    expect(repo.set('note', 'write')).toEqual({ domain: 'note', mode: 'write' })
-    expect(repo.mode('note')).toBe('write')
-    expect(repo.list().find((item) => item.domain === 'note')?.mode).toBe('write')
+    expect(repo.set('note', 'ask')).toEqual({ domain: 'note', mode: 'ask' })
+    expect(repo.mode('note')).toBe('ask')
+    expect(repo.list().find((item) => item.domain === 'note')?.mode).toBe('ask')
     expect(audit.recent(5, 'system')).toContainEqual(
       expect.objectContaining({
         domain: 'system',
         action: 'settings',
         targetId: 'note',
-        detail: 'note → write'
+        detail: 'note → ask'
       })
     )
     db.close()

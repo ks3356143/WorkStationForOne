@@ -15,7 +15,7 @@
 - `npm run check` — Biome 检查格式与 lint（Rust 单二进制，不依赖 Prettier / ESLint）。
 - `npm run check:fix` — 自动修复格式与可安全修复的 lint 问题。
 - `npm run fmt` — 只格式化，不跑 lint。
-- `npm run smoke` — 先构建，再跑 229 项 UI 交互冒烟。加载真实主进程与 preload，UI 操作直接写进临时 SQLite（`userData`、`sessionData`、数据库都隔离到 `%TEMP%`），并断言「preload 桥可用」与「操作已落库」；跨重启持久化仍由 `npm run verify` 覆盖。到点提醒那条按分钟匹配，冒烟会检测是否跨过分钟边界并在跨界时重建重试。
+- `npm run smoke` — 先构建，再跑 232 项 UI 交互冒烟。加载真实主进程与 preload，UI 操作直接写进临时 SQLite（`userData`、`sessionData`、数据库都隔离到 `%TEMP%`），并断言「preload 桥可用」与「操作已落库」；跨重启持久化仍由 `npm run verify` 覆盖。到点提醒那条按分钟匹配，冒烟会检测是否跨过分钟边界并在跨界时重建重试。
 - `npm run verify` — 构建后启动真实主进程（临时 `WS_DATA_DIR`），运行 251–253 项运行时断言（起始主题不同会差 2 项分支）：五视图互斥、双主题/双皮肤持久化、跨重启数据。
 - `npm run capture -- .screenshots/shell-1440.png 1440 900 .screenshots/audit-1440.json` — 构建、保存截图并写入布局审计。
 - `npm run capture -- .screenshots/shell-1180.png 1180 720 .screenshots/audit-1180.json dark` — 在最小窗口尺寸下做同样的检查；主题参数为 `dark|light`，视图参数为 `today|tasks|agent|notes|learning`，均可省略审计路径后按任意顺序追加（如 `... 1440 900 light tasks`）。
@@ -29,7 +29,7 @@
 
 - 保持 `sandbox: true`、`contextIsolation: true`、`nodeIntegration: false`。渲染进程没有 Node、数据库或文件系统访问权；需要时扩展窄接口的类型化 preload 桥。
 - 禁止添加或默认启用 `--dangerously-skip-permissions` 或 `--dangerously-bypass-approvals-and-sandbox`。应用内 Codex 固定 `read-only` 沙箱：`codex exec` 没有 Claude 那样的宿主审批通道，宁可只读也不私自放行写入；交互式 Codex CLI 自身的默认策略仍是 `on-request` + `workspace-write`，不要改用户的 `~/.codex/config.toml`。
-- 本地 MCP 服务器只绑定 `127.0.0.1`，使用随机端口和按会话生成的 Bearer Token。Token 不得进入日志、审计记录、命令行参数或仓库文件；MCP 配置只写进每轮临时文件（`--mcp-config`），子进程结束即删。MCP 目前只提供读取工具，不做任意 SQL / 文件 / Shell。
+- 本地 MCP 服务器只绑定 `127.0.0.1`，使用随机端口和按会话生成的 Bearer Token。Token 不得进入日志、审计记录、命令行参数或仓库文件；MCP 配置只写进每轮临时文件（`--mcp-config`），子进程结束即删。MCP 提供读 / 写工具，写入受域权限与询问卡约束，不做任意 SQL / 文件 / Shell。
 - 默认不存储 API Key，继承现有 CLI 登录状态；只有用户显式保存的自定义 Provider 会把 Key 以 `safeStorage` 加密 BLOB 存进本机库，且永不回显、不写日志、不进命令行。
 - v1 坚持本地优先：不添加云同步、遥测或托管服务。
 - 不要自动重试可能产生副作用的回合。重试必须是用户显式操作。
@@ -67,8 +67,8 @@
 - 任务视图：容量条只统计 `planned_for = 今天` 且未完成的任务，可用时间按 09:00–22:00 窗口扣掉当前时刻计算（`lib/capacity.ts`）；「计划今天」面板只做计划/取消计划，时长在任务详情里设置；「排程预览」按截止日期 → 优先级贪心排入 09:00–22:00 空档、15 分钟对齐，已有时间的任务作为锚点，结果先预览再「接受全部」（`lib/planner.ts`）。
 - 任务视图：智能清单（收集箱 / 今天 / 即将到来 / 全部 / 已完成）与自定义清单都来自同一 `tasks` 数组；新增或删除任务必须同步 SQLite。快速添加的 Enter、`Ctrl+Shift+N` 聚焦、Esc 收起详情、搜索 Esc 清空、中文输入法组合期间不提交是既有契约。详情关闭后焦点回到行标题；日期支持今天/明天/清除快捷按钮。权限卡里的任务顺延可携带 `toDueDate`，允许后必须同时更新截止日期，不能只改时间与标签。任务行支持拖拽改期：拖到智能清单/自定义清单改截止日期或清单，拖到今日时间轴写入时间（15 分钟对齐，规则在 `lib/dnd.ts`）；拖拽只是鼠标增强，键盘用户仍走详情编辑。
 - 习惯连续天数：`lib/habits.ts` 的 `currentStreak()` 在今天就打卡时从今天数，否则从昨天数——一天还没过完就清零，会逼人提前打卡保数字；`bestStreak()` 用于对比历史最好值。两条都是纯函数，组件只负责展示。
-- MCP 数据桥（v0.12.0）：`src/main/mcp/server.ts` 在 Main 进程内嵌 Streamable HTTP JSON-RPC（`initialize / tools/list / tools/call`），只监听 `127.0.0.1` 随机端口，Bearer Token 按 Agent 回合发放并在回合结束时回收。11 个工具：5 个只读（`tasks_list / notes_search / learning_due / habits_summary / today_overview`）+ 6 个写入（`tasks_create / tasks_update / tasks_complete / habits_check / learning_review / notes_create`）。写入必须带 `idempotency_key`，同一会话重复键返回首次结果；每次调用写 `audit_log`（domain `mcp`, action `read|write`, target 会话 id，detail 只存参数摘要，不存 token）。工具名 `mcp__workstationforone__*` 进入 Claude 的允许列表；不改 Claude/Codex 的 MCP 配置。`WS_AGENT_CLI` 的 stub 会读临时配置并真实调用桥，冒烟断言读、写、任务刷新与审计。Codex 本轮不接 MCP。
-- MCP 按域权限（DB v18）：`mcp_domain_modes` 存 task / habit / learning / note 四域的 `read|write`，默认任务可写、其余只读；设置页可切换，切换写 `system/settings` 审计。只读域直接返回 `denied_by_policy`。**没有「询问」模式与写入审批卡**，不要把写权限默认放开；后续加询问模式时应在主进程串行排队并 60 秒超时拒绝。写入成功后主进程广播 `mcp:changed`，App 按域重新读库。
+- MCP 数据桥（v0.13.0）：`src/main/mcp/server.ts` 在 Main 进程内嵌 Streamable HTTP JSON-RPC（`initialize / tools/list / tools/call`），只监听 `127.0.0.1` 随机端口，Bearer Token 按 Agent 回合发放并在回合结束时回收。11 个工具：5 个只读（`tasks_list / notes_search / learning_due / habits_summary / today_overview`）+ 6 个写入（`tasks_create / tasks_update / tasks_complete / habits_check / learning_review / notes_create`）。写入必须带 `idempotency_key`，同一会话重复键返回首次结果；每次调用写 `audit_log`（domain `mcp`, action `read|write|approve|deny`, target 会话 id，detail 只存参数摘要，不存 token）。工具名 `mcp__workstationforone__*` 进入 Claude 的允许列表；不改 Claude/Codex 的 MCP 配置。`WS_AGENT_CLI` 的 stub 会读临时配置并真实调用桥，冒烟断言读、写、任务刷新与审计。Codex 本轮不接 MCP。
+- MCP 按域权限（DB v19）：`mcp_domain_modes` 存 task / habit / learning / note 四域的 `read|ask|write`，默认任务可写、其余只读；设置页可切换，切换写 `system/settings` 审计。只读域直接返回 `denied_by_policy`；询问模式由 `main/mcp/permissions.ts` 串行排队，一次只展示一张审批卡，60 秒超时 / 回合取消 / 窗口不可用都按拒绝处理，决定写 `approve|deny` 审计；「本会话允许」只记住会话 + 当前工具。写入成功后主进程广播 `mcp:changed`，App 按域重新读库。
 - 审计查看：设置页「活动记录」通过 `audit:recent` 只读展示最近记录，可按域筛选；没有删除入口。`audit_log` 仍挂在仓储层，MCP 写工具的审计由 `runMcpTool` 记录，拒绝写入由 server 记录。
 - 设置与状态：状态栏显示「MCP 桥」，点击只提示能力范围；没有 MCP 总开关。MCP 启动失败只记 console，不阻断应用启动或普通对话。
 - 审计：`audit_log`（DB v11，domain/action/target/title/source/detail）**挂在仓储层**而不是各个 IPC handler——MCP 或定时任务只要走仓储就一定留痕。审计写入失败只记 console，绝不让业务写入回滚；设置页的活动记录与 MCP 调用读同一张表。
@@ -124,8 +124,8 @@
 - 数据库位置：`%APPDATA%\WorkStationForOne\data\workstation.db`；设置 `WS_DATA_DIR` 可覆盖，冒烟与运行时校验据此使用临时库，避免改写真实数据。
 - 备份：每天首次启动用 `VACUUM INTO` 生成一份快照到 `<库目录>/backups/`（`workstation-YYYYMMDD-HHmmss.db`），只保留最近 10 份；命令面板「立即备份数据」可手动触发并在提示条显示文件名与大小。VACUUM INTO 是一致性快照，不需要停写入，也不要把库文件直接 `copyFile`（会拷到 WAL 中间态）。
 - 迁移前会自动 `VACUUM INTO` 备份到库文件旁。迁移 SQL 不得替用户伪造语义（例如给历史任务填「今天到期」）。
-- 已实现：智能体会话与消息持久化（DB v16）、真实新建 Claude / Codex 会话、resume id 跨重启续接、Claude 写工具逐次审批、Codex 只读适配器、MCP 读写数据桥（11 个工具、按回合 Token、DB v18 按域权限）、审计查看入口、Provider 配置（DB v17，Key 加密存本机）；Agent 页首次进入为空态，不再显示演示会话或演示权限卡。
-- 未实现：MCP 询问模式与写入审批卡、Codex 写入与审批、多会话并发、MCP 服务崩溃自动重启；工具审批暂无持久规则。
+- 已实现：智能体会话与消息持久化（DB v16）、真实新建 Claude / Codex 会话、resume id 跨重启续接、Claude 写工具逐次审批、Codex 只读适配器、MCP 读写数据桥（11 个工具、按回合 Token、DB v19 三档域权限与写入审批卡）、审计查看入口、Provider 配置（DB v17，Key 加密存本机）；Agent 页首次进入为空态，不再显示演示会话或演示权限卡。
+- 未实现：Codex 写入与审批、多会话并发、MCP 服务崩溃自动重启；工具审批暂无持久规则，MCP 审计仍不与业务写入同事务。
 - 渲染进程不直接访问数据库；新增数据能力必须走 `src/shared/ipc.ts` 的类型契约 + `src/main/ipc/` 的 handler，并在主进程校验入参。preload 桥目前暴露 `provider / tasks / notes / capture / learning / habits / agent / mcp / audit / app` 十组接口，`runtime-verify.mjs` 会断言这个集合，扩面时同步更新。
 
 ## 知识库取用规则

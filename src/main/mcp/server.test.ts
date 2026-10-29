@@ -230,7 +230,7 @@ describe('MCP HTTP 桥', () => {
     expect(source.audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
         domain: 'mcp',
-        action: 'write',
+        action: 'deny',
         detail: expect.stringContaining('denied_by_policy')
       })
     )
@@ -238,5 +238,43 @@ describe('MCP HTTP 桥', () => {
     const missingKey = await call(13, 'tasks_create', { title: '缺键' })
     const missingBody = (await missingKey.json()) as { result: { isError?: boolean } }
     expect(missingBody.result.isError).toBe(true)
+  })
+
+  it('询问模式先等用户决定，拒绝时不执行写入', async () => {
+    const source = data()
+    const create = vi.fn(source.tasks.create)
+    source.tasks.create = create
+    const requestPermission = vi.fn(async () => 'deny' as const)
+    bridge = new McpBridge(source, 'test', {
+      mode: () => 'ask',
+      requestPermission,
+      isSessionAllowed: () => false
+    })
+    await bridge.start()
+    const endpoint = bridge.issue('s-ask')
+    if (!endpoint) throw new Error('没有 issue token')
+
+    const response = await rpc(endpoint.url, endpoint.token, {
+      jsonrpc: '2.0',
+      id: 20,
+      method: 'tools/call',
+      params: {
+        name: 'tasks_create',
+        arguments: { title: '需要审批', idempotency_key: 'ask-1' }
+      }
+    })
+    const body = (await response.json()) as {
+      result: { isError?: boolean; content: { text: string }[] }
+    }
+    expect(body.result.isError).toBe(true)
+    expect(body.result.content[0].text).toBe('denied_by_policy')
+    expect(create).not.toHaveBeenCalled()
+    expect(requestPermission).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 's-ask',
+        domain: 'task',
+        tool: 'tasks_create'
+      })
+    )
   })
 })

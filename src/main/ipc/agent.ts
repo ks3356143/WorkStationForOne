@@ -176,7 +176,8 @@ export function registerAgentHandlers(
   cli?: AgentCli | null,
   getProvider?: () => ProviderRuntime | undefined,
   codexCli?: AgentCli | null,
-  mcp?: McpAccess | null
+  mcp?: McpAccess | null,
+  cancelPermissions?: (sessionId: string) => void
 ): void {
   const runs = new Map<string, ActiveRun>()
   const permissionRuns = new Map<string, string>()
@@ -230,6 +231,7 @@ export function registerAgentHandlers(
     }) => {
       runs.delete(runId)
       if (mcpEndpoint) mcp?.revoke(mcpEndpoint.token)
+      cancelPermissions?.(input.sessionId)
       for (const [requestId, owner] of permissionRuns) {
         if (owner === runId) permissionRuns.delete(requestId)
       }

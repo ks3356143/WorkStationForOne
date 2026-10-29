@@ -25,6 +25,12 @@ const MCP_DOMAIN_LABELS: Record<McpDomain, string> = {
   note: '笔记'
 }
 
+const MCP_MODE_LABELS: Record<McpMode, string> = {
+  read: '只读',
+  ask: '询问',
+  write: '可写'
+}
+
 const AUDIT_DOMAIN_LABELS: Record<AuditLogDomain, string> = {
   task: '任务',
   note: '笔记',
@@ -143,7 +149,7 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
         setPolicies((list) =>
           list.map((policy) => (policy.domain === domain ? { ...policy, mode } : policy))
         )
-        notify(`MCP ${MCP_DOMAIN_LABELS[domain]}权限：${mode === 'write' ? '可写' : '只读'}`)
+        notify(`MCP ${MCP_DOMAIN_LABELS[domain]}权限：${MCP_MODE_LABELS[mode]}`)
         return auditApi
           ?.recent(30, auditDomain === 'all' ? undefined : auditDomain)
           .then(setAuditRows)
@@ -392,8 +398,7 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
         <section className="w1-setgroup" aria-label="MCP 数据权限">
           <h3>MCP 数据权限</h3>
           <p className="w1-provnote">
-            只读域会拒绝 Agent 写入；可写域允许 Claude 通过 MCP
-            修改，并写审计。本版没有「询问」模式。
+            只读域拒绝写入；询问模式每次弹审批卡；可写域直接允许并写审计。切换会写审计。
           </p>
           {policies.length === 0 ? (
             <p className="w1-provnote">仅在桌面应用可用。</p>
@@ -414,6 +419,15 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
                     onClick={() => changePolicy(policy.domain, 'read')}
                   >
                     只读
+                  </button>
+                  <button
+                    type="button"
+                    className={`w1-setbtn${policy.mode === 'ask' ? ' on' : ''}`}
+                    aria-pressed={policy.mode === 'ask'}
+                    disabled={policyBusy}
+                    onClick={() => changePolicy(policy.domain, 'ask')}
+                  >
+                    询问
                   </button>
                   <button
                     type="button"

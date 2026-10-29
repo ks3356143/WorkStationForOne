@@ -15,6 +15,7 @@ import { registerMcpHandlers } from './ipc/mcp'
 import { registerNoteHandlers } from './ipc/notes'
 import { registerTaskHandlers } from './ipc/tasks'
 import { McpBridge } from './mcp/server'
+import { McpPermissionBroker } from './mcp/permissions'
 import { IPC_CHANNELS } from '../shared/ipc'
 
 const devUrl = process.env.ELECTRON_RENDERER_URL
@@ -47,6 +48,7 @@ function isAllowedNavigation(url: string): boolean {
 let mainWindow: BrowserWindow | null = null
 let stopReminders: (() => void) | null = null
 let mcpBridge: McpBridge | null = null
+let mcpPermissions: McpPermissionBroker | null = null
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -128,7 +130,17 @@ if (!gotTheLock) {
     registerLearningHandlers(database.learning)
     registerHabitHandlers(database.habits)
     registerProviderHandlers(providers)
-    registerMcpHandlers(database.mcp, database.audit)
+    const permissions = new McpPermissionBroker({
+      send: (request) => {
+        const win = mainWindow
+        if (!win || win.isDestroyed()) return false
+        win.webContents.send(IPC_CHANNELS.mcpPermission, request)
+        return true
+      },
+      audit: database.audit
+    })
+    mcpPermissions = permissions
+    registerMcpHandlers(database.mcp, database.audit, permissions)
     // 本地只读 MCP 桥：只绑 127.0.0.1 随机端口，token 按 Agent 回合发放
     const bridge = new McpBridge(
       {
@@ -144,7 +156,9 @@ if (!gotTheLock) {
         notifyChanged: (domains) => {
           const win = mainWindow
           if (win && !win.isDestroyed()) win.webContents.send(IPC_CHANNELS.mcpChanged, domains)
-        }
+        },
+        requestPermission: (input) => permissions.request(input),
+        isSessionAllowed: (sessionId, tool) => permissions.isSessionAllowed(sessionId, tool)
       }
     )
     try {
@@ -163,7 +177,8 @@ if (!gotTheLock) {
       undefined,
       () => providers.runtime(),
       undefined,
-      mcpBridge
+      mcpBridge,
+      (sessionId) => mcpPermissions?.cancelSession(sessionId)
     )
     // 到点提醒：轮询数据库，命中「今天 + 正好到点 + 没提醒过」就弹系统通知
     stopReminders = startReminderLoop(database.tasks, {
@@ -194,6 +209,8 @@ app.on('before-quit', () => {
   // 先停轮询/桥再关库：反过来的话 tick 或 MCP 请求会读到已关闭的连接
   stopReminders?.()
   stopReminders = null
+  mcpPermissions?.close()
+  mcpPermissions = null
   mcpBridge?.close()
   mcpBridge = null
   disposeCaptureShortcut()

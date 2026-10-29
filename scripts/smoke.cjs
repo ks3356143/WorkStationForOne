@@ -779,7 +779,7 @@ async function run() {
     await sleep(1000)
     const mcpText = all('.w1-amsg').at(-1)?.querySelector('.w1-atext')?.textContent ?? ''
     const mcpTool = all('.w1-amsg').at(-1)?.querySelector('.w1-tool')
-    check('MCP 只读桥可被 Claude 调用', mcpText.includes('MCP 概览：读取成功'), mcpText)
+    check('MCP 读工具可被 Claude 调用', mcpText.includes('MCP 概览：读取成功'), mcpText)
     check(
       'MCP 工具调用显示为已完成',
       mcpTool?.textContent?.includes('today_overview') && mcpTool?.textContent?.includes('完成'),
@@ -802,6 +802,32 @@ async function run() {
         mcpWriteTool?.textContent?.includes('完成'),
       mcpWriteTool?.textContent ?? 'missing'
     )
+
+    await window.ws.mcp.setPolicy('task', 'ask')
+    await sleep(150)
+    const mcpAskInput = one('#composer-input')
+    setValue(mcpAskInput, 'MCP 审批写入')
+    await sleep(80)
+    mcpAskInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }))
+    await sleep(800)
+    check(
+      '询问模式弹出 MCP 写入审批卡',
+      !!one('.w1-mcpapprove') &&
+        (one('.w1-mcpapprove')?.textContent ?? '').includes('tasks_create') &&
+        (one('.w1-mcpapprove')?.textContent ?? '').includes('MCP 审批写入'),
+      one('.w1-mcpapprove')?.textContent?.slice(0, 100) ?? 'missing'
+    )
+    byText('.w1-mcpapprove .w1-pb.pri', '允许一次')?.click()
+    await sleep(1100)
+    check(
+      '允许一次后写入完成',
+      !one('.w1-mcpapprove') &&
+        (one('.w1-thread')?.textContent ?? '').includes('MCP 审批写入：已创建'),
+      one('.w1-thread')?.textContent?.slice(-100) ?? ''
+    )
+    await window.ws.mcp.setPolicy('task', 'write')
+    await sleep(150)
+
     await navTo('今日')
     await sleep(500)
     check(
@@ -1659,6 +1685,12 @@ async function run() {
       mcpTask: count(
         "SELECT COUNT(*) AS n FROM tasks WHERE title = 'MCP 写入测试' AND deleted_at IS NULL"
       ),
+      mcpApprovalTask: count(
+        "SELECT COUNT(*) AS n FROM tasks WHERE title = 'MCP 审批写入' AND deleted_at IS NULL"
+      ),
+      mcpApproveAudit: count(
+        "SELECT COUNT(*) AS n FROM audit_log WHERE domain = 'mcp' AND action = 'approve'"
+      ),
       mcpAuditLeak: count(
         "SELECT COUNT(*) AS n FROM audit_log WHERE domain = 'mcp' AND (detail LIKE '%Bearer%' OR detail LIKE '%token%')"
       ),
@@ -1709,6 +1741,13 @@ async function run() {
     name: 'MCP 写入任务与审计已落库',
     ok: Boolean(dbStats && dbStats.mcpTask === 1 && dbStats.mcpWrites > 0),
     detail: dbStats ? `task ${dbStats.mcpTask} / write ${dbStats.mcpWrites}` : '无数据'
+  })
+  results.checks.push({
+    name: 'MCP 审批写入与决定已落库',
+    ok: Boolean(dbStats && dbStats.mcpApprovalTask === 1 && dbStats.mcpApproveAudit > 0),
+    detail: dbStats
+      ? `task ${dbStats.mcpApprovalTask} / approve ${dbStats.mcpApproveAudit}`
+      : '无数据'
   })
   results.checks.push({
     name: 'MCP 域权限默认值已落库',

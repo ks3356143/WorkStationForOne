@@ -82,6 +82,16 @@ const api: WsApi = {
   mcp: {
     policy: () => ipcRenderer.invoke(IPC_CHANNELS.mcpPolicyList),
     setPolicy: (domain, mode) => ipcRenderer.invoke(IPC_CHANNELS.mcpPolicySet, domain, mode),
+    respondPermission: (response) =>
+      ipcRenderer.invoke(IPC_CHANNELS.mcpPermissionResponse, response),
+    onPermission: (listener) => {
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        request: Parameters<typeof listener>[0]
+      ) => listener(request)
+      ipcRenderer.on(IPC_CHANNELS.mcpPermission, handler)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.mcpPermission, handler)
+    },
     onChanged: (listener) => {
       const handler = (
         _event: Electron.IpcRendererEvent,

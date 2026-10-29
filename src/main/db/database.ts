@@ -354,6 +354,22 @@ export const MIGRATIONS: Migration[] = [
         ('learning', 'read', 0),
         ('note', 'read', 0);
     `
+  },
+  {
+    // 询问模式：SQLite 不能直接改 CHECK，只能重建表；保留用户已有模式。
+    version: 19,
+    sql: `
+      CREATE TABLE mcp_domain_modes_next (
+        domain TEXT PRIMARY KEY CHECK (domain IN ('task', 'habit', 'learning', 'note')),
+        mode TEXT NOT NULL CHECK (mode IN ('read', 'ask', 'write')),
+        updated_at INTEGER NOT NULL
+      );
+
+      INSERT INTO mcp_domain_modes_next (domain, mode, updated_at)
+        SELECT domain, mode, updated_at FROM mcp_domain_modes;
+      DROP TABLE mcp_domain_modes;
+      ALTER TABLE mcp_domain_modes_next RENAME TO mcp_domain_modes;
+    `
   }
 ]
 

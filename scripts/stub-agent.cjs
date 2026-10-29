@@ -49,7 +49,8 @@ async function runFlow(prompt) {
       return
     }
     const leaked = process.argv.join(' ').includes(token)
-    const writeMode = prompt.includes('写任务')
+    const approval = prompt.includes('审批')
+    const writeMode = prompt.includes('写任务') || approval
     const now = new Date()
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
       now.getDate()
@@ -57,7 +58,7 @@ async function runFlow(prompt) {
     const toolName = writeMode ? 'tasks_create' : 'today_overview'
     const toolArgs = writeMode
       ? {
-          title: 'MCP 写入测试',
+          title: approval ? 'MCP 审批写入' : 'MCP 写入测试',
           dueDate: today,
           list: 'Agent',
           idempotency_key: `smoke-${Date.now()}`
@@ -126,7 +127,9 @@ async function runFlow(prompt) {
             text:
               overview && !error && !leaked
                 ? writeMode
-                  ? 'MCP 写任务：已创建。'
+                  ? approval
+                    ? 'MCP 审批写入：已创建。'
+                    : 'MCP 写任务：已创建。'
                   : 'MCP 概览：读取成功。'
                 : `MCP ${writeMode ? '写任务' : '概览'}：${leaked ? 'token 泄漏' : error || '返回为空'}。`
           }

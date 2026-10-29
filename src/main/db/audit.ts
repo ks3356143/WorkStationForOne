@@ -15,6 +15,8 @@ export type AuditAction =
   | 'toggle-pin'
   | 'read'
   | 'write'
+  | 'approve'
+  | 'deny'
   | 'settings'
 
 export interface AuditEntry {

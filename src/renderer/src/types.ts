@@ -1,5 +1,11 @@
 import type { AgentPermissionRequest } from '../../shared/agent-stream'
-import type { LearningItemRecord, Skin, TaskRecord, Theme } from '../../shared/ipc'
+import type {
+  LearningItemRecord,
+  McpPermissionRequest,
+  Skin,
+  TaskRecord,
+  Theme
+} from '../../shared/ipc'
 
 export type AgentId = 'claude' | 'codex'
 export type TaskFilter = 'all' | 'todo' | 'done'
@@ -128,6 +134,7 @@ export interface WorkstationData {
   streaming: { runId: string | null; sessionId: string; messageId: string } | null
   permission: Permission | null
   toolPermission: ToolPermission | null
+  mcpPermission: McpPermissionRequest | null
   resolution: ResolutionRecord | null
   motionOn: boolean
   theme: Theme

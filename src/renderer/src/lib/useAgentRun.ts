@@ -62,6 +62,15 @@ export function useAgentRun(): void {
     })
   }, [bridge])
 
+  // MCP 询问模式：主进程串行发来写入请求，这里落到当前线程上方
+  useEffect(() => {
+    const mcp = typeof window === 'undefined' ? undefined : window.ws?.mcp
+    if (!mcp?.onPermission) return
+    return mcp.onPermission((request) => {
+      useWorkstation.getState().setMcpPermission(request)
+    })
+  }, [])
+
   // 发送：Composer 写好 pendingPrompt，这里取走并启动
   useEffect(() => {
     if (!pendingPrompt || streaming) return

@@ -5,12 +5,16 @@ import {
   type AuditLogDomain,
   type McpDomain,
   type McpMode,
+  type McpPermissionDecision,
+  type McpPermissionResponse,
   type McpPolicyRecord
 } from '../../shared/ipc'
 import type { AuditLog } from '../db/audit'
 import type { McpPolicyRepository } from '../db/mcp'
 
 const IPC = IPC_CHANNELS
+const MAX_ID = 120
+const DECISIONS: McpPermissionDecision[] = ['once', 'session', 'deny']
 const AUDIT_DOMAINS: AuditLogDomain[] = ['task', 'note', 'learning', 'habit', 'mcp', 'system']
 
 function assertDomain(value: unknown): McpDomain {
@@ -21,7 +25,9 @@ function assertDomain(value: unknown): McpDomain {
 }
 
 function assertMode(value: unknown): McpMode {
-  if (value !== 'read' && value !== 'write') throw new TypeError('MCP 权限模式无效')
+  if (value !== 'read' && value !== 'ask' && value !== 'write') {
+    throw new TypeError('MCP 权限模式无效')
+  }
   return value
 }
 
@@ -41,7 +47,30 @@ function assertLimit(value: unknown): number {
   return value
 }
 
-export function registerMcpHandlers(policy: McpPolicyRepository, audit: AuditLog): void {
+export function assertPermissionResponse(value: unknown): McpPermissionResponse {
+  if (typeof value !== 'object' || value === null) throw new TypeError('审批响应必须是对象')
+  const input = value as Record<string, unknown>
+  if (typeof input.requestId !== 'string' || !input.requestId || input.requestId.length > MAX_ID) {
+    throw new TypeError('审批请求 id 无效')
+  }
+  if (!DECISIONS.includes(input.decision as McpPermissionDecision)) {
+    throw new TypeError('审批决定无效')
+  }
+  return {
+    requestId: input.requestId,
+    decision: input.decision as McpPermissionDecision
+  }
+}
+
+export interface McpPermissionAccess {
+  respond: (requestId: string, decision: McpPermissionDecision) => boolean
+}
+
+export function registerMcpHandlers(
+  policy: McpPolicyRepository,
+  audit: AuditLog,
+  permissions?: McpPermissionAccess
+): void {
   ipcMain.handle(IPC.mcpPolicyList, (): McpPolicyRecord[] => policy.list())
   ipcMain.handle(IPC.mcpPolicySet, (_event, domain: unknown, mode: unknown) =>
     policy.set(assertDomain(domain), assertMode(mode))
@@ -49,11 +78,16 @@ export function registerMcpHandlers(policy: McpPolicyRepository, audit: AuditLog
   ipcMain.handle(IPC.auditRecent, (_event, limit: unknown, domain: unknown) =>
     audit.recent(assertLimit(limit), assertAuditDomain(domain))
   )
+  ipcMain.handle(IPC.mcpPermissionResponse, (_event, value: unknown) => {
+    const response = assertPermissionResponse(value)
+    return permissions?.respond(response.requestId, response.decision) ?? false
+  })
 }
 
 export const registerMcpHandlersIPC = {
   assertDomain,
   assertMode,
   assertAuditDomain,
-  assertLimit
+  assertLimit,
+  assertPermissionResponse
 } as const

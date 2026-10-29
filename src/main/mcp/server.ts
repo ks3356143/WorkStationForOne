@@ -1,6 +1,7 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { MCP_DEFAULT_MODES, type McpDomain, type McpMode } from '../../shared/ipc'
+import type { McpPermissionInput, McpPermissionOutcome } from './permissions'
 import { MCP_TOOLS, runMcpTool, type McpData, type McpToolResult } from './tools'
 
 export interface McpEndpoint {
@@ -13,12 +14,20 @@ export interface McpHooks {
   mode?: (domain: McpDomain) => McpMode
   /** 写入成功后通知渲染层重新读库 */
   notifyChanged?: (domains: McpDomain[]) => void
+  /** 询问模式：阻塞到用户决定或超时 */
+  requestPermission?: (input: McpPermissionInput) => Promise<McpPermissionOutcome>
+  isSessionAllowed?: (sessionId: string, tool: string) => boolean
 }
 
 const MAX_BODY = 256 * 1024
 const RATE_WINDOW_MS = 60 * 1000
 const RATE_LIMIT = 120
 const PROTOCOL_VERSION = '2025-06-18'
+
+function clip(value: string, max = 1200): string {
+  const flat = value.replace(/\s+/g, ' ').trim()
+  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat
+}
 
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {}
@@ -247,11 +256,26 @@ export class McpBridge {
       let cacheKey = ''
       if (def.write) {
         const mode = this.hooks.mode?.(def.domain) ?? MCP_DEFAULT_MODES[def.domain]
-        if (mode !== 'write') {
+        let allowed = mode === 'write'
+        if (mode === 'ask') {
+          if (this.hooks.isSessionAllowed?.(sessionId, name)) {
+            allowed = true
+          } else {
+            const decision = await this.hooks.requestPermission?.({
+              sessionId,
+              domain: def.domain,
+              tool: name,
+              detail: clip(def.description),
+              preview: clip(JSON.stringify(args))
+            })
+            allowed = decision === 'once' || decision === 'session'
+          }
+        }
+        if (!allowed) {
           this.data.audit.record({
             at: Date.now(),
             domain: 'mcp',
-            action: 'write',
+            action: 'deny',
             targetId: sessionId,
             title: name,
             source: 'agent',

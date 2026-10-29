@@ -33,6 +33,7 @@ export function createInitialData(): WorkstationData {
     pendingReplyTo: null,
     permission: null,
     toolPermission: null,
+    mcpPermission: null,
     resolution: null,
     motionOn: true,
     theme: 'dark',

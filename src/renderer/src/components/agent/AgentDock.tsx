@@ -6,6 +6,7 @@ import { selectActiveSession, selectActiveThread, useWorkstation } from '../../s
 import type { AgentId, Task } from '../../types'
 import { Composer } from './Composer'
 import { DockHeader } from './DockHeader'
+import { McpApprovalCard } from './McpApprovalCard'
 import { MessageRow } from './MessageRow'
 import { PermissionCard } from './PermissionCard'
 import { ToolApprovalCard } from './ToolApprovalCard'
@@ -25,6 +26,8 @@ export function AgentDock() {
   const permission = useWorkstation((state) => state.permission)
   const toolPermission = useWorkstation((state) => state.toolPermission)
   const clearToolPermission = useWorkstation((state) => state.clearToolPermission)
+  const mcpPermission = useWorkstation((state) => state.mcpPermission)
+  const clearMcpPermission = useWorkstation((state) => state.clearMcpPermission)
   const resolution = useWorkstation((state) => state.resolution)
   const taskCount = useWorkstation((state) => state.tasks.length)
   const noteCount = useWorkstation((state) => state.noteTotal)
@@ -57,11 +60,29 @@ export function AgentDock() {
     threadMeta.current = { sessionId: activeId, length: thread.length, initialized: true }
   }, [activeId, thread.length])
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: thread.length / typingHere / permission 是滚动触发条件，用于在有新内容时贴底
+  // 主进程 60 秒超时后不会再发事件；卡片最多多留 1 秒再自行收起。
+  useEffect(() => {
+    if (!mcpPermission) return
+    const timer = window.setTimeout(() => clearMcpPermission(), 61_000)
+    return () => window.clearTimeout(timer)
+  }, [mcpPermission, clearMcpPermission])
+
+  // 有审批卡时窗口变窄也要把卡贴到可见区域，避免被输入栏盖住。
+  useEffect(() => {
+    if (!mcpPermission) return
+    const onResize = () => {
+      const node = threadRef.current
+      if (node) node.scrollTop = node.scrollHeight
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [mcpPermission])
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: thread.length / typingHere / permission / mcpPermission 是滚动触发条件，用于在有新内容时贴底
   useLayoutEffect(() => {
     const node = threadRef.current
     if (node) node.scrollTop = node.scrollHeight
-  }, [thread.length, typingHere, permission, activeId])
+  }, [thread.length, typingHere, permission, mcpPermission, activeId])
 
   const switchAgent = (next: AgentId) => {
     if (agent === next) return
@@ -94,6 +115,15 @@ export function AgentDock() {
   const meta = AGENT_META[agent]
   const respondPermission =
     typeof window === 'undefined' ? undefined : window.ws?.agent?.respondPermission
+
+  const resolveMcpPermission = (decision: 'once' | 'session' | 'deny') => {
+    if (!mcpPermission) return
+    const requestId = mcpPermission.requestId
+    clearMcpPermission()
+    void window.ws?.mcp
+      ?.respondPermission({ requestId, decision })
+      .catch((error) => console.error('[agent] MCP 审批回写失败', error))
+  }
 
   const resolveToolPermission = (allow: boolean) => {
     if (!toolPermission) return
@@ -163,6 +193,13 @@ export function AgentDock() {
           ) : null}
 
           <AnimatePresence initial={false}>
+            {mcpPermission && mcpPermission.sessionId === activeSession.id ? (
+              <McpApprovalCard
+                key={mcpPermission.requestId}
+                request={mcpPermission}
+                onResolve={resolveMcpPermission}
+              />
+            ) : null}
             {toolPermission && toolPermission.sessionId === activeSession.id ? (
               <ToolApprovalCard
                 key={toolPermission.requestId}
