@@ -6,7 +6,8 @@ import type {
   LearningDraft,
   LearningItemRecord,
   LearningPatch,
-  LearningRating
+  LearningRating,
+  LearningReviewRecord
 } from '../../shared/ipc'
 import { scheduleReview } from '../../shared/srs'
 
@@ -273,6 +274,19 @@ export class LearningRepository {
       detail: `评分 ${rating} → 下次 ${next.nextReviewOn}`
     })
     return updated
+  }
+
+  /** 只读复习历史：按时间窗过滤，供统计使用。 */
+  reviewHistory(days: number, now = Date.now()): LearningReviewRecord[] {
+    const safeDays = Math.min(365, Math.max(1, Math.trunc(days)))
+    const since = now - safeDays * 86_400_000
+    const rows = this.sql(
+      'SELECT rating, reviewed_at FROM learning_reviews WHERE reviewed_at >= ? ORDER BY reviewed_at ASC'
+    ).all(since) as unknown as { rating: number; reviewed_at: number }[]
+    return rows.map((row) => ({
+      rating: row.rating as LearningRating,
+      reviewedAt: row.reviewed_at
+    }))
   }
 
   reviewCount(id: string): number {

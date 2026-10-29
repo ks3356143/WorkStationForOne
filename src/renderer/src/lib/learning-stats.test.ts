@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { LearningItemRecord } from '../../../shared/ipc'
-import { learningStats } from './learning-stats'
+import type { LearningItemRecord, LearningReviewRecord } from '../../../shared/ipc'
+import { dailyReviewCounts, learningStats, ratingDistribution } from './learning-stats'
 
 function card(overrides: Partial<LearningItemRecord> = {}): LearningItemRecord {
   return {
@@ -43,6 +43,71 @@ describe('learningStats · 未来负载', () => {
     )
     expect(stats.forecast[0]).toMatchObject({ count: 2, minutes: 3 })
     expect(stats.totalActive).toBe(2)
+  })
+})
+
+function at(day: string, hour = 12): number {
+  const [year, month, date] = day.split('-').map(Number)
+  return new Date(year, month - 1, date, hour).getTime()
+}
+
+function review(rating: LearningReviewRecord['rating'], day: string): LearningReviewRecord {
+  return { rating, reviewedAt: at(day) }
+}
+
+describe('dailyReviewCounts', () => {
+  it('按本地日期分 14 桶，今天固定最后一格', () => {
+    const days = dailyReviewCounts(
+      [
+        review(3, '2026-10-29'),
+        review(4, '2026-10-29'),
+        review(2, '2026-10-28'),
+        review(1, '2026-10-10')
+      ],
+      today
+    )
+
+    expect(days).toHaveLength(14)
+    expect(days.at(-1)).toMatchObject({ day: '2026-10-29', count: 2, label: '今天' })
+    expect(days.at(-2)).toMatchObject({ day: '2026-10-28', count: 1 })
+    expect(days.reduce((sum, day) => sum + day.count, 0)).toBe(3)
+  })
+
+  it('跨月时间窗正确，范围外记录不计入', () => {
+    const days = dailyReviewCounts([review(3, '2026-10-30')], '2026-11-02')
+    const total = days.reduce((sum, day) => sum + day.count, 0)
+    expect(total).toBe(1)
+    expect(days.find((day) => day.day === '2026-10-30')?.count).toBe(1)
+  })
+
+  it('空历史返回 14 个零', () => {
+    const days = dailyReviewCounts([], today)
+    expect(days).toHaveLength(14)
+    expect(days.every((day) => day.count === 0)).toBe(true)
+  })
+})
+
+describe('ratingDistribution', () => {
+  it('统计四档评分与占比', () => {
+    const buckets = ratingDistribution(
+      [
+        review(1, '2026-10-29'),
+        review(3, '2026-10-28'),
+        review(3, '2026-10-27'),
+        review(4, '2026-10-26')
+      ],
+      today
+    )
+    expect(buckets.map((bucket) => bucket.count)).toEqual([1, 0, 2, 1])
+    expect(buckets[2].share).toBeCloseTo(0.5, 2)
+    expect(buckets[1].share).toBe(0)
+  })
+
+  it('范围外评分不计入，空历史占比为 0', () => {
+    expect(ratingDistribution([review(1, '2026-09-01')], today).every((b) => b.count === 0)).toBe(
+      true
+    )
+    expect(ratingDistribution([], today).every((b) => b.share === 0)).toBe(true)
   })
 })
 

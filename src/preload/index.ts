@@ -50,7 +50,8 @@ const api: WsApi = {
     update: (id, patch) => ipcRenderer.invoke(IPC_CHANNELS.learningUpdate, id, patch),
     review: (id, rating) => ipcRenderer.invoke(IPC_CHANNELS.learningReview, id, rating),
     createMany: (drafts) => ipcRenderer.invoke(IPC_CHANNELS.learningCreateMany, drafts),
-    exportCards: (subject) => ipcRenderer.invoke(IPC_CHANNELS.learningExport, subject)
+    exportCards: (subject) => ipcRenderer.invoke(IPC_CHANNELS.learningExport, subject),
+    reviewHistory: (days) => ipcRenderer.invoke(IPC_CHANNELS.learningReviewHistory, days)
   },
   habits: {
     list: () => ipcRenderer.invoke(IPC_CHANNELS.habitsList),

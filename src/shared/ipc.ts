@@ -193,6 +193,11 @@ export interface LearningPatch {
 
 export type LearningRating = 1 | 2 | 3 | 4
 
+export interface LearningReviewRecord {
+  rating: LearningRating
+  reviewedAt: number
+}
+
 export interface LearningImportResult {
   created: LearningItemRecord[]
   /** 与现有卡或文件内重复而跳过的张数 */
@@ -215,6 +220,7 @@ export interface LearningApi {
   review: (id: string, rating: LearningRating) => Promise<LearningItemRecord>
   createMany: (drafts: LearningDraft[]) => Promise<LearningImportResult>
   exportCards: (subject?: string) => Promise<LearningExportResult>
+  reviewHistory: (days: number) => Promise<LearningReviewRecord[]>
 }
 
 export interface HabitRecord {
@@ -313,6 +319,7 @@ export const IPC_CHANNELS = {
   learningReview: 'learning:review',
   learningCreateMany: 'learning:create-many',
   learningExport: 'learning:export',
+  learningReviewHistory: 'learning:review-history',
   habitsList: 'habits:list',
   habitsBootstrap: 'habits:bootstrap',
   habitsSetCheckin: 'habits:set-checkin',

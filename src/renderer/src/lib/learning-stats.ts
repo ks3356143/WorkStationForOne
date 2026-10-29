@@ -1,10 +1,18 @@
-import { addDaysKey, daysBetweenKeys } from '../../../shared/date-key'
-import type { LearningItemRecord } from '../../../shared/ipc'
+import { addDaysKey, dateKey, daysBetweenKeys } from '../../../shared/date-key'
+import type { LearningItemRecord, LearningRating, LearningReviewRecord } from '../../../shared/ipc'
 import { retrievability } from '../../../shared/srs'
 import { estimatedMinutes } from './learning'
 
 export const FORECAST_DAYS = 7
+export const REVIEW_HISTORY_DAYS = 14
 export const MATURE_STABILITY_DAYS = 21
+
+const RATING_LABELS: Record<LearningRating, string> = {
+  1: '重来',
+  2: '困难',
+  3: '良好',
+  4: '简单'
+}
 
 export interface ForecastDay {
   day: string
@@ -26,6 +34,71 @@ export interface LearningStatistics {
   reviewed: number
   mastery: MasteryCounts
   totalActive: number
+}
+
+export interface ReviewDay {
+  day: string
+  label: string
+  count: number
+}
+
+export interface RatingBucket {
+  rating: LearningRating
+  label: string
+  count: number
+  share: number
+}
+
+/** 只保留本地日期落在 time window 内的复习。 */
+function reviewsInWindow(
+  reviews: LearningReviewRecord[],
+  today: string,
+  days: number
+): LearningReviewRecord[] {
+  const start = addDaysKey(today, -(days - 1))
+  return reviews.filter((review) => {
+    const day = dateKey(new Date(review.reviewedAt))
+    return day >= start && day <= today
+  })
+}
+
+export function dailyReviewCounts(
+  reviews: LearningReviewRecord[],
+  today: string,
+  days = REVIEW_HISTORY_DAYS
+): ReviewDay[] {
+  const counts = new Map<string, number>()
+  for (const review of reviewsInWindow(reviews, today, days)) {
+    const day = dateKey(new Date(review.reviewedAt))
+    counts.set(day, (counts.get(day) ?? 0) + 1)
+  }
+
+  return Array.from({ length: days }, (_, index) => {
+    const day = addDaysKey(today, index - (days - 1))
+    return {
+      day,
+      label: index === days - 1 ? '今天' : day.slice(5),
+      count: counts.get(day) ?? 0
+    }
+  })
+}
+
+export function ratingDistribution(
+  reviews: LearningReviewRecord[],
+  today: string,
+  days = REVIEW_HISTORY_DAYS
+): RatingBucket[] {
+  const counts: Record<LearningRating, number> = { 1: 0, 2: 0, 3: 0, 4: 0 }
+  for (const review of reviewsInWindow(reviews, today, days)) {
+    counts[review.rating] += 1
+  }
+  const total = counts[1] + counts[2] + counts[3] + counts[4]
+  return ([1, 2, 3, 4] as const).map((rating) => ({
+    rating,
+    label: RATING_LABELS[rating],
+    count: counts[rating],
+    share: total > 0 ? counts[rating] / total : 0
+  }))
 }
 
 function labelFor(day: string, today: string, index: number): string {

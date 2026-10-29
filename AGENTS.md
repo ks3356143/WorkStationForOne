@@ -15,7 +15,7 @@
 - `npm run check` — Biome 检查格式与 lint（Rust 单二进制，不依赖 Prettier / ESLint）。
 - `npm run check:fix` — 自动修复格式与可安全修复的 lint 问题。
 - `npm run fmt` — 只格式化，不跑 lint。
-- `npm run smoke` — 先构建，再跑 212 项 UI 交互冒烟。加载真实主进程与 preload，UI 操作直接写进临时 SQLite（`userData`、`sessionData`、数据库都隔离到 `%TEMP%`），并断言「preload 桥可用」与「操作已落库」；跨重启持久化仍由 `npm run verify` 覆盖。到点提醒那条按分钟匹配，冒烟会检测是否跨过分钟边界并在跨界时重建重试。
+- `npm run smoke` — 先构建，再跑 214 项 UI 交互冒烟。加载真实主进程与 preload，UI 操作直接写进临时 SQLite（`userData`、`sessionData`、数据库都隔离到 `%TEMP%`），并断言「preload 桥可用」与「操作已落库」；跨重启持久化仍由 `npm run verify` 覆盖。到点提醒那条按分钟匹配，冒烟会检测是否跨过分钟边界并在跨界时重建重试。
 - `npm run verify` — 构建后启动真实主进程（临时 `WS_DATA_DIR`），运行 251–253 项运行时断言（起始主题不同会差 2 项分支）：五视图互斥、双主题/双皮肤持久化、跨重启数据。
 - `npm run capture -- .screenshots/shell-1440.png 1440 900 .screenshots/audit-1440.json` — 构建、保存截图并写入布局审计。
 - `npm run capture -- .screenshots/shell-1180.png 1180 720 .screenshots/audit-1180.json dark` — 在最小窗口尺寸下做同样的检查；主题参数为 `dark|light`，视图参数为 `today|tasks|agent|notes|learning`，均可省略审计路径后按任意顺序追加（如 `... 1440 900 light tasks`）。
@@ -79,7 +79,7 @@
 - 表单里的日期、时间与带建议的单行字段一律用 `components/fields/` 的自建控件（`DatePicker` / `TimePicker` / `ComboSelect`），不要退回 `input[type=date|time]` 或 `datalist`：这些由系统绘制，CSS 盖不住，会露出生硬的白色弹层。三者共用 `Popover`（portal 到 `.w1` 根节点，因为 `.w1-view` 带 transform），弹层是「不透明玻璃 + 1px 棱镜边」，`.w1-pop` 已加进 `11-motion.css` 与无障碍/浅色/经典皮肤的白名单。日历网格与时间刻度规则在 `lib/pickers.ts`，改动先改那里的测试。弹层按 Esc 只关自己（`stopImmediatePropagation`）并把焦点还给触发按钮。
 - 学习视图内部两态：卡片库（默认，科目栏 + 卡片列表）与复习态（占满整块舞台，`.w1-learn.review` 覆盖两栏 grid）。到期口径固定为 `active` 且 `nextReviewOn <= 今天`，排序与时长在 `lib/learning.ts`，组件不要自行比较日期；复习卡进入时对队列做一次快照，评分 1 的卡排到本场队尾但库里的 `next_review_on` 仍是今天。复习卡翻面用 `Space` / 点击，评分用 `1`–`4`，Esc 退出。
 - 学习调度只走 `shared/srs.ts` 的 `scheduleReview()`：主进程落库、复习评分按钮的间隔预览、无桥时的 store 回退都用同一个纯函数，不要在组件里复制公式。DB 里 `stability/difficulty` 为空表示旧卡，首次评分才建立 FSRS 状态；迁移不得回填伪造的记忆状态。
-- 学习统计：`renderer/src/lib/learning-stats.ts` 是纯函数（未来 7 天分桶、逾期归今天、FSRS 保持率、21 天成熟阈值），弹层直接读 `learningItems`，不要在主进程另算一份。保持率只统计有 `stability + lastReviewOn` 的启用卡，新卡不能按 0% 计入。
+- 学习统计：`renderer/src/lib/learning-stats.ts` 是纯函数（未来 7 天分桶、逾期归今天、FSRS 保持率、21 天成熟阈值、14 天复习历史与评分分布），弹层直接读 `learningItems` 与只读的 `learning.reviewHistory(days)`，不要在主进程另算一份。保持率只统计有 `stability + lastReviewOn` 的启用卡，新卡不能按 0% 计入；评分分布的时间窗与 14 天柱必须共用同一个本地日期过滤。
 - 学习卡 CSV：解析与序列化在 `shared/learning-csv.ts`（UTF-8 BOM、引号 / 逗号 / 换行、挖空从原文推导正面），上限 2MB / 1000 张。导入按 `科目 + 正面` 去重，一律作为今天到期的新卡、不携带 FSRS 状态；主进程 `createMany` 单事务写入。导出只包含启用卡，是内容交换而不是数据库备份。
 - MEM 内容：`shared/mem-starters.ts` 同时供渲染层空库种子与 DB v15 迁移使用。v15 只在**已有学习数据**的库补 8 张管综卡（`WHERE EXISTS`），空库必须交给首次种子，否则只会写进 8 张、丢掉 16 张英语二；迁移不得删除历史「互联网」卡。
 - 复习卡是 `<button>`，必须显式 `background-color: transparent`（UA 的 `buttonface` 会从玻璃层后透出灰块），并把 `.w1-lcard` 加进 `11-motion.css` 定义 `--glass-rim` 的选择器白名单，否则棱镜描边不生效。大块玻璃面要自带 `::before` 光场，否则整片压成实色。
@@ -107,7 +107,7 @@
 - 已实现：今日看板「完成记录」热力图。近 26 周 × 7 天（周一起始），四档色阶与「项完成 / 天有记录 / 最多一天」统计，规则在纯函数 `lib/heatmap.ts`；种子数据中今天已完成的两条任务带 `completedAt`，首次启动即可见当天格子。没有 `completedAt` 的旧数据不计入，也不要迁移伪造。
 - 已实现：外壳「左侧主导航 + 单个全宽工作区」。今日（模块流）、任务（清单栏 + 任务列表）、Agent（会话栏 + 聊天区）、笔记（全宽工作区）、学习（科目栏 + 卡片列表 / 复习态）互斥渲染；左侧导航同时承载舰队总览、外部启动器与设置；命令面板可直接跳转视图或新建任务。
 - 已实现：习惯域 SQLite 持久化（DB v8）。打卡按日期键存 `habit_checkins`，**不要再退回 `days: boolean[7]`**——七格布尔跨周就没有意义；本周视图由 `lib/habits.ts` 的 `weekFlags()` 从日期键推导，未来日期恒为空。空库时播种，播种后一律以数据库为准。
-- 已实现：学习域（间隔重复闪卡，FSRS-6）。`learning_items` / `learning_reviews` 迁移到 v7，DB v14 新增 `stability / difficulty / lapses / last_review_on`；调度在 `shared/srs.ts`（21 个默认参数、90% 保留率、间隔上限 365 天，1 重来 / 2 困难 / 3 良好 / 4 简单），主进程按本机当天计算，`review` 不接收日期。评分 1 留在今天，当天重复复习走短期公式；新卡用初始参数，旧 SM-2 数据首次评分沿用原间隔作为稳定度，不伪造复习历史。`lib/learning.ts` 负责到期队列、时长估算与科目分组；种子 24 张（英语二 16 个真题高频词 + 管综数学 / 逻辑 / 写作 8 张起步卡），仅空库写入。默认科目固定为 `shared/mem-starters.ts` 的 `MEM_SUBJECTS`（英语二 / 管综数学 / 管综逻辑 / 管综写作），但仍是软约束，历史「互联网」卡与自由科目继续保留。学习视图支持 CSV 导入导出（见上），导入前预览重复与错误行，不覆盖已有卡片；「统计」弹层展示未来 7 天负载、FSRS 保持率与掌握分布。
+- 已实现：学习域（间隔重复闪卡，FSRS-6）。`learning_items` / `learning_reviews` 迁移到 v7，DB v14 新增 `stability / difficulty / lapses / last_review_on`；调度在 `shared/srs.ts`（21 个默认参数、90% 保留率、间隔上限 365 天，1 重来 / 2 困难 / 3 良好 / 4 简单），主进程按本机当天计算，`review` 不接收日期。评分 1 留在今天，当天重复复习走短期公式；新卡用初始参数，旧 SM-2 数据首次评分沿用原间隔作为稳定度，不伪造复习历史。`lib/learning.ts` 负责到期队列、时长估算与科目分组；种子 24 张（英语二 16 个真题高频词 + 管综数学 / 逻辑 / 写作 8 张起步卡），仅空库写入。默认科目固定为 `shared/mem-starters.ts` 的 `MEM_SUBJECTS`（英语二 / 管综数学 / 管综逻辑 / 管综写作），但仍是软约束，历史「互联网」卡与自由科目继续保留。学习视图支持 CSV 导入导出（见上），导入前预览重复与错误行，不覆盖已有卡片；「统计」弹层展示未来 7 天负载、FSRS 保持率、掌握分布、最近 14 天复习量与评分占比（只读 `reviewHistory`，不改表）。
 - 笔记搜索：FTS5 `trigram` 分词（`unicode61` 无法检索中文）；**查询少于 3 字符时自动回退 `LIKE`**，写查询前请先看 `src/main/db/notes.ts` 的 `planSearch`。
 - 笔记双链（DB v13）：`note_links(source_id, target_id, title, created_at)`，主键 `(source_id, title)`，两个方向都 `ON DELETE CASCADE`；补全与反向链接走 `NoteRepository.links/titles`，不要另建数据源。
 - 全部笔记页用固定行高虚拟滚动（`ROW_HEIGHT` 与 CSS `.w1-nvrow` 高度必须一致），分页每页 60 条。

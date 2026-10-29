@@ -1312,6 +1312,23 @@ async function run() {
     const dueAfter = Number(one('.w1-learnmain .w1-todosub b')?.textContent ?? -1)
     check('评分后到期数减少', dueAfter === dueBefore - 1, dueBefore + ' -> ' + dueAfter)
 
+    byText('.w1-lfilebtn', '统计')?.click()
+    await sleep(500)
+    check(
+      '统计显示 14 天复习历史',
+      all('.w1-lreviewday').length === 14 &&
+        (one('.w1-lreviewchart')?.textContent ?? '').includes('1'),
+      String(all('.w1-lreviewday').length)
+    )
+    check(
+      '统计显示评分分布',
+      all('.w1-lratestack i').length === 4 &&
+        (one('.w1-lstats')?.textContent ?? '').includes('良好 1'),
+      one('.w1-lstats')?.textContent?.slice(0, 80) ?? ''
+    )
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
+    await sleep(300)
+
     await navTo('今日')
     check(
       '今日学习卡显示真实到期数',

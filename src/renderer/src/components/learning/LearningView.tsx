@@ -9,7 +9,7 @@ import {
   type LearningCsvRow
 } from '../../../../shared/learning-csv'
 import { MEM_SUBJECTS } from '../../../../shared/mem-starters'
-import type { LearningDraft, LearningPatch } from '../../../../shared/ipc'
+import type { LearningDraft, LearningPatch, LearningReviewRecord } from '../../../../shared/ipc'
 import type { LearningItem } from '../../types'
 import {
   estimatedMinutes,
@@ -19,7 +19,12 @@ import {
   learningDueLabel
 } from '../../lib/learning'
 import { planImport } from '../../lib/learning-import'
-import { learningStats } from '../../lib/learning-stats'
+import {
+  dailyReviewCounts,
+  learningStats,
+  ratingDistribution,
+  REVIEW_HISTORY_DAYS
+} from '../../lib/learning-stats'
 import { replaceLearning } from '../../lib/learning-persistence'
 import { DURATION, EASE_OUT } from '../../lib/motion'
 import { useNow } from '../../lib/useNow'
@@ -381,6 +386,7 @@ export function LearningLibrary({ onStartReview }: LearningLibraryProps) {
   const [creating, setCreating] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [statsOpen, setStatsOpen] = useState(false)
+  const [reviewHistory, setReviewHistory] = useState<LearningReviewRecord[]>([])
   const [preview, setPreview] = useState<{
     fileName: string
     rows: LearningCsvRow[]
@@ -427,6 +433,27 @@ export function LearningLibrary({ onStartReview }: LearningLibraryProps) {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [statsOpen])
+
+  useEffect(() => {
+    if (!statsOpen) return
+    let cancelled = false
+    if (!api) {
+      setReviewHistory([])
+      return
+    }
+    void api
+      .reviewHistory(REVIEW_HISTORY_DAYS)
+      .then((rows) => {
+        if (!cancelled) setReviewHistory(rows)
+      })
+      .catch((error) => {
+        console.error('[learning] 读取复习历史失败', error)
+        if (!cancelled) setReviewHistory([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [api, statsOpen])
 
   const pickFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -497,6 +524,10 @@ export function LearningLibrary({ onStartReview }: LearningLibraryProps) {
 
   const stats = learningStats(items, today)
   const peak = Math.max(1, ...stats.forecast.map((day) => day.count))
+  const reviewDays = dailyReviewCounts(reviewHistory, today)
+  const reviewTotal = reviewDays.reduce((sum, day) => sum + day.count, 0)
+  const reviewPeak = Math.max(1, ...reviewDays.map((day) => day.count))
+  const ratings = ratingDistribution(reviewHistory, today)
   const masteryTotal = stats.mastery.fresh + stats.mastery.learning + stats.mastery.mature
   const share = (count: number) => (masteryTotal > 0 ? `${(count / masteryTotal) * 100}%` : '0%')
   const retentionLabel = stats.retention === null ? '—' : `${Math.round(stats.retention * 100)}%`
@@ -876,6 +907,71 @@ export function LearningLibrary({ onStartReview }: LearningLibraryProps) {
                   </div>
                 ))}
               </div>
+            </div>
+
+            <div className="w1-lstatblock">
+              <span className="w1-lstatlabel">
+                // 最近 14 天复习 <b>{reviewTotal}</b> 次
+              </span>
+              {reviewTotal === 0 ? (
+                <p className="w1-lstatempty">最近 14 天还没有复习记录。</p>
+              ) : (
+                <div
+                  className="w1-lreviewchart"
+                  role="img"
+                  aria-label={`最近 14 天复习 ${reviewTotal} 次`}
+                >
+                  {reviewDays.map((day, index) => (
+                    <div className="w1-lreviewday" key={day.day}>
+                      <span className="w1-lreviewbar" aria-hidden="true">
+                        <i
+                          style={{
+                            height:
+                              day.count === 0
+                                ? '2px'
+                                : `${Math.max(8, (day.count / reviewPeak) * 100)}%`
+                          }}
+                        />
+                      </span>
+                      <b>{day.count}</b>
+                      <small>
+                        {index === 0 ||
+                        index === Math.floor(reviewDays.length / 2) ||
+                        index === reviewDays.length - 1
+                          ? day.label
+                          : ''}
+                      </small>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="w1-lstatblock">
+              <span className="w1-lstatlabel">// 评分分布</span>
+              {reviewTotal === 0 ? (
+                <p className="w1-lstatempty">还没有可统计的评分。</p>
+              ) : (
+                <>
+                  <div className="w1-lratestack" aria-hidden="true">
+                    {ratings.map((bucket) => (
+                      <i
+                        key={bucket.rating}
+                        className={`r${bucket.rating}`}
+                        style={{ width: `${bucket.share * 100}%` }}
+                      />
+                    ))}
+                  </div>
+                  <div className="w1-lstatlegend">
+                    {ratings.map((bucket) => (
+                      <span key={bucket.rating}>
+                        <i className={`r${bucket.rating}`} />
+                        {bucket.label} {bucket.count}
+                      </span>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="w1-lstatblock">

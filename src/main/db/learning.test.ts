@@ -243,6 +243,25 @@ describe('LearningRepository · 批量导入', () => {
   })
 })
 
+describe('LearningRepository · 复习历史', () => {
+  it('只返回时间窗内的评分并按时间升序', () => {
+    const { db, repo } = seedDb()
+    const card = repo.create({ subject: '管综逻辑', title: '三段论' })
+    const at = (daysAgo: number) => Date.now() - daysAgo * 86_400_000
+    const insert = db.prepare(
+      'INSERT INTO learning_reviews (id, item_id, rating, reviewed_at) VALUES (?, ?, ?, ?)'
+    )
+    insert.run('r1', card.id, 3, at(20))
+    insert.run('r2', card.id, 1, at(2))
+    insert.run('r3', card.id, 4, at(1))
+
+    const history = repo.reviewHistory(7)
+    expect(history.map((entry) => entry.rating)).toEqual([1, 4])
+    expect(history[0].reviewedAt).toBeLessThan(history[1].reviewedAt)
+    db.close()
+  })
+})
+
 describe('LearningRepository · 复习', () => {
   it('评分同时更新卡片并写入复习记录', () => {
     const { db, repo } = seedDb()

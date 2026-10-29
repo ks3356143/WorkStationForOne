@@ -166,6 +166,13 @@ export function assertLearningPatch(value: unknown): LearningPatch {
   return result
 }
 
+export function assertHistoryDays(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) throw new TypeError('天数无效')
+  const days = Math.trunc(value)
+  if (days < 1 || days > 365) throw new TypeError('天数必须在 1–365 之间')
+  return days
+}
+
 export function collectLearningDrafts(value: unknown): {
   drafts: LearningDraft[]
   errors: string[]
@@ -200,6 +207,7 @@ export const registerLearningHandlersIPC = {
   assertRating,
   assertKind,
   assertClozeSource,
+  assertHistoryDays,
   collectLearningDrafts
 } as const
 
@@ -239,6 +247,10 @@ export function registerLearningHandlers(repository: LearningRepository): void {
 
     return { created: repository.createMany(accepted), skipped, errors }
   })
+
+  ipcMain.handle(IPC.learningReviewHistory, (_event, days: unknown) =>
+    repository.reviewHistory(assertHistoryDays(days))
+  )
 
   ipcMain.handle(IPC.learningExport, async (_event, subject: unknown) => {
     if (subject !== undefined && typeof subject !== 'string') throw new TypeError('科目无效')

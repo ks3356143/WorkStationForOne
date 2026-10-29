@@ -24,6 +24,15 @@ const valid = {
   active: true
 }
 
+describe('复习历史参数', () => {
+  it('只接受 1–365 天', () => {
+    expect(registerLearningHandlersIPC.assertHistoryDays(14)).toBe(14)
+    expect(() => registerLearningHandlersIPC.assertHistoryDays(0)).toThrow(TypeError)
+    expect(() => registerLearningHandlersIPC.assertHistoryDays(366)).toThrow(TypeError)
+    expect(() => registerLearningHandlersIPC.assertHistoryDays(Number.NaN)).toThrow(TypeError)
+  })
+})
+
 describe('导出 CSV', () => {
   it('只导出启用卡，写入所选文件', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'wsfo-export-'))
