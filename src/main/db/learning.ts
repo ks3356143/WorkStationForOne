@@ -163,6 +163,22 @@ export class LearningRepository {
     return created
   }
 
+  /** 批量导入：同一事务写入，任何一张失败都整批回滚；审计只记一条汇总。 */
+  createMany(drafts: LearningDraft[]): LearningItemRecord[] {
+    if (drafts.length === 0) return []
+    const now = Date.now()
+    const created = this.transaction(() =>
+      drafts.map((draft) => this.doCreate(randomUUID(), draft, now))
+    )
+    this.audit?.record({
+      at: now,
+      domain: 'learning',
+      action: 'import',
+      detail: `${created.length} 张`
+    })
+    return created
+  }
+
   private doCreate(id: string, draft: LearningDraft, now: number): LearningItemRecord {
     this.sql(INSERT_SQL).run(
       id,

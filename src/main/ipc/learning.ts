@@ -1,10 +1,13 @@
-import { ipcMain } from 'electron'
+import { writeFile } from 'node:fs/promises'
+import { dialog, ipcMain } from 'electron'
 import { clozeFrontText, validateCloze } from '../../shared/cloze'
-import { isDateKey } from '../../shared/date-key'
+import { dateKey, isDateKey } from '../../shared/date-key'
+import { LEARNING_LIMITS, serializeLearningCsv } from '../../shared/learning-csv'
 import type { LearningRepository } from '../db/learning'
 import {
   IPC_CHANNELS,
   type LearningDraft,
+  type LearningImportResult,
   type LearningItemRecord,
   type LearningKind,
   type LearningPatch,
@@ -13,9 +16,9 @@ import {
 
 const IPC = IPC_CHANNELS
 
-const MAX_SUBJECT = 40
-const MAX_TITLE = 200
-const MAX_TEXT = 2000
+const MAX_SUBJECT = LEARNING_LIMITS.subject
+const MAX_TITLE = LEARNING_LIMITS.title
+const MAX_TEXT = LEARNING_LIMITS.text
 
 function assertText(value: unknown, label: string, max: number): string {
   if (typeof value !== 'string') throw new TypeError(`${label}无效`)
@@ -163,6 +166,32 @@ export function assertLearningPatch(value: unknown): LearningPatch {
   return result
 }
 
+export function collectLearningDrafts(value: unknown): {
+  drafts: LearningDraft[]
+  errors: string[]
+} {
+  if (!Array.isArray(value)) throw new TypeError('导入内容必须是数组')
+  if (value.length > LEARNING_LIMITS.maxRows) {
+    throw new TypeError(`一次最多导入 ${LEARNING_LIMITS.maxRows} 张`)
+  }
+
+  const drafts: LearningDraft[] = []
+  const errors: string[] = []
+  value.forEach((raw, index) => {
+    try {
+      drafts.push(assertLearningDraft(raw))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '校验失败'
+      errors.push(`第 ${index + 1} 张：${message}`)
+    }
+  })
+  return { drafts, errors }
+}
+
+function cardKey(subject: string, title: string): string {
+  return `${subject.trim()}\u0000${title.trim()}`
+}
+
 export const registerLearningHandlersIPC = {
   assertLearningId,
   assertLearningRecord,
@@ -170,7 +199,8 @@ export const registerLearningHandlersIPC = {
   assertLearningPatch,
   assertRating,
   assertKind,
-  assertClozeSource
+  assertClozeSource,
+  collectLearningDrafts
 } as const
 
 export function registerLearningHandlers(repository: LearningRepository): void {
@@ -191,4 +221,44 @@ export function registerLearningHandlers(repository: LearningRepository): void {
   ipcMain.handle(IPC.learningReview, (_event, id: unknown, rating: unknown) =>
     repository.review(assertLearningId(id), assertRating(rating))
   )
+
+  ipcMain.handle(IPC.learningCreateMany, (_event, value: unknown): LearningImportResult => {
+    const { drafts, errors } = collectLearningDrafts(value)
+    const seen = new Set(repository.list().map((card) => cardKey(card.subject, card.title)))
+    const accepted: LearningDraft[] = []
+    let skipped = 0
+    for (const draft of drafts) {
+      const key = cardKey(draft.subject, draft.title)
+      if (seen.has(key)) {
+        skipped += 1
+        continue
+      }
+      seen.add(key)
+      accepted.push(draft)
+    }
+
+    return { created: repository.createMany(accepted), skipped, errors }
+  })
+
+  ipcMain.handle(IPC.learningExport, async (_event, subject: unknown) => {
+    if (subject !== undefined && typeof subject !== 'string') throw new TypeError('科目无效')
+    const target = typeof subject === 'string' ? subject.trim() : ''
+    if (target.length > MAX_SUBJECT) throw new TypeError('科目过长')
+
+    const cards = repository
+      .list()
+      .filter((card) => card.active && (target.length === 0 || card.subject === target))
+    if (cards.length === 0) return { canceled: false, count: 0 }
+
+    const stamp = dateKey().replaceAll('-', '')
+    const picked = await dialog.showSaveDialog({
+      title: '导出学习卡片',
+      defaultPath: `workstation-learning-${stamp}.csv`,
+      filters: [{ name: 'CSV 文件', extensions: ['csv'] }]
+    })
+    if (picked.canceled || !picked.filePath) return { canceled: true }
+
+    await writeFile(picked.filePath, serializeLearningCsv(cards), 'utf8')
+    return { canceled: false, path: picked.filePath, count: cards.length }
+  })
 }

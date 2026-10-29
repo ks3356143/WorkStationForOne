@@ -1168,6 +1168,32 @@ async function run() {
     await sleep(300)
     check('卡片搜索 Esc 清空', learnSearch.value === '' && all('.w1-litem').length >= 20, learnSearch.value)
 
+    // CSV 导入：用 File + DataTransfer 驱动隐藏 input，覆盖预览与提交
+    const importInput = one('#learn-import-file')
+    check(
+      '学习视图有 CSV 导入导出入口',
+      Boolean(importInput) && !!byText('.w1-lfilebtn', '导入') && !!byText('.w1-lfilebtn', '导出')
+    )
+    const csv = '科目,正面,背面,来源,类型,挖空原文\\n管综逻辑,冒烟导入卡,导入测试,,基础,\\n'
+    const file = new File([csv], 'smoke.csv', { type: 'text/csv' })
+    const transfer = new DataTransfer()
+    transfer.items.add(file)
+    importInput.files = transfer.files
+    importInput.dispatchEvent(new Event('change', { bubbles: true }))
+    await sleep(500)
+    check(
+      'CSV 导入弹出预览',
+      !!one('.w1-limport') && (one('.w1-limportstats')?.textContent ?? '').includes('1'),
+      one('.w1-limportstats')?.textContent ?? ''
+    )
+    byText('.w1-limport .w1-pb.pri', '导入 1 张')?.click()
+    await sleep(700)
+    check(
+      'CSV 导入写入卡片',
+      !one('.w1-limport') && all('.w1-litem').some((el) => el.textContent?.includes('冒烟导入卡')),
+      one('.w1-lnotice')?.textContent ?? ''
+    )
+
     byText('.w1-learnrail .w1-todorow', '管综数学')?.click()
     await sleep(350)
     check(

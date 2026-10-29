@@ -212,6 +212,37 @@ describe('LearningRepository · 写入', () => {
   })
 })
 
+describe('LearningRepository · 批量导入', () => {
+  it('一次事务写入多张卡', () => {
+    const { db, repo } = seedDb()
+    const created = repo.createMany([
+      { subject: '管综数学', title: '比例问题', notes: '详解' },
+      { subject: '管综逻辑', title: '三段论' }
+    ])
+
+    expect(created).toHaveLength(2)
+    expect(repo.list()).toHaveLength(2)
+    db.close()
+  })
+
+  it('任一写入失败时整批回滚', () => {
+    const { db, repo } = seedDb()
+    repo.createMany([{ subject: '英语二', title: '已有' }])
+    db.exec(
+      "CREATE TRIGGER deny_import BEFORE INSERT ON learning_items WHEN NEW.title = 'boom' BEGIN SELECT RAISE(ABORT, 'denied'); END"
+    )
+
+    expect(() =>
+      repo.createMany([
+        { subject: '管综数学', title: '合法' },
+        { subject: '管综数学', title: 'boom' }
+      ])
+    ).toThrow()
+    expect(repo.list().map((card) => card.title)).toEqual(['已有'])
+    db.close()
+  })
+})
+
 describe('LearningRepository · 复习', () => {
   it('评分同时更新卡片并写入复习记录', () => {
     const { db, repo } = seedDb()

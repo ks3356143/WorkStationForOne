@@ -1,8 +1,15 @@
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { dialog, ipcMain } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('electron', () => ({ ipcMain: { handle: vi.fn() } }))
+vi.mock('electron', () => ({
+  ipcMain: { handle: vi.fn() },
+  dialog: { showSaveDialog: vi.fn() }
+}))
 
-const { registerLearningHandlersIPC } = await import('./learning')
+const { registerLearningHandlersIPC, registerLearningHandlers } = await import('./learning')
 
 const valid = {
   id: 'l1',
@@ -16,6 +23,97 @@ const valid = {
   nextReviewOn: '2026-10-27',
   active: true
 }
+
+describe('导出 CSV', () => {
+  it('只导出启用卡，写入所选文件', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wsfo-export-'))
+    const file = join(dir, 'cards.csv')
+    const cards = [
+      {
+        id: 'l1',
+        subject: '管综数学',
+        title: '比例',
+        source: '',
+        notes: '8:15',
+        repetitions: 0,
+        intervalDays: 0,
+        ease: 2.5,
+        nextReviewOn: '2026-10-29',
+        active: true
+      },
+      {
+        id: 'l2',
+        subject: '管综数学',
+        title: '停用卡',
+        source: '',
+        notes: '',
+        repetitions: 0,
+        intervalDays: 0,
+        ease: 2.5,
+        nextReviewOn: '2026-10-29',
+        active: false
+      },
+      {
+        id: 'l3',
+        subject: '英语二',
+        title: 'analyze',
+        source: '',
+        notes: '',
+        repetitions: 0,
+        intervalDays: 0,
+        ease: 2.5,
+        nextReviewOn: '2026-10-29',
+        active: true
+      }
+    ]
+    registerLearningHandlers({ list: () => cards } as never)
+    vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: file } as never)
+
+    const registered = vi
+      .mocked(ipcMain.handle)
+      .mock.calls.find(([channel]) => channel === 'learning:export')
+    expect(registered).toBeTruthy()
+    const handler = registered?.[1] as (
+      event: unknown,
+      subject: unknown
+    ) => Promise<{
+      canceled: boolean
+      count?: number
+    }>
+
+    await expect(handler(null, '管综数学')).resolves.toMatchObject({ canceled: false, count: 1 })
+    const csv = readFileSync(file, 'utf8')
+    expect(csv).toContain('比例')
+    expect(csv).not.toContain('停用卡')
+    expect(csv).not.toContain('analyze')
+    rmSync(dir, { recursive: true, force: true })
+  })
+})
+
+describe('批量导入草稿', () => {
+  it('逐张校验，坏行记录错误但不阻塞其他行', () => {
+    const result = registerLearningHandlersIPC.collectLearningDrafts([
+      { subject: '管综数学', title: '比例' },
+      { subject: '', title: '坏行' },
+      { subject: '管综逻辑', title: '三段论' }
+    ])
+    expect(result.drafts.map((draft) => draft.title)).toEqual(['比例', '三段论'])
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]).toContain('第 2 张')
+  })
+
+  it('拒绝非数组与超量导入', () => {
+    expect(() => registerLearningHandlersIPC.collectLearningDrafts('nope')).toThrow(TypeError)
+    expect(() =>
+      registerLearningHandlersIPC.collectLearningDrafts(
+        Array.from({ length: 1001 }, (_, index) => ({
+          subject: '英语二',
+          title: `card-${index}`
+        }))
+      )
+    ).toThrow(TypeError)
+  })
+})
 
 describe('卡片草稿校验', () => {
   it('去掉科目与正面首尾空白', () => {

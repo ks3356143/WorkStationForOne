@@ -11,6 +11,7 @@ export type AuditAction =
   | 'bootstrap'
   | 'checkin'
   | 'review'
+  | 'import'
   | 'toggle-pin'
 
 export interface AuditEntry {
