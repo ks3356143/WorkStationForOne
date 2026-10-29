@@ -11,9 +11,11 @@ import { backupDirFor, ensureDailyBackup } from './db/backup'
 import { startReminderLoop } from './reminders'
 import { registerHabitHandlers } from './ipc/habits'
 import { registerLearningHandlers } from './ipc/learning'
+import { registerMcpHandlers } from './ipc/mcp'
 import { registerNoteHandlers } from './ipc/notes'
 import { registerTaskHandlers } from './ipc/tasks'
 import { McpBridge } from './mcp/server'
+import { IPC_CHANNELS } from '../shared/ipc'
 
 const devUrl = process.env.ELECTRON_RENDERER_URL
 const rendererFileUrl = pathToFileURL(join(__dirname, '../renderer/index.html')).href
@@ -126,6 +128,7 @@ if (!gotTheLock) {
     registerLearningHandlers(database.learning)
     registerHabitHandlers(database.habits)
     registerProviderHandlers(providers)
+    registerMcpHandlers(database.mcp, database.audit)
     // 本地只读 MCP 桥：只绑 127.0.0.1 随机端口，token 按 Agent 回合发放
     const bridge = new McpBridge(
       {
@@ -135,7 +138,14 @@ if (!gotTheLock) {
         habits: database.habits,
         audit: database.audit
       },
-      app.getVersion()
+      app.getVersion(),
+      {
+        mode: (domain) => database?.mcp.mode(domain) ?? 'read',
+        notifyChanged: (domains) => {
+          const win = mainWindow
+          if (win && !win.isDestroyed()) win.webContents.send(IPC_CHANNELS.mcpChanged, domains)
+        }
+      }
     )
     try {
       await bridge.start()

@@ -7,6 +7,7 @@ import { AuditLog } from './audit'
 import { migrate, openDatabase } from './database'
 import { HabitRepository } from './habits'
 import { LearningRepository } from './learning'
+import { McpPolicyRepository } from './mcp'
 import { NoteRepository } from './notes'
 import { ProviderRepository } from './providers'
 import { TaskRepository } from './tasks'
@@ -21,6 +22,7 @@ export interface DatabaseContext {
   habits: HabitRepository
   agent: AgentRepository
   providers: ProviderRepository
+  mcp: McpPolicyRepository
   audit: AuditLog
   close: () => void
 }
@@ -42,6 +44,7 @@ export function initDatabase(): DatabaseContext {
     habits: new HabitRepository(db, audit),
     agent: new AgentRepository(db),
     providers: new ProviderRepository(db),
+    mcp: new McpPolicyRepository(db, audit),
     close: () => db.close()
   }
 }

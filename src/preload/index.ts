@@ -79,6 +79,21 @@ const api: WsApi = {
     updateSession: (id, patch) => ipcRenderer.invoke(IPC_CHANNELS.agentUpdateSession, id, patch),
     saveMessage: (message) => ipcRenderer.invoke(IPC_CHANNELS.agentSaveMessage, message)
   },
+  mcp: {
+    policy: () => ipcRenderer.invoke(IPC_CHANNELS.mcpPolicyList),
+    setPolicy: (domain, mode) => ipcRenderer.invoke(IPC_CHANNELS.mcpPolicySet, domain, mode),
+    onChanged: (listener) => {
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        domains: Parameters<typeof listener>[0]
+      ) => listener(domains)
+      ipcRenderer.on(IPC_CHANNELS.mcpChanged, handler)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.mcpChanged, handler)
+    }
+  },
+  audit: {
+    recent: (limit, domain) => ipcRenderer.invoke(IPC_CHANNELS.auditRecent, limit, domain)
+  },
   app: {
     setTheme: (theme) => ipcRenderer.invoke(IPC_CHANNELS.appSetTheme, theme),
     backupNow: () => ipcRenderer.invoke(IPC_CHANNELS.appBackupNow),

@@ -151,8 +151,8 @@ async function run() {
     check('初始完成 2 项', all('.w1-task.done').length === 2, String(all('.w1-task.done').length))
     check('状态栏初始无待审批', one('.w1-status')?.textContent?.includes('无待审批') ?? false)
     check(
-      '状态栏显示 MCP 只读',
-      one('.w1-st-mcp')?.textContent?.includes('MCP 只读') ?? false,
+      '状态栏显示 MCP 桥',
+      one('.w1-st-mcp')?.textContent?.includes('MCP 桥') ?? false,
       one('.w1-st-mcp')?.textContent ?? ''
     )
     check(
@@ -786,6 +786,32 @@ async function run() {
       mcpTool?.textContent ?? 'missing'
     )
 
+    const mcpWriteInput = one('#composer-input')
+    setValue(mcpWriteInput, 'MCP 写任务')
+    await sleep(80)
+    mcpWriteInput.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    await sleep(1100)
+    const mcpWriteText = all('.w1-amsg').at(-1)?.querySelector('.w1-atext')?.textContent ?? ''
+    const mcpWriteTool = all('.w1-amsg').at(-1)?.querySelector('.w1-tool')
+    check('MCP 任务写入返回成功', mcpWriteText.includes('MCP 写任务：已创建'), mcpWriteText)
+    check(
+      'MCP 写入工具卡显示完成',
+      mcpWriteTool?.textContent?.includes('tasks_create') &&
+        mcpWriteTool?.textContent?.includes('完成'),
+      mcpWriteTool?.textContent ?? 'missing'
+    )
+    await navTo('今日')
+    await sleep(500)
+    check(
+      'MCP 写入后任务出现在今日',
+      (one('.w1-main')?.textContent ?? '').includes('MCP 写入测试'),
+      one('.w1-main')?.textContent?.slice(0, 120) ?? ''
+    )
+    await navTo('Agent')
+    await sleep(400)
+
     document.querySelector('[aria-label="新建 Codex 会话"]')?.click()
     await sleep(700)
     check(
@@ -956,6 +982,18 @@ async function run() {
       one('.w1-setpath')?.textContent ?? ''
     )
     check('设置面板有 Provider 卡片', !!one('.w1-provcard'))
+    check(
+      '设置面板有 MCP 域权限',
+      settingsText.includes('MCP 数据权限') && all('.w1-modepair').length === 4,
+      String(all('.w1-modepair').length)
+    )
+    await sleep(300)
+    check(
+      '设置面板有活动记录',
+      all('.w1-auditrow').length > 0 &&
+        (one('.w1-auditlist')?.textContent ?? '').includes('MCP'),
+      one('.w1-auditlist')?.textContent?.slice(0, 100) ?? ''
+    )
     byText('.w1-provseg button', '自定义')?.click()
     await sleep(200)
     setValue(one('input[aria-label="Provider 名称"]'), 'Smoke Provider')
@@ -1614,6 +1652,13 @@ async function run() {
         "SELECT COUNT(*) AS n FROM agent_sessions WHERE agent = 'codex' AND resume_id IS NOT NULL"
       ),
       mcpAudit: count("SELECT COUNT(*) AS n FROM audit_log WHERE domain = 'mcp'"),
+      mcpWrites: count(
+        "SELECT COUNT(*) AS n FROM audit_log WHERE domain = 'mcp' AND action = 'write'"
+      ),
+      mcpPolicy: count('SELECT COUNT(*) AS n FROM mcp_domain_modes'),
+      mcpTask: count(
+        "SELECT COUNT(*) AS n FROM tasks WHERE title = 'MCP 写入测试' AND deleted_at IS NULL"
+      ),
       mcpAuditLeak: count(
         "SELECT COUNT(*) AS n FROM audit_log WHERE domain = 'mcp' AND (detail LIKE '%Bearer%' OR detail LIKE '%token%')"
       ),
@@ -1659,6 +1704,16 @@ async function run() {
     name: 'MCP 调用已写审计',
     ok: Boolean(dbStats && dbStats.mcpAudit > 0),
     detail: dbStats ? String(dbStats.mcpAudit) : '无数据'
+  })
+  results.checks.push({
+    name: 'MCP 写入任务与审计已落库',
+    ok: Boolean(dbStats && dbStats.mcpTask === 1 && dbStats.mcpWrites > 0),
+    detail: dbStats ? `task ${dbStats.mcpTask} / write ${dbStats.mcpWrites}` : '无数据'
+  })
+  results.checks.push({
+    name: 'MCP 域权限默认值已落库',
+    ok: Boolean(dbStats && dbStats.mcpPolicy === 4),
+    detail: dbStats ? String(dbStats.mcpPolicy) : '无数据'
   })
   results.checks.push({
     name: 'MCP 审计不含 token',

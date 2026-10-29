@@ -40,11 +40,11 @@ export function StatusBar({ notify, onShortcuts }: StatusBarProps) {
       <button
         className="w1-sbtn w1-st-mcp"
         type="button"
-        title="本地只读数据桥"
-        onClick={() => notify('MCP 只读桥：任务 / 笔记 / 学习 / 习惯，Token 按会话发放')}
+        title="本地 MCP 数据桥"
+        onClick={() => notify('MCP 桥：任务 / 笔记 / 学习 / 习惯；写权限按域设置在设置里')}
       >
         <i className="w1-sdot" />
-        MCP 只读
+        MCP 桥
       </button>
       <span>会话 {sessionCount}</span>
       {permission ? (

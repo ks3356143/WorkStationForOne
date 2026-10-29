@@ -336,6 +336,24 @@ export const MIGRATIONS: Migration[] = [
 
       CREATE UNIQUE INDEX idx_provider_active ON provider_profiles(active) WHERE active = 1;
     `
+  },
+  {
+    // MCP 按域权限：只读域名拒绝 Agent 写入；任务默认允许写。
+    // 询问模式与写入审批卡尚未实现，这一版只有 read / write 两档。
+    version: 18,
+    sql: `
+      CREATE TABLE mcp_domain_modes (
+        domain TEXT PRIMARY KEY CHECK (domain IN ('task', 'habit', 'learning', 'note')),
+        mode TEXT NOT NULL CHECK (mode IN ('read', 'write')),
+        updated_at INTEGER NOT NULL
+      );
+
+      INSERT INTO mcp_domain_modes (domain, mode, updated_at) VALUES
+        ('task', 'write', 0),
+        ('habit', 'read', 0),
+        ('learning', 'read', 0),
+        ('note', 'read', 0);
+    `
   }
 ]
 

@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { HabitRecord, LearningItemRecord, NoteSearchHit, TaskRecord } from '../../shared/ipc'
+import type {
+  HabitRecord,
+  LearningItemRecord,
+  NoteRecord,
+  NoteSearchHit,
+  TaskRecord
+} from '../../shared/ipc'
 import { runMcpTool, type McpData } from './tools'
 
 const TODAY = '2026-10-29'
@@ -74,10 +80,32 @@ const habits: HabitRecord[] = [
 
 function data(): McpData {
   return {
-    tasks: { list: () => tasks },
-    notes: { count: () => 4, search: () => noteHits },
-    learning: { list: () => cards },
-    habits: { list: () => habits },
+    tasks: {
+      list: () => tasks,
+      find: (id) => tasks.find((task) => task.id === id),
+      create: () => {
+        throw new Error('not implemented')
+      },
+      update: () => {
+        throw new Error('not implemented')
+      },
+      completeTask: () => null
+    },
+    notes: {
+      count: () => 4,
+      search: () => noteHits,
+      create: () => {
+        throw new Error('not implemented')
+      }
+    },
+    learning: {
+      list: () => cards,
+      review: () => cards[0]
+    },
+    habits: {
+      list: () => habits,
+      setCheckin: () => {}
+    },
     audit: { record: vi.fn() }
   }
 }
@@ -161,5 +189,159 @@ describe('MCP 只读工具', () => {
     const result = call('delete_everything')
     expect(result).toMatchObject({ isError: true })
     expect(result.text).toContain('未知工具')
+  })
+})
+
+describe('MCP 写入工具', () => {
+  function writeData() {
+    const taskList: TaskRecord[] = []
+    const noteList: NoteRecord[] = []
+    const card = cards[0]
+    const habitList: HabitRecord[] = [{ id: 'h1', name: '早起', checkins: [] }]
+    const source: McpData = {
+      tasks: {
+        list: () => taskList,
+        find: (id) => taskList.find((item) => item.id === id),
+        create: (draft) => {
+          const created = {
+            id: `t-${taskList.length + 1}`,
+            time: draft.time ?? '—',
+            done: false,
+            ...draft
+          } as TaskRecord
+          taskList.push(created)
+          return created
+        },
+        update: (id, patch) => {
+          const index = taskList.findIndex((item) => item.id === id)
+          if (index < 0) return
+          const next = { ...taskList[index], ...patch } as Record<string, unknown>
+          for (const key of ['dueDate', 'plannedFor', 'list', 'tag', 'tone']) {
+            if (patch[key as keyof typeof patch] === null) delete next[key]
+          }
+          taskList[index] = next as unknown as TaskRecord
+        },
+        completeTask: (id) => {
+          const index = taskList.findIndex((item) => item.id === id)
+          if (index >= 0) taskList[index] = { ...taskList[index], done: true }
+          return null
+        }
+      },
+      notes: {
+        count: () => noteList.length,
+        search: () => [],
+        create: (text, tag) => {
+          const note: NoteRecord = { id: `n-${noteList.length + 1}`, text, time: '刚刚' }
+          if (tag) note.tag = tag
+          noteList.push(note)
+          return note
+        }
+      },
+      learning: {
+        list: () => [card],
+        review: (id, rating) => ({
+          ...card,
+          id,
+          repetitions: card.repetitions + 1,
+          intervalDays: rating,
+          nextReviewOn: '2026-11-02'
+        })
+      },
+      habits: {
+        list: () => habitList,
+        setCheckin: (id, day, done) => {
+          const habit = habitList.find((item) => item.id === id)
+          if (!habit) return
+          habit.checkins = done
+            ? [...new Set([...habit.checkins, day])]
+            : habit.checkins.filter((item) => item !== day)
+        }
+      },
+      audit: { record: vi.fn() }
+    }
+    return { source, taskList, noteList, habitList }
+  }
+
+  it('创建/更新/完成任务，并记 write 审计', () => {
+    const { source, taskList } = writeData()
+    const created = runMcpTool(
+      'tasks_create',
+      { title: 'MCP 任务', dueDate: TODAY, priority: 2, list: '工作' },
+      source,
+      { sessionId: 's-1', today: TODAY, write: true }
+    )
+    expect(created.isError).toBeUndefined()
+    expect(taskList[0]).toMatchObject({ title: 'MCP 任务', dueDate: TODAY, priority: 2 })
+    expect(source.audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ domain: 'mcp', action: 'write', title: 'tasks_create' })
+    )
+
+    const id = taskList[0].id
+    expect(
+      runMcpTool('tasks_update', { id, patch: { title: '改过', dueDate: null } }, source, {
+        sessionId: 's-1',
+        today: TODAY,
+        write: true
+      }).isError
+    ).toBeUndefined()
+    expect(taskList[0]).toMatchObject({ title: '改过' })
+    expect(taskList[0].dueDate).toBeUndefined()
+
+    expect(
+      runMcpTool('tasks_complete', { id }, source, {
+        sessionId: 's-1',
+        today: TODAY,
+        write: true
+      }).isError
+    ).toBeUndefined()
+    expect(taskList[0].done).toBe(true)
+  })
+
+  it('创建笔记、打卡与评分', () => {
+    const { source, noteList, habitList } = writeData()
+    expect(
+      runMcpTool('notes_create', { title: 'MCP 笔记', body: '正文', tag: '想法' }, source, {
+        sessionId: 's-1',
+        today: TODAY,
+        write: true
+      }).isError
+    ).toBeUndefined()
+    expect(noteList[0].text).toBe('MCP 笔记\n\n正文')
+    expect(noteList[0].tag).toBe('想法')
+
+    expect(
+      runMcpTool('habits_check', { habitId: 'h1' }, source, {
+        sessionId: 's-1',
+        today: TODAY,
+        write: true
+      }).isError
+    ).toBeUndefined()
+    expect(habitList[0].checkins).toContain(TODAY)
+
+    const reviewed = runMcpTool('learning_review', { itemId: 'l1', rating: 3 }, source, {
+      sessionId: 's-1',
+      today: TODAY,
+      write: true
+    })
+    expect(reviewed.isError).toBeUndefined()
+    expect(JSON.parse(reviewed.text)).toMatchObject({ nextReviewOn: '2026-11-02' })
+  })
+
+  it('拒绝非法日期与未来打卡', () => {
+    const { source } = writeData()
+    expect(
+      runMcpTool('tasks_create', { title: '坏日期', dueDate: '2026-13-01' }, source, {
+        sessionId: 's-1',
+        today: TODAY,
+        write: true
+      }).isError
+    ).toBe(true)
+    expect(
+      runMcpTool('habits_check', { habitId: 'h1', date: '2026-10-30' }, source, {
+        sessionId: 's-1',
+        today: TODAY,
+        write: true
+      })
+    ).toMatchObject({ isError: true })
   })
 })

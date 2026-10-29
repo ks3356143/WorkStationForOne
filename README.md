@@ -2,7 +2,7 @@
 
 Windows 上的个人 AI 工作站。把「今日看板 + 任务清单 + Agent 工作区 + 笔记库 + 闪卡复习」收进一个窗口：左侧导航一次只打开一个全宽工作区，Agent 视图里驱动本机 Claude Code CLI 对话，任务、笔记、学习与习惯全部落在本机 SQLite。
 
-> 当前版本 v0.11.1（2026-10-29）。任务（含清单、计划、重复、子任务）、笔记（含双链）、学习（MEM 科目 + FSRS-6 + CSV 导入导出 + 统计）、习惯、审计、Agent 会话与 Provider 配置均已落库（DB v17）；Agent 通过本机 `claude` / `codex` CLI 流式对话：Claude 读工具自动放行、写操作逐次审批，Codex 以只读沙箱运行；Main 进程内嵌 MCP 只读数据桥（任务 / 笔记搜索 / 学习到期 / 习惯 / 今日概览），Token 按回合发放，配置只进临时文件。便携版可用。Codex 写入与 MCP 写入尚未实现。
+> 当前版本 v0.12.0（2026-10-29）。任务（含清单、计划、重复、子任务）、笔记（含双链）、学习（MEM 科目 + FSRS-6 + CSV 导入导出 + 统计）、习惯、审计、Agent 会话与 Provider 配置均已落库（DB v18）；Agent 通过本机 `claude` / `codex` CLI 流式对话：Claude 读工具自动放行、写操作逐次审批，Codex 以只读沙箱运行；Main 进程内嵌 MCP 数据桥，提供 5 个读取 + 6 个写入工具，按任务 / 习惯 / 学习 / 笔记四域配置只读或可写，写入带幂等键并写审计；设置页可查看活动记录。便携版可用。Codex 写入与 MCP 询问模式尚未实现。
 
 ## 特点
 
@@ -32,7 +32,7 @@ Windows 上的个人 AI 工作站。把「今日看板 + 任务清单 + Agent �
 | --- | --- |
 | 桌面壳 | Electron 45（sandbox + contextIsolation，仅暴露窄 preload 桥） |
 | 界面 | React 19、TypeScript、Zustand、Motion、cmdk |
-| 数据 | Electron 内置 `node:sqlite`（WAL、`PRAGMA user_version` 前向迁移、FTS5，DB v17） |
+| 数据 | Electron 内置 `node:sqlite`（WAL、`PRAGMA user_version` 前向迁移、FTS5，DB v18） |
 | 构建 | electron-vite、Vite 8、Vitest、Biome |
 
 不引入原生 SQLite 模块，因此没有 `@electron/rebuild` 与 ABI 匹配问题。
@@ -56,9 +56,9 @@ npm run dev
 | `npm run build` | 生产构建，输出到 `out/` |
 | `npm start` | 预览上一次构建 |
 | `npm run typecheck` | 类型检查（main/preload 与 renderer 各一套配置） |
-| `npm test` | 运行全部单元测试（601 项） |
+| `npm test` | 运行全部单元测试（611 项） |
 | `npm run check` | Biome 检查格式与 lint（Rust 单二进制，不依赖 Prettier / ESLint） |
-| `npm run smoke` | 构建后跑 UI 交互冒烟（222 项，真实主进程 + 临时 SQLite） |
+| `npm run smoke` | 构建后跑 UI 交互冒烟（229 项，真实主进程 + 临时 SQLite） |
 | `npm run verify` | 启动真实主进程跑 251–253 项运行时断言（五视图、双主题/皮肤、跨重启） |
 | `npm run capture -- .screenshots/home.png 1440 900 .screenshots/audit.json` | 截图并输出布局审计 |
 | `npm run capture -- .screenshots/notes-1180.png 1180 720 .screenshots/audit-notes.json dark notes` | 指定主题 `dark|light` 与视图 `today|tasks|agent|notes|learning` 截图 |
@@ -75,7 +75,7 @@ src/
     db/                 连接、迁移与任务 / 笔记 / 学习 / 习惯 / 审计 / 智能体会话仓储
     ipc/                IPC handler 与入参校验
     agent/              Claude / Codex CLI 适配器与事件流
-    mcp/                本地只读 MCP 桥（HTTP JSON-RPC、工具与审计）
+    mcp/                本地 MCP 数据桥（HTTP JSON-RPC、读写工具、权限与审计）
   preload/              暴露 window.ws 的窄类型化桥
   renderer/             界面（无 Node、无数据库、无文件系统权限）
     src/components/     左侧导航、今日看板、任务 / Agent / 笔记 / 学习工作区、自建表单控件
@@ -96,7 +96,7 @@ docs/superpowers/specs/ 产品与架构设计规格
 ## 数据
 
 - 位置：`%APPDATA%\WorkStationForOne\data\workstation.db`
-- 已落库：任务（清单、截止/计划日期、时长、优先级、备注、完成时间、重复、子任务）、笔记（含 FTS5 索引与双链）、学习卡片（含 FSRS 稳定度 / 难度 / 失误次数）与复习记录、习惯与按日打卡、智能体会话与消息（含工具卡与 resume id）、Provider 配置（Key 加密后存 BLOB）、审计日志
+- 已落库：任务（清单、截止/计划日期、时长、优先级、备注、完成时间、重复、子任务）、笔记（含 FTS5 索引与双链）、学习卡片（含 FSRS 稳定度 / 难度 / 失误次数）与复习记录、习惯与按日打卡、智能体会话与消息（含工具卡与 resume id）、Provider 配置（Key 加密后存 BLOB）、MCP 四域权限、审计日志
 - 备份：每天首次启动用 `VACUUM INTO` 生成快照到 `<库目录>/backups/`，保留最近 10 份；命令面板可手动备份
 - 全局快速捕获：`Ctrl+Alt+Space` 随时记一条，落库后主窗口即时刷新
 
@@ -106,7 +106,7 @@ docs/superpowers/specs/ 产品与架构设计规格
 
 - 渲染进程没有 Node、数据库或文件系统访问权；所有能力经 `src/shared/ipc.ts` 的类型契约 + 主进程入参校验。
 - Agent 提示词只走 stdin，子进程 `shell: false`，不添加 `--dangerously-*`；Claude 只开放只读工具白名单，Codex 固定 `read-only` 沙箱，不写 `~/.codex/config.toml`。
-- MCP 只读桥只绑 `127.0.0.1` 随机端口，Bearer Token 按 Agent 回合生成并回收；配置只写临时文件，回合结束即删，Token 不进日志、审计或命令行。
+- MCP 数据桥只绑 `127.0.0.1` 随机端口，Bearer Token 按 Agent 回合生成并回收；配置只写临时文件，回合结束即删，Token 不进日志、审计或命令行。写入受四域 `read|write` 权限约束，并要求 `idempotency_key`。
 - 应用是单实例的；关闭窗口即退出。
 - 仓库不包含任何密钥、登录态或个人配置。
 
@@ -115,7 +115,7 @@ docs/superpowers/specs/ 产品与架构设计规格
 - 工具审批只有「允许一次 / 拒绝」，没有「本会话始终允许」或持久规则；宿主内问答（AskUserQuestion）会被自动拒绝。
 - Agent 依赖本机 `claude` CLI 已登录且模型可用；继承模式下若全局配置指向的模型被网关拒绝，会明确显示 API 错误，可在设置里改用自定义 Provider。
 - 自定义 Provider 优先于全局 Claude settings，但仍会加载当前目录的项目级 settings；API Key 不写入日志、命令行或渲染层。
-- Codex 以只读沙箱运行，不提供写入或审批；MCP 只提供读取工具，尚无写入与按域授权。Agent 页不预置演示会话，首次进入是空态。
+- Codex 以只读沙箱运行，不提供写入或审批；MCP 有读 / 写工具，但只有「只读 / 可写」两档域权限，尚无写入前的询问审批卡。Agent 页不预置演示会话，首次进入是空态。
 - 审计日志已有记录，但还没有查看入口。
 - 笔记双链只按「唯一首行」解析：重名或找不到的目标不建立链接；目标改首行后旧链接仍指向它，但正文里显示的是保存时的标题快照。
 - 学习域使用 FSRS-6 默认参数，不提供参数优化器；暂无导入导出、拼写与作文题型。

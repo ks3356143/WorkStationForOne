@@ -127,10 +127,29 @@ describe('startClaudeRun · stub 链路', () => {
   it('MCP 配置通过临时文件交给 CLI，并真的调通只读桥', async () => {
     const bridge = new McpBridge(
       {
-        tasks: { list: () => [] },
-        notes: { count: () => 0, search: () => [] },
-        learning: { list: () => [] },
-        habits: { list: () => [] },
+        tasks: {
+          list: () => [],
+          find: () => undefined,
+          create: () => {
+            throw new Error('not implemented')
+          },
+          update: () => {},
+          completeTask: () => null
+        },
+        notes: {
+          count: () => 0,
+          search: () => [],
+          create: () => {
+            throw new Error('not implemented')
+          }
+        },
+        learning: {
+          list: () => [],
+          review: () => {
+            throw new Error('not implemented')
+          }
+        },
+        habits: { list: () => [], setCheckin: () => {} },
         audit: { record: () => {} }
       },
       'test'

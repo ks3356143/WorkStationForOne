@@ -54,6 +54,18 @@ describe('AuditLog', () => {
     db.close()
   })
 
+  it('可按域筛选，供设置页活动记录使用', () => {
+    const { db, audit } = fresh()
+    audit.record({ at: 1, domain: 'task', action: 'create' })
+    audit.record({ at: 2, domain: 'mcp', action: 'write', title: 'tasks_create' })
+    audit.record({ at: 3, domain: 'system', action: 'settings' })
+
+    expect(audit.recent(10, 'mcp').map((row) => row.title)).toEqual(['tasks_create'])
+    expect(audit.recent(10, 'mcp')).toHaveLength(1)
+    expect(audit.recent(10, 'system')[0]).toMatchObject({ action: 'settings' })
+    db.close()
+  })
+
   it('写入失败不抛错：审计不能拖垮业务写入', () => {
     const { db, audit } = fresh()
     db.close()

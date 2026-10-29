@@ -1,10 +1,18 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-import { MCP_TOOLS, runMcpTool, type McpData } from './tools'
+import { MCP_DEFAULT_MODES, type McpDomain, type McpMode } from '../../shared/ipc'
+import { MCP_TOOLS, runMcpTool, type McpData, type McpToolResult } from './tools'
 
 export interface McpEndpoint {
   url: string
   token: string
+}
+
+export interface McpHooks {
+  /** 当前域权限；缺省使用默认模式 */
+  mode?: (domain: McpDomain) => McpMode
+  /** 写入成功后通知渲染层重新读库 */
+  notifyChanged?: (domains: McpDomain[]) => void
 }
 
 const MAX_BODY = 256 * 1024
@@ -52,10 +60,12 @@ export class McpBridge {
   private port = 0
   private readonly tokens = new Map<string, string>()
   private readonly limits = new Map<string, { count: number; resetAt: number }>()
+  private readonly idempotency = new Map<string, McpToolResult>()
 
   constructor(
     private readonly data: McpData,
-    private readonly version = '0.0.0'
+    private readonly version = '0.0.0',
+    private readonly hooks: McpHooks = {}
   ) {}
 
   async start(): Promise<number> {
@@ -103,6 +113,7 @@ export class McpBridge {
   close(): void {
     this.tokens.clear()
     this.limits.clear()
+    this.idempotency.clear()
     this.server?.close()
     this.server = null
     this.port = 0
@@ -228,19 +239,55 @@ export class McpBridge {
       const params = asRecord(record.params)
       const name = typeof params.name === 'string' ? params.name : ''
       if (!name) return rpcError(id, -32602, '缺少工具名')
+      const def = MCP_TOOLS.find((tool) => tool.name === name)
+      if (!def) {
+        return rpcResult(id, toolResponse({ text: `未知工具：${name}`, isError: true }))
+      }
+      const args = asRecord(params.arguments)
+      let cacheKey = ''
+      if (def.write) {
+        const mode = this.hooks.mode?.(def.domain) ?? MCP_DEFAULT_MODES[def.domain]
+        if (mode !== 'write') {
+          this.data.audit.record({
+            at: Date.now(),
+            domain: 'mcp',
+            action: 'write',
+            targetId: sessionId,
+            title: name,
+            source: 'agent',
+            detail: `denied_by_policy (mode=${mode})`
+          })
+          return rpcResult(id, toolResponse({ text: 'denied_by_policy', isError: true }))
+        }
+        const key = typeof args.idempotency_key === 'string' ? args.idempotency_key.trim() : ''
+        if (!key) {
+          return rpcResult(id, toolResponse({ text: 'idempotency_key 不能为空', isError: true }))
+        }
+        cacheKey = `${sessionId}:${name}:${key}`
+        const cached = this.idempotency.get(cacheKey)
+        if (cached) return rpcResult(id, toolResponse(cached))
+      }
       try {
-        const output = runMcpTool(name, params.arguments, this.data, { sessionId })
-        return rpcResult(id, {
-          content: [{ type: 'text', text: output.text }],
-          ...(output.isError ? { isError: true } : {})
+        const output = runMcpTool(name, params.arguments, this.data, {
+          sessionId,
+          ...(def.write ? { write: true } : {})
         })
+        if (def.write && !output.isError) {
+          this.idempotency.set(cacheKey, output)
+          this.hooks.notifyChanged?.([def.domain])
+        }
+        return rpcResult(id, toolResponse(output))
       } catch {
-        return rpcResult(id, {
-          content: [{ type: 'text', text: '工具执行失败' }],
-          isError: true
-        })
+        return rpcResult(id, toolResponse({ text: '工具执行失败', isError: true }))
       }
     }
     return rpcError(id, -32601, `未知方法：${method}`)
+  }
+}
+
+function toolResponse(output: McpToolResult): unknown {
+  return {
+    content: [{ type: 'text', text: output.text }],
+    ...(output.isError ? { isError: true } : {})
   }
 }

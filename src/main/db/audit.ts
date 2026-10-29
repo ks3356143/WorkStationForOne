@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 
-export type AuditDomain = 'task' | 'note' | 'learning' | 'habit' | 'mcp'
+export type AuditDomain = 'task' | 'note' | 'learning' | 'habit' | 'mcp' | 'system'
 export type AuditAction =
   | 'create'
   | 'update'
@@ -14,6 +14,8 @@ export type AuditAction =
   | 'import'
   | 'toggle-pin'
   | 'read'
+  | 'write'
+  | 'settings'
 
 export interface AuditEntry {
   at: number
@@ -37,6 +39,8 @@ const INSERT_SQL = `INSERT INTO audit_log (at, domain, action, target_id, title,
 
 const LIST_SQL = `SELECT id, at, domain, action, target_id, title, source, detail
   FROM audit_log ORDER BY id DESC LIMIT ?`
+const LIST_DOMAIN_SQL = `SELECT id, at, domain, action, target_id, title, source, detail
+  FROM audit_log WHERE domain = ? ORDER BY id DESC LIMIT ?`
 
 interface AuditRow {
   id: number
@@ -56,10 +60,12 @@ interface AuditRow {
 export class AuditLog {
   private readonly insert
   private readonly list
+  private readonly listDomain
 
   constructor(private readonly db: DatabaseSync) {
     this.insert = db.prepare(INSERT_SQL)
     this.list = db.prepare(LIST_SQL)
+    this.listDomain = db.prepare(LIST_DOMAIN_SQL)
   }
 
   record(entry: AuditEntry): void {
@@ -79,8 +85,11 @@ export class AuditLog {
     }
   }
 
-  recent(limit = 50): AuditRecord[] {
-    return (this.list.all(limit) as unknown as AuditRow[]).map((row) => ({
+  recent(limit = 50, domain?: AuditDomain): AuditRecord[] {
+    const rows = (domain
+      ? this.listDomain.all(domain, limit)
+      : this.list.all(limit)) as unknown as AuditRow[]
+    return rows.map((row) => ({
       id: row.id,
       at: row.at,
       domain: row.domain,

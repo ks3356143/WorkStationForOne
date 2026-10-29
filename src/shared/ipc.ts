@@ -348,6 +348,45 @@ export interface AgentApi {
   saveMessage: (message: AgentMessageRecord) => Promise<void>
 }
 
+export const MCP_DOMAINS = ['task', 'habit', 'learning', 'note'] as const
+export type McpDomain = (typeof MCP_DOMAINS)[number]
+export type McpMode = 'read' | 'write'
+export const MCP_DEFAULT_MODES: Record<McpDomain, McpMode> = {
+  task: 'write',
+  habit: 'read',
+  learning: 'read',
+  note: 'read'
+}
+
+export interface McpPolicyRecord {
+  domain: McpDomain
+  mode: McpMode
+}
+
+export interface McpApi {
+  policy: () => Promise<McpPolicyRecord[]>
+  setPolicy: (domain: McpDomain, mode: McpMode) => Promise<void>
+  /** MCP 写入成功后广播受影响的域，渲染层据此重新读库 */
+  onChanged: (listener: (domains: McpDomain[]) => void) => () => void
+}
+
+export type AuditLogDomain = 'task' | 'note' | 'learning' | 'habit' | 'mcp' | 'system'
+
+export interface AuditLogRecord {
+  id: number
+  at: number
+  domain: AuditLogDomain
+  action: string
+  targetId?: string
+  title?: string
+  source: string
+  detail?: string
+}
+
+export interface AuditApi {
+  recent: (limit?: number, domain?: AuditLogDomain) => Promise<AuditLogRecord[]>
+}
+
 export interface BackupResult {
   file: string
   dir: string
@@ -376,6 +415,8 @@ export interface WsApi {
   learning: LearningApi
   habits: HabitApi
   agent: AgentApi
+  mcp: McpApi
+  audit: AuditApi
   app: AppApi
 }
 
@@ -421,6 +462,10 @@ export const IPC_CHANNELS = {
   agentCreateSession: 'agent:create-session',
   agentUpdateSession: 'agent:update-session',
   agentSaveMessage: 'agent:save-message',
+  mcpPolicyList: 'mcp:policy-list',
+  mcpPolicySet: 'mcp:policy-set',
+  mcpChanged: 'mcp:changed',
+  auditRecent: 'audit:recent',
   providerList: 'provider:list',
   providerSave: 'provider:save',
   providerSetActive: 'provider:set-active',

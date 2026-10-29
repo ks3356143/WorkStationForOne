@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { m } from 'motion/react'
-import type { AppInfo, ProviderProfileRecord } from '../../../shared/ipc'
+import type {
+  AppInfo,
+  AuditLogDomain,
+  AuditLogRecord,
+  McpDomain,
+  McpMode,
+  McpPolicyRecord,
+  ProviderProfileRecord
+} from '../../../shared/ipc'
 import { DURATION, EASE_OUT } from '../lib/motion'
 import { skinLabel, themeLabel } from '../lib/theme'
 import { useWorkstation } from '../store/useWorkstation'
@@ -8,6 +16,42 @@ import { useWorkstation } from '../store/useWorkstation'
 interface SettingsSheetProps {
   onClose: () => void
   notify: (text: string) => void
+}
+
+const MCP_DOMAIN_LABELS: Record<McpDomain, string> = {
+  task: '任务',
+  habit: '习惯',
+  learning: '学习',
+  note: '笔记'
+}
+
+const AUDIT_DOMAIN_LABELS: Record<AuditLogDomain, string> = {
+  task: '任务',
+  note: '笔记',
+  learning: '学习',
+  habit: '习惯',
+  mcp: 'MCP',
+  system: '设置'
+}
+
+const AUDIT_FILTERS: { value: AuditLogDomain | 'all'; label: string }[] = [
+  { value: 'all', label: '全部' },
+  { value: 'task', label: '任务' },
+  { value: 'note', label: '笔记' },
+  { value: 'learning', label: '学习' },
+  { value: 'habit', label: '习惯' },
+  { value: 'mcp', label: 'MCP' },
+  { value: 'system', label: '设置' }
+]
+
+function auditTime(at: number): string {
+  return new Date(at).toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  })
 }
 
 export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
@@ -30,6 +74,12 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
   const [providerKey, setProviderKey] = useState('')
   const [providerBusy, setProviderBusy] = useState(false)
   const activeProfile = profiles.find((profile) => profile.active)
+  const mcpApi = typeof window === 'undefined' ? undefined : window.ws?.mcp
+  const auditApi = typeof window === 'undefined' ? undefined : window.ws?.audit
+  const [policies, setPolicies] = useState<McpPolicyRecord[]>([])
+  const [policyBusy, setPolicyBusy] = useState(false)
+  const [auditRows, setAuditRows] = useState<AuditLogRecord[]>([])
+  const [auditDomain, setAuditDomain] = useState<AuditLogDomain | 'all'>('all')
 
   useEffect(() => {
     const root = boxRef.current
@@ -58,6 +108,51 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
       if (!active || active === document.body || root?.contains(active)) restoreRef.current?.focus()
     }
   }, [providerApi])
+
+  useEffect(() => {
+    void mcpApi
+      ?.policy()
+      .then(setPolicies)
+      .catch(() => setPolicies([]))
+  }, [mcpApi])
+
+  useEffect(() => {
+    if (!auditApi) return
+    let alive = true
+    void auditApi
+      .recent(30, auditDomain === 'all' ? undefined : auditDomain)
+      .then((rows) => {
+        if (alive) setAuditRows(rows)
+      })
+      .catch(() => {
+        if (alive) setAuditRows([])
+      })
+    return () => {
+      alive = false
+    }
+  }, [auditApi, auditDomain])
+
+  const changePolicy = (domain: McpDomain, mode: McpMode) => {
+    if (!mcpApi || policyBusy) return
+    const current = policies.find((policy) => policy.domain === domain)
+    if (current?.mode === mode) return
+    setPolicyBusy(true)
+    void mcpApi
+      .setPolicy(domain, mode)
+      .then(() => {
+        setPolicies((list) =>
+          list.map((policy) => (policy.domain === domain ? { ...policy, mode } : policy))
+        )
+        notify(`MCP ${MCP_DOMAIN_LABELS[domain]}权限：${mode === 'write' ? '可写' : '只读'}`)
+        return auditApi
+          ?.recent(30, auditDomain === 'all' ? undefined : auditDomain)
+          .then(setAuditRows)
+      })
+      .catch((error: unknown) =>
+        notify(error instanceof Error ? `权限保存失败：${error.message}` : '权限保存失败')
+      )
+      .finally(() => setPolicyBusy(false))
+  }
 
   const selectInheritedProvider = () => {
     setProviderMode('inherit')
@@ -290,6 +385,82 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
                   只影响本应用启动的 Claude 进程；API Key 用系统加密存在本机，永不回显。
                 </p>
               </>
+            )}
+          </div>
+        </section>
+
+        <section className="w1-setgroup" aria-label="MCP 数据权限">
+          <h3>MCP 数据权限</h3>
+          <p className="w1-provnote">
+            只读域会拒绝 Agent 写入；可写域允许 Claude 通过 MCP
+            修改，并写审计。本版没有「询问」模式。
+          </p>
+          {policies.length === 0 ? (
+            <p className="w1-provnote">仅在桌面应用可用。</p>
+          ) : (
+            policies.map((policy) => (
+              <div className="w1-setrow" key={policy.domain}>
+                <span>{MCP_DOMAIN_LABELS[policy.domain]}</span>
+                <div
+                  className="w1-modepair"
+                  role="group"
+                  aria-label={`${MCP_DOMAIN_LABELS[policy.domain]} MCP 权限`}
+                >
+                  <button
+                    type="button"
+                    className={`w1-setbtn${policy.mode === 'read' ? ' on' : ''}`}
+                    aria-pressed={policy.mode === 'read'}
+                    disabled={policyBusy}
+                    onClick={() => changePolicy(policy.domain, 'read')}
+                  >
+                    只读
+                  </button>
+                  <button
+                    type="button"
+                    className={`w1-setbtn${policy.mode === 'write' ? ' on' : ''}`}
+                    aria-pressed={policy.mode === 'write'}
+                    disabled={policyBusy}
+                    onClick={() => changePolicy(policy.domain, 'write')}
+                  >
+                    可写
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </section>
+
+        <section className="w1-setgroup" aria-label="活动记录">
+          <h3>活动记录</h3>
+          <div className="w1-auditfilter" role="group" aria-label="活动记录筛选">
+            {AUDIT_FILTERS.map((filter) => (
+              <button
+                key={filter.value}
+                type="button"
+                className={`w1-auditfilterbtn${auditDomain === filter.value ? ' on' : ''}`}
+                aria-pressed={auditDomain === filter.value}
+                onClick={() => setAuditDomain(filter.value)}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+          <div className="w1-auditlist">
+            {auditRows.length === 0 ? (
+              <p className="w1-provnote">还没有活动记录。</p>
+            ) : (
+              auditRows.map((row) => (
+                <div
+                  className="w1-auditrow"
+                  key={row.id}
+                  title={[row.title, row.detail, row.source].filter(Boolean).join(' · ')}
+                >
+                  <time>{auditTime(row.at)}</time>
+                  <b>{AUDIT_DOMAIN_LABELS[row.domain] ?? row.domain}</b>
+                  <span>{row.title ?? row.targetId ?? '—'}</span>
+                  <em>{row.action}</em>
+                </div>
+              ))
             )}
           </div>
         </section>

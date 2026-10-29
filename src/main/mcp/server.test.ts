@@ -10,10 +10,33 @@ const cards: LearningItemRecord[] = []
 
 function data(): McpData {
   return {
-    tasks: { list: () => tasks },
-    notes: { count: () => 0, search: () => [] as NoteSearchHit[] },
-    learning: { list: () => cards },
-    habits: { list: () => [] as HabitRecord[] },
+    tasks: {
+      list: () => tasks,
+      find: (id) => tasks.find((task) => task.id === id),
+      create: (draft) => ({ id: 't-new', time: '—', done: false, ...draft }) as TaskRecord,
+      update: () => {},
+      completeTask: () => null
+    },
+    notes: {
+      count: () => 0,
+      search: () => [] as NoteSearchHit[],
+      create: (text, tag) => ({
+        id: 'n-new',
+        text,
+        time: '刚刚',
+        ...(tag ? { tag } : {})
+      })
+    },
+    learning: {
+      list: () => cards,
+      review: () => {
+        throw new Error('not implemented')
+      }
+    },
+    habits: {
+      list: () => [] as HabitRecord[],
+      setCheckin: () => {}
+    },
     audit: { record: vi.fn() }
   }
 }
@@ -90,7 +113,13 @@ describe('MCP HTTP 桥', () => {
       'notes_search',
       'learning_due',
       'habits_summary',
-      'today_overview'
+      'today_overview',
+      'tasks_create',
+      'tasks_update',
+      'tasks_complete',
+      'habits_check',
+      'learning_review',
+      'notes_create'
     ])
 
     const call = await rpc(endpoint.url, endpoint.token, {
@@ -146,5 +175,68 @@ describe('MCP HTTP 桥', () => {
       method: 'ping'
     })
     expect(revoked.status).toBe(401)
+  })
+
+  it('写入按域权限、幂等键与变更广播生效', async () => {
+    const source = data()
+    const create = vi.fn(source.tasks.create)
+    source.tasks.create = create
+    const notifyChanged = vi.fn()
+    bridge = new McpBridge(source, 'test', {
+      mode: (domain) => (domain === 'task' ? 'write' : 'read'),
+      notifyChanged
+    })
+    await bridge.start()
+    const endpoint = bridge.issue('s-write')
+    if (!endpoint) throw new Error('没有 issue token')
+
+    const call = (id: number, name: string, args: Record<string, unknown>) =>
+      rpc(endpoint.url, endpoint.token, {
+        jsonrpc: '2.0',
+        id,
+        method: 'tools/call',
+        params: { name, arguments: args }
+      })
+
+    const first = await call(10, 'tasks_create', {
+      title: 'MCP 任务',
+      idempotency_key: 'k1'
+    })
+    const firstBody = (await first.json()) as {
+      result: { isError?: boolean; content: { text: string }[] }
+    }
+    expect(firstBody.result.isError).toBeUndefined()
+    expect(create).toHaveBeenCalledTimes(1)
+    expect(notifyChanged).toHaveBeenCalledWith(['task'])
+
+    const repeat = await call(11, 'tasks_create', {
+      title: 'MCP 任务',
+      idempotency_key: 'k1'
+    })
+    const repeatBody = (await repeat.json()) as { result: { content: { text: string }[] } }
+    expect(create).toHaveBeenCalledTimes(1)
+    expect(repeatBody.result.content[0].text).toBe(firstBody.result.content[0].text)
+
+    const denied = await call(12, 'notes_create', {
+      title: '不该写入',
+      idempotency_key: 'k2'
+    })
+    const deniedBody = (await denied.json()) as {
+      result: { isError?: boolean; content: { text: string }[] }
+    }
+    expect(deniedBody.result.isError).toBe(true)
+    expect(deniedBody.result.content[0].text).toBe('denied_by_policy')
+    expect(source.notes.create).toBeDefined()
+    expect(source.audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        domain: 'mcp',
+        action: 'write',
+        detail: expect.stringContaining('denied_by_policy')
+      })
+    )
+
+    const missingKey = await call(13, 'tasks_create', { title: '缺键' })
+    const missingBody = (await missingKey.json()) as { result: { isError?: boolean } }
+    expect(missingBody.result.isError).toBe(true)
   })
 })

@@ -1715,3 +1715,96 @@ button.w1-nlchip:hover {
 .w1-setbtn:disabled {
   opacity: 0.45;
 }
+
+/* ---------- MCP policy + audit ---------- */
+
+.w1-modepair {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.w1-modepair .w1-setbtn {
+  height: 22px;
+  margin-left: 0;
+  padding: 0 8px;
+}
+
+.w1-auditfilter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0 8px;
+}
+
+.w1-auditfilterbtn {
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.6);
+  background: transparent;
+  color: var(--mu);
+  font: 10px / 1 var(--mono);
+  transition:
+    border-color var(--dur-ui),
+    color var(--dur-ui),
+    background-color var(--dur-ui);
+}
+
+.w1-auditfilterbtn:hover {
+  border-color: rgb(var(--ac2-rgb) / 0.5);
+  color: var(--fg);
+}
+
+.w1-auditfilterbtn.on {
+  border-color: rgb(var(--ac2-rgb) / 0.55);
+  background: rgb(var(--ac2-rgb) / 0.12);
+  color: var(--ac2-fg);
+}
+
+.w1-auditlist {
+  display: flex;
+  flex-direction: column;
+  max-height: 190px;
+  padding: 2px 8px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.3);
+  background: rgb(var(--field-rgb) / 0.16);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--ac-rgb) / 0.28) transparent;
+}
+
+.w1-auditrow {
+  display: grid;
+  grid-template-columns: 90px 42px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 0;
+  border-bottom: 1px solid rgb(var(--bd-rgb) / 0.24);
+  font: 10.5px / 1.4 var(--mono);
+  color: var(--su);
+}
+
+.w1-auditrow:last-child {
+  border-bottom: 0;
+}
+
+.w1-auditrow time {
+  color: var(--mu);
+}
+
+.w1-auditrow b {
+  color: var(--ac2-fg);
+  font-weight: 600;
+}
+
+.w1-auditrow span {
+  overflow: hidden;
+  color: var(--fs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.w1-auditrow em {
+  color: var(--mu);
+  font-style: normal;
+}

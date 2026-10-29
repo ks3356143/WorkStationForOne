@@ -49,6 +49,20 @@ async function runFlow(prompt) {
       return
     }
     const leaked = process.argv.join(' ').includes(token)
+    const writeMode = prompt.includes('写任务')
+    const now = new Date()
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
+      now.getDate()
+    ).padStart(2, '0')}`
+    const toolName = writeMode ? 'tasks_create' : 'today_overview'
+    const toolArgs = writeMode
+      ? {
+          title: 'MCP 写入测试',
+          dueDate: today,
+          list: 'Agent',
+          idempotency_key: `smoke-${Date.now()}`
+        }
+      : {}
     let overview = ''
     let error = ''
     try {
@@ -62,12 +76,13 @@ async function runFlow(prompt) {
           jsonrpc: '2.0',
           id: 1,
           method: 'tools/call',
-          params: { name: 'today_overview', arguments: {} }
+          params: { name: toolName, arguments: toolArgs }
         })
       })
       const data = await response.json()
       overview = data?.result?.content?.[0]?.text ?? ''
       if (!overview) error = `HTTP ${response.status}`
+      if (data?.result?.isError) error = overview
     } catch (issue) {
       error = issue instanceof Error ? issue.message : '请求失败'
     }
@@ -79,8 +94,8 @@ async function runFlow(prompt) {
           {
             type: 'tool_use',
             id: 'stub-mcp-tool',
-            name: 'mcp__workstationforone__today_overview',
-            input: {}
+            name: `mcp__workstationforone__${toolName}`,
+            input: toolArgs
           }
         ]
       }
@@ -109,9 +124,11 @@ async function runFlow(prompt) {
           {
             type: 'text',
             text:
-              overview && !leaked
-                ? 'MCP 概览：读取成功。'
-                : `MCP 概览：${leaked ? 'token 泄漏' : error || '返回为空'}。`
+              overview && !error && !leaked
+                ? writeMode
+                  ? 'MCP 写任务：已创建。'
+                  : 'MCP 概览：读取成功。'
+                : `MCP ${writeMode ? '写任务' : '概览'}：${leaked ? 'token 泄漏' : error || '返回为空'}。`
           }
         ]
       }

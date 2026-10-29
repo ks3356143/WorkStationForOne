@@ -101,6 +101,16 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    const unsubscribe = window.ws?.mcp?.onChanged?.((domains) => {
+      if (domains.includes('task')) void refreshTasks()
+      if (domains.includes('note')) void hydrateNotes()
+      if (domains.includes('learning')) void hydrateLearning()
+      if (domains.includes('habit')) void hydrateHabits()
+    })
+    return () => unsubscribe?.()
+  }, [])
+
+  useEffect(() => {
     return () => {
       if (noticeTimer.current) window.clearTimeout(noticeTimer.current)
     }
