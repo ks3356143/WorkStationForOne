@@ -9,12 +9,16 @@ describe('Provider 保存参数', () => {
     expect(
       providerValidators.assertSaveInput({
         name: '  DeepSeek  ',
+        target: 'claude',
+        wireApi: 'responses',
         baseUrl: '  http://127.0.0.1:23333  ',
         model: '  deepseek-v4-flash  ',
         apiKey: '  sk-test  '
       })
     ).toEqual({
       name: 'DeepSeek',
+      target: 'claude',
+      wireApi: 'responses',
       baseUrl: 'http://127.0.0.1:23333',
       model: 'deepseek-v4-flash',
       apiKey: 'sk-test'
@@ -25,20 +29,39 @@ describe('Provider 保存参数', () => {
     expect(() =>
       providerValidators.assertSaveInput({
         name: 'a',
+        target: 'claude',
+        wireApi: 'responses',
         baseUrl: 'file:///etc/passwd',
         model: 'm'
       })
     ).toThrow(TypeError)
     expect(() =>
-      providerValidators.assertSaveInput({ name: 'a', baseUrl: 'http://x', model: ' ' })
+      providerValidators.assertSaveInput({
+        name: 'a',
+        target: 'claude',
+        wireApi: 'responses',
+        baseUrl: 'http://x',
+        model: ' '
+      })
     ).toThrow(TypeError)
     expect(() =>
       providerValidators.assertSaveInput({
         name: 'x'.repeat(81),
+        target: 'claude',
+        wireApi: 'responses',
         baseUrl: 'http://x',
         model: 'm'
       })
     ).toThrow(TypeError)
+  })
+})
+
+describe('Provider 目标与协议', () => {
+  it('只接受 claude / codex 与 responses / chat', () => {
+    expect(providerValidators.assertTarget('codex')).toBe('codex')
+    expect(providerValidators.assertWireApi('chat')).toBe('chat')
+    expect(() => providerValidators.assertTarget('other')).toThrow(TypeError)
+    expect(() => providerValidators.assertWireApi('grpc')).toThrow(TypeError)
   })
 })
 

@@ -370,6 +370,22 @@ export const MIGRATIONS: Migration[] = [
       DROP TABLE mcp_domain_modes;
       ALTER TABLE mcp_domain_modes_next RENAME TO mcp_domain_modes;
     `
+  },
+  {
+    // Provider 双目标：Claude Code 与 Codex CLI 各自一个 active，互不影响。
+    // 旧配置默认归到 claude；Codex 的 wire_api 默认 responses。
+    version: 20,
+    sql: `
+      ALTER TABLE provider_profiles
+        ADD COLUMN target TEXT NOT NULL DEFAULT 'claude'
+        CHECK (target IN ('claude', 'codex'));
+      ALTER TABLE provider_profiles
+        ADD COLUMN wire_api TEXT NOT NULL DEFAULT 'responses'
+        CHECK (wire_api IN ('responses', 'chat'));
+
+      DROP INDEX idx_provider_active;
+      CREATE UNIQUE INDEX idx_provider_active ON provider_profiles(target) WHERE active = 1;
+    `
   }
 ]
 

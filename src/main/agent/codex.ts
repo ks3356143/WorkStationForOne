@@ -1,6 +1,9 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import type { AgentRunEvent } from '../../shared/agent-stream'
+import type { ProviderRuntime } from '../providers'
 import { resolveCodexCli, type AgentCli } from './cli'
 
 const RUN_TIMEOUT_MS = 10 * 60 * 1000
@@ -171,10 +174,32 @@ export interface CodexRunOptions {
   /** 续接上一轮时传 Codex 自己的 thread id */
   resumeId?: string
   cwd: string
+  /** 工具自己的 Provider；设置后使用隔离的 CODEX_HOME，不碰 ~/.codex */
+  provider?: ProviderRuntime
+  /** 工具维护的 Codex home；provider 存在时必须提供 */
+  home?: string
   onEvent: (event: AgentRunEvent) => void
   onExit: (info: { code: number | null; stderr: string; cancelled: boolean }) => void
   /** 省略时按环境解析；显式传 null 表示「没有可用的 CLI」 */
   cli?: AgentCli | null
+}
+
+/** 写入工具自己的 Codex 配置；token 只通过子进程环境注入，不落文件。 */
+export function writeCodexProviderConfig(home: string, provider: ProviderRuntime): void {
+  mkdirSync(home, { recursive: true })
+  const config = [
+    `model = ${JSON.stringify(provider.model)}`,
+    'model_provider = "workstation"',
+    '',
+    '[model_providers.workstation]',
+    'name = "WorkStationForOne"',
+    `base_url = ${JSON.stringify(provider.baseUrl)}`,
+    `wire_api = ${JSON.stringify(provider.wireApi)}`,
+    'env_key = "WS_CODEX_PROVIDER_TOKEN"',
+    'requires_openai_auth = false',
+    ''
+  ].join('\n')
+  writeFileSync(join(home, 'config.toml'), config, { encoding: 'utf8', mode: 0o600 })
 }
 
 export interface CodexRunHandle {
@@ -202,12 +227,27 @@ export function startCodexRun(options: CodexRunOptions): CodexRunHandle {
     return { sessionId, cancel: () => {}, respondPermission: () => false }
   }
 
+  if (options.provider && !options.home) {
+    options.onEvent({ kind: 'error', message: 'Codex Provider 缺少隔离目录' })
+    options.onExit({ code: null, stderr: '', cancelled: false })
+    return { sessionId, cancel: () => {}, respondPermission: () => false }
+  }
+  if (options.provider && options.home) {
+    writeCodexProviderConfig(options.home, options.provider)
+  }
+
   const args = buildCodexArgs(cli, options.resumeId)
   const child: ChildProcessWithoutNullStreams = spawn(cli.bin, args, {
     cwd: options.cwd,
     env: {
       ...process.env,
-      ...(cli.viaNode ? { ELECTRON_RUN_AS_NODE: '1' } : {})
+      ...(cli.viaNode ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
+      ...(options.provider
+        ? {
+            CODEX_HOME: options.home,
+            WS_CODEX_PROVIDER_TOKEN: options.provider.token
+          }
+        : {})
     },
     stdio: ['pipe', 'pipe', 'pipe'],
     // 参数只有常量与 thread id，用户文本全部走 stdin

@@ -7,7 +7,9 @@ import type {
   McpDomain,
   McpMode,
   McpPolicyRecord,
-  ProviderProfileRecord
+  ProviderProfileRecord,
+  ProviderTarget,
+  ProviderWireApi
 } from '../../../shared/ipc'
 import { DURATION, EASE_OUT } from '../lib/motion'
 import { skinLabel, themeLabel } from '../lib/theme'
@@ -73,13 +75,17 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
   const [busy, setBusy] = useState(false)
   const providerApi = typeof window === 'undefined' ? undefined : window.ws?.provider
   const [profiles, setProfiles] = useState<ProviderProfileRecord[]>([])
+  const [providerTarget, setProviderTarget] = useState<ProviderTarget>('claude')
+  const [providerWireApi, setProviderWireApi] = useState<ProviderWireApi>('responses')
   const [providerMode, setProviderMode] = useState<'inherit' | 'custom'>('inherit')
   const [providerName, setProviderName] = useState('')
   const [providerUrl, setProviderUrl] = useState('')
   const [providerModel, setProviderModel] = useState('')
   const [providerKey, setProviderKey] = useState('')
   const [providerBusy, setProviderBusy] = useState(false)
-  const activeProfile = profiles.find((profile) => profile.active)
+  const activeProfile = profiles.find(
+    (profile) => profile.target === providerTarget && profile.active
+  )
   const mcpApi = typeof window === 'undefined' ? undefined : window.ws?.mcp
   const auditApi = typeof window === 'undefined' ? undefined : window.ws?.audit
   const [policies, setPolicies] = useState<McpPolicyRecord[]>([])
@@ -100,12 +106,13 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
       ?.list()
       .then((list) => {
         setProfiles(list)
-        const active = list.find((profile) => profile.active)
+        const active = list.find((profile) => profile.target === 'claude' && profile.active)
         if (active) {
           setProviderMode('custom')
           setProviderName(active.name)
           setProviderUrl(active.baseUrl)
           setProviderModel(active.model)
+          setProviderWireApi(active.wireApi)
         }
       })
       .catch(() => setProfiles([]))
@@ -160,14 +167,35 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
       .finally(() => setPolicyBusy(false))
   }
 
+  const applyProviderTarget = (target: ProviderTarget, list = profiles) => {
+    const active = list.find((profile) => profile.target === target && profile.active)
+    setProviderMode(active ? 'custom' : 'inherit')
+    setProviderName(active?.name ?? '')
+    setProviderUrl(active?.baseUrl ?? '')
+    setProviderModel(active?.model ?? '')
+    setProviderWireApi(active?.wireApi ?? 'responses')
+    setProviderKey('')
+  }
+
+  const switchProviderTarget = (target: ProviderTarget) => {
+    setProviderTarget(target)
+    applyProviderTarget(target)
+  }
+
   const selectInheritedProvider = () => {
     setProviderMode('inherit')
-    setProfiles((list) => list.map((profile) => ({ ...profile, active: false })))
+    setProfiles((list) =>
+      list.map((profile) =>
+        profile.target === providerTarget ? { ...profile, active: false } : profile
+      )
+    )
     if (!providerApi) return
     setProviderBusy(true)
     void providerApi
-      .setActive(null)
-      .then(() => notify('已改为继承 Claude CLI 配置'))
+      .setActive(providerTarget, null)
+      .then(() =>
+        notify(`已改为继承 ${providerTarget === 'claude' ? 'Claude Code' : 'Codex CLI'} 配置`)
+      )
       .catch((error: unknown) => notify(error instanceof Error ? error.message : '切换失败'))
       .finally(() => setProviderBusy(false))
   }
@@ -191,6 +219,8 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
       .save({
         ...(activeProfile ? { id: activeProfile.id } : {}),
         name,
+        target: providerTarget,
+        wireApi: providerWireApi,
         baseUrl,
         model,
         ...(apiKey ? { apiKey } : {})
@@ -199,12 +229,13 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
         setProfiles((list) => [
           ...list
             .filter((profile) => profile.id !== saved.id)
-            .map((profile) => ({
-              ...profile,
-              active: false
-            })),
+            .map((profile) =>
+              profile.target === saved.target ? { ...profile, active: false } : profile
+            ),
           saved
         ])
+        setProviderTarget(saved.target)
+        setProviderWireApi(saved.wireApi)
         setProviderMode('custom')
         setProviderKey('')
         notify('Provider 已保存并启用')
@@ -303,6 +334,26 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
         <section className="w1-setgroup" aria-label="Agent Provider">
           <h3>Agent Provider</h3>
           <div className="w1-provcard">
+            <div className="w1-provseg" role="group" aria-label="Provider 目标">
+              <button
+                type="button"
+                className={providerTarget === 'claude' ? 'on' : ''}
+                aria-pressed={providerTarget === 'claude'}
+                disabled={providerBusy}
+                onClick={() => switchProviderTarget('claude')}
+              >
+                Claude Code
+              </button>
+              <button
+                type="button"
+                className={providerTarget === 'codex' ? 'on' : ''}
+                aria-pressed={providerTarget === 'codex'}
+                disabled={providerBusy}
+                onClick={() => switchProviderTarget('codex')}
+              >
+                Codex CLI
+              </button>
+            </div>
             <div className="w1-provseg" role="group" aria-label="Provider 模式">
               <button
                 type="button"
@@ -311,7 +362,7 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
                 disabled={providerBusy}
                 onClick={selectInheritedProvider}
               >
-                继承 Claude CLI
+                继承 {providerTarget === 'claude' ? 'Claude Code' : 'Codex CLI'}
               </button>
               <button
                 type="button"
@@ -326,10 +377,34 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
 
             {providerMode === 'inherit' ? (
               <p className="w1-provnote">
-                沿用 Claude CLI 自己的登录与 settings。只影响本应用启动的进程，不改 CC Switch。
+                {providerTarget === 'claude'
+                  ? '沿用 Claude CLI 自己的登录与 settings。只影响本应用启动的 Claude 进程，不改 CC Switch。'
+                  : '沿用 Codex CLI 自己的配置。只影响本应用启动的 Codex 进程，不改 ~/.codex 或 CC Switch。'}
               </p>
             ) : (
               <>
+                {providerTarget === 'codex' ? (
+                  <div className="w1-provseg" role="group" aria-label="Codex 协议">
+                    <button
+                      type="button"
+                      className={providerWireApi === 'responses' ? 'on' : ''}
+                      aria-pressed={providerWireApi === 'responses'}
+                      disabled={providerBusy}
+                      onClick={() => setProviderWireApi('responses')}
+                    >
+                      Responses
+                    </button>
+                    <button
+                      type="button"
+                      className={providerWireApi === 'chat' ? 'on' : ''}
+                      aria-pressed={providerWireApi === 'chat'}
+                      disabled={providerBusy}
+                      onClick={() => setProviderWireApi('chat')}
+                    >
+                      Chat
+                    </button>
+                  </div>
+                ) : null}
                 <div className="w1-provfields">
                   <label className="w1-provfield">
                     <span>名称</span>
@@ -388,7 +463,8 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
                   </button>
                 </div>
                 <p className="w1-provnote">
-                  只影响本应用启动的 Claude 进程；API Key 用系统加密存在本机，永不回显。
+                  只影响本应用启动的 {providerTarget === 'claude' ? 'Claude' : 'Codex'} 进程；API
+                  Key 用系统加密存在本机，永不回显。
                 </p>
               </>
             )}

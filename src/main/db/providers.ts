@@ -1,11 +1,18 @@
 import { randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import { runInTransaction } from './transaction'
-import type { ProviderProfileRecord, ProviderSaveInput } from '../../shared/ipc'
+import type {
+  ProviderProfileRecord,
+  ProviderSaveInput,
+  ProviderTarget,
+  ProviderWireApi
+} from '../../shared/ipc'
 
 interface ProviderRow {
   id: string
   name: string
+  target: ProviderTarget
+  wire_api: ProviderWireApi
   base_url: string
   model: string
   token_encrypted: Uint8Array | null
@@ -18,6 +25,8 @@ function toRecord(row: ProviderRow): ProviderProfileRecord {
   return {
     id: row.id,
     name: row.name,
+    target: row.target,
+    wireApi: row.wire_api,
     baseUrl: row.base_url,
     model: row.model,
     hasToken: Boolean(row.token_encrypted && row.token_encrypted.length > 0),
@@ -38,7 +47,7 @@ export class ProviderRepository {
   list(): ProviderProfileRecord[] {
     const rows = this.db
       .prepare(
-        `SELECT id, name, base_url, model, token_encrypted, active, created_at, updated_at
+        `SELECT id, name, target, wire_api, base_url, model, token_encrypted, active, created_at, updated_at
          FROM provider_profiles ORDER BY created_at ASC`
       )
       .all() as unknown as ProviderRow[]
@@ -53,18 +62,32 @@ export class ProviderRepository {
     const now = Date.now()
     const existing = input.id
       ? (this.db
-          .prepare('SELECT id, token_encrypted, created_at FROM provider_profiles WHERE id = ?')
+          .prepare(
+            'SELECT id, target, token_encrypted, created_at FROM provider_profiles WHERE id = ?'
+          )
           .get(input.id) as
-          | { id: string; token_encrypted: Uint8Array | null; created_at: number }
+          | {
+              id: string
+              target: ProviderTarget
+              token_encrypted: Uint8Array | null
+              created_at: number
+            }
           | undefined)
       : undefined
     const id = existing?.id ?? input.id ?? `provider-${randomUUID()}`
     const createdAt = existing?.created_at ?? now
 
     if (existing) {
-      const assignments = ['name = ?', 'base_url = ?', 'model = ?', 'updated_at = ?']
+      const assignments = [
+        'name = ?',
+        'wire_api = ?',
+        'base_url = ?',
+        'model = ?',
+        'updated_at = ?'
+      ]
       const values: (string | number | Uint8Array | null)[] = [
         input.name,
+        input.wireApi,
         input.baseUrl,
         input.model,
         now
@@ -81,38 +104,50 @@ export class ProviderRepository {
       this.db
         .prepare(
           `INSERT INTO provider_profiles
-            (id, name, base_url, model, token_encrypted, active, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, 0, ?, ?)`
+            (id, name, target, wire_api, base_url, model, token_encrypted, active, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
         )
-        .run(id, input.name, input.baseUrl, input.model, token ?? null, createdAt, now)
+        .run(
+          id,
+          input.name,
+          input.target,
+          input.wireApi,
+          input.baseUrl,
+          input.model,
+          token ?? null,
+          createdAt,
+          now
+        )
     }
 
     const row = this.db
       .prepare(
-        `SELECT id, name, base_url, model, token_encrypted, active, created_at, updated_at
+        `SELECT id, name, target, wire_api, base_url, model, token_encrypted, active, created_at, updated_at
          FROM provider_profiles WHERE id = ?`
       )
       .get(id) as unknown as ProviderRow
     return toRecord(row)
   }
 
-  /** null 表示回到「继承 Claude CLI」。 */
-  setActive(id: string | null): void {
+  /** null 表示该目标回到「继承 CLI」。 */
+  setActive(target: ProviderTarget, id: string | null): void {
     runInTransaction(this.db, () => {
-      this.db.prepare('UPDATE provider_profiles SET active = 0').run()
+      this.db.prepare('UPDATE provider_profiles SET active = 0 WHERE target = ?').run(target)
       if (id) {
-        this.db.prepare('UPDATE provider_profiles SET active = 1 WHERE id = ?').run(id)
+        this.db
+          .prepare('UPDATE provider_profiles SET active = 1 WHERE id = ? AND target = ?')
+          .run(id, target)
       }
     })
   }
 
-  activeSecret(): ActiveProvider | undefined {
+  activeSecret(target: ProviderTarget): ActiveProvider | undefined {
     const row = this.db
       .prepare(
-        `SELECT id, name, base_url, model, token_encrypted, active, created_at, updated_at
-         FROM provider_profiles WHERE active = 1`
+        `SELECT id, name, target, wire_api, base_url, model, token_encrypted, active, created_at, updated_at
+         FROM provider_profiles WHERE active = 1 AND target = ?`
       )
-      .get() as ProviderRow | undefined
+      .get(target) as ProviderRow | undefined
     if (!row) return undefined
     const token = row.token_encrypted ? Buffer.from(row.token_encrypted) : undefined
     return {

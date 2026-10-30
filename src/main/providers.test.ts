@@ -40,6 +40,8 @@ describe('ProviderService', () => {
     const { db, service } = setup()
     const saved = service.save({
       name: 'DeepSeek',
+      target: 'claude',
+      wireApi: 'responses',
       baseUrl: 'http://127.0.0.1:23333',
       model: 'deepseek-v4-flash',
       apiKey: 'sk-test'
@@ -47,14 +49,16 @@ describe('ProviderService', () => {
 
     expect(saved).toMatchObject({ active: true, hasToken: true })
     expect(safeStorage.encryptString).toHaveBeenCalledWith('sk-test')
-    expect(service.runtime()).toEqual({
+    expect(service.runtime('claude')).toEqual({
       baseUrl: 'http://127.0.0.1:23333',
       model: 'deepseek-v4-flash',
-      token: 'sk-test'
+      token: 'sk-test',
+      target: 'claude',
+      wireApi: 'responses'
     })
 
-    service.setActive(null)
-    expect(service.runtime()).toBeUndefined()
+    service.setActive('claude', null)
+    expect(service.runtime('claude')).toBeUndefined()
     db.close()
   })
 
@@ -62,6 +66,8 @@ describe('ProviderService', () => {
     const { db, service } = setup()
     const saved = service.save({
       name: 'DeepSeek',
+      target: 'claude',
+      wireApi: 'responses',
       baseUrl: 'http://127.0.0.1:23333',
       model: 'm',
       apiKey: 'keep'
@@ -69,10 +75,12 @@ describe('ProviderService', () => {
     service.save({
       id: saved.id,
       name: '改名',
+      target: 'claude',
+      wireApi: 'responses',
       baseUrl: 'http://127.0.0.1:23333',
       model: 'm2'
     })
-    expect(service.runtime()?.token).toBe('keep')
+    expect(service.runtime('claude')?.token).toBe('keep')
     db.close()
   })
 
@@ -80,7 +88,14 @@ describe('ProviderService', () => {
     const { db, service } = setup()
     vi.mocked(safeStorage.isEncryptionAvailable).mockReturnValue(false)
     expect(() =>
-      service.save({ name: 'x', baseUrl: 'http://x', model: 'm', apiKey: 'secret' })
+      service.save({
+        name: 'x',
+        target: 'claude',
+        wireApi: 'responses',
+        baseUrl: 'http://x',
+        model: 'm',
+        apiKey: 'secret'
+      })
     ).toThrow(/加密/)
     db.close()
   })

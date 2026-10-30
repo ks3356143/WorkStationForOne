@@ -58,7 +58,9 @@ describe('Provider 隔离', () => {
   const provider = {
     baseUrl: 'http://127.0.0.1:23333',
     model: 'deepseek-v4-flash',
-    token: 'sk-secret'
+    token: 'sk-secret',
+    target: 'claude' as const,
+    wireApi: 'responses' as const
   }
 
   it('自定义 provider 的 env 同时覆盖主模型与三档默认模型', () => {

@@ -2,7 +2,7 @@
 
 Windows 上的个人 AI 工作站。把「今日看板 + 任务清单 + Agent 工作区 + 笔记库 + 闪卡复习」收进一个窗口：左侧导航一次只打开一个全宽工作区，Agent 视图里驱动本机 Claude Code CLI 对话，任务、笔记、学习与习惯全部落在本机 SQLite。
 
-> 当前版本 v0.15.0（2026-10-29）。任务（含清单、计划、重复、子任务）、笔记（含双链）、学习（MEM 科目 + FSRS-6 + CSV 导入导出 + 统计）、习惯、审计、Agent 会话与 Provider 配置均已落库（DB v19）；Agent 通过本机 `claude` / `codex` CLI 流式对话：Claude 读工具自动放行、写操作逐次审批，Codex 以只读沙箱运行；Main 进程内嵌 MCP 数据桥，提供 5 个读取 + 6 个写入工具，按任务 / 习惯 / 学习 / 笔记四域配置只读、询问或可写，询问模式弹审批卡，写入带幂等键并写审计；服务异常关闭后在同一端口自动重启；MCP 写入与审计同事务；设置页可查看活动记录。便携版可用。Codex 写入尚未实现。
+> 当前版本 v0.16.0（2026-10-29）。任务（含清单、计划、重复、子任务）、笔记（含双链）、学习（MEM 科目 + FSRS-6 + CSV 导入导出 + 统计）、习惯、审计、Agent 会话与 Provider 配置均已落库（DB v20）；Agent 通过本机 `claude` / `codex` CLI 流式对话：Claude 读工具自动放行、写操作逐次审批，Codex 以只读沙箱运行；Provider 支持 Claude Code / Codex CLI 双目标，各自可继承 CLI 或使用工具加密保存的配置，Codex 使用隔离的 `codex-home`；Main 进程内嵌 MCP 数据桥，提供 5 个读取 + 6 个写入工具，按任务 / 习惯 / 学习 / 笔记四域配置只读、询问或可写，询问模式弹审批卡，写入带幂等键并写审计；服务异常关闭后在同一端口自动重启；MCP 写入与审计同事务；设置页可查看活动记录。便携版可用。Codex 写入尚未实现。
 
 ## 特点
 
@@ -32,7 +32,7 @@ Windows 上的个人 AI 工作站。把「今日看板 + 任务清单 + Agent �
 | --- | --- |
 | 桌面壳 | Electron 45（sandbox + contextIsolation，仅暴露窄 preload 桥） |
 | 界面 | React 19、TypeScript、Zustand、Motion、cmdk |
-| 数据 | Electron 内置 `node:sqlite`（WAL、`PRAGMA user_version` 前向迁移、FTS5，DB v19） |
+| 数据 | Electron 内置 `node:sqlite`（WAL、`PRAGMA user_version` 前向迁移、FTS5，DB v20） |
 | 构建 | electron-vite、Vite 8、Vitest、Biome |
 
 不引入原生 SQLite 模块，因此没有 `@electron/rebuild` 与 ABI 匹配问题。
@@ -56,9 +56,9 @@ npm run dev
 | `npm run build` | 生产构建，输出到 `out/` |
 | `npm start` | 预览上一次构建 |
 | `npm run typecheck` | 类型检查（main/preload 与 renderer 各一套配置） |
-| `npm test` | 运行全部单元测试（621 项） |
+| `npm test` | 运行全部单元测试（624 项） |
 | `npm run check` | Biome 检查格式与 lint（Rust 单二进制，不依赖 Prettier / ESLint） |
-| `npm run smoke` | 构建后跑 UI 交互冒烟（232 项，真实主进程 + 临时 SQLite） |
+| `npm run smoke` | 构建后跑 UI 交互冒烟（233 项，真实主进程 + 临时 SQLite） |
 | `npm run verify` | 启动真实主进程跑 251–253 项运行时断言（五视图、双主题/皮肤、跨重启） |
 | `npm run capture -- .screenshots/home.png 1440 900 .screenshots/audit.json` | 截图并输出布局审计 |
 | `npm run capture -- .screenshots/notes-1180.png 1180 720 .screenshots/audit-notes.json dark notes` | 指定主题 `dark|light` 与视图 `today|tasks|agent|notes|learning` 截图 |
@@ -96,7 +96,7 @@ docs/superpowers/specs/ 产品与架构设计规格
 ## 数据
 
 - 位置：`%APPDATA%\WorkStationForOne\data\workstation.db`
-- 已落库：任务（清单、截止/计划日期、时长、优先级、备注、完成时间、重复、子任务）、笔记（含 FTS5 索引与双链）、学习卡片（含 FSRS 稳定度 / 难度 / 失误次数）与复习记录、习惯与按日打卡、智能体会话与消息（含工具卡与 resume id）、Provider 配置（Key 加密后存 BLOB）、MCP 四域权限、审计日志
+- 已落库：任务（清单、截止/计划日期、时长、优先级、备注、完成时间、重复、子任务）、笔记（含 FTS5 索引与双链）、学习卡片（含 FSRS 稳定度 / 难度 / 失误次数）与复习记录、习惯与按日打卡、智能体会话与消息（含工具卡与 resume id）、Provider 配置（Claude / Codex 双目标，Key 加密后存 BLOB）、MCP 四域权限、审计日志
 - 备份：每天首次启动用 `VACUUM INTO` 生成快照到 `<库目录>/backups/`，保留最近 10 份；命令面板可手动备份
 - 全局快速捕获：`Ctrl+Alt+Space` 随时记一条，落库后主窗口即时刷新
 

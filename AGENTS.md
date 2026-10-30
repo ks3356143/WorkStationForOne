@@ -15,7 +15,7 @@
 - `npm run check` — Biome 检查格式与 lint（Rust 单二进制，不依赖 Prettier / ESLint）。
 - `npm run check:fix` — 自动修复格式与可安全修复的 lint 问题。
 - `npm run fmt` — 只格式化，不跑 lint。
-- `npm run smoke` — 先构建，再跑 232 项 UI 交互冒烟。加载真实主进程与 preload，UI 操作直接写进临时 SQLite（`userData`、`sessionData`、数据库都隔离到 `%TEMP%`），并断言「preload 桥可用」与「操作已落库」；跨重启持久化仍由 `npm run verify` 覆盖。到点提醒那条按分钟匹配，冒烟会检测是否跨过分钟边界并在跨界时重建重试。关键状态断言用条件等待，不再靠固定 sleep；View Transition 被打断产生的 AbortError 属于预期，必须被吞掉。
+- `npm run smoke` — 先构建，再跑 233 项 UI 交互冒烟。加载真实主进程与 preload，UI 操作直接写进临时 SQLite（`userData`、`sessionData`、数据库都隔离到 `%TEMP%`），并断言「preload 桥可用」与「操作已落库」；跨重启持久化仍由 `npm run verify` 覆盖。到点提醒那条按分钟匹配，冒烟会检测是否跨过分钟边界并在跨界时重建重试。关键状态断言用条件等待，不再靠固定 sleep；View Transition 被打断产生的 AbortError 属于预期，必须被吞掉。
 - `npm run verify` — 构建后启动真实主进程（临时 `WS_DATA_DIR`），运行 251–253 项运行时断言（起始主题不同会差 2 项分支）：五视图互斥、双主题/双皮肤持久化、跨重启数据。
 - `npm run capture -- .screenshots/shell-1440.png 1440 900 .screenshots/audit-1440.json` — 构建、保存截图并写入布局审计。
 - `npm run capture -- .screenshots/shell-1180.png 1180 720 .screenshots/audit-1180.json dark` — 在最小窗口尺寸下做同样的检查；主题参数为 `dark|light`，视图参数为 `today|tasks|agent|notes|learning`，均可省略审计路径后按任意顺序追加（如 `... 1440 900 light tasks`）。
@@ -30,7 +30,7 @@
 - 保持 `sandbox: true`、`contextIsolation: true`、`nodeIntegration: false`。渲染进程没有 Node、数据库或文件系统访问权；需要时扩展窄接口的类型化 preload 桥。
 - 禁止添加或默认启用 `--dangerously-skip-permissions` 或 `--dangerously-bypass-approvals-and-sandbox`。应用内 Codex 固定 `read-only` 沙箱：`codex exec` 没有 Claude 那样的宿主审批通道，宁可只读也不私自放行写入；交互式 Codex CLI 自身的默认策略仍是 `on-request` + `workspace-write`，不要改用户的 `~/.codex/config.toml`。
 - 本地 MCP 服务器只绑定 `127.0.0.1`，使用随机端口和按会话生成的 Bearer Token。Token 不得进入日志、审计记录、命令行参数或仓库文件；MCP 配置只写进每轮临时文件（`--mcp-config`），子进程结束即删。MCP 提供读 / 写工具，写入受域权限与询问卡约束，不做任意 SQL / 文件 / Shell。
-- 默认不存储 API Key，继承现有 CLI 登录状态；只有用户显式保存的自定义 Provider 会把 Key 以 `safeStorage` 加密 BLOB 存进本机库，且永不回显、不写日志、不进命令行。
+- 默认不存储 API Key，继承现有 CLI 登录状态；只有用户显式保存的自定义 Provider 会把 Key 以 `safeStorage` 加密 BLOB 存进本机库，且永不回显、不写日志、不进命令行。Provider 按 `claude|codex` 分目标，各自最多一个 active；工具启动 Claude/Codex 时只注入对应目标的配置，不改 CC Switch、Codex Desktop 或 Claude Desktop。
 - v1 坚持本地优先：不添加云同步、遥测或托管服务。
 - 不要自动重试可能产生副作用的回合。重试必须是用户显式操作。
 - 不请求或渲染隐藏思维链。展示工具调用、输出与权限请求。
@@ -48,9 +48,9 @@
 - Agent 现在真的驱动本机 CLI：`main/agent/claude.ts` 用 `claude -p --input-format stream-json --output-format stream-json --permission-prompts host --permission-mode manual`，用户消息以 stream-json 写入 stdin，事件在 `shared/agent-stream.ts` 解析后经 `agent:event` 推给渲染层。提示词只走 stdin，命令行里不含用户文本；`shell: false`。CLI 的读工具与 11 个 MCP 工具（5 读 + 6 写）放进 `CLAUDE_ALLOWED_TOOLS`；CLI 写入类工具（Edit / Write / Bash）不得加入白名单，只能走 `can_use_tool` 审批。MCP 写工具也在允许列表里，但主进程会按 `mcp_domain_modes` 再拦一次，不能绕过域权限。stdin 必须保持打开到本轮 `result` 再关闭，否则无法回写 `control_response`。不得加 `--dangerously-*`。CLI 路径可用 `WS_AGENT_CLI` 覆盖（冒烟指向 `scripts/stub-agent.cjs`），找不到 CLI 或执行失败必须明确报错，不得静默退回 `demoReply()`——它只用于无 preload 桥的浏览器调试。
 - 工具审批：CLI 的 `can_use_tool` 控制请求由 `startClaudeRun` 转成 `permission` 事件，主进程保存原始 input 与 `tool_use_id`，用户点「允许一次」才回 `control_response`；拒绝要带原因。审批只对单次调用生效，没有「始终允许」规则；`AskUserQuestion` 在 v1 自动拒绝，不要把问答混进工具审批卡。自动化只用 stub 的 `control_request` 链路验证，真实模型验证必须有可用 provider 并单独征得用户同意。
 - 会话状态按 session ID 限定作用域：`threads` 以它为键，`pendingReplyTo` / `permission.sessionId` 用于选择当前会话。新增会话或审批流程时保持这一约定。
-- Agent Provider（DB v17）：`provider_profiles` 存名称、Base URL、模型与**加密后的** token；token 用 Electron `safeStorage`（Windows DPAPI）加密，列表接口绝不返回 token，渲染层也永不回显。默认没有激活配置，表示继承 Claude CLI。自定义 Provider 启动时把 `ANTHROPIC_BASE_URL / AUTH_TOKEN / MODEL` 只注入子进程环境，并传 `--setting-sources project` 屏蔽用户级 settings，避免改动或继承 CC Switch；不改 `~/.claude`、`CLAUDE_CONFIG_DIR` 或全局环境变量。
+- Agent Provider（DB v20）：`provider_profiles` 存名称、目标（`claude|codex`）、`wire_api`、Base URL、模型与**加密后的** token；token 用 Electron `safeStorage`（Windows DPAPI）加密，列表接口绝不返回 token，渲染层也永不回显。每个目标默认没有激活配置，表示继承对应 CLI。Claude 自定义 Provider 启动时把 `ANTHROPIC_BASE_URL / AUTH_TOKEN / MODEL` 只注入子进程环境，并传 `--setting-sources project` 屏蔽用户级 settings；Codex 自定义 Provider 使用应用自己的 `codex-home/config.toml`（`env_key = "WS_CODEX_PROVIDER_TOKEN"`），token 只进子进程环境，`CODEX_HOME` 指向应用数据目录，不读/不改 `~/.codex` 或 CC Switch。
 - Agent CLI 启动统一走 `main/agent/cli.ts`：Windows 上 npm 生成的 `.cmd` 不能直接 `spawn`（会 EINVAL），解析器会读包装里的真实入口，原生 `.exe` 直接启动、`.js` 交给 Electron-as-Node；Claude 与 Codex 共用 `WS_AGENT_CLI` / `WS_CODEX_CLI` 测试缝。找不到入口要明确报错，不要退回演示回复。
-- Codex 适配器（v0.10.0）：`codex exec --json`，提示词只走 stdin，`--sandbox read-only` + `-c sandbox_mode="read-only"` + `-c approval_policy="never"`，续接用 `exec resume <thread_id> -`。只解析 `thread.started / item.* / turn.* / error`；`reasoning` 不渲染。`agent_sessions.agent` 区分 `claude|codex`，`resume_id` 保存 Codex 自己的 thread id。写入与审批能力未接入，不要为此加危险参数；真实模型验证必须单独征得用户同意。
+- Codex 适配器（v0.16.0）：`codex exec --json`，提示词只走 stdin；如配置了 Codex 目标 Provider，使用隔离的 `codex-home`，`--sandbox read-only` + `-c sandbox_mode="read-only"` + `-c approval_policy="never"`，续接用 `exec resume <thread_id> -`。只解析 `thread.started / item.* / turn.* / error`；`reasoning` 不渲染。`agent_sessions.agent` 区分 `claude|codex`，`resume_id` 保存 Codex 自己的 thread id。写入与审批能力仍未接入，不要为此加危险参数；真实模型验证必须单独征得用户同意。
 - 智能体会话持久化（DB v16）：`agent_sessions` + `agent_messages`，消息工具卡存 JSON；`resume_id` 保存 Claude 自己的会话 id。Agent 页不播种演示会话，空库显示空态并提供「新建 Claude / Codex 会话」；用户消息立即落库，助手消息在本轮结束时连同工具卡落库，流式中间态不逐 token 写库。启动时把所有遗留 `run/wait` 重置为 `idle`，并按 localStorage 的 `workstation.agentActive` 恢复选中会话。`hydrateAgent()` 必须用数据库结果覆盖内存种子。
 - 自动化测试用 `WS_DISABLE_CAPTURE_SHORTCUT=1` 跳过全局捕获快捷键，避免和 Cherry Studio 抢 `Ctrl+Alt+Space`；不要为此关闭用户的应用。Agent 冒烟必须继续指向 `scripts/stub-agent.cjs` 与 `scripts/stub-codex.cjs`，绝不能调用真实 Claude/Codex。
 - 种子数据由 `data/mock.ts` 的 `createInitialData()` 从 `data/seed/*` 组合。测试用它重置 Zustand；必须返回全新对象，并保持这个门面是唯一入口。

@@ -6,6 +6,18 @@
 
 暂无。
 
+## [0.16.0] - 2026-10-29
+
+### 新增
+
+- **Provider 双目标（DB v20）**：`provider_profiles` 增加 `target=claude|codex` 与 `wire_api=responses|chat`，每个目标最多一个 active；旧配置自动归到 Claude。设置页可切换 Claude Code / Codex CLI，Codex 可选 Responses / Chat 协议。
+- **Codex 隔离 Provider**：Codex 使用应用数据目录下的 `codex-home/config.toml`，通过 `env_key` 从子进程环境读 token；`CODEX_HOME` 指向工具自己的目录，不读/不改 `~/.codex` 或 CC Switch。Claude 的 Provider 仍只注入 `ANTHROPIC_*`。
+- Codex 写入与审批仍未接入；当前 Codex 仍以只读沙箱运行。
+
+### 验证
+
+- 624 项单元测试、233 项冒烟、251/251 运行时断言；0.16.0 便携版启动正常。
+
 ## [0.15.0] - 2026-10-29
 
 ### 新增

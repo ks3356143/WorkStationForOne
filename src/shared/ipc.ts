@@ -299,9 +299,14 @@ export interface AgentRunStart {
   runId: string
 }
 
+export type ProviderTarget = 'claude' | 'codex'
+export type ProviderWireApi = 'responses' | 'chat'
+
 export interface ProviderProfileRecord {
   id: string
   name: string
+  target: ProviderTarget
+  wireApi: ProviderWireApi
   baseUrl: string
   model: string
   hasToken: boolean
@@ -313,6 +318,8 @@ export interface ProviderProfileRecord {
 export interface ProviderSaveInput {
   id?: string
   name: string
+  target: ProviderTarget
+  wireApi: ProviderWireApi
   baseUrl: string
   model: string
   /** 只写不读；省略表示保留旧 token */
@@ -322,7 +329,7 @@ export interface ProviderSaveInput {
 export interface ProviderApi {
   list: () => Promise<ProviderProfileRecord[]>
   save: (input: ProviderSaveInput) => Promise<ProviderProfileRecord>
-  setActive: (id: string | null) => Promise<void>
+  setActive: (target: ProviderTarget, id: string | null) => Promise<void>
 }
 
 export interface AgentPermissionResponse {

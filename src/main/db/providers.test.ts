@@ -23,6 +23,8 @@ afterEach(() => {
 
 const profile = {
   name: 'DeepSeek 代理',
+  target: 'claude' as const,
+  wireApi: 'responses' as const,
   baseUrl: 'http://127.0.0.1:23333',
   model: 'deepseek-v4-flash'
 }
@@ -49,7 +51,7 @@ describe('ProviderRepository', () => {
     const list = repo.list()
     expect(list).toHaveLength(1)
     expect(list[0]).not.toHaveProperty('token')
-    const secret = repo.activeSecret()
+    const secret = repo.activeSecret('claude')
     expect(secret).toBeUndefined()
     db.close()
   })
@@ -58,7 +60,7 @@ describe('ProviderRepository', () => {
     const { db, repo } = seedDb()
     const first = repo.save(profile, Buffer.from('token-1'))
     const second = repo.save({ ...profile, name: '第二个' }, Buffer.from('token-2'))
-    repo.setActive(first.id)
+    repo.setActive('claude', first.id)
 
     expect(
       repo
@@ -66,15 +68,40 @@ describe('ProviderRepository', () => {
         .filter((item) => item.active)
         .map((item) => item.id)
     ).toEqual([first.id])
-    expect(repo.activeSecret()).toMatchObject({
+    expect(repo.activeSecret('claude')).toMatchObject({
       profile: { id: first.id, name: profile.name },
       token: Buffer.from('token-1')
     })
 
-    repo.setActive(second.id)
-    expect(repo.activeSecret()?.profile.id).toBe(second.id)
-    repo.setActive(null)
-    expect(repo.activeSecret()).toBeUndefined()
+    repo.setActive('claude', second.id)
+    expect(repo.activeSecret('claude')?.profile.id).toBe(second.id)
+    repo.setActive('claude', null)
+    expect(repo.activeSecret('claude')).toBeUndefined()
+    db.close()
+  })
+
+  it('Claude 与 Codex 各自一个 active，互不影响', () => {
+    const { db, repo } = seedDb()
+    const claude = repo.save(profile, Buffer.from('claude-token'))
+    const codex = repo.save(
+      { ...profile, name: 'Codex 代理', target: 'codex', wireApi: 'chat' },
+      Buffer.from('codex-token')
+    )
+    repo.setActive('claude', claude.id)
+    repo.setActive('codex', codex.id)
+
+    expect(repo.activeSecret('claude')?.profile).toMatchObject({
+      id: claude.id,
+      target: 'claude'
+    })
+    expect(repo.activeSecret('codex')?.profile).toMatchObject({
+      id: codex.id,
+      target: 'codex',
+      wireApi: 'chat'
+    })
+    repo.setActive('codex', null)
+    expect(repo.activeSecret('claude')?.profile.id).toBe(claude.id)
+    expect(repo.activeSecret('codex')).toBeUndefined()
     db.close()
   })
 
@@ -82,12 +109,12 @@ describe('ProviderRepository', () => {
     const { db, repo } = seedDb()
     const saved = repo.save(profile, Buffer.from('keep-me'))
     repo.save({ ...profile, name: '改名', id: saved.id })
-    expect(repo.activeSecret()).toBeUndefined()
-    repo.setActive(saved.id)
-    expect(repo.activeSecret()?.token).toEqual(Buffer.from('keep-me'))
+    expect(repo.activeSecret('claude')).toBeUndefined()
+    repo.setActive('claude', saved.id)
+    expect(repo.activeSecret('claude')?.token).toEqual(Buffer.from('keep-me'))
 
     repo.save({ ...profile, name: '改名', id: saved.id }, null)
-    expect(repo.activeSecret()?.token).toBeUndefined()
+    expect(repo.activeSecret('claude')?.token).toBeUndefined()
     expect(repo.list()[0].hasToken).toBe(false)
     db.close()
   })

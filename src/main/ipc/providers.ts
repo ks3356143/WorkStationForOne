@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import type { ProviderSaveInput } from '../../shared/ipc'
+import type { ProviderSaveInput, ProviderTarget, ProviderWireApi } from '../../shared/ipc'
 import { IPC_CHANNELS } from '../../shared/ipc'
 import type { ProviderService } from '../providers'
 
@@ -34,6 +34,8 @@ function assertSaveInput(value: unknown): ProviderSaveInput {
 
   const result: ProviderSaveInput = {
     name: text(input.name, '名称', MAX_NAME),
+    target: assertTarget(input.target),
+    wireApi: assertWireApi(input.wireApi),
     baseUrl,
     model: text(input.model, '模型', MAX_MODEL)
   }
@@ -47,17 +49,27 @@ function assertSaveInput(value: unknown): ProviderSaveInput {
   return result
 }
 
+function assertTarget(value: unknown): ProviderTarget {
+  if (value !== 'claude' && value !== 'codex') throw new TypeError('Provider 目标无效')
+  return value
+}
+
+function assertWireApi(value: unknown): ProviderWireApi {
+  if (value !== 'responses' && value !== 'chat') throw new TypeError('Provider 协议无效')
+  return value
+}
+
 function assertActiveId(value: unknown): string | null {
   if (value === null) return null
   return text(value, 'Provider id', MAX_ID)
 }
 
-export const providerValidators = { assertSaveInput, assertActiveId }
+export const providerValidators = { assertSaveInput, assertActiveId, assertTarget, assertWireApi }
 
 export function registerProviderHandlers(service: ProviderService): void {
   ipcMain.handle(IPC.providerList, () => service.list())
   ipcMain.handle(IPC.providerSave, (_event, value: unknown) => service.save(assertSaveInput(value)))
-  ipcMain.handle(IPC.providerSetActive, (_event, value: unknown) => {
-    service.setActive(assertActiveId(value))
+  ipcMain.handle(IPC.providerSetActive, (_event, target: unknown, value: unknown) => {
+    service.setActive(assertTarget(target), assertActiveId(value))
   })
 }

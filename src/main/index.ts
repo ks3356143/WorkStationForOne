@@ -176,10 +176,11 @@ if (!gotTheLock) {
       () => mainWindow,
       database.agent,
       undefined,
-      () => providers.runtime(),
+      (target) => providers.runtime(target),
       undefined,
       mcpBridge,
-      (sessionId) => mcpPermissions?.cancelSession(sessionId)
+      (sessionId) => mcpPermissions?.cancelSession(sessionId),
+      join(dirname(database.file), 'codex-home')
     )
     // 到点提醒：轮询数据库，命中「今天 + 正好到点 + 没提醒过」就弹系统通知
     stopReminders = startReminderLoop(database.tasks, {

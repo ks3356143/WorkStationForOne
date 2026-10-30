@@ -10,7 +10,7 @@ const api: WsApi = {
   provider: {
     list: () => ipcRenderer.invoke(IPC_CHANNELS.providerList),
     save: (input) => ipcRenderer.invoke(IPC_CHANNELS.providerSave, input),
-    setActive: (id) => ipcRenderer.invoke(IPC_CHANNELS.providerSetActive, id)
+    setActive: (target, id) => ipcRenderer.invoke(IPC_CHANNELS.providerSetActive, target, id)
   },
   tasks: {
     list: () => ipcRenderer.invoke(IPC_CHANNELS.tasksList),

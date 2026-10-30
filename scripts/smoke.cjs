@@ -1068,6 +1068,20 @@ async function run() {
       one('.w1-setpath')?.textContent ?? ''
     )
     check('设置面板有 Provider 卡片', !!one('.w1-provcard'))
+    byText('.w1-provseg button', 'Codex CLI')?.click()
+    await sleep(200)
+    byText('.w1-provseg button', '自定义')?.click()
+    await sleep(200)
+    check(
+      'Provider 可切到 Codex CLI',
+      one('[aria-label="Provider 目标"] button.on')?.textContent?.includes('Codex') === true &&
+        !!one('[aria-label="Codex 协议"]'),
+      one('[aria-label="Provider 目标"] button.on')?.textContent ?? ''
+    )
+    byText('.w1-provseg button', 'Claude Code')?.click()
+    await sleep(200)
+    byText('.w1-provseg button', '自定义')?.click()
+    await sleep(200)
     check(
       '设置面板有 MCP 域权限',
       settingsText.includes('MCP 数据权限') && all('.w1-modepair').length === 4,
@@ -1093,12 +1107,14 @@ async function run() {
       (one('.w1-provstatus')?.textContent ?? '').includes('已加密保存'),
       one('.w1-provstatus')?.textContent ?? ''
     )
-    byText('.w1-provseg button', '继承 Claude CLI')?.click()
+    byText('.w1-provseg button', '继承 Claude Code')?.click()
     await sleep(400)
     check(
       'Provider 可切回继承 CLI',
-      one('.w1-provseg button.on')?.textContent?.includes('继承 Claude CLI') === true,
-      one('.w1-provseg button.on')?.textContent ?? ''
+      one('[aria-label="Provider 模式"] button.on')?.textContent?.includes(
+        '继承 Claude Code'
+      ) === true,
+      one('[aria-label="Provider 模式"] button.on')?.textContent ?? ''
     )
     const themeBtnBefore = document.documentElement.dataset.theme
     const themeBtns = all('.w1-setbtn')

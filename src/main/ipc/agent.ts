@@ -5,6 +5,7 @@ import { startCodexRun } from '../agent/codex'
 import type { AgentRepository } from '../db/agent'
 import type { McpEndpoint } from '../mcp/server'
 import type { ProviderRuntime } from '../providers'
+import type { ProviderTarget } from '../../shared/ipc'
 import {
   IPC_CHANNELS,
   type AgentCreateInput,
@@ -174,10 +175,11 @@ export function registerAgentHandlers(
   getWindow: () => BrowserWindow | null,
   repository: AgentRepository,
   cli?: AgentCli | null,
-  getProvider?: () => ProviderRuntime | undefined,
+  getProvider?: (target: ProviderTarget) => ProviderRuntime | undefined,
   codexCli?: AgentCli | null,
   mcp?: McpAccess | null,
-  cancelPermissions?: (sessionId: string) => void
+  cancelPermissions?: (sessionId: string) => void,
+  codexHome?: string
 ): void {
   const runs = new Map<string, ActiveRun>()
   const permissionRuns = new Map<string, string>()
@@ -245,27 +247,34 @@ export function registerAgentHandlers(
       }
     }
 
-    const provider = getProvider?.()
     const handle =
       input.agent === 'codex'
-        ? startCodexRun({
-            prompt: input.prompt,
-            ...(input.resumeId ? { resumeId: input.resumeId } : {}),
-            cwd: process.cwd(),
-            ...(codexCli === undefined ? {} : { cli: codexCli }),
-            onEvent: emit,
-            onExit
-          })
-        : startClaudeRun({
-            prompt: input.prompt,
-            resumeId: input.resumeId,
-            cwd: process.cwd(),
-            ...(provider ? { provider } : {}),
-            ...(mcpEndpoint ? { mcp: mcpEndpoint } : {}),
-            ...(cli === undefined ? {} : { cli }),
-            onEvent: emit,
-            onExit
-          })
+        ? (() => {
+            const provider = getProvider?.('codex')
+            return startCodexRun({
+              prompt: input.prompt,
+              ...(input.resumeId ? { resumeId: input.resumeId } : {}),
+              cwd: process.cwd(),
+              ...(provider ? { provider } : {}),
+              ...(codexHome ? { home: codexHome } : {}),
+              ...(codexCli === undefined ? {} : { cli: codexCli }),
+              onEvent: emit,
+              onExit
+            })
+          })()
+        : (() => {
+            const provider = getProvider?.('claude')
+            return startClaudeRun({
+              prompt: input.prompt,
+              resumeId: input.resumeId,
+              cwd: process.cwd(),
+              ...(provider ? { provider } : {}),
+              ...(mcpEndpoint ? { mcp: mcpEndpoint } : {}),
+              ...(cli === undefined ? {} : { cli }),
+              onEvent: emit,
+              onExit
+            })
+          })()
 
     runs.set(runId, {
       sessionId: input.sessionId,
