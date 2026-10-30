@@ -7,6 +7,7 @@ import { registerAgentHandlers } from './ipc/agent'
 import { registerProviderHandlers } from './ipc/providers'
 import { registerAppHandlers, TITLE_BAR_HEIGHT, WINDOW_PALETTE } from './ipc/app'
 import { ProviderService } from './providers'
+import { ApprovalRuleService } from './agent/approval-rules'
 import { backupDirFor, ensureDailyBackup } from './db/backup'
 import { startReminderLoop } from './reminders'
 import { registerHabitHandlers } from './ipc/habits'
@@ -140,6 +141,11 @@ if (!gotTheLock) {
     registerLearningHandlers(database.learning)
     registerHabitHandlers(database.habits)
     registerProviderHandlers(providers)
+    const approvalRules = new ApprovalRuleService({
+      rules: database.approvalRules,
+      sessions: database.agent,
+      audit: database.audit
+    })
     const permissions = new McpPermissionBroker({
       send: (request) => {
         const win = mainWindow
@@ -147,7 +153,11 @@ if (!gotTheLock) {
         win.webContents.send(IPC_CHANNELS.mcpPermission, request)
         return true
       },
-      audit: database.audit
+      audit: database.audit,
+      isPreApproved: (sessionId, tool) => approvalRules.checkBridge(sessionId, tool),
+      grantSession: (sessionId, tool) => approvalRules.grantBridgeSession(sessionId, tool),
+      grantWorkspace: (request) =>
+        approvalRules.grantBridgeWorkspace(request.sessionId, request.tool)
     })
     mcpPermissions = permissions
     registerMcpHandlers(database.mcp, database.audit, permissions)
@@ -169,7 +179,7 @@ if (!gotTheLock) {
           if (win && !win.isDestroyed()) win.webContents.send(IPC_CHANNELS.mcpChanged, domains)
         },
         requestPermission: (input) => permissions.request(input),
-        isSessionAllowed: (sessionId, tool) => permissions.isSessionAllowed(sessionId, tool)
+        isPreApproved: (sessionId, tool) => approvalRules.checkBridge(sessionId, tool)
       }
     )
     try {

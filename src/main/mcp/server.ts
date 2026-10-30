@@ -16,7 +16,8 @@ export interface McpHooks {
   notifyChanged?: (domains: McpDomain[]) => void
   /** 询问模式：阻塞到用户决定或超时 */
   requestPermission?: (input: McpPermissionInput) => Promise<McpPermissionOutcome>
-  isSessionAllowed?: (sessionId: string, tool: string) => boolean
+  /** 本会话已允许或命中工作区审批规则；命中则跳过询问卡 */
+  isPreApproved?: (sessionId: string, tool: string) => boolean
 }
 
 export interface McpBridgeOptions {
@@ -328,7 +329,7 @@ export class McpBridge {
         const mode = this.hooks.mode?.(def.domain) ?? MCP_DEFAULT_MODES[def.domain]
         let allowed = mode === 'write'
         if (mode === 'ask') {
-          if (this.hooks.isSessionAllowed?.(sessionId, name)) {
+          if (this.hooks.isPreApproved?.(sessionId, name)) {
             allowed = true
           } else {
             const decision = await this.hooks.requestPermission?.({
@@ -338,7 +339,7 @@ export class McpBridge {
               detail: clip(def.description),
               preview: clip(JSON.stringify(args))
             })
-            allowed = decision === 'once' || decision === 'session'
+            allowed = decision === 'once' || decision === 'session' || decision === 'workspace'
           }
         }
         if (!allowed) {

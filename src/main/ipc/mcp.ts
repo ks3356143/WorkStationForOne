@@ -63,8 +63,7 @@ export function assertPermissionResponse(value: unknown): McpPermissionResponse 
 }
 
 export interface McpPermissionAccess {
-  // 方法签名（不是函数属性）：broker 的 respond 目前只接受 once/session/deny，双变比较才能赋值
-  respond(requestId: string, decision: McpPermissionDecision): boolean
+  respond: (requestId: string, decision: McpPermissionDecision) => boolean
 }
 
 export function registerMcpHandlers(

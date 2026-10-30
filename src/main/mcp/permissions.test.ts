@@ -6,15 +6,23 @@ import { McpPermissionBroker } from './permissions'
 function setup(timeoutMs = 30) {
   const sent: McpPermissionRequest[] = []
   const audit = { record: vi.fn() }
+  const allowed = new Set<string>()
+  const grantSession = vi.fn((sessionId: string, tool: string) => {
+    allowed.add(`${sessionId}:${tool}`)
+  })
+  const grantWorkspace = vi.fn()
   const broker = new McpPermissionBroker({
     send: (request) => {
       sent.push(request)
       return true
     },
     audit: audit as unknown as AuditLog,
-    timeoutMs
+    timeoutMs,
+    isPreApproved: (sessionId, tool) => allowed.has(`${sessionId}:${tool}`),
+    grantSession,
+    grantWorkspace
   })
-  return { broker, sent, audit }
+  return { broker, sent, audit, grantSession, grantWorkspace, allowed }
 }
 
 function input(sessionId: string, tool = 'tasks_create') {
@@ -44,18 +52,39 @@ describe('MCP 写入审批队列', () => {
   })
 
   it('本会话允许只记住当前会话 + 当前工具', async () => {
-    const { broker, sent } = setup()
+    const { broker, sent, grantSession } = setup()
     const first = broker.request(input('s1'))
     broker.respond(sent[0].requestId, 'session')
     await expect(first).resolves.toBe('session')
+    expect(grantSession).toHaveBeenCalledWith('s1', 'tasks_create')
 
     await expect(broker.request(input('s1'))).resolves.toBe('session')
     expect(sent).toHaveLength(1)
 
     const otherTool = broker.request(input('s1', 'tasks_update'))
     expect(sent).toHaveLength(2)
-    expect(broker.respond(sent[1].requestId, 'deny')).toBe(true)
+    broker.respond(sent[1].requestId, 'deny')
     await expect(otherTool).resolves.toBe('deny')
+  })
+
+  it('工作区允许会授予持久规则并放行当前请求', async () => {
+    const { broker, sent, grantWorkspace } = setup()
+    const first = broker.request(input('s1'))
+    expect(broker.respond(sent[0].requestId, 'workspace')).toBe(true)
+    await expect(first).resolves.toBe('workspace')
+    expect(grantWorkspace).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 's1', tool: 'tasks_create' })
+    )
+  })
+
+  it('规则保存失败仍放行当前请求', async () => {
+    const { broker, sent, grantWorkspace } = setup()
+    grantWorkspace.mockImplementation(() => {
+      throw new Error('db closed')
+    })
+    const first = broker.request(input('s1'))
+    expect(broker.respond(sent[0].requestId, 'workspace')).toBe(true)
+    await expect(first).resolves.toBe('workspace')
   })
 
   it('超时与回合取消都按拒绝处理并写审计', async () => {
@@ -87,6 +116,5 @@ describe('MCP 写入审批队列', () => {
     broker.close()
     await expect(first).resolves.toBe('deny')
     await expect(second).resolves.toBe('deny')
-    expect(broker.isSessionAllowed('s1', 'tasks_create')).toBe(false)
   })
 })

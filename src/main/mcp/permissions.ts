@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { McpDomain, McpPermissionRequest } from '../../shared/ipc'
 import type { AuditLog } from '../db/audit'
 
-export type McpPermissionOutcome = 'once' | 'session' | 'deny' | 'timeout'
+export type McpPermissionOutcome = 'once' | 'session' | 'workspace' | 'deny' | 'timeout'
 
 export interface McpPermissionInput {
   sessionId: string
@@ -23,18 +23,22 @@ export interface McpPermissionBrokerOptions {
   send: (request: McpPermissionRequest) => boolean
   audit?: AuditLog
   timeoutMs?: number
+  /** 与桥钩子同义：本会话已允许或命中工作区规则 */
+  isPreApproved?: (sessionId: string, tool: string) => boolean
+  grantSession?: (sessionId: string, tool: string) => void
+  grantWorkspace?: (request: McpPermissionRequest) => void
 }
 
 const DEFAULT_TIMEOUT = 60_000
 
 /**
- * MCP 写入询问队列：一次只展示一张卡，按会话 + 工具记住「本会话允许」。
+ * MCP 写入询问队列：一次只展示一张卡。
+ * 会话 / 工作区规则由 ApprovalRuleService 持有；这里只负责排队、超时与审计。
  * 超时、窗口不可用、回合取消都按拒绝处理，绝不默认放行。
  */
 export class McpPermissionBroker {
   private readonly pending = new Map<string, PendingPermission>()
   private readonly queue: string[] = []
-  private readonly allowed = new Set<string>()
   private current: string | null = null
   private readonly timeoutMs: number
 
@@ -42,12 +46,8 @@ export class McpPermissionBroker {
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT
   }
 
-  isSessionAllowed(sessionId: string, tool: string): boolean {
-    return this.allowed.has(this.key(sessionId, tool))
-  }
-
   request(input: McpPermissionInput): Promise<McpPermissionOutcome> {
-    if (this.isSessionAllowed(input.sessionId, input.tool)) {
+    if (this.options.isPreApproved?.(input.sessionId, input.tool)) {
       return Promise.resolve('session')
     }
     const request: McpPermissionRequest = {
@@ -66,11 +66,19 @@ export class McpPermissionBroker {
     })
   }
 
-  respond(requestId: string, decision: 'once' | 'session' | 'deny'): boolean {
+  respond(requestId: string, decision: 'once' | 'session' | 'workspace' | 'deny'): boolean {
     const entry = this.pending.get(requestId)
     if (!entry) return false
-    if (decision === 'session') {
-      this.allowed.add(this.key(entry.request.sessionId, entry.request.tool))
+    try {
+      if (decision === 'session') {
+        this.options.grantSession?.(entry.request.sessionId, entry.request.tool)
+      }
+      if (decision === 'workspace') {
+        this.options.grantWorkspace?.(entry.request)
+      }
+    } catch (error) {
+      // 规则落库失败不能让当前审批悬挂
+      console.error('[mcp] 保存审批规则失败', error)
     }
     this.finish(requestId, decision)
     return true
@@ -85,7 +93,6 @@ export class McpPermissionBroker {
 
   close(): void {
     for (const id of [...this.pending.keys()]) this.finish(id, 'deny')
-    this.allowed.clear()
   }
 
   private pump(): void {
@@ -126,9 +133,5 @@ export class McpPermissionBroker {
       this.current = null
       this.pump()
     }
-  }
-
-  private key(sessionId: string, tool: string): string {
-    return `${sessionId}:${tool}`
   }
 }

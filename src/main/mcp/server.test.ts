@@ -249,7 +249,7 @@ describe('MCP HTTP 桥', () => {
     bridge = new McpBridge(source, 'test', {
       mode: () => 'ask',
       requestPermission,
-      isSessionAllowed: () => false
+      isPreApproved: () => false
     })
     await bridge.start()
     const endpoint = bridge.issue('s-ask')
@@ -276,6 +276,40 @@ describe('MCP HTTP 桥', () => {
         domain: 'task',
         tool: 'tasks_create'
       })
+    )
+  })
+
+  it('预检命中时跳过审批并照常写入', async () => {
+    const source = data()
+    const create = vi.fn(source.tasks.create)
+    source.tasks.create = create
+    const requestPermission = vi.fn(async () => 'deny' as const)
+    bridge = new McpBridge(source, 'test', {
+      mode: () => 'ask',
+      requestPermission,
+      isPreApproved: () => true
+    })
+    await bridge.start()
+    const endpoint = bridge.issue('s-pre')
+    if (!endpoint) throw new Error('没有 issue token')
+
+    const response = await rpc(endpoint.url, endpoint.token, {
+      jsonrpc: '2.0',
+      id: 21,
+      method: 'tools/call',
+      params: {
+        name: 'tasks_create',
+        arguments: { title: '预检通过', idempotency_key: 'pre-1' }
+      }
+    })
+    const body = (await response.json()) as {
+      result: { isError?: boolean; content: { text: string }[] }
+    }
+    expect(body.result.isError).toBeUndefined()
+    expect(create).toHaveBeenCalledTimes(1)
+    expect(requestPermission).not.toHaveBeenCalled()
+    expect(source.audit.recordStrict).toHaveBeenCalledWith(
+      expect.objectContaining({ domain: 'mcp', action: 'write', title: 'tasks_create' })
     )
   })
 
