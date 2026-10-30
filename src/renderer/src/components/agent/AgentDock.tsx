@@ -240,7 +240,9 @@ export function AgentDock() {
       .catch((error) => {
         console.error('[agent] 回写审批失败', error)
         if (!useWorkstation.getState().toolPermissions[sessionId]) {
-          useWorkstation.getState().setToolPermission(sessionId, toolPermission)
+          // 必须换一个新对象：卡片 key 仍是同一个 requestId，AnimatePresence 会复用旧实例，
+          // 而 ToolApprovalCard 只在新 request 身份变化时把 busy 复位，否则恢复后的卡片会一直禁用。
+          useWorkstation.getState().setToolPermission(sessionId, { ...toolPermission })
         }
       })
   }

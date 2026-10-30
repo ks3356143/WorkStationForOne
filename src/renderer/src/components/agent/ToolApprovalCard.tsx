@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { m } from 'motion/react'
 import { DURATION, EASE_OUT } from '../../lib/motion'
 import type { ToolPermission } from '../../types'
@@ -12,6 +12,13 @@ interface ToolApprovalCardProps {
 
 export function ToolApprovalCard({ request, onResolve }: ToolApprovalCardProps) {
   const [busy, setBusy] = useState(false)
+
+  // 回写失败时 AgentDock 会把请求重新塞回列表，AnimatePresence 会复用同一实例（key 相同），
+  // 必须在新请求对象到达时解锁按钮，否则卡片永久处于 disabled 状态。
+  // biome-ignore lint/correctness/useExhaustiveDependencies: request 只作触发条件，身份变化就表示这是一张新卡
+  useEffect(() => {
+    setBusy(false)
+  }, [request])
 
   const resolve = (decision: ToolDecision) => {
     if (busy) return
