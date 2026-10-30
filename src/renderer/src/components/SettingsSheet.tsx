@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { m } from 'motion/react'
 import type {
   AppInfo,
+  ApprovalRuleRecord,
   AuditLogDomain,
   AuditLogRecord,
   McpDomain,
@@ -126,9 +127,12 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
     Boolean(providerModel.trim()) &&
     Boolean(providerKey.trim() || activeProfile?.hasToken)
   const mcpApi = typeof window === 'undefined' ? undefined : window.ws?.mcp
+  const agentApi = typeof window === 'undefined' ? undefined : window.ws?.agent
   const auditApi = typeof window === 'undefined' ? undefined : window.ws?.audit
   const [policies, setPolicies] = useState<McpPolicyRecord[]>([])
   const [policyBusy, setPolicyBusy] = useState(false)
+  const [approvalRules, setApprovalRules] = useState<ApprovalRuleRecord[]>([])
+  const [ruleBusy, setRuleBusy] = useState(false)
   const [auditRows, setAuditRows] = useState<AuditLogRecord[]>([])
   const [auditDomain, setAuditDomain] = useState<AuditLogDomain | 'all'>('all')
 
@@ -167,6 +171,13 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
       .then(setPolicies)
       .catch(() => setPolicies([]))
   }, [mcpApi])
+
+  useEffect(() => {
+    void agentApi
+      ?.approvalRules()
+      .then(setApprovalRules)
+      .catch(() => setApprovalRules([]))
+  }, [agentApi])
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: 目标/模式/表单变化时要清空上一次测试结果
   useEffect(() => {
@@ -210,6 +221,24 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
         notify(error instanceof Error ? `权限保存失败：${error.message}` : '权限保存失败')
       )
       .finally(() => setPolicyBusy(false))
+  }
+
+  const revokeRule = (id: string) => {
+    if (!agentApi || ruleBusy) return
+    setRuleBusy(true)
+    void agentApi
+      .removeApprovalRule(id)
+      .then(() => {
+        notify('已撤销审批规则')
+        return agentApi.approvalRules().then(setApprovalRules)
+      })
+      .then(() =>
+        auditApi?.recent(30, auditDomain === 'all' ? undefined : auditDomain).then(setAuditRows)
+      )
+      .catch((error: unknown) =>
+        notify(error instanceof Error ? `撤销失败：${error.message}` : '撤销失败')
+      )
+      .finally(() => setRuleBusy(false))
   }
 
   const applyProviderTarget = (target: ProviderTarget, list = profiles) => {
@@ -699,6 +728,42 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
                     </div>
                   </div>
                 ))
+              )}
+            </section>
+
+            <section className="w1-setgroup" aria-label="审批规则">
+              <h3>审批规则</h3>
+              <p className="w1-provnote">
+                只对 MCP 工具与本地只读工具生效；对该工作区里同 Agent
+                的所有会话生效。Bash、写入类工具与「本会话允许」不落库，应用退出后失效。
+              </p>
+              {!agentApi ? (
+                <p className="w1-provnote">仅在桌面应用可用。</p>
+              ) : approvalRules.length === 0 ? (
+                <p className="w1-provnote">还没有工作区审批规则。</p>
+              ) : (
+                <div className="w1-setrules">
+                  {approvalRules.map((rule) => (
+                    <div className="w1-setrule" key={rule.id}>
+                      <code className="w1-setruletool">{rule.toolName}</code>
+                      <span className="w1-setruleagent">
+                        {rule.agent === 'claude' ? 'Claude' : 'Codex'}
+                      </span>
+                      <span className="w1-setrulepath" title={rule.workspace}>
+                        {rule.workspace}
+                      </span>
+                      <time>{rule.lastUsedAt ? auditTime(rule.lastUsedAt) : '从未'}</time>
+                      <button
+                        type="button"
+                        className="w1-setbtn"
+                        disabled={ruleBusy}
+                        onClick={() => revokeRule(rule.id)}
+                      >
+                        撤销
+                      </button>
+                    </div>
+                  ))}
+                </div>
               )}
             </section>
 

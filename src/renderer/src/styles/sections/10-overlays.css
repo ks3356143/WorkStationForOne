@@ -2184,6 +2184,58 @@ button.w1-nlchip:hover {
   text-align: left;
 }
 
+.w1-setrules {
+  display: flex;
+  flex-direction: column;
+  max-height: 220px;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.3);
+  background: rgb(var(--field-rgb) / 0.16);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.w1-setrule {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.1fr) 48px minmax(0, 1.6fr) 72px auto;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid rgb(var(--bd-rgb) / 0.24);
+  font: 10.5px / 1.4 var(--mono);
+  color: var(--su);
+}
+
+.w1-setrule:last-child {
+  border-bottom: 0;
+}
+
+.w1-setruletool,
+.w1-setrulepath {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.w1-setruletool {
+  color: var(--fs);
+}
+
+.w1-setruleagent {
+  color: var(--ac2-fg);
+}
+
+.w1-setrulepath,
+.w1-setrule time {
+  color: var(--mu);
+}
+
+.w1-setrulepath {
+  direction: rtl;
+}
+
 .w1-setbtn {
   flex: none;
   margin-left: auto;
