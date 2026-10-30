@@ -19,7 +19,8 @@ function run(
     bin: process.execPath,
     prefixArgs: [STUB],
     viaNode: true
-  }
+  },
+  autoApprove?: (toolName: string) => 'session' | 'workspace' | null
 ) {
   return new Promise<{
     events: AgentRunEvent[]
@@ -31,6 +32,7 @@ function run(
       resumeId,
       cwd: process.cwd(),
       cli,
+      ...(autoApprove ? { autoApprove } : {}),
       onEvent: (event) => events.push(event),
       onExit: (info) => done({ events, exit: { code: info.code, cancelled: info.cancelled } })
     })
@@ -247,6 +249,29 @@ describe('startClaudeRun · stub 链路', () => {
       true
     )
     expect(exit.code).toBe(0)
+  })
+
+  it('规则命中时不发 permission 事件，直接回写 allow', async () => {
+    const asked: string[] = []
+    const { events, exit } = await run('需要审批', undefined, undefined, (toolName) => {
+      asked.push(toolName)
+      return 'workspace'
+    })
+
+    expect(asked).toEqual(['Write'])
+    expect(events.some((event) => event.kind === 'permission')).toBe(false)
+    expect(
+      events.some((event) => event.kind === 'text' && event.text.includes('已写入临时文件'))
+    ).toBe(true)
+    expect(exit.code).toBe(0)
+  })
+
+  it('自动批准不作用于 AskUserQuestion', async () => {
+    const { events } = await run('需要问答', undefined, undefined, () => 'workspace')
+    expect(events.some((event) => event.kind === 'permission')).toBe(false)
+    expect(events.some((event) => event.kind === 'text' && event.text.includes('问答被拒绝'))).toBe(
+      true
+    )
   })
 
   it('拒绝后 CLI 收到 deny，不会继续写入', async () => {

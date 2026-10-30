@@ -116,6 +116,8 @@ export interface ClaudeRunOptions {
   allowedTools?: string[]
   /** 外部 MCP 工具拒绝列表（deny），只影响本次会话 */
   disallowedTools?: string[]
+  /** 规则命中时在发卡前直接放行；返回命中作用域或 null */
+  autoApprove?: (toolName: string) => 'session' | 'workspace' | null
   onEvent: (event: AgentRunEvent) => void
   onExit: (info: { code: number | null; stderr: string; cancelled: boolean }) => void
   /** 省略时按环境解析；显式传 null 表示「没有可用的 CLI」 */
@@ -280,6 +282,15 @@ export function startClaudeRun(options: ClaudeRunOptions): RunHandle {
       typeof entry.input === 'object' && entry.input !== null
         ? (entry.input as Record<string, unknown>)
         : {}
+    if (options.autoApprove?.(toolName)) {
+      // 规则命中时不发卡也不登记 pending：本轮直接放行，审批链接不到它
+      writeControlResponse(requestId, {
+        behavior: 'allow',
+        updatedInput: input,
+        toolUseID: toolUseId
+      })
+      return true
+    }
     const inputJson = JSON.stringify(input)
     const permissionRequest: AgentPermissionRequest = {
       requestId,
