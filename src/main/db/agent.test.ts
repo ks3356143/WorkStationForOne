@@ -68,7 +68,10 @@ describe('迁移 v16', () => {
        VALUES ('m1', 's1', 'user', '旧消息', '刚刚', 0, 1)`
     ).run()
 
-    migrate(db)
+    migrate(
+      db,
+      MIGRATIONS.filter((migration) => migration.version <= 26)
+    )
 
     expect(userVersion(db)).toBe(26)
     const messages = new AgentRepository(db).listMessages()

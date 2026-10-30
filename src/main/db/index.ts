@@ -3,6 +3,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { AgentRepository } from './agent'
+import { ApprovalRuleRepository } from './approval-rules'
 import { AuditLog } from './audit'
 import { migrate, openDatabase } from './database'
 import { HabitRepository } from './habits'
@@ -24,6 +25,7 @@ export interface DatabaseContext {
   agent: AgentRepository
   providers: ProviderRepository
   mcp: McpPolicyRepository
+  approvalRules: ApprovalRuleRepository
   audit: AuditLog
   /** 可嵌套事务；MCP 写入用它把业务写入和审计绑在一起 */
   transaction: <T>(run: () => T) => T
@@ -48,6 +50,7 @@ export function initDatabase(): DatabaseContext {
     agent: new AgentRepository(db),
     providers: new ProviderRepository(db),
     mcp: new McpPolicyRepository(db, audit),
+    approvalRules: new ApprovalRuleRepository(db),
     transaction: (run) => runInTransaction(db, run),
     close: () => db.close()
   }

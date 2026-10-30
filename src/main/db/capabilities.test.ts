@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { CapabilityRepository } from './capabilities'
-import { migrate, openDatabase, userVersion } from './database'
+import { MIGRATIONS, migrate, openDatabase, userVersion } from './database'
 
 const dirs: string[] = []
 
@@ -54,7 +54,7 @@ const server = {
 describe('能力中心 DB v22 / v23 / v24', () => {
   it('建立能力表并推进到最新版本', () => {
     const { db } = seed()
-    expect(userVersion(db)).toBe(26)
+    expect(userVersion(db)).toBe(MIGRATIONS.at(-1)!.version)
     const tables = db
       .prepare(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('agent_plugins', 'mcp_servers', 'mcp_server_secrets', 'mcp_server_tools') ORDER BY name"

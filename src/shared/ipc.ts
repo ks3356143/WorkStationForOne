@@ -1,4 +1,5 @@
 import type { AgentRunEvent } from './agent-stream'
+import type { ApprovalAgent } from './approval-rules'
 import type { RepeatRule } from './repeat'
 
 export type TaskTone = 'agent' | 'hot'
@@ -354,6 +355,16 @@ export interface ProviderApi {
   save: (input: ProviderSaveInput) => Promise<ProviderProfileRecord>
   setActive: (target: ProviderTarget, id: string | null) => Promise<void>
   test: (input: ProviderTestInput) => Promise<ProviderTestResult>
+}
+
+/** 工作区级审批规则；会话级放行只存在内存，不落库。 */
+export interface ApprovalRuleRecord {
+  id: string
+  agent: ApprovalAgent
+  workspace: string
+  toolName: string
+  createdAt: number
+  lastUsedAt: number | null
 }
 
 export interface AgentPermissionResponse {

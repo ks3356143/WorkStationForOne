@@ -501,6 +501,25 @@ export const MIGRATIONS: Migration[] = [
     sql: `
       ALTER TABLE agent_messages ADD COLUMN origin TEXT NOT NULL DEFAULT 'app';
     `
+  },
+  {
+    // 审批规则：只保存工作区级的精确工具放行；会话级规则只存在内存。
+    version: 27,
+    sql: `
+      CREATE TABLE approval_rules (
+        id TEXT PRIMARY KEY,
+        agent TEXT NOT NULL CHECK (agent IN ('claude', 'codex')),
+        workspace TEXT NOT NULL,
+        workspace_key TEXT NOT NULL,
+        tool_name TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        last_used_at INTEGER,
+        UNIQUE (agent, workspace_key, tool_name)
+      );
+
+      CREATE INDEX idx_approval_rules_used
+        ON approval_rules(last_used_at DESC, created_at DESC);
+    `
   }
 ]
 
