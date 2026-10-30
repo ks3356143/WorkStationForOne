@@ -13,6 +13,8 @@ const electronExecutable = require('electron')
 
 // 校验过程会创建任务；指向临时数据目录，避免改写真实用户库。
 const dataDir = mkdtempSync(join(tmpdir(), 'ws-verify-'))
+// 主题/皮肤存在 Chromium localStorage；用独立 profile，避免读取或污染真实应用偏好。
+const profileDir = mkdtempSync(join(tmpdir(), 'ws-verify-profile-'))
 const env = {
   ...Object.fromEntries(
     Object.entries(process.env).filter(([key]) => key.toUpperCase() !== 'ELECTRON_RUN_AS_NODE')
@@ -21,10 +23,12 @@ const env = {
   WS_DISABLE_CAPTURE_SHORTCUT: '1'
 }
 process.on('exit', () => {
-  try {
-    rmSync(dataDir, { recursive: true, force: true })
-  } catch {
-    // 清理失败不影响结论。
+  for (const dir of [dataDir, profileDir]) {
+    try {
+      rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+    } catch {
+      // 清理失败不影响结论。
+    }
   }
 })
 
@@ -171,6 +175,7 @@ async function launch(phase) {
       '--disable-background-timer-throttling',
       '--disable-backgrounding-occluded-windows',
       '--disable-renderer-backgrounding',
+      `--user-data-dir=${profileDir}`,
       `--remote-debugging-port=${PAGE_PORT}`,
       `--inspect=${MAIN_PORT}`,
       '--remote-allow-origins=*',
@@ -279,6 +284,16 @@ async function launch(phase) {
     }
   )
   const bootedMs = Date.now() - startedAt
+  // 全新 profile 没有偏好记录；补上默认值，让基线断言与旧 profile 的行为一致。
+  await evaluate(
+    page,
+    `(() => {
+      if (!localStorage.getItem('workstation.theme')) localStorage.setItem('workstation.theme', 'dark')
+      if (!localStorage.getItem('workstation.skin')) localStorage.setItem('workstation.skin', 'prism')
+      return true
+    })()`,
+    'baseline prefs'
+  )
   await sleep(350)
 
   app = {
