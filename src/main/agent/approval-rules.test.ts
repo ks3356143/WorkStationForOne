@@ -64,7 +64,7 @@ function setup(seed: ApprovalRuleRecord[] = []) {
     audit: audit as unknown as AuditLog,
     now: () => 500
   })
-  return { service, rules, audit }
+  return { service, rules, sessions, audit }
 }
 
 const context = { sessionId: 's1', agent: 'claude' as const, workspace: 'C:\\Work\\Demo' }
@@ -134,6 +134,14 @@ describe('ApprovalRuleService', () => {
     expect(service.resolveBridge('s2', 'tasks_create')).toMatchObject({
       toolName: 'MCP · workstationforone/tasks_create'
     })
+  })
+
+  it('桥规则查询抛错时按未命中处理', () => {
+    const { service, sessions } = setup([rule()])
+    sessions.findSession.mockImplementation(() => {
+      throw new Error('db closed')
+    })
+    expect(service.checkBridge('s1', 'tasks_create')).toBe(false)
   })
 
   it('仓储抛错时按未命中处理', () => {

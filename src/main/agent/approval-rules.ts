@@ -99,8 +99,13 @@ export class ApprovalRuleService {
   }
 
   checkBridge(sessionId: string, tool: string): boolean {
-    const resolved = this.resolveBridge(sessionId, tool)
-    return resolved ? this.check(resolved.context, resolved.toolName) !== null : false
+    try {
+      const resolved = this.resolveBridge(sessionId, tool)
+      return resolved ? this.check(resolved.context, resolved.toolName) !== null : false
+    } catch (error) {
+      console.error('[approval-rules] 桥规则查询失败，按未命中处理', error)
+      return false
+    }
   }
 
   grantBridgeSession(sessionId: string, tool: string): void {
