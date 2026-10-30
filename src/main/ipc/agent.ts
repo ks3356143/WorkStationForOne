@@ -4,6 +4,7 @@ import { isAbsolute } from 'node:path'
 import { app, dialog, ipcMain, shell, type BrowserWindow, type OpenDialogOptions } from 'electron'
 import type { AgentCli } from '../agent/claude'
 import { startClaudeRun } from '../agent/claude'
+import type { ApprovalRuleService } from '../agent/approval-rules'
 import { discoverLocalSessions } from '../agent/discover'
 import { readSessionHistory } from '../agent/history'
 import { listWorkspaceEntries, readWorkspaceText } from '../agent/workspace'
@@ -225,6 +226,8 @@ export function assertAgentMessage(value: unknown): AgentMessageRecord {
 
 interface ActiveRun {
   sessionId: string
+  agent: 'claude' | 'codex'
+  workspace: string
   cancel: () => void
   respondPermission: (requestId: string, behavior: 'allow' | 'deny', message?: string) => boolean
 }
@@ -234,24 +237,39 @@ export interface McpAccess {
   revoke: (token: string) => void
 }
 
+export interface AgentHandlerOptions {
+  getWindow: () => BrowserWindow | null
+  repository: AgentRepository
+  cli?: AgentCli | null
+  getProvider?: (target: ProviderTarget) => ProviderRuntime | undefined
+  codexCli?: AgentCli | null
+  mcp?: McpAccess | null
+  cancelPermissions?: (sessionId: string) => void
+  codexHome?: string
+  capabilities?: AgentCapabilityRuntime
+  approvalRules: ApprovalRuleService
+}
+
 /**
  * 每个会话同一时间只跑一轮，不同会话可以各跑各的。
  * 流事件、审批与 MCP Token 都按 run / 会话隔离，互不串台。
  */
-export function registerAgentHandlers(
-  getWindow: () => BrowserWindow | null,
-  repository: AgentRepository,
-  cli?: AgentCli | null,
-  getProvider?: (target: ProviderTarget) => ProviderRuntime | undefined,
-  codexCli?: AgentCli | null,
-  mcp?: McpAccess | null,
-  cancelPermissions?: (sessionId: string) => void,
-  codexHome?: string,
-  capabilities?: AgentCapabilityRuntime
-): void {
+export function registerAgentHandlers(options: AgentHandlerOptions): void {
+  const {
+    getWindow,
+    repository,
+    cli,
+    getProvider,
+    codexCli,
+    mcp,
+    cancelPermissions,
+    codexHome,
+    capabilities,
+    approvalRules
+  } = options
   const runs = new Map<string, ActiveRun>()
   // Codex app-server 与 stub 的审批 id 只在各自进程内唯一；加 run 前缀后才不会串台
-  const permissionRuns = new Map<string, { runId: string; requestId: string }>()
+  const permissionRuns = new Map<string, { runId: string; requestId: string; toolName: string }>()
   let seq = 0
 
   ipcMain.handle(IPC.agentThreads, () => ({
@@ -318,6 +336,12 @@ export function registerAgentHandlers(
     const value = typeof days === 'number' && Number.isFinite(days) ? Math.trunc(days) : 7
     const span = Math.min(90, Math.max(1, value))
     return repository.listRuns(Date.now() - span * 24 * 60 * 60 * 1000)
+  })
+
+  ipcMain.handle(IPC.agentApprovalRules, () => approvalRules.list())
+
+  ipcMain.handle(IPC.agentRemoveApprovalRule, (_event, id: unknown) => {
+    approvalRules.remove(assertId(id, '规则 id'))
   })
 
   ipcMain.handle(IPC.agentDiscoverSessions, () => {
@@ -401,8 +425,22 @@ export function registerAgentHandlers(
       if (runEvent.kind === 'result') runResult = runEvent
       if (runEvent.kind === 'permission') {
         const scoped = `${runId}:${runEvent.request.requestId}`
-        permissionRuns.set(scoped, { runId, requestId: runEvent.request.requestId })
-        event = { ...runEvent, request: { ...runEvent.request, requestId: scoped } }
+        permissionRuns.set(scoped, {
+          runId,
+          requestId: runEvent.request.requestId,
+          toolName: runEvent.request.toolName
+        })
+        event = {
+          ...runEvent,
+          request: {
+            ...runEvent.request,
+            requestId: scoped,
+            workspaceScope: approvalRules.isWorkspaceEligible(
+              input.agent,
+              runEvent.request.toolName
+            )
+          }
+        }
       }
       const win = getWindow()
       if (!win || win.isDestroyed()) return
@@ -470,6 +508,9 @@ export function registerAgentHandlers(
       }
     }
 
+    const autoApprove = (toolName: string) =>
+      approvalRules.check({ sessionId: input.sessionId, agent: input.agent, workspace }, toolName)
+
     const handle =
       input.agent === 'codex'
         ? (() => {
@@ -482,6 +523,7 @@ export function registerAgentHandlers(
                 cwd: workspace,
                 provider: codexProvider,
                 home: codexHome,
+                autoApprove,
                 ...(mcpEndpoint ? { mcp: mcpEndpoint } : {}),
                 ...(codexExternalMcp && codexExternalMcp.servers.length > 0
                   ? { externalMcp: codexExternalMcp }
@@ -509,6 +551,7 @@ export function registerAgentHandlers(
               prompt: input.prompt,
               resumeId: input.resumeId,
               cwd: workspace,
+              autoApprove,
               ...(provider ? { provider } : {}),
               ...(mcpEndpoint ? { mcp: mcpEndpoint } : {}),
               ...(claudePlugins.length > 0 ? { plugins: claudePlugins } : {}),
@@ -523,6 +566,8 @@ export function registerAgentHandlers(
 
     runs.set(runId, {
       sessionId: input.sessionId,
+      agent: input.agent,
+      workspace,
       cancel: handle.cancel,
       respondPermission: handle.respondPermission
     })
@@ -540,6 +585,32 @@ export function registerAgentHandlers(
     const owner = permissionRuns.get(response.requestId)
     const run = owner ? runs.get(owner.runId) : undefined
     if (!owner || !run) return false
+
+    const scope = response.allow ? (response.scope ?? 'once') : 'once'
+    if (
+      response.allow &&
+      scope === 'workspace' &&
+      !approvalRules.isWorkspaceEligible(run.agent, owner.toolName)
+    ) {
+      throw new TypeError('该工具不支持工作区持久规则')
+    }
+    if (response.allow && scope === 'workspace') {
+      try {
+        approvalRules.grantWorkspace(
+          { sessionId: run.sessionId, agent: run.agent, workspace: run.workspace },
+          owner.toolName
+        )
+      } catch (error) {
+        console.error('[agent] 保存审批规则失败', error)
+      }
+    }
+    if (response.allow && scope === 'session') {
+      approvalRules.grantSession(
+        { sessionId: run.sessionId, agent: run.agent, workspace: run.workspace },
+        owner.toolName
+      )
+    }
+
     const ok = run.respondPermission(
       owner.requestId,
       response.allow ? 'allow' : 'deny',

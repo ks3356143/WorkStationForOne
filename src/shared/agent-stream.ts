@@ -7,6 +7,8 @@ export interface AgentPermissionRequest {
   description?: string
   /** 输入 JSON 的截断预览，供审批卡展开查看 */
   inputPreview: string
+  /** 主进程判定该工具是否可「此工作区允许」；渲染层只用于决定按钮是否显示 */
+  workspaceScope?: boolean
 }
 
 /** 一次 Agent 运行推给渲染层的事件。kind 是判别式，渲染层按它分支。 */

@@ -192,17 +192,16 @@ if (!gotTheLock) {
     // 上次进程退出后 run/wait 已不存在，重启时统一回落为 idle。
     database.agent.resetTransientStatuses()
     // 捕获窗是另一个 BrowserWindow，Agent 事件只回主窗口
-    registerAgentHandlers(
-      () => mainWindow,
-      database.agent,
-      undefined,
-      (target) => providers.runtime(target),
-      undefined,
-      mcpBridge,
-      (sessionId) => mcpPermissions?.cancelSession(sessionId),
-      join(dirname(database.file), 'codex-home'),
-      agentCapabilityRuntime(capabilities)
-    )
+    registerAgentHandlers({
+      getWindow: () => mainWindow,
+      repository: database.agent,
+      getProvider: (target) => providers.runtime(target),
+      mcp: mcpBridge,
+      cancelPermissions: (sessionId) => mcpPermissions?.cancelSession(sessionId),
+      codexHome: join(dirname(database.file), 'codex-home'),
+      capabilities: agentCapabilityRuntime(capabilities),
+      approvalRules
+    })
     // 到点提醒：轮询数据库，命中「今天 + 正好到点 + 没提醒过」就弹系统通知
     stopReminders = startReminderLoop(database.tasks, {
       ...(process.env.WS_REMINDER_TICK_MS
