@@ -155,4 +155,13 @@ export class ProviderRepository {
       ...(token && token.length > 0 ? { token } : {})
     }
   }
+
+  /** 连接测试专用：按 id + target 取加密 token，不暴露 profile。 */
+  secretFor(id: string, target: ProviderTarget): Buffer | undefined {
+    const row = this.db
+      .prepare('SELECT token_encrypted FROM provider_profiles WHERE id = ? AND target = ?')
+      .get(id, target) as { token_encrypted: Uint8Array | null } | undefined
+    if (!row?.token_encrypted) return undefined
+    return Buffer.from(row.token_encrypted)
+  }
 }

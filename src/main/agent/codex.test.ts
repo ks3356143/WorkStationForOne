@@ -214,7 +214,10 @@ describe('startCodexRun · stub 链路', () => {
     expect(events).toContainEqual({ kind: 'init', sessionId: 'codex-stub-thread' })
     expect(events).toContainEqual(expect.objectContaining({ kind: 'tool', name: 'Shell' }))
     expect(events).toContainEqual(expect.objectContaining({ kind: 'tool-result', ok: true }))
-    expect(events).toContainEqual({ kind: 'text', text: 'Codex 只读回复：入口文件已读取。' })
+    expect(events).toContainEqual({
+      kind: 'text',
+      text: expect.stringContaining('Codex 只读回复：入口文件已读取。')
+    })
     expect(events).toContainEqual({ kind: 'result', ok: true })
   })
 

@@ -63,6 +63,70 @@ describe('Provider 目标与协议', () => {
     expect(() => providerValidators.assertTarget('other')).toThrow(TypeError)
     expect(() => providerValidators.assertWireApi('grpc')).toThrow(TypeError)
   })
+
+  it('Codex Provider 拒绝已被 CLI 移除的 Chat 协议', () => {
+    expect(() =>
+      providerValidators.assertSaveInput({
+        name: 'DeepSeek',
+        target: 'codex',
+        wireApi: 'chat',
+        baseUrl: 'https://api.deepseek.com',
+        model: 'deepseek-flash',
+        apiKey: 'sk-test'
+      })
+    ).toThrow('当前 Codex CLI 只支持 Responses 协议')
+    expect(
+      providerValidators.assertSaveInput({
+        name: 'DeepSeek',
+        target: 'codex',
+        wireApi: 'responses',
+        baseUrl: 'https://api.deepseek.com',
+        model: 'deepseek-flash',
+        apiKey: 'sk-test'
+      })
+    ).toMatchObject({ target: 'codex', wireApi: 'responses' })
+  })
+})
+
+describe('Provider 测试连接参数', () => {
+  it('不需要名称，保留 id 与临时 Key 并去掉首尾空白', () => {
+    expect(
+      providerValidators.assertTestInput({
+        id: 'provider-1',
+        target: 'codex',
+        wireApi: 'responses',
+        baseUrl: ' https://api.deepseek.com ',
+        model: ' deepseek-flash ',
+        apiKey: ' sk-test '
+      })
+    ).toEqual({
+      id: 'provider-1',
+      target: 'codex',
+      wireApi: 'responses',
+      baseUrl: 'https://api.deepseek.com',
+      model: 'deepseek-flash',
+      apiKey: 'sk-test'
+    })
+  })
+
+  it('拒绝 Codex + Chat 与非法地址', () => {
+    expect(() =>
+      providerValidators.assertTestInput({
+        target: 'codex',
+        wireApi: 'chat',
+        baseUrl: 'https://api.deepseek.com',
+        model: 'deepseek-flash'
+      })
+    ).toThrow('当前 Codex CLI 只支持 Responses 协议')
+    expect(() =>
+      providerValidators.assertTestInput({
+        target: 'claude',
+        wireApi: 'responses',
+        baseUrl: 'file:///tmp/key',
+        model: 'm'
+      })
+    ).toThrow(TypeError)
+  })
 })
 
 describe('Provider 激活参数', () => {

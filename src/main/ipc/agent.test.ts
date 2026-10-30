@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({ ipcMain: { handle: vi.fn() } }))
@@ -39,6 +42,88 @@ describe('智能体会话参数', () => {
     expect(() => registerAgentHandlersIPC.assertAgentSessionPatch({ status: 'paused' })).toThrow(
       TypeError
     )
+  })
+
+  it('工作区必须是存在的绝对目录', () => {
+    const root = mkdtempSync(join(tmpdir(), 'wsfo-agent-work-'))
+    try {
+      expect(registerAgentHandlersIPC.assertAgentSessionPatch({ workspace: root })).toEqual({
+        workspace: root
+      })
+      expect(() =>
+        registerAgentHandlersIPC.assertAgentSessionPatch({ workspace: 'relative/dir' })
+      ).toThrow(TypeError)
+      expect(() =>
+        registerAgentHandlersIPC.assertAgentSessionPatch({
+          workspace: join(dirname(root), 'missing-workspace')
+        })
+      ).toThrow(TypeError)
+    } finally {
+      rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 })
+    }
+  })
+})
+
+describe('导入本机会话参数', () => {
+  it('保留 agent / resumeId / workspace，标题为空时回退', () => {
+    const root = mkdtempSync(join(tmpdir(), 'wsfo-agent-import-'))
+    try {
+      expect(
+        registerAgentHandlersIPC.assertImportInput({
+          agent: 'codex',
+          resumeId: 'codex-1',
+          title: '   ',
+          workspace: root
+        })
+      ).toEqual({
+        agent: 'codex',
+        resumeId: 'codex-1',
+        title: '导入的会话',
+        workspace: root
+      })
+      expect(
+        registerAgentHandlersIPC.assertImportInput({
+          agent: 'claude',
+          resumeId: 'claude-1',
+          title: '  修导入  ',
+          workspace: root
+        }).title
+      ).toBe('修导入')
+    } finally {
+      rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 })
+    }
+  })
+
+  it('拒绝非法 agent、空 id 与不存在的工作区', () => {
+    const root = mkdtempSync(join(tmpdir(), 'wsfo-agent-import-'))
+    try {
+      expect(() =>
+        registerAgentHandlersIPC.assertImportInput({
+          agent: 'gemini',
+          resumeId: 'x',
+          title: 'x',
+          workspace: root
+        })
+      ).toThrow(TypeError)
+      expect(() =>
+        registerAgentHandlersIPC.assertImportInput({
+          agent: 'claude',
+          resumeId: '',
+          title: 'x',
+          workspace: root
+        })
+      ).toThrow(TypeError)
+      expect(() =>
+        registerAgentHandlersIPC.assertImportInput({
+          agent: 'claude',
+          resumeId: 'x',
+          title: 'x',
+          workspace: join(dirname(root), 'missing-import-workspace')
+        })
+      ).toThrow(TypeError)
+    } finally {
+      rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 })
+    }
   })
 })
 

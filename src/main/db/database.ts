@@ -386,6 +386,121 @@ export const MIGRATIONS: Migration[] = [
       DROP INDEX idx_provider_active;
       CREATE UNIQUE INDEX idx_provider_active ON provider_profiles(target) WHERE active = 1;
     `
+  },
+  {
+    // 每个 Agent 会话自己的运行目录；空字符串表示尚未选择，不伪造默认路径。
+    version: 21,
+    sql: `
+      ALTER TABLE agent_sessions ADD COLUMN workspace TEXT NOT NULL DEFAULT '';
+    `
+  },
+  {
+    // 能力中心：Claude 插件索引、应用私有 MCP Server 与加密的 env / header 值。
+    // 只存应用自己的安装记录，不映射 ~/.claude 或 ~/.codex 的全局配置。
+    version: 22,
+    sql: `
+      CREATE TABLE agent_plugins (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        version TEXT NOT NULL DEFAULT '',
+        marketplace TEXT NOT NULL DEFAULT '',
+        install_path TEXT NOT NULL,
+        components TEXT NOT NULL DEFAULT '[]',
+        has_hooks INTEGER NOT NULL DEFAULT 0 CHECK (has_hooks IN (0, 1)),
+        has_mcp INTEGER NOT NULL DEFAULT 0 CHECK (has_mcp IN (0, 1)),
+        enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+        trusted INTEGER NOT NULL DEFAULT 0 CHECK (trusted IN (0, 1)),
+        installed_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE TABLE mcp_servers (
+        id TEXT PRIMARY KEY,
+        key TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        transport TEXT NOT NULL CHECK (transport IN ('stdio', 'http')),
+        command TEXT NOT NULL DEFAULT '',
+        args_json TEXT NOT NULL DEFAULT '[]',
+        url TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('catalog', 'manual')),
+        catalog_id TEXT NOT NULL DEFAULT '',
+        version TEXT NOT NULL DEFAULT '',
+        enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+        trusted INTEGER NOT NULL DEFAULT 0 CHECK (trusted IN (0, 1)),
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE TABLE mcp_server_secrets (
+        server_id TEXT NOT NULL REFERENCES mcp_servers(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL CHECK (kind IN ('env', 'header')),
+        key TEXT NOT NULL,
+        value_encrypted BLOB NOT NULL,
+        PRIMARY KEY (server_id, kind, key)
+      );
+    `
+  },
+  {
+    // 外部 MCP 最近一次连接测试的工具清单与错误；改配置后由仓储清空重测。
+    version: 23,
+    sql: `
+      ALTER TABLE mcp_servers ADD COLUMN tools_json TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE mcp_servers ADD COLUMN last_test_at INTEGER;
+      ALTER TABLE mcp_servers ADD COLUMN last_error TEXT NOT NULL DEFAULT '';
+    `
+  },
+  {
+    // MCP 工具级权限：allow 自动批准、ask 走审批卡、deny 直接拒绝。
+    // 测试连接时同步工具元数据；改 Server 配置会清空旧工具。
+    version: 24,
+    sql: `
+      CREATE TABLE mcp_server_tools (
+        server_id TEXT NOT NULL REFERENCES mcp_servers(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        read_only INTEGER NOT NULL DEFAULT 0 CHECK (read_only IN (0, 1)),
+        approval TEXT NOT NULL DEFAULT 'ask' CHECK (approval IN ('allow', 'ask', 'deny')),
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (server_id, name)
+      );
+    `
+  },
+  {
+    // 工作区预设与 Agent 用量；用量记录独立于会话，避免删会话丢历史。
+    version: 25,
+    sql: `
+      CREATE TABLE agent_presets (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        agent TEXT NOT NULL CHECK (agent IN ('claude', 'codex')),
+        workspace TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE TABLE agent_runs (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        started_at INTEGER NOT NULL,
+        finished_at INTEGER,
+        ok INTEGER,
+        cancelled INTEGER NOT NULL DEFAULT 0 CHECK (cancelled IN (0, 1)),
+        cost_usd REAL,
+        duration_ms INTEGER,
+        turns INTEGER
+      );
+
+      CREATE INDEX idx_agent_runs_started ON agent_runs(started_at DESC);
+    `
+  },
+  {
+    // 导入历史标记：app 为本应用产生，import 为外部 CLI JSONL 只读导入。
+    version: 26,
+    sql: `
+      ALTER TABLE agent_messages ADD COLUMN origin TEXT NOT NULL DEFAULT 'app';
+    `
   }
 ]
 

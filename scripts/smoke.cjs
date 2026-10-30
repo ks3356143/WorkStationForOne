@@ -1,6 +1,15 @@
 const { app, BrowserWindow } = require('electron')
+const { createServer } = require('node:http')
 const { join } = require('node:path')
-const { mkdirSync, mkdtempSync, readdirSync, rmSync, statSync } = require('node:fs')
+const {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync
+} = require('node:fs')
 const { tmpdir } = require('node:os')
 
 // 冒烟跑真实主进程：SQLite、preload 与 IPC 全部走生产路径。
@@ -25,20 +34,114 @@ pruneStaleDirs()
 const dataDir = mkdtempSync(join(tmpdir(), 'ws-smoke-'))
 const userDir = join(dataDir, 'user')
 const sessionDir = join(dataDir, 'session')
+const agentWorkspace = join(dataDir, 'workspace')
+const stubMcpServer = join(__dirname, 'stub-mcp-server.cjs')
+const localSkillDir = join(dataDir, 'local-skill')
+const sessionScanRoot = join(dataDir, 'home')
 mkdirSync(userDir, { recursive: true })
 mkdirSync(sessionDir, { recursive: true })
+mkdirSync(agentWorkspace, { recursive: true })
+mkdirSync(join(agentWorkspace, 'src'), { recursive: true })
+writeFileSync(join(agentWorkspace, 'smoke-note.txt'), 'workspace smoke preview')
+writeFileSync(join(agentWorkspace, 'src', 'main.ts'), 'const smoke = true')
+mkdirSync(localSkillDir, { recursive: true })
+writeFileSync(
+  join(localSkillDir, 'SKILL.md'),
+  '---\nname: local-skill\ndescription: local smoke skill\n---\nLocal smoke skill body.\n'
+)
+process.env.WS_PICK_SKILL = localSkillDir
+
+// 本机会话扫描只读指向临时 home，绝不读取真实的 ~/.claude 或 ~/.codex
+const claudeScanDir = join(sessionScanRoot, '.claude', 'projects', '-smoke-workspace')
+const codexScanDir = join(sessionScanRoot, '.codex', 'sessions', '2026', '10', '30')
+mkdirSync(claudeScanDir, { recursive: true })
+mkdirSync(codexScanDir, { recursive: true })
+writeFileSync(
+  join(claudeScanDir, 'smoke-claude-import.jsonl'),
+  [
+    JSON.stringify({
+      type: 'user',
+      cwd: agentWorkspace,
+      timestamp: '2026-10-30T09:00:00.000Z',
+      message: { content: '导入 Claude 冒烟会话' }
+    }),
+    JSON.stringify({
+      type: 'assistant',
+      cwd: agentWorkspace,
+      timestamp: '2026-10-30T09:01:00.000Z',
+      message: {
+        role: 'assistant',
+        content: [
+          { type: 'text', text: '先读一下文件。' },
+          {
+            type: 'tool_use',
+            id: 'tool-1',
+            name: 'Read',
+            input: { file_path: 'smoke-note.txt' }
+          }
+        ]
+      }
+    }),
+    JSON.stringify({
+      type: 'user',
+      cwd: agentWorkspace,
+      timestamp: '2026-10-30T09:02:00.000Z',
+      message: {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'ok' }]
+      },
+      toolUseResult: {}
+    }),
+    JSON.stringify({ type: 'summary', summary: 'Claude 冒烟会话' })
+  ].join('\n')
+)
+writeFileSync(
+  join(codexScanDir, 'rollout-smoke-import.jsonl'),
+  [
+    JSON.stringify({
+      type: 'session_meta',
+      payload: { session_id: 'smoke-codex-import', cwd: agentWorkspace }
+    }),
+    JSON.stringify({
+      type: 'response_item',
+      payload: {
+        role: 'user',
+        content: [{ type: 'input_text', text: '导入 Codex 冒烟会话' }]
+      }
+    })
+  ].join('\n')
+)
+process.env.WS_SESSION_SCAN_ROOT = sessionScanRoot
 app.setPath('userData', userDir)
 app.setPath('sessionData', sessionDir)
 process.env.WS_DATA_DIR = join(dataDir, 'db')
+// 原生目录选择器在自动化里跳过，但仍由主进程走同一套目录校验。
+process.env.WS_PICK_WORKSPACE = agentWorkspace
 // Agent 走 stub CLI：验证真实 IPC → 子进程 → 渲染整条链路，但不调用模型、不消耗额度
 process.env.WS_AGENT_CLI = join(__dirname, 'stub-agent.cjs')
 process.env.WS_CODEX_CLI = join(__dirname, 'stub-codex.cjs')
+// 插件市场操作单独走 stub，避免冒烟访问真实市场或写用户 ~/.claude
+process.env.WS_CLAUDE_PLUGIN_CLI = join(__dirname, 'stub-plugin-cli.cjs')
 // 不抢 Cherry Studio 等外部应用的 Ctrl+Alt+Space
 process.env.WS_DISABLE_CAPTURE_SHORTCUT = '1'
 // 提醒轮询调快，并把命中记录写到文件，供主进程侧断言
 const reminderLog = join(dataDir, 'reminders.log')
 process.env.WS_REMINDER_TICK_MS = '400'
 process.env.WS_REMINDER_LOG = reminderLog
+
+// Provider 测试连接的本地探针：只验证请求路径、鉴权头与结果映射，不访问外网。
+const providerProbe = createServer((req, res) => {
+  req.resume()
+  if (req.method === 'POST' && req.url === '/responses') {
+    res.writeHead(200, { 'content-type': 'application/json' })
+    res.end(JSON.stringify({ object: 'response', output_text: 'OK' }))
+    return
+  }
+  res.writeHead(404, { 'content-type': 'application/json' })
+  res.end(JSON.stringify({ error: { message: 'probe endpoint not found' } }))
+})
+providerProbe.on('error', (error) => console.error('[smoke] Provider 探针服务失败', error))
+providerProbe.listen(23334, '127.0.0.1')
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -76,6 +179,9 @@ async function run() {
   win.focus()
   await sleep(1800)
 
+  await win.webContents.executeJavaScript(
+    `window.__WS_MCP_STUB__ = ${JSON.stringify(stubMcpServer)}; window.__WS_AGENT_WORKSPACE__ = ${JSON.stringify(agentWorkspace)}`
+  )
   // Injected as a template literal: regex backslashes need double escaping.
   let results
   try {
@@ -719,6 +825,31 @@ async function run() {
       all('.w1-sess').length === 1 && (one('.w1-tdiv')?.textContent ?? '').includes('新会话'),
       one('.w1-tdiv')?.textContent ?? ''
     )
+    check(
+      '未选择工作区时输入禁用',
+      !!one('.w1-aworkspacegate') && one('#composer-input')?.disabled === true,
+      one('.w1-aworkspace')?.getAttribute('title') ?? 'missing'
+    )
+    one('.w1-aworkspacegate .w1-pb')?.click()
+    const workspaceReady = await waitFor(
+      () => !one('.w1-aworkspacegate') && one('#composer-input')?.disabled === false,
+      3000
+    )
+    const workspaceTitle = one('.w1-aworkspace')?.getAttribute('title') ?? ''
+    check(
+      '选择工作区后启用对话',
+      workspaceReady && workspaceTitle.includes('workspace'),
+      workspaceTitle
+    )
+    const workspacePersisted = await waitFor(async () => {
+      const bundle = await window.ws.agent.threads()
+      return bundle.sessions.some((session) => session.workspace?.endsWith('workspace'))
+    }, 3000)
+    check(
+      '工作区已落库',
+      workspacePersisted,
+      one('.w1-aworkspace')?.textContent?.trim() ?? 'missing'
+    )
 
     const input = one('#composer-input')
     setValue(input, '测一下多会话回复')
@@ -893,12 +1024,31 @@ async function run() {
     document.querySelector('[aria-label="新建 Codex 会话"]')?.click()
     await sleep(700)
     check(
-      '新建 Codex 只读会话',
+      '新建 Codex 会话（继承 CLI 时只读）',
       all('.w1-sess').length === 2 &&
         (one('.w1-term')?.textContent ?? '').includes('codex') &&
         (one('.w1-term')?.textContent ?? '').includes('read-only'),
       one('.w1-term')?.textContent ?? ''
     )
+    check(
+      '新 Codex 会话先要求工作区',
+      !!one('.w1-aworkspacegate') && one('#composer-input')?.disabled === true,
+      one('.w1-aworkspace')?.getAttribute('title') ?? 'missing'
+    )
+    one('.w1-aworkspacegate .w1-pb')?.click()
+    const codexWorkspaceReady = await waitFor(
+      () => !one('.w1-aworkspacegate') && one('#composer-input')?.disabled === false,
+      3000
+    )
+    check(
+      'Codex 工作区选择后启用',
+      codexWorkspaceReady && (one('.w1-aworkspace')?.getAttribute('title') ?? '').includes('workspace'),
+      one('.w1-aworkspace')?.getAttribute('title') ?? 'missing'
+    )
+    await waitFor(async () => {
+      const bundle = await window.ws.agent.threads()
+      return bundle.sessions.filter((session) => session.workspace).length >= 2
+    }, 3000)
 
     const codexInput = one('#composer-input')
     setValue(codexInput, '读一下入口')
@@ -907,6 +1057,11 @@ async function run() {
     await sleep(1000)
     const codexText = all('.w1-amsg').at(-1)?.querySelector('.w1-atext')?.textContent ?? ''
     check('Codex 回复来自 JSONL 流', codexText.includes('Codex 只读回复'), codexText)
+    check(
+      'Codex 子进程使用会话工作区',
+      codexText.includes('工作目录：') && codexText.includes('workspace'),
+      codexText.slice(-120)
+    )
     const codexTool = all('.w1-amsg').at(-1)?.querySelector('.w1-tool')
     check(
       'Codex 命令渲染成工具卡',
@@ -922,6 +1077,260 @@ async function run() {
       '可切回 Claude 会话',
       (one('.w1-term')?.textContent ?? '').includes('claude'),
       one('.w1-term')?.textContent ?? ''
+    )
+
+    document.querySelector('[aria-label="新建 Claude 会话"]')?.click()
+    await sleep(500)
+    one('.w1-aworkspacegate .w1-pb')?.click()
+    await waitFor(
+      () => !one('.w1-aworkspacegate') && one('#composer-input')?.disabled === false,
+      3000
+    )
+    const slowInput = one('#composer-input')
+    setValue(slowInput, '并发慢会话一号')
+    await sleep(80)
+    slowInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }))
+    await sleep(200)
+    check('慢会话开始运行', !!one('.w1-typing'))
+
+    document.querySelector('[aria-label="新建 Claude 会话"]')?.click()
+    await sleep(500)
+    one('.w1-aworkspacegate .w1-pb')?.click()
+    await waitFor(
+      () => !one('.w1-aworkspacegate') && one('#composer-input')?.disabled === false,
+      3000
+    )
+    const fastInput = one('#composer-input')
+    setValue(fastInput, '第二个并发会话')
+    await sleep(80)
+    fastInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }))
+    const fastDone = await waitFor(
+      () =>
+        (one('.w1-thread')?.textContent ?? '').includes('读完了') &&
+        !one('.w1-typing'),
+      3000
+    )
+    check(
+      '另一个会话在前一个运行中正常完成',
+      fastDone,
+      one('.w1-thread')?.textContent?.slice(-80) ?? 'missing'
+    )
+
+    byText('.w1-sess', '并发慢会话一号')?.click()
+    await sleep(250)
+    check('切回慢会话仍在等待', !!one('.w1-typing'), one('.w1-term')?.textContent ?? '')
+    const slowDone = await waitFor(
+      () =>
+        (one('.w1-thread')?.textContent ?? '').includes('慢会话结束') &&
+        !one('.w1-typing'),
+      5000
+    )
+    check(
+      '慢会话稍后独立完成',
+      slowDone,
+      one('.w1-thread')?.textContent?.slice(-80) ?? 'missing'
+    )
+
+    document.querySelector('[aria-label="新建 Claude 会话"]')?.click()
+    await sleep(500)
+    one('.w1-aworkspacegate .w1-pb')?.click()
+    await waitFor(
+      () => !one('.w1-aworkspacegate') && one('#composer-input')?.disabled === false,
+      3000
+    )
+    const approvalAInput = one('#composer-input')
+    setValue(approvalAInput, '并发审批甲')
+    await sleep(80)
+    approvalAInput.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    const approvalAVisible = await waitFor(() => !!one('.w1-toolperm'), 2500)
+    check(
+      '会话甲出现审批卡',
+      approvalAVisible && (one('.w1-toolperm')?.textContent ?? '').includes('tmp/concurrent.txt'),
+      one('.w1-toolperm')?.textContent?.slice(0, 80) ?? 'missing'
+    )
+
+    document.querySelector('[aria-label="新建 Claude 会话"]')?.click()
+    await sleep(500)
+    one('.w1-aworkspacegate .w1-pb')?.click()
+    await waitFor(
+      () => !one('.w1-aworkspacegate') && one('#composer-input')?.disabled === false,
+      3000
+    )
+    const approvalBInput = one('#composer-input')
+    setValue(approvalBInput, '并发审批乙')
+    await sleep(80)
+    approvalBInput.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    const approvalBVisible = await waitFor(
+      () =>
+        !!one('.w1-toolperm') &&
+        (one('.w1-thread')?.textContent ?? '').includes('等待并发审批'),
+      2500
+    )
+    check(
+      '会话乙出现自己的审批卡',
+      approvalBVisible,
+      one('.w1-toolperm')?.textContent?.slice(0, 80) ?? 'missing'
+    )
+    check(
+      '后台审批入口提示另一会话',
+      (one('.w1-queue')?.textContent ?? '').includes('1 项待审批'),
+      one('.w1-queue')?.textContent ?? 'missing'
+    )
+
+    byText('.w1-sess', '并发审批甲')?.click()
+    await sleep(300)
+    check(
+      '切到会话甲仍看到自己的审批卡',
+      (one('.w1-toolperm')?.textContent ?? '').includes('tmp/concurrent.txt'),
+      one('.w1-toolperm')?.textContent?.slice(0, 80) ?? 'missing'
+    )
+    byText('.w1-toolperm .w1-pb.pri', '允许一次')?.click()
+    const approvalADone = await waitFor(
+      () =>
+        !one('.w1-toolperm') &&
+        (one('.w1-thread')?.textContent ?? '').includes('并发审批已允许'),
+      2500
+    )
+    check(
+      '允许会话甲后它单独完成',
+      approvalADone && (one('.w1-queue')?.textContent ?? '').includes('1 项待审批'),
+      one('.w1-thread')?.textContent?.slice(-80) ?? 'missing'
+    )
+
+    byText('.w1-sess', '并发审批乙')?.click()
+    await sleep(300)
+    check(
+      '会话乙的审批卡没有被误关',
+      (one('.w1-toolperm')?.textContent ?? '').includes('tmp/concurrent.txt'),
+      one('.w1-toolperm')?.textContent?.slice(0, 80) ?? 'missing'
+    )
+    byText('.w1-toolperm .w1-pb', '拒绝')?.click()
+    const approvalBDone = await waitFor(
+      () =>
+        !one('.w1-toolperm') &&
+        (one('.w1-thread')?.textContent ?? '').includes('并发审批已拒绝'),
+      2500
+    )
+    check(
+      '会话乙拒绝后独立完成',
+      approvalBDone && (one('.w1-status')?.textContent ?? '').includes('无待审批'),
+      one('.w1-thread')?.textContent?.slice(-80) ?? 'missing'
+    )
+
+    const fleetButton = one('.w1-st-fleet')
+    check(
+      '状态栏有舰队入口',
+      (fleetButton?.textContent ?? '').includes('舰队'),
+      fleetButton?.textContent ?? 'missing'
+    )
+    fleetButton?.click()
+    await waitFor(() => !!one('.w1-fleetsheet'), 2000)
+    const fleetRows = all('.w1-fleetrow')
+    check(
+      '舰队控制台列出全部会话',
+      fleetRows.length >= 6 &&
+        (one('.w1-fleetsheet')?.textContent ?? '').includes('Claude Code') &&
+        (one('.w1-fleetsheet')?.textContent ?? '').includes('Codex'),
+      String(fleetRows.length) + ' 行 · ' + (one('.w1-fleetheadmeta')?.textContent ?? '')
+    )
+    check(
+      '舰队汇总显示运行与审批',
+      (one('.w1-fleetheadmeta')?.textContent ?? '').includes('会话') &&
+        (one('.w1-fleetheadmeta')?.textContent ?? '').includes('待审批'),
+      one('.w1-fleetheadmeta')?.textContent ?? 'missing'
+    )
+
+    byText('.w1-fleetheadmeta .w1-capmini', '存预设')?.click()
+    const presetReady = await waitFor(() => !!one('.w1-fleetpreset'), 3000)
+    check(
+      '会话预设可保存',
+      presetReady && (one('.w1-fleetpresets')?.textContent ?? '').includes('预设'),
+      one('.w1-fleetpresets')?.textContent?.slice(0, 80) ?? 'missing'
+    )
+    one('.w1-fleetpresetdel')?.click()
+    const presetRemoved = await waitFor(() => !one('.w1-fleetpreset'), 3000)
+    check('会话预设可删除', presetRemoved)
+
+    byText('.w1-fleetheadmeta .w1-capmini', '用量')?.click()
+    const usageReady = await waitFor(() => !!one('.w1-fleetusage'), 3000)
+    const usageRuns = await window.ws.agent.usage(7)
+    check(
+      '舰队用量统计可用',
+      usageReady &&
+        usageRuns.length > 0 &&
+        (one('.w1-fleetusagesum')?.textContent ?? '').includes(String(usageRuns.length)),
+      String(usageRuns.length) + ' 轮 · ' + (one('.w1-fleetusagesum')?.textContent ?? 'missing')
+    )
+    byText('.w1-fleetfilters button', '运行中')?.click()
+    await sleep(250)
+    check(
+      '舰队筛选可切到运行中',
+      !!one('.w1-fleetempty') && all('.w1-fleetrow').length === 0,
+      one('.w1-fleetempty')?.textContent?.slice(0, 40) ?? 'missing'
+    )
+    byText('.w1-fleetfilters button', '全部')?.click()
+    await sleep(250)
+    byText('.w1-fleetheadmeta .w1-capmini', '用量')?.click()
+    await sleep(150)
+    byText('.w1-fleetheadmeta .w1-capmini', '导入本机')?.click()
+    const importListed = await waitFor(() => all('.w1-fleetimportrow').length === 2, 3000)
+    check(
+      '舰队可只读扫描本机会话',
+      importListed &&
+        (one('.w1-fleetimport')?.textContent ?? '').includes('只读扫描') &&
+        (one('.w1-fleetimport')?.textContent ?? '').includes('Claude 冒烟会话') &&
+        (one('.w1-fleetimport')?.textContent ?? '').includes('导入 Codex 冒烟会话'),
+      one('.w1-fleetimport')?.textContent?.slice(0, 120) ?? 'missing'
+    )
+    const rowsBeforeImport = all('.w1-fleetrow').length
+    const claudeImport = all('.w1-fleetimportrow').find((el) =>
+      el.textContent.includes('Claude 冒烟会话')
+    )
+    claudeImport?.querySelector('.w1-fleetimportbtn')?.click()
+    const importedRow = await waitFor(
+      () =>
+        claudeImport?.classList.contains('on') &&
+        (claudeImport?.textContent ?? '').includes('补历史'),
+      3000
+    )
+    const importedThreads = await window.ws.agent.threads()
+    const persistedImport = importedThreads.sessions.find(
+      (session) => session.resumeId === 'smoke-claude-import'
+    )
+    check(
+      '导入的本机会话进入舰队并落库',
+      importedRow &&
+        all('.w1-fleetrow').length === rowsBeforeImport + 1 &&
+        !!persistedImport &&
+        persistedImport.workspace === window.__WS_AGENT_WORKSPACE__ &&
+        persistedImport.agent === 'claude',
+      String(all('.w1-fleetrow').length) +
+        ' 行 · ' +
+        (persistedImport ? persistedImport.id : 'missing')
+    )
+    byText('.w1-fleetrow', 'Claude 冒烟会话')?.querySelector('.w1-fleetopen')?.click()
+    const fleetClosed = await waitFor(() => !one('.w1-fleetsheet'), 2000)
+    check(
+      '舰队可打开并切回会话',
+      fleetClosed && activeNav() === 'Agent' && !!one('.w1-dock'),
+      activeNav()
+    )
+    const importHistoryReady = await waitFor(
+      () =>
+        !!one('.w1-importnote') &&
+        (one('.w1-thread')?.textContent ?? '').includes('导入 Claude 冒烟会话') &&
+        (one('.w1-thread')?.textContent ?? '').includes('Read') &&
+        (one('.w1-thread')?.textContent ?? '').includes('smoke-note.txt'),
+      2500
+    )
+    check(
+      '导入会话显示只读历史与工具卡',
+      importHistoryReady,
+      one('.w1-thread')?.textContent?.slice(0, 160) ?? 'missing'
     )
 
     await navTo('今日')
@@ -1068,6 +1477,21 @@ async function run() {
       one('.w1-setpath')?.textContent ?? ''
     )
     check('设置面板有 Provider 卡片', !!one('.w1-provcard'))
+    check(
+      'Provider 接线台有双目标端口',
+      all('.w1-provport').length === 2 && !!one('.w1-provdeckhead'),
+      String(all('.w1-provport').length)
+    )
+    check(
+      'Provider 模式是信号路由',
+      !!one('.w1-provroute') && all('.w1-provroute .w1-provseg button').length === 2,
+      one('.w1-provroute')?.textContent ?? 'missing'
+    )
+    check(
+      'Provider 继承态有说明卡',
+      !!one('.w1-provinherit'),
+      one('.w1-provinherit')?.textContent ?? 'missing'
+    )
     byText('.w1-provseg button', 'Codex CLI')?.click()
     await sleep(200)
     byText('.w1-provseg button', '自定义')?.click()
@@ -1077,6 +1501,13 @@ async function run() {
       one('[aria-label="Provider 目标"] button.on')?.textContent?.includes('Codex') === true &&
         !!one('[aria-label="Codex 协议"]'),
       one('[aria-label="Provider 目标"] button.on')?.textContent ?? ''
+    )
+    const codexProtocol = one('[aria-label="Codex 协议"]')
+    check(
+      'Codex 协议只剩 Responses',
+      codexProtocol?.textContent?.trim() === 'Responses' &&
+        !(codexProtocol?.textContent ?? '').includes('Chat'),
+      codexProtocol?.textContent?.trim() ?? 'missing'
     )
     byText('.w1-provseg button', 'Claude Code')?.click()
     await sleep(200)
@@ -1107,6 +1538,14 @@ async function run() {
       (one('.w1-provstatus')?.textContent ?? '').includes('已加密保存'),
       one('.w1-provstatus')?.textContent ?? ''
     )
+    check(
+      'Provider 加密 Key 显示胶囊状态',
+      (one('.w1-provkeytag')?.textContent ?? '').includes('已加密') &&
+        (one('.w1-provstate')?.textContent ?? '').includes('已启用'),
+      (one('.w1-provkeytag')?.textContent ?? '') +
+        ' / ' +
+        (one('.w1-provstate')?.textContent ?? '')
+    )
     byText('.w1-provseg button', '继承 Claude Code')?.click()
     await sleep(400)
     check(
@@ -1116,6 +1555,476 @@ async function run() {
       ) === true,
       one('[aria-label="Provider 模式"] button.on')?.textContent ?? ''
     )
+
+    // Codex app-server：工作区审批走同一条 preload → 主进程 → 渲染链路
+    byText('.w1-provseg button', 'Codex CLI')?.click()
+    await sleep(200)
+    byText('.w1-provseg button', '自定义')?.click()
+    await sleep(200)
+    setValue(one('input[aria-label="Provider 名称"]'), 'Smoke Codex Provider')
+    setValue(one('input[aria-label="Provider Base URL"]'), 'http://127.0.0.1:23334')
+    setValue(one('input[aria-label="Provider 模型"]'), 'smoke-codex-model')
+    setValue(one('input[aria-label="Provider API Key"]'), 'sk-smoke-codex-secret')
+    byText('.w1-provsave', '保存并启用')?.click()
+    await waitFor(
+      () => (one('.w1-provstatus')?.textContent ?? '').includes('已加密保存'),
+      3000
+    )
+    check(
+      'Codex Provider 加密保存并启用',
+      (one('.w1-provstatus')?.textContent ?? '').includes('已加密保存'),
+      one('.w1-provstatus')?.textContent ?? ''
+    )
+    byText('.w1-provtest', '测试连接')?.click()
+    const probeOk = await waitFor(
+      () => (one('.w1-provtestresult.ok')?.textContent ?? '').includes('连接正常'),
+      4000
+    )
+    check(
+      'Provider 测试连接成功',
+      probeOk && (one('.w1-provtestresult.ok')?.textContent ?? '').includes('ms'),
+      one('.w1-provtestresult')?.textContent ?? 'missing'
+    )
+    setValue(one('input[aria-label="Provider Base URL"]'), 'http://127.0.0.1:23339')
+    await sleep(120)
+    byText('.w1-provtest', '测试连接')?.click()
+    const probeFailed = await waitFor(
+      () => Boolean(one('.w1-provtestresult.fail')),
+      5000
+    )
+    check(
+      'Provider 测试连接失败有原因',
+      probeFailed && /连接|超时|凭据|端点/.test(one('.w1-provtestresult.fail')?.textContent ?? ''),
+      one('.w1-provtestresult.fail')?.textContent ?? 'missing'
+    )
+
+    byText('.w1-settabs button', '能力中心')?.click()
+    await waitFor(() => !!one('.w1-cap') && !!one('.w1-capnav'), 3000)
+    check(
+      '设置里有能力中心三分区',
+      all('.w1-capnav button').length === 3 &&
+        (one('.w1-capscope')?.textContent ?? '').includes('应用私有'),
+      one('.w1-capnav')?.textContent ?? 'missing'
+    )
+    byText('.w1-capseg button', '市场')?.click()
+    const marketLoaded = await waitFor(
+      () => (one('.w1-capcard')?.textContent ?? '').includes('demo-skill'),
+      5000
+    )
+    check(
+      'Claude 市场清单可读取',
+      marketLoaded,
+      one('.w1-capgrid')?.textContent?.slice(0, 80) ?? 'missing'
+    )
+    one('.w1-capcard .w1-capmini.pri')?.click()
+    await waitFor(
+      () => (one('.w1-capcard')?.textContent ?? '').includes('已安装'),
+      5000
+    )
+    check('市场插件可一键安装到私有目录', (one('.w1-capcard')?.textContent ?? '').includes('已安装'))
+
+    byText('.w1-capseg button', '已安装')?.click()
+    await sleep(300)
+    const skillRow = byText('.w1-caprow', 'demo-skill')
+    check('已安装列表显示私有插件', Boolean(skillRow), skillRow?.textContent ?? 'missing')
+    skillRow?.querySelector('.w1-setbtn')?.click()
+    const skillEnabled = await waitFor(
+      () => (byText('.w1-caprow', 'demo-skill')?.textContent ?? '').includes('已启用'),
+      5000
+    )
+    const skillState = await window.ws.capability.skills.list()
+    check(
+      '插件应用内启用并落库',
+      skillEnabled && skillState.length === 1 && skillState[0].enabled === true,
+      JSON.stringify(skillState.map((item) => [item.name, item.enabled]))
+    )
+
+    byText('.w1-caphead .w1-capmini', '本地导入')?.click()
+    const localSkillReady = await waitFor(
+      () => Boolean(byText('.w1-caprow', 'local-skill')),
+      4000
+    )
+    const localDetailButton = [
+      ...(byText('.w1-caprow', 'local-skill')?.querySelectorAll('.w1-capmini') ?? [])
+    ].find((button) => button.textContent === '详情')
+    localDetailButton?.click()
+    const localDocReady = await waitFor(
+      () => (one('.w1-skilldoc pre')?.textContent ?? '').includes('Local smoke skill'),
+      3000
+    )
+    check(
+      '本地 SKILL.md 可导入并查看源文件',
+      localSkillReady && localDocReady,
+      one('.w1-skilldetail')?.textContent?.slice(0, 120) ?? 'missing'
+    )
+    await waitFor(() => {
+      const buttons = [
+        ...(byText('.w1-caprow', 'local-skill')?.querySelectorAll('.w1-capmini') ?? [])
+      ]
+      return buttons.length > 0 && buttons.every((button) => !button.disabled)
+    }, 3000)
+    const localRemove = [
+      ...(byText('.w1-caprow', 'local-skill')?.querySelectorAll('.w1-capmini') ?? [])
+    ].find((button) => button.textContent === '移除')
+    localRemove?.click()
+    await waitFor(
+      () =>
+        [...(byText('.w1-caprow', 'local-skill')?.querySelectorAll('.w1-capmini') ?? [])].some(
+          (button) => button.textContent === '确认移除'
+        ),
+      2000
+    )
+    ;[
+      ...(byText('.w1-caprow', 'local-skill')?.querySelectorAll('.w1-capmini') ?? [])
+    ].find((button) => button.textContent === '确认移除')?.click()
+    const localRemoved = await waitFor(() => !byText('.w1-caprow', 'local-skill'), 3000)
+    const localList = await window.ws.capability.skills.list()
+    check(
+      '本地技能可从私有目录移除',
+      localRemoved && localList.length === 1,
+      JSON.stringify(localList.map((item) => item.name))
+    )
+
+    byText('.w1-capnav button', 'MCP 服务')?.click()
+    await sleep(300)
+    check(
+      '外部 MCP 说明包含 Codex Provider 会话',
+      (one('.w1-cap')?.textContent ?? '').includes('Codex app-server') &&
+        (one('.w1-cap')?.textContent ?? '').includes('密钥只进子进程环境'),
+      one('.w1-capnote')?.textContent?.slice(0, 100) ?? 'missing'
+    )
+    const memoryCard = byText('.w1-capcard', 'Memory')
+    memoryCard?.querySelector('.w1-capmini.pri')?.click()
+    const memoryRowReady = await waitFor(
+      () => Boolean(byText('.w1-caprow', 'Memory')),
+      4000
+    )
+    byText('.w1-caprow', 'Memory')?.querySelector('.w1-setbtn')?.click()
+    await waitFor(
+      () =>
+        (byText('.w1-caprow', 'Memory')?.querySelector('.w1-setbtn')?.textContent ?? '') ===
+        '确认信任并启用',
+      2000
+    )
+    byText('.w1-caprow', 'Memory')?.querySelector('.w1-setbtn')?.click()
+    const memoryEnabled = await waitFor(
+      () =>
+        (byText('.w1-caprow', 'Memory')?.querySelector('.w1-setbtn')?.textContent ?? '') ===
+        '已启用',
+      3000
+    )
+    const mcpState = await window.ws.capability.mcp.list()
+    check(
+      '内置 MCP 可添加、信任并启用',
+      memoryRowReady &&
+        memoryEnabled &&
+        mcpState.some((server) => server.catalogId === 'memory' && server.enabled),
+      JSON.stringify(mcpState.map((server) => [server.name, server.enabled]))
+    )
+
+    const envItems = all('.w1-capenvitem')
+    check(
+      'MCP 环境自检显示本机命令',
+      envItems.length === 6 && (one('.w1-capenv')?.textContent ?? '').includes('node'),
+      String(envItems.length) + ' · ' + (one('.w1-capenv')?.textContent?.slice(0, 80) ?? 'missing')
+    )
+
+    byText('.w1-caphead .w1-capmini', '导出')?.click()
+    const exportReady = await waitFor(
+      () => (one('.w1-capjson')?.value ?? '').includes('mcpServers'),
+      3000
+    )
+    const exportText = one('.w1-capjson')?.value ?? ''
+    check(
+      'MCP JSON 导出包含 Server 且不导密钥值',
+      exportReady && exportText.includes('"Memory"') && !exportText.includes('Bearer '),
+      exportText.slice(0, 100)
+    )
+    byText('.w1-capform .w1-capmini', '取消')?.click()
+    await sleep(200)
+
+    byText('.w1-caphead .w1-capmini', '导入')?.click()
+    await waitFor(() => !!one('.w1-capjson'), 2000)
+    setValue(
+      one('.w1-capjson'),
+      JSON.stringify({
+        mcpServers: {
+          Imported: { command: 'node', args: [window.__WS_MCP_STUB__] }
+        }
+      })
+    )
+    byText('.w1-capform .w1-capmini.pri', '导入')?.click()
+    const importedReady = await waitFor(
+      () => Boolean(byText('.w1-caprow', 'Imported')),
+      4000
+    )
+    check(
+      'MCP JSON 导入生成停用 Server',
+      importedReady,
+      one('.w1-caplist')?.textContent?.slice(-80) ?? 'missing'
+    )
+    for (let index = 0; index < 2; index += 1) {
+      const remove = [
+        ...(byText('.w1-caprow', 'Imported')?.querySelectorAll('.w1-capmini') ?? [])
+      ].find((button) => button.textContent === '移除' || button.textContent === '确认移除')
+      remove?.click()
+      await sleep(150)
+    }
+    await waitFor(() => !byText('.w1-caprow', 'Imported'), 3000)
+
+    byText('.w1-caphead .w1-capmini.pri', '自定义 Server')?.click()
+    await waitFor(() => !!one('.w1-capform'), 2000)
+    setValue(one('input[aria-label="MCP 名称"]'), 'Stub MCP')
+    setValue(one('input[aria-label="MCP 命令"]'), 'node')
+    setValue(one('textarea[aria-label="MCP 参数"]'), window.__WS_MCP_STUB__)
+    byText('.w1-capform .w1-capmini.pri', '添加 Server')?.click()
+    const stubAdded = await waitFor(() => Boolean(byText('.w1-caprow', 'Stub MCP')), 4000)
+    check('自定义 MCP 可添加', stubAdded, one('.w1-caplist')?.textContent?.slice(-80) ?? 'missing')
+
+    byText('.w1-caprow', 'Stub MCP')?.querySelector('.w1-setbtn')?.click()
+    await waitFor(
+      () =>
+        (byText('.w1-caprow', 'Stub MCP')?.querySelector('.w1-setbtn')?.textContent ?? '') ===
+        '确认信任并启用',
+      2000
+    )
+    byText('.w1-caprow', 'Stub MCP')?.querySelector('.w1-setbtn')?.click()
+    await waitFor(
+      () =>
+        (byText('.w1-caprow', 'Stub MCP')?.querySelector('.w1-setbtn')?.textContent ?? '') ===
+        '已启用',
+      2000
+    )
+    const stubTestButton = [
+      ...(byText('.w1-caprow', 'Stub MCP')?.querySelectorAll('.w1-capmini') ?? [])
+    ].find((button) => button.textContent === '测试')
+    stubTestButton?.click()
+    const stubTested = await waitFor(() => {
+      const row = byText('.w1-caprow', 'Stub MCP')
+      const text = row?.textContent ?? ''
+      return text.includes('已连接') && text.includes('echo') && text.includes('stub_status')
+    }, 5000)
+    check(
+      '外部 MCP 可测试连接并列出工具',
+      stubTested,
+      byText('.w1-caprow', 'Stub MCP')?.textContent?.slice(-120) ?? 'missing'
+    )
+
+    const stubToolsButton = [
+      ...(byText('.w1-caprow', 'Stub MCP')?.querySelectorAll('.w1-capmini') ?? [])
+    ].find((button) => button.textContent?.startsWith('工具'))
+    stubToolsButton?.click()
+    const toolsVisible = await waitFor(() => all('.w1-captool').length === 2, 2000)
+    await waitFor(
+      () => all('.w1-captoolseg button').every((button) => !button.disabled),
+      3000
+    )
+    const allowButton = [
+      ...(byText('.w1-captool', 'echo')?.querySelectorAll('.w1-captoolseg button') ?? [])
+    ].find((button) => button.textContent === '自动')
+    allowButton?.click()
+    const allowSaved = await waitFor(async () => {
+      const list = await window.ws.capability.mcp.list()
+      return (
+        list
+          .find((server) => server.name === 'Stub MCP')
+          ?.tools.find((tool) => tool.name === 'echo')?.approval === 'allow'
+      )
+    }, 3000)
+    await waitFor(
+      () => all('.w1-captoolseg button').every((button) => !button.disabled),
+      3000
+    )
+    const denyButton = [
+      ...(byText('.w1-captool', 'stub_status')?.querySelectorAll('.w1-captoolseg button') ?? [])
+    ].find((button) => button.textContent === '禁止')
+    denyButton?.click()
+    const denySaved = await waitFor(async () => {
+      const list = await window.ws.capability.mcp.list()
+      const stub = list.find((server) => server.name === 'Stub MCP')
+      return (
+        stub?.tools.find((tool) => tool.name === 'stub_status')?.approval === 'deny' &&
+        stub.tools.find((tool) => tool.name === 'echo')?.approval === 'allow'
+      )
+    }, 3000)
+    check(
+      'MCP 工具级权限可设置',
+      toolsVisible && allowSaved && denySaved,
+      byText('.w1-captoolpanel', '工具级权限')?.textContent?.slice(0, 120) ?? 'missing'
+    )
+
+    await waitFor(() => {
+      const buttons = [...(byText('.w1-caprow', 'Stub MCP')?.querySelectorAll('.w1-capmini') ?? [])]
+      return buttons.length > 0 && buttons.every((button) => !button.disabled)
+    }, 3000)
+    const firstRemove = [
+      ...(byText('.w1-caprow', 'Stub MCP')?.querySelectorAll('.w1-capmini') ?? [])
+    ].find((button) => button.textContent === '移除')
+    firstRemove?.click()
+    await waitFor(
+      () =>
+        [...(byText('.w1-caprow', 'Stub MCP')?.querySelectorAll('.w1-capmini') ?? [])].some(
+          (button) => button.textContent === '确认移除'
+        ),
+      2000
+    )
+    const confirmRemove = [
+      ...(byText('.w1-caprow', 'Stub MCP')?.querySelectorAll('.w1-capmini') ?? [])
+    ].find((button) => button.textContent === '确认移除')
+    confirmRemove?.click()
+    const stubRemoved = await waitFor(() => !byText('.w1-caprow', 'Stub MCP'), 3000)
+    const remainingMcp = await window.ws.capability.mcp.list()
+    check(
+      '自定义 MCP 可移除且不残留',
+      stubRemoved && remainingMcp.length === 1 && remainingMcp[0].catalogId === 'memory',
+      JSON.stringify(remainingMcp.map((server) => server.name))
+    )
+
+    byText('.w1-capnav button', '内置工具')?.click()
+    await sleep(250)
+    check(
+      '内置工具目录展示 11 个数据工具',
+      all('.w1-caprow.static').length === 11 &&
+        (one('.w1-cap')?.textContent ?? '').includes('tasks_list') &&
+        (one('.w1-cap')?.textContent ?? '').includes('notes_create'),
+      String(all('.w1-caprow.static').length)
+    )
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
+    await waitFor(() => !one('.w1-settings-sheet'), 2000)
+
+    await navTo('Agent')
+    byText('.w1-sess', '测一下多会话回复')?.click()
+    await sleep(400)
+    const capabilityInput = one('#composer-input')
+    setValue(capabilityInput, '能力中心检查')
+    await sleep(80)
+    capabilityInput.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    const capabilityReply = await waitFor(
+      () => (one('.w1-thread')?.textContent ?? '').includes('能力中心：插件'),
+      3000
+    )
+    const capabilityText = one('.w1-thread')?.textContent ?? ''
+    check(
+      '私有插件与 MCP 注入 Claude 会话',
+      capabilityReply &&
+        capabilityText.includes('claude-plugins') &&
+        capabilityText.includes('memory') &&
+        capabilityText.includes('workstationforone') &&
+        capabilityText.includes('严格 true'),
+      capabilityText.slice(-180)
+    )
+
+    one('.w1-aworkspacefiles')?.click()
+    const workspaceSheet = await waitFor(() => !!one('.w1-wssheet'), 2000)
+    const workspaceTree = one('.w1-wstree')?.textContent ?? ''
+    check(
+      'Agent 工作区文件树可打开',
+      workspaceSheet && workspaceTree.includes('smoke-note.txt') && workspaceTree.includes('src'),
+      workspaceTree.slice(0, 100)
+    )
+    byText('.w1-wsfile', 'smoke-note.txt')?.click()
+    const workspacePreview = await waitFor(
+      () => (one('.w1-wspreview pre')?.textContent ?? '').includes('workspace smoke preview'),
+      3000
+    )
+    check(
+      '工作区文件可只读预览',
+      workspacePreview,
+      one('.w1-wspreview')?.textContent?.slice(0, 100) ?? 'missing'
+    )
+    one('.w1-wssheet')?.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true })
+    )
+    await waitFor(() => !one('.w1-wssheet'), 2000)
+
+    await navTo('Agent')
+    byText('.w1-sess', '读一下入口')?.click()
+    await sleep(350)
+    check(
+      'Codex Provider 激活后显示 app-server 审批模式',
+      (one('.w1-term')?.textContent ?? '').includes('app-server') &&
+        (one('.w1-perms')?.textContent ?? '').includes('写入 需审批'),
+      one('.w1-term')?.textContent ?? ''
+    )
+    const codexWriteInput = one('#composer-input')
+    setValue(codexWriteInput, '写一个文件')
+    await sleep(80)
+    codexWriteInput.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    const approvalShown = await waitFor(
+      () =>
+        (one('.w1-toolperm')?.textContent ?? '').includes('Shell') &&
+        (one('.w1-toolperm')?.textContent ?? '').includes('Set-Content'),
+      5000
+    )
+    check(
+      'Codex 工作区审批卡出现',
+      approvalShown,
+      one('.w1-toolperm')?.textContent?.slice(0, 140) ?? 'missing'
+    )
+    byText('.w1-toolperm .w1-pb', '允许一次')?.click()
+    const codexWriteDone = await waitFor(
+      () =>
+        !one('.w1-toolperm') &&
+        (one('.w1-thread')?.textContent ?? '').includes('已允许写入。'),
+      6000
+    )
+    check(
+      'Codex 允许一次后继续本轮',
+      codexWriteDone &&
+        (all('.w1-amsg').at(-1)?.textContent ?? '').includes('已允许写入。'),
+      all('.w1-amsg').at(-1)?.textContent?.slice(-120) ?? 'missing'
+    )
+
+    const codexMcpInput = one('#composer-input')
+    setValue(codexMcpInput, 'MCP 写入')
+    await sleep(80)
+    codexMcpInput.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    const mcpApproval = await waitFor(
+      () =>
+        (one('.w1-toolperm')?.textContent ?? '').includes(
+          'MCP · workstationforone/tasks_create'
+        ),
+      5000
+    )
+    check(
+      'Codex MCP 工具进入审批卡',
+      mcpApproval,
+      one('.w1-toolperm')?.textContent?.slice(0, 180) ?? 'missing'
+    )
+    byText('.w1-toolperm .w1-pb', '允许一次')?.click()
+    const mcpAllowed = await waitFor(
+      () =>
+        !one('.w1-toolperm') &&
+        (one('.w1-thread')?.textContent ?? '').includes('已允许 MCP 调用。'),
+      6000
+    )
+    check(
+      'Codex MCP 允许一次后继续',
+      mcpAllowed,
+      all('.w1-amsg').at(-1)?.textContent?.slice(-120) ?? 'missing'
+    )
+
+    one('.w1-settings')?.click()
+    await waitFor(() => !!one('.w1-settings-sheet'), 2000)
+    byText('.w1-provseg button', 'Codex CLI')?.click()
+    await sleep(200)
+    byText('.w1-provseg button', '继承 Codex CLI')?.click()
+    await sleep(400)
+    check(
+      'Codex Provider 可切回继承 CLI',
+      one('[aria-label="Provider 模式"] button.on')?.textContent?.includes(
+        '继承 Codex CLI'
+      ) === true,
+      one('[aria-label="Provider 模式"] button.on')?.textContent ?? ''
+    )
+
     const themeBtnBefore = document.documentElement.dataset.theme
     const themeBtns = all('.w1-setbtn')
     themeBtns[0]?.click()
@@ -1127,6 +2036,7 @@ async function run() {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
     await waitFor(() => !one('.w1-settings-sheet'), 2000)
     check('Esc 关闭设置面板', !one('.w1-settings-sheet'))
+    await navTo('今日')
 
     const habitCard = all('.w1-card').find((card) => card.textContent?.includes('习惯打卡'))
     const habitBefore = habitCard?.querySelector('.w1-ct span')?.textContent ?? ''
@@ -1663,10 +2573,15 @@ async function run() {
       one('.w1-toast')?.textContent ?? 'no toast'
     )
 
-    check('Esc 关闭命令面板', !one('.w1-palette'))
+    const paletteClosed = await waitFor(() => !one('.w1-palette'), 2000)
+    const paletteFocusReturned = await waitFor(
+      () => document.activeElement?.classList.contains('w1-motion') === true,
+      2000
+    )
+    check('Esc 关闭命令面板', paletteClosed)
     check(
       'Esc 后焦点归位',
-      document.activeElement?.classList.contains('w1-motion'),
+      paletteFocusReturned,
       document.activeElement?.className?.toString?.() ?? ''
     )
     await sleep(1000)
@@ -1772,11 +2687,19 @@ async function run() {
       fsrs: count('SELECT COUNT(*) AS n FROM learning_items WHERE stability IS NOT NULL'),
       agentSessions: count('SELECT COUNT(*) AS n FROM agent_sessions'),
       agentMessages: count('SELECT COUNT(*) AS n FROM agent_messages'),
+      importedMessages: count("SELECT COUNT(*) AS n FROM agent_messages WHERE origin = 'import'"),
+      importedTools: count(
+        "SELECT COUNT(*) AS n FROM agent_messages WHERE origin = 'import' AND tools_json IS NOT NULL"
+      ),
       agentResume: count('SELECT COUNT(*) AS n FROM agent_sessions WHERE resume_id IS NOT NULL'),
       codexSessions: count("SELECT COUNT(*) AS n FROM agent_sessions WHERE agent = 'codex'"),
       codexResume: count(
         "SELECT COUNT(*) AS n FROM agent_sessions WHERE agent = 'codex' AND resume_id IS NOT NULL"
       ),
+      agentWorkspaces: count("SELECT COUNT(*) AS n FROM agent_sessions WHERE workspace <> ''"),
+      agentRuns: count('SELECT COUNT(*) AS n FROM agent_runs'),
+      plugins: count('SELECT COUNT(*) AS n FROM agent_plugins'),
+      mcpServers: count('SELECT COUNT(*) AS n FROM mcp_servers'),
       mcpAudit: count("SELECT COUNT(*) AS n FROM audit_log WHERE domain = 'mcp'"),
       mcpWrites: count(
         "SELECT COUNT(*) AS n FROM audit_log WHERE domain = 'mcp' AND action = 'write'"
@@ -1831,6 +2754,44 @@ async function run() {
     name: 'Codex 会话与 resume id 已落库',
     ok: Boolean(dbStats && dbStats.codexSessions === 1 && dbStats.codexResume === 1),
     detail: dbStats ? `${dbStats.codexSessions} 会话 / resume ${dbStats.codexResume}` : '无数据'
+  })
+  results.checks.push({
+    name: 'Agent 会话工作区已落库',
+    ok: Boolean(dbStats && dbStats.agentWorkspaces >= 2),
+    detail: dbStats ? String(dbStats.agentWorkspaces) : '无数据'
+  })
+  results.checks.push({
+    name: '导入历史消息已落库',
+    ok: Boolean(dbStats && dbStats.importedMessages > 0 && dbStats.importedTools > 0),
+    detail: dbStats ? `${dbStats.importedMessages} 条 / 工具卡 ${dbStats.importedTools}` : '无数据'
+  })
+  results.checks.push({
+    name: 'Agent 运行用量已落库',
+    ok: Boolean(dbStats && dbStats.agentRuns > 0),
+    detail: dbStats ? String(dbStats.agentRuns) : '无数据'
+  })
+  results.checks.push({
+    name: '能力中心插件与 MCP 已落库',
+    ok: Boolean(dbStats && dbStats.plugins === 1 && dbStats.mcpServers === 1),
+    detail: dbStats ? `${dbStats.plugins} 插件 / ${dbStats.mcpServers} MCP` : '无数据'
+  })
+  let codexConfig = ''
+  try {
+    codexConfig = readFileSync(join(dataDir, 'db', 'codex-home', 'config.toml'), 'utf8')
+  } catch {
+    // 没有 Codex Provider 运行过就没有配置文件，下面按失败断言
+  }
+  const codexExternalReady =
+    codexConfig.includes('[mcp_servers.workstationforone]') &&
+    codexConfig.includes('[mcp_servers.memory]') &&
+    codexConfig.includes('default_tools_approval_mode = "prompt"') &&
+    !codexConfig.includes('sk-smoke-codex-secret')
+  results.checks.push({
+    name: 'Codex Provider 配置下发外部 MCP 且不含密钥值',
+    ok: codexExternalReady,
+    detail: codexExternalReady
+      ? 'memory + workstationforone'
+      : codexConfig.slice(0, 160) || '无配置'
   })
   results.checks.push({
     name: 'MCP 调用已写审计',
@@ -1991,6 +2952,11 @@ async function runCaptureChecks(mainWin) {
 }
 
 function cleanup() {
+  try {
+    providerProbe.close()
+  } catch {
+    // 探针已关闭
+  }
   try {
     rmSync(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   } catch {

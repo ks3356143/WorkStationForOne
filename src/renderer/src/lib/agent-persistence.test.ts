@@ -21,6 +21,7 @@ const bundle: AgentThreadBundle = {
       title: '重构 auth 模块',
       status: 'idle',
       resumeId: 'cli-1',
+      workspace: 'C:\\work\\auth',
       createdAt: 1,
       updatedAt: Date.now()
     }
@@ -60,6 +61,7 @@ describe('hydrateAgent', () => {
       id: 's-1',
       title: '重构 auth 模块',
       resumeId: 'cli-1',
+      workspace: 'C:\\work\\auth',
       status: 'idle'
     })
     expect(state.sessions[0].meta).toContain('2 条')

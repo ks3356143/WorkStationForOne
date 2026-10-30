@@ -45,8 +45,20 @@ export interface Session {
   meta: string
   status: SessionStatus
   threadDate: string
+  /** 会话自己的工作目录；空表示尚未选择 */
+  workspace?: string
   /** Claude CLI 自己的会话 id；重启后用于 --resume */
   resumeId?: string
+}
+
+export interface AgentStream {
+  runId: string | null
+  messageId: string
+}
+
+export interface PendingAgentPrompt {
+  sessionId: string
+  prompt: string
 }
 
 export interface ToolCall {
@@ -69,6 +81,8 @@ export interface ChatMessage {
   tools?: ToolCall[]
   /** 这一轮失败时的提示，渲染层用危险色标出，不与正常回复混在一起 */
   error?: boolean
+  /** 从本机 CLI 历史导入的消息，只读展示 */
+  imported?: boolean
 }
 
 export interface PermissionChange {
@@ -126,15 +140,17 @@ export interface WorkstationData {
   sessions: Session[]
   activeSessionId: string
   threads: Record<string, ChatMessage[]>
+  /** 每个会话各自的流；同一会话串行，不同会话可并行 */
+  streams: Record<string, AgentStream>
+  /** 待启动的提示词按发起会话排队 */
+  pendingPrompts: PendingAgentPrompt[]
   typing: boolean
   pendingReplyTo: string | null
-  /** 待发送的提示词：Composer 写入，订阅层取走后调用真实 CLI */
-  pendingPrompt: string | null
-  /** 正在流式写入的助手消息，null 表示当前没有真实回合在跑 */
-  streaming: { runId: string | null; sessionId: string; messageId: string } | null
   permission: Permission | null
-  toolPermission: ToolPermission | null
-  mcpPermission: McpPermissionRequest | null
+  /** 工具审批按会话保存，后台会话也能保有自己的卡片 */
+  toolPermissions: Record<string, ToolPermission>
+  /** MCP 审批按会话保存 */
+  mcpPermissions: Record<string, McpPermissionRequest>
   resolution: ResolutionRecord | null
   motionOn: boolean
   theme: Theme

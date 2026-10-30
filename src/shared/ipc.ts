@@ -253,6 +253,8 @@ export interface AgentSessionRecord {
   status: AgentSessionStatus
   /** Claude CLI 自己的 session id；重启后用于 --resume */
   resumeId?: string
+  /** 会话自己的工作目录；空表示尚未选择 */
+  workspace?: string
   createdAt: number
   updatedAt: number
 }
@@ -266,6 +268,8 @@ export interface AgentMessageRecord {
   error?: boolean
   tools?: AgentToolRecord[]
   createdAt: number
+  /** app = 应用内产生；import = 从本机 CLI JSONL 只读导入 */
+  origin?: 'app' | 'import'
 }
 
 export interface AgentThreadBundle {
@@ -283,6 +287,7 @@ export interface AgentSessionPatch {
   title?: string
   status?: AgentSessionStatus
   resumeId?: string
+  workspace?: string
 }
 
 export interface AgentSendInput {
@@ -326,10 +331,29 @@ export interface ProviderSaveInput {
   apiKey?: string
 }
 
+export interface ProviderTestInput {
+  /** 编辑已保存配置时可省略 apiKey，由主进程解密旧 token */
+  id?: string
+  target: ProviderTarget
+  wireApi: ProviderWireApi
+  baseUrl: string
+  model: string
+  /** 只用于本次探测，不落库、不回显 */
+  apiKey?: string
+}
+
+export interface ProviderTestResult {
+  ok: boolean
+  latencyMs: number
+  status?: number
+  message: string
+}
+
 export interface ProviderApi {
   list: () => Promise<ProviderProfileRecord[]>
   save: (input: ProviderSaveInput) => Promise<ProviderProfileRecord>
   setActive: (target: ProviderTarget, id: string | null) => Promise<void>
+  test: (input: ProviderTestInput) => Promise<ProviderTestResult>
 }
 
 export interface AgentPermissionResponse {
@@ -344,6 +368,67 @@ export interface AgentEventEnvelope {
   event: AgentRunEvent
 }
 
+export interface DiscoveredAgentSession {
+  agent: 'claude' | 'codex'
+  resumeId: string
+  title: string
+  workspace: string
+  workspaceExists: boolean
+  updatedAt: number
+  imported: boolean
+}
+
+export interface AgentImportInput {
+  agent: 'claude' | 'codex'
+  resumeId: string
+  title: string
+  workspace: string
+}
+
+export interface AgentImportResult {
+  session: AgentSessionRecord
+  /** 从本机 JSONL 导入的历史；只读展示，不重新喂给模型 */
+  messages: AgentMessageRecord[]
+}
+
+export interface AgentPresetRecord {
+  id: string
+  name: string
+  agent: 'claude' | 'codex'
+  workspace: string
+  createdAt: number
+  updatedAt: number
+}
+
+export interface AgentPresetInput {
+  name: string
+  agent: 'claude' | 'codex'
+  workspace: string
+}
+
+export interface AgentRunRecord {
+  id: string
+  sessionId: string
+  startedAt: number
+  finishedAt: number | null
+  ok: boolean | null
+  cancelled: boolean
+  costUsd: number | null
+  durationMs: number | null
+  turns: number | null
+}
+
+export interface WorkspaceEntry {
+  path: string
+  type: 'file' | 'dir'
+  size: number
+}
+
+export interface WorkspaceFile {
+  path: string
+  text: string
+}
+
 export interface AgentApi {
   send: (input: AgentSendInput) => Promise<AgentRunStart>
   cancel: (runId: string) => Promise<void>
@@ -353,6 +438,17 @@ export interface AgentApi {
   createSession: (input: AgentCreateInput) => Promise<AgentSessionRecord>
   updateSession: (id: string, patch: AgentSessionPatch) => Promise<void>
   saveMessage: (message: AgentMessageRecord) => Promise<void>
+  /** 打开原生目录选择器；取消返回 null */
+  pickWorkspace: (current?: string) => Promise<string | null>
+  workspaceTree: (sessionId: string) => Promise<WorkspaceEntry[]>
+  readWorkspaceFile: (sessionId: string, path: string) => Promise<WorkspaceFile>
+  openWorkspace: (sessionId: string) => Promise<void>
+  presets: () => Promise<AgentPresetRecord[]>
+  savePreset: (input: AgentPresetInput) => Promise<AgentPresetRecord>
+  removePreset: (id: string) => Promise<void>
+  usage: (days: number) => Promise<AgentRunRecord[]>
+  discoverSessions: () => Promise<DiscoveredAgentSession[]>
+  importSession: (input: AgentImportInput) => Promise<AgentImportResult>
 }
 
 export const MCP_DOMAINS = ['task', 'habit', 'learning', 'note'] as const
@@ -394,6 +490,174 @@ export interface McpApi {
   onPermission: (listener: (request: McpPermissionRequest) => void) => () => void
   /** MCP 写入成功后广播受影响的域，渲染层据此重新读库 */
   onChanged: (listener: (domains: McpDomain[]) => void) => () => void
+}
+
+export interface BuiltinToolRecord {
+  name: string
+  description: string
+  domain: McpDomain
+  write: boolean
+}
+
+export interface SkillRecord {
+  id: string
+  name: string
+  description: string
+  version: string
+  marketplace: string
+  enabled: boolean
+  trusted: boolean
+  components: string[]
+  hasHooks: boolean
+  hasMcp: boolean
+  installedAt: number
+  updatedAt: number
+}
+
+export interface SkillMarketEntry {
+  pluginId: string
+  name: string
+  description: string
+  marketplace: string
+  source: string
+  installed: boolean
+  installCount: number
+}
+
+export interface SkillMarketSnapshot {
+  entries: SkillMarketEntry[]
+  fetchedAt: number
+  stale: boolean
+  error?: string
+}
+
+export interface SkillInspection {
+  files: string[]
+  docs: { path: string; content: string }[]
+}
+
+export interface SkillApi {
+  list: () => Promise<SkillRecord[]>
+  importLocal: () => Promise<SkillRecord | null>
+  inspect: (pluginId: string) => Promise<SkillInspection>
+  openFolder: (pluginId: string) => Promise<void>
+  market: (force?: boolean) => Promise<SkillMarketSnapshot>
+  install: (pluginId: string) => Promise<SkillRecord>
+  update: (pluginId: string) => Promise<SkillRecord>
+  remove: (pluginId: string) => Promise<void>
+  setEnabled: (pluginId: string, enabled: boolean, trust?: boolean) => Promise<SkillRecord>
+}
+
+export type ExternalMcpTransport = 'stdio' | 'http'
+export type McpToolApproval = 'allow' | 'ask' | 'deny'
+
+export interface ExternalMcpToolRecord {
+  name: string
+  description: string
+  readOnly: boolean
+  approval: McpToolApproval
+}
+
+export interface ExternalMcpServerRecord {
+  id: string
+  key: string
+  name: string
+  description: string
+  transport: ExternalMcpTransport
+  command: string
+  args: string[]
+  url: string
+  envKeys: string[]
+  headerKeys: string[]
+  source: 'catalog' | 'manual'
+  catalogId: string
+  version: string
+  enabled: boolean
+  trusted: boolean
+  toolNames: string[]
+  tools: ExternalMcpToolRecord[]
+  lastTestAt: number | null
+  lastError: string
+  createdAt: number
+  updatedAt: number
+}
+
+export interface McpImportResult {
+  added: ExternalMcpServerRecord[]
+  skipped: string[]
+  errors: { name: string; message: string }[]
+}
+
+export interface ExternalMcpSaveInput {
+  name: string
+  description?: string
+  transport: ExternalMcpTransport
+  command?: string
+  args?: string[]
+  url?: string
+  env?: Record<string, string>
+  headers?: Record<string, string>
+  removeEnvKeys?: string[]
+  removeHeaderKeys?: string[]
+  catalogId?: string
+  version?: string
+}
+
+export interface ExternalMcpCatalogEntry {
+  id: string
+  name: string
+  description: string
+  transport: ExternalMcpTransport
+  command: string
+  args: string[]
+  url?: string
+  packageName?: string
+  registry?: 'npm' | 'pypi'
+  version?: string
+  requiredEnv?: string[]
+}
+
+export interface ExternalMcpUpdateInfo {
+  id: string
+  name: string
+  currentVersion: string
+  latestVersion: string
+  hasUpdate: boolean
+}
+
+export interface ExternalMcpApi {
+  list: () => Promise<ExternalMcpServerRecord[]>
+  catalog: () => Promise<ExternalMcpCatalogEntry[]>
+  add: (input: ExternalMcpSaveInput) => Promise<ExternalMcpServerRecord>
+  update: (id: string, input: ExternalMcpSaveInput) => Promise<ExternalMcpServerRecord>
+  remove: (id: string) => Promise<void>
+  setEnabled: (id: string, enabled: boolean, trust?: boolean) => Promise<ExternalMcpServerRecord>
+  test: (id: string) => Promise<ExternalMcpServerRecord>
+  setToolPolicy: (
+    id: string,
+    toolName: string,
+    approval: McpToolApproval
+  ) => Promise<ExternalMcpServerRecord>
+  importConfig: (text: string) => Promise<McpImportResult>
+  exportConfig: () => Promise<string>
+  checkUpdates: () => Promise<ExternalMcpUpdateInfo[]>
+  applyUpdate: (id: string) => Promise<ExternalMcpServerRecord>
+}
+
+export interface EnvironmentCheckRecord {
+  id: 'node' | 'npx' | 'uvx' | 'git' | 'claude' | 'codex'
+  label: string
+  command: string
+  available: boolean
+  version: string
+  path: string
+}
+
+export interface CapabilityApi {
+  builtinTools: () => Promise<BuiltinToolRecord[]>
+  environment: (force?: boolean) => Promise<EnvironmentCheckRecord[]>
+  skills: SkillApi
+  mcp: ExternalMcpApi
 }
 
 export type AuditLogDomain = 'task' | 'note' | 'learning' | 'habit' | 'mcp' | 'system'
@@ -442,6 +706,7 @@ export interface WsApi {
   habits: HabitApi
   agent: AgentApi
   mcp: McpApi
+  capability: CapabilityApi
   audit: AuditApi
   app: AppApi
 }
@@ -488,15 +753,49 @@ export const IPC_CHANNELS = {
   agentCreateSession: 'agent:create-session',
   agentUpdateSession: 'agent:update-session',
   agentSaveMessage: 'agent:save-message',
+  agentPickWorkspace: 'agent:pick-workspace',
+  agentWorkspaceTree: 'agent:workspace-tree',
+  agentWorkspaceFile: 'agent:workspace-file',
+  agentOpenWorkspace: 'agent:open-workspace',
+  agentPresets: 'agent:presets',
+  agentSavePreset: 'agent:save-preset',
+  agentRemovePreset: 'agent:remove-preset',
+  agentUsage: 'agent:usage',
+  agentDiscoverSessions: 'agent:discover-sessions',
+  agentImportSession: 'agent:import-session',
   mcpPolicyList: 'mcp:policy-list',
   mcpPolicySet: 'mcp:policy-set',
   mcpChanged: 'mcp:changed',
   mcpPermission: 'mcp:permission',
   mcpPermissionResponse: 'mcp:permission-response',
+  capabilityBuiltinTools: 'capability:builtin-tools',
+  capabilitySkillsList: 'capability:skills-list',
+  capabilitySkillsMarket: 'capability:skills-market',
+  capabilitySkillsInstall: 'capability:skills-install',
+  capabilitySkillsUpdate: 'capability:skills-update',
+  capabilitySkillsRemove: 'capability:skills-remove',
+  capabilitySkillsSetEnabled: 'capability:skills-set-enabled',
+  capabilitySkillsImportLocal: 'capability:skills-import-local',
+  capabilitySkillsInspect: 'capability:skills-inspect',
+  capabilitySkillsOpenFolder: 'capability:skills-open-folder',
+  capabilityMcpList: 'capability:mcp-list',
+  capabilityMcpCatalog: 'capability:mcp-catalog',
+  capabilityMcpAdd: 'capability:mcp-add',
+  capabilityMcpUpdate: 'capability:mcp-update',
+  capabilityMcpRemove: 'capability:mcp-remove',
+  capabilityMcpSetEnabled: 'capability:mcp-set-enabled',
+  capabilityMcpTest: 'capability:mcp-test',
+  capabilityMcpSetToolPolicy: 'capability:mcp-set-tool-policy',
+  capabilityMcpImport: 'capability:mcp-import',
+  capabilityMcpExport: 'capability:mcp-export',
+  capabilityEnvironment: 'capability:environment',
+  capabilityMcpCheckUpdates: 'capability:mcp-check-updates',
+  capabilityMcpApplyUpdate: 'capability:mcp-apply-update',
   auditRecent: 'audit:recent',
   providerList: 'provider:list',
   providerSave: 'provider:save',
   providerSetActive: 'provider:set-active',
+  providerTest: 'provider:test',
   appSetTheme: 'app:set-theme',
   appBackupNow: 'app:backup-now',
   appInfo: 'app:info'

@@ -1,12 +1,13 @@
-import type { AgentMessageRecord, AgentSessionRecord, AgentThreadBundle } from '../../../shared/ipc'
+import type { AgentSessionRecord, AgentThreadBundle } from '../../../shared/ipc'
 import {
   ACTIVE_AGENT_KEY,
   bindAgentPersistence,
   useWorkstation,
   type AgentPersistence
 } from '../store/useWorkstation'
-import type { ChatMessage, Session, ToolCall } from '../types'
+import type { ChatMessage, Session } from '../types'
 import { agentSessionDate, agentSessionMeta } from './agent'
+import { toChatMessage } from './chat-message'
 import { browserStorage } from './theme'
 
 export interface AgentHydrateDeps extends AgentPersistence {
@@ -21,19 +22,8 @@ function toSession(record: AgentSessionRecord, messageCount: number, now: number
     status: record.status,
     meta: agentSessionMeta(record.updatedAt, messageCount, now),
     threadDate: agentSessionDate(record.updatedAt, now),
+    ...(record.workspace ? { workspace: record.workspace } : {}),
     ...(record.resumeId ? { resumeId: record.resumeId } : {})
-  }
-}
-
-function toMessage(record: AgentMessageRecord): ChatMessage {
-  const tools: ToolCall[] | undefined = record.tools?.map((tool) => ({ ...tool }))
-  return {
-    id: record.id,
-    role: record.role,
-    text: record.text,
-    time: record.timeLabel,
-    ...(record.error ? { error: true } : {}),
-    ...(tools ? { tools } : {})
   }
 }
 
@@ -58,7 +48,7 @@ export async function hydrateAgent(deps = bridgeAgent()): Promise<void> {
     for (const message of bundle.messages) {
       const thread = threads[message.sessionId]
       if (!thread) continue
-      thread.push(toMessage(message))
+      thread.push(toChatMessage(message))
       counts.set(message.sessionId, (counts.get(message.sessionId) ?? 0) + 1)
     }
 
@@ -74,11 +64,13 @@ export async function hydrateAgent(deps = bridgeAgent()): Promise<void> {
       threads,
       activeSessionId,
       permission: null,
-      toolPermission: null,
+      toolPermissions: {},
+      mcpPermissions: {},
       resolution: null,
       typing: false,
-      pendingReplyTo: null,
-      streaming: null
+      pendingPrompts: [],
+      streams: {},
+      pendingReplyTo: null
     })
   } catch (error) {
     console.error('[agent] 会话读取失败', error)
@@ -87,11 +79,13 @@ export async function hydrateAgent(deps = bridgeAgent()): Promise<void> {
       threads: {},
       activeSessionId: '',
       permission: null,
-      toolPermission: null,
+      toolPermissions: {},
+      mcpPermissions: {},
       resolution: null,
       typing: false,
-      pendingReplyTo: null,
-      streaming: null
+      pendingPrompts: [],
+      streams: {},
+      pendingReplyTo: null
     })
   }
 }

@@ -32,7 +32,7 @@ export function ToolApprovalCard({ request, onResolve }: ToolApprovalCardProps) 
         <span>// 工具审批</span>
         <time>{request.toolName} · 待确认</time>
       </div>
-      <p>{request.description ?? `Claude 请求使用 ${request.toolName}。`}</p>
+      <p>{request.description ?? `Agent 请求使用 ${request.toolName}。`}</p>
       <div className="w1-toolinput">
         <div className="w1-toolrow">
           <span>工具</span>
@@ -46,7 +46,7 @@ export function ToolApprovalCard({ request, onResolve }: ToolApprovalCardProps) 
         ) : null}
         <pre>{request.inputPreview || '{}'}</pre>
       </div>
-      <p className="w1-toolhint">允许只作用于这一次调用；写操作不会自动放行。</p>
+      <p className="w1-toolhint">允许只作用于这一次请求；拒绝后本轮继续，工具会拿到拒绝结果。</p>
       <div className="w1-pacts">
         <button className="w1-pb" type="button" disabled={busy} onClick={() => resolve(false)}>
           拒绝

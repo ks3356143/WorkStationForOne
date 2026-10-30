@@ -2,33 +2,35 @@
 
 | 项 | 值 |
 | --- | --- |
-| 日期 | 2026-10-23（2026-10-29 修订） |
+| 日期 | 2026-10-23（2026-10-30 修订） |
 | 状态 | 已实现，随迭代更新 |
 | 平台 | Windows 10 / 11 x64 |
-| 产品版本 | v0.16.0 |
+| 产品版本 | v0.30.0 |
 | 视觉方向 | B‴ 极光 HUD（直角 + 玻璃 + 中文优先 + 全动效） |
 
-## 0. 实现状态与偏差（2026-10-29）
+## 0. 实现状态与偏差（2026-10-30）
 
 本文件保留 2026-10-23 的设计基线，后续章节未逐条改写；与实现冲突时，以本节、代码与 `AGENTS.md` 为准。
 
-当前 v0.16.0，数据库 v20。已实现五视图外壳（今日 / 任务 / Agent / 笔记 / 学习）、任务规划与重复、笔记 v2 与双链、学习 FSRS-6（MEM 科目）、CSV 导入导出、学习统计（含 14 天复习历史与评分分布）与挖空卡、习惯打卡、审计、备份、提醒、设置、快速捕获与便携版；Agent 页支持真实新建 Claude / Codex 会话、消息与工具卡持久化、resume id 跨重启续接、Claude 写工具逐次审批、Codex 只读沙箱与自定义 Provider（Key 系统加密）；Main 内嵌 MCP 数据桥，按回合 Token 向 Claude 暴露 11 个工具（5 读 + 6 写），DB v19 保存四域只读 / 询问 / 可写权限与写入审批卡，设置页可查看活动记录；MCP 服务异常关闭后在同一端口指数退避重启；MCP 写入与审计在同一个可嵌套事务里。未实现：Codex 写入与审批。
+当前 v0.30.0，数据库 v26。已实现五视图外壳（今日 / 任务 / Agent / 笔记 / 学习）、任务规划与重复、笔记 v2 与双链、学习 FSRS-6（MEM 科目）、CSV 导入导出、学习统计（含 14 天复习历史与评分分布）与挖空卡、习惯打卡、审计、备份、提醒、设置、快速捕获与便携版；Agent 页支持真实新建 Claude / Codex 会话、每会话独立工作区（DB v21，原生目录选择器、主进程校验，Claude/Codex 都只在该目录运行）、多会话并发（同一会话串行，不同会话各跑各的子进程；流、待发送提示词与审批按会话隔离）、舰队控制台（状态栏/舰队区/命令面板三入口，统一查看、筛选、打开、停止、新建应用内会话，含工作区预设与近 7 天用量）、本机会话只读扫描与导入（v0.27.0 → v0.30.0：读取本机 Claude / Codex CLI 的 JSONL 元数据、最近 200 条用户/助手正文与工具卡，按 resume id 接入舰队；DB v26 `origin` 标记导入历史，新消息仍由 CLI 续接，不改外部配置）、Agent 工作区只读文件树与本回合产物、本地技能导入/源文件详情、消息与工具卡持久化、resume id 跨重启续接、Claude 写工具逐次审批；Codex 继承 CLI 时只读，激活工具自己的 Provider 后走 `codex app-server`，命令、文件改动与额外权限请求进入同一张审批卡，Provider Key 系统加密；Codex 通过隔离的 HTTP MCP 桥读写本地数据，只读工具自动放行并审计、写入工具进入同一张审批卡，Token 仅在子进程环境；设置页的 Agent Provider 采用双端口接线台（目标端口、信号路由、继承说明卡与加密 Key 胶囊），并提供一次最小 HTTP「测试连接」，成功显示延迟、失败显示可读原因；DeepSeek `deepseek-flash` 的真实 app-server、测试连接、工作区写入与 MCP `today_overview` / `tasks_create` 均已在隔离工作区验证；Main 内嵌 MCP 数据桥，按回合 Token 向 Claude 暴露 11 个工具（5 读 + 6 写），DB v19 保存四域只读 / 询问 / 可写权限与写入审批卡，设置页可查看活动记录；MCP 服务异常关闭后在同一端口指数退避重启；MCP 写入与审计在同一个可嵌套事务里。能力中心（DB v22）把 Claude 插件市场、外部 MCP 与内置工具收进设置页：插件用隔离的 `CLAUDE_CONFIG_DIR` 安装到应用私有目录，Claude 会话通过 `--plugin-dir` 按会话加载；官方市场用应用私有 shallow sparse 镜像（`market-src`，manifest 改名 `wsfo-official`，界面显示 Claude 官方），真实网络验证到 315 个插件；外部 MCP 支持 stdio / HTTP、`safeStorage` 密钥、启停、npm/PyPI 更新检查，以及已信任 Server 的连接测试与工具发现（stdio 经 `resolveCommand()` 处理 `.cmd`，HTTP 支持 session / SSE）；DB v24 按工具保存 allow/ask/deny，Claude 只把 allow 放进 `--allowedTools`、deny 放进 `--disallowedTools`；环境自检只读 node/npx/uvx/git/claude/codex 版本，JSON 导入导出不泄露密钥值；Claude 会话只注入启用的外部 MCP 并通过 `--strict-mcp-config` 屏蔽全局 MCP；Codex Provider 会话通过应用 `codex-home` 下发同一批外部 MCP（v0.28.0：stdio 用 `env_vars`、HTTP 用 `env_http_headers`，密钥只在子进程环境），默认 `prompt`、allow / deny 走工具级配置；新装默认停用，执行类组件需二次确认信任。未实现：工具审批暂无持久规则；真实 Claude 市场网络拉取与模型内技能触发仍需单独验证；导入会话的真实续接质量仍待单独验证；HTTP 外部 MCP 与真实写入类工具仍待验证；Codex 其它 Provider 仍需分别验证。
 
 | 范围 | 设计基线 | 当前实现 |
 | --- | --- | --- |
 | 外壳 | 四视图 | 五视图，新增「学习」；学习内部为卡片库 / 复习态两态 |
-| Agent 接入 | 官方 SDK | 主进程 spawn 本机 `claude` CLI（stream-json）与 `codex exec --json`（只读），不依赖 SDK；`.cmd` 包装解析到原生入口 |
-| 工具审批 | 权限卡逐行 diff，写操作需允许 | 读工具自动放行；写工具通过 can_use_tool 弹通用审批卡，允许一次 / 拒绝；AskUserQuestion 自动拒绝 |
-| 会话 | 恢复 / Fork / 持久化 | `--session-id` / `--resume` 续接；会话、消息与 resume id 持久化（DB v16），空库从空态开始 |
+| Agent 接入 | 官方 SDK | 主进程 spawn 本机 `claude` CLI（stream-json）；Codex 继承 CLI 时 `codex exec --json` 只读，激活工具 Provider 后 `codex app-server --stdio` 工作区审批，不依赖 SDK；`.cmd` 包装解析到原生入口 |
+| 工具审批 | 权限卡逐行 diff，写操作需允许 | 读工具自动放行；Claude 写工具通过 can_use_tool 弹通用审批卡；Codex app-server 的 command / fileChange / permissions 请求进入同一审批卡，允许一次 / 拒绝；AskUserQuestion 自动拒绝 |
+| 会话 | 恢复 / Fork / 持久化 | `--session-id` / `--resume` 续接；会话、消息与 resume id 持久化（DB v16），空库从空态开始；同一会话串行，不同会话可并行，按 `runId` 路由事件与审批 |
 | 本地 MCP | 11 个工具 + 分区授权 | 11 个工具已实现（5 读 + 6 写）；四域 `read|ask|write` 权限（DB v19）；询问模式 + 写入审批卡（允许一次 / 本会话允许 / 拒绝，60 秒超时）；设置页有只读审计列表 |
+| 能力中心 | — | 设置页「基础 / 能力中心」：Claude 插件市场（应用私有目录 + `--plugin-dir`、热度排序/分批加载、本地 SKILL.md 导入与源文件预览）、外部 MCP（stdio / HTTP、密钥加密、更新检查、连接测试与工具发现、工具级 allow/ask/deny、环境自检、JSON 导入导出、`--strict-mcp-config`；v0.28.0 同步下发 Codex Provider 的 app-server，密钥用环境变量引用）、内置 11 个数据工具目录（DB v24）；新装默认停用，执行组件需二次信任 |
+| Agent 工作区/预设 | — | Agent 顶栏只读文件树 + 产物列表（v0.26.0）；`agent_presets` 工作区预设与 `agent_runs` 近 7 天用量（DB v25），入口在舰队控制台；本机 CLI 会话只读扫描与导入（v0.27.0 → v0.30.0，元数据 + 最近 200 条只读正文与工具卡，DB v26 `origin` 标记） |
 | 任务 | 基础 CRUD | 计划今天与容量条、排程预览、拖拽改期、重复、子任务、提醒、只做三件事、清单重命名、完成热力图 |
 | 笔记 | 搜索 + 虚拟滚动 | 弹层详情可编辑删除、双链 `[[笔记首行]]`、挖空卡、笔记转学习卡 |
 | 学习 | 闪卡 v1 | MEM 初试科目（英语二 + 管综三科）、FSRS-6 调度（默认参数、90% 保留率）、到期队列、复习态、挖空卡、CSV 导入导出、7 天负载 / 保持率 / 14 天复习历史与评分分布 |
 | 习惯 | 打卡 | 按本地日期键存库，显示连续天数 |
-| 审计 | 只读列表 | 仓储层 `audit_log` 已写入，暂无查看入口 |
+| 审计 | 只读列表 | 仓储层 `audit_log` 已写入，设置页「活动记录」只读展示 |
 | 表单控件 | 系统日期 / 时间 | 自建 `Popover` 控件（`components/fields/`） |
 | 打包 | NSIS 安装包 | 便携版输出到 `dist/WorkStationForOne/`，不引入打包器 |
-| 验证基线 | — | 624 单元测试 / 233 冒烟 / 251–253 运行时断言 / Agent 与设置页 1440×900、1180×720 双主题截图 |
+| 验证基线 | — | 729 单元测试 / 300 冒烟 / 251–253 运行时断言 / 五视图、舰队控制台（含本机会话导入面板与历史）、能力中心与工作区 1440×900、1180×720 截图 |
 
 ## 1. 摘要
 
@@ -47,7 +49,7 @@ Agent 通过本地 MCP 读取和写入看板数据，写入受分区授权约束
 
 ### 2.1 目标
 
-- **G1 一个窗口完成 Agent 工作流**：选择项目目录、启动 Claude Code 或 Codex、持续对话、看到工具调用与权限请求、恢复历史会话。
+- **G1 一个窗口完成 Agent 工作流**：选择项目目录、启动 Claude Code 或 Codex、持续对话、看到工具调用与权限请求、恢复历史会话；不同会话可同时运行，各自的流与审批互不串台。
 - **G2 个人看板可用**：四张卡片的增删改查在离线状态下完整可用，笔记支持全文搜索。
 - **G3 Agent 能安全地读写看板**：通过 11 个窄 MCP 工具，按域授权，写操作可审计、可拒绝、可回滚。
 - **G4 视觉与动效达标**：与 v6 视觉稿同构；直角、玻璃、极光、HUD、中文优先；动效流畅且可关闭。
@@ -86,7 +88,7 @@ Agent 通过本地 MCP 读取和写入看板数据，写入受分区授权约束
 | 工作区 | 左侧一级导航切换今日 / 任务 / Agent / 笔记 / 学习，同一时刻只渲染一个全宽视图；新增应用以导航项扩展，不挤进顶栏 |
 | 今日 | 任务摘要、习惯打卡、学习与复习、快速笔记；时间轴时间块可直接开始专注；日期切换；进度展示 |
 | 任务 | 独立全宽工作区：收集箱 / 今天 / 即将到来 / 全部 / 已完成、自定义清单、自然语言快速添加、任务详情、搜索与删除 |
-| Agent | 空态新建 Claude 会话、会话列表、舰队状态总览（运行/待确认/空闲/总数）、只读工具、消息与 resume id 持久化、恢复；Fork 未实现 |
+| Agent | 空态新建 Claude 会话、会话列表、舰队状态总览（运行/待确认/空闲/总数）、消息与 resume id 持久化、恢复；不同会话可并行，同一会话串行；舰队控制台统一查看/筛选/打开/停止/新建应用内会话；Fork 未实现 |
 | 对话 | 流式文本、工具调用行、错误提示、权限卡逐行 diff、输入区、上下文用量 |
 | 笔记 | 独立全宽工作区：FTS5 搜索、分页 + 固定行高虚拟滚动、置顶与标签 |
 | 学习 | 独立全宽工作区：科目栏 + 卡片列表；到期队列进入占满舞台的复习态 |
@@ -152,14 +154,14 @@ Agent 通过本地 MCP 读取和写入看板数据，写入受分区授权约束
 
 ## 6. Agent 接入
 
-> 实现状态（2026-10-29）：Claude 适配器走本机 CLI 子进程而非 SDK；已用 stream-json 输入 + `--permission-prompts host` 实现写工具逐次审批（允许一次 / 拒绝）。Codex 已接入 `codex exec --json` 的只读会话，续接 thread id，未接入写入审批。本节保留原规划，偏差见 §0。
+> 实现状态（2026-10-30）：Claude 适配器走本机 CLI 子进程而非 SDK；已用 stream-json 输入 + `--permission-prompts host` 实现写工具逐次审批（允许一次 / 拒绝）。Codex 继承 CLI 时走 `codex exec --json` 只读；激活工具 Provider 后走 `codex app-server --stdio`，已把命令、文件改动与额外权限请求接到同一审批卡。本节保留原规划，偏差见 §0。
 
 ### 6.1 支持矩阵
 
 | Agent | v1 能力 | 实现 |
 | --- | --- | --- |
-| Claude Code | 新建、流式、工具调用、权限审批、恢复、Fork | `@anthropic-ai/claude-agent-sdk` |
-| Codex | 新建、流式、工具调用、恢复；Fork 按 SDK 能力显示 | `@openai/codex-sdk` |
+| Claude Code | 新建、流式、工具调用、权限审批、恢复、Fork | 本机 `claude` CLI（stream-json） |
+| Codex | 新建、流式、工具调用、审批、恢复 | 继承 CLI：`codex exec --json` 只读；工具 Provider：`codex app-server --stdio` + 工作区审批 |
 | Qoder | 仅启动应用 | 系统默认方式打开，不注入会话 |
 | DeepSeek Harness | 仅启动应用 | 系统默认方式打开，不注入会话 |
 
@@ -206,9 +208,10 @@ type AgentEvent =
 
 ### 6.4 Codex
 
-- 当前实现（2026-10-29，v0.10.0）：走本机 `codex exec --json`，提示词只走 stdin，解析 `thread.started / item.* / turn.completed|failed / error`；`reasoning` 不渲染。续接用 `codex exec resume <thread_id> -`，thread id 存 `agent_sessions.resume_id`。
-- 应用内策略固定为只读：新会话 `--sandbox read-only`，并统一用进程级 `-c sandbox_mode="read-only"` 与 `-c approval_policy="never"`，续接也保持只读；不写 `~/.codex/config.toml`、不改登录状态。`codex exec` 没有 Claude 的宿主审批信道，因此本版不提供写入；不要用 `--dangerously-*` 换能力。
-- 后续若验证官方 `app-server` 的审批回传，再接入统一权限卡；在验证前应用内 Codex 保持只读，并明确提示到 CLI 处理写入。
+- 继承 CLI（2026-10-30，v0.17.0 保留）：本机 `codex exec --json`，提示词只走 stdin，解析 `thread.started / item.* / turn.completed|failed / error`；`reasoning` 不渲染。续接用 `codex exec resume <thread_id> -`，thread id 存 `agent_sessions.resume_id`。进程级 `--sandbox read-only` + `approval_policy="never"`，不写 `~/.codex/config.toml`。
+- 激活工具自己的 Codex Provider（2026-10-30，v0.17.0）：使用隔离的 `codex-home`，启动 `codex app-server --stdio`；JSON-RPC 顺序为 `initialize → initialized → thread/start|resume → turn/start`，提示词只走 stdin，命令行不含用户文本或 token。线程请求 `permissions=':workspace'` + `approvalPolicy='on-request'`，不传 `danger-full-access`；命令、文件改动与额外权限请求通过 `item/*/requestApproval` 进入统一审批卡，裁决以 `accept|decline` 回写；`turn/completed` 后结束进程，下一轮用 thread id 续接。
+- Codex CLI 0.166 起 `wire_api` 只支持 `responses`；Chat 已从设置与保存校验中移除。DeepSeek 使用 `base_url=https://api.deepseek.com`、模型 `deepseek-flash`，2026-10-30 已在本机验证真实 app-server 对话、允许写入与拒绝拦截。
+- 只渲染正文 delta、工具与终态，不渲染 reasoning；找不到可续接 thread 时明确报错，不静默新开。Provider token 只进子进程环境，并写入 `shell_environment_policy.exclude`，避免被执行命令继承。
 - 启动前做与 Claude 相同的工作目录校验。
 
 ### 6.5 会话生命周期
@@ -557,7 +560,7 @@ TypeScript 开启 `strict`；ESLint + Prettier 统一格式。v1 不引入 React
   - major：读 changelog、改适配层、跑全量回归后再合并。
 - 应用内“诊断”页显示 App / SDK / 已装 CLI 版本与兼容状态；CLI 超出已验证范围时警告，不阻止使用。
 - `docs/compatibility.md` 记录每次验证过的组合（App、SDK、CLI、日期、结果）。
-- 不加任何 `--dangerously-*`；Codex 默认 `on-request` + `workspace-write`。
+- 不加任何 `--dangerously-*`；Codex 继承 CLI 时保持只读，使用工具 Provider 时走 app-server 的 `on-request` + 工作区权限。
 - 应用自身 v1 不做自动更新；安装包手动升级。
 
 ### 11.3 构建与打包
@@ -588,8 +591,10 @@ TypeScript 开启 `strict`；ESLint + Prettier 统一格式。v1 不引入 React
 
 - 不用 `shell: true`；参数数组显式传递；工作目录必须存在且为目录。
 - 环境变量最小化：系统必需项 + CLI 登录所需项 + MCP Token；不注入 API Key、不注入无关密钥。
-- 默认不加任何危险绕过参数；Claude 审批走 SDK 回调，Codex 保持 `on-request` + `workspace-write`。
+- 默认不加任何危险绕过参数；Claude 审批走 SDK 回调，Codex 继承 CLI 时只读，工具 Provider 走 app-server 的 `on-request` + 工作区权限。
 - 有副作用的回合不自动重试；用户显式重试才继续。
+- 同一会话同时只跑一轮，不同会话可并行；事件按 `runId`、审批按 `sessionId` 路由，工具审批 id 在 IPC 边界加 `runId:` 前缀，避免不同 CLI 进程的局部 id 冲突。
+- 能力中心隔离：插件安装/更新/卸载使用应用私有 `CLAUDE_CONFIG_DIR`，插件目录固定在应用数据目录，Claude 会话只通过 `--plugin-dir` 加载；外部 MCP 配置与密钥只落本机库，启动时解密进临时 `--mcp-config`；所有 Claude 会话带 `--strict-mcp-config`，用户级 settings 与全局 MCP 不进入会话。绝不写 `~/.claude`、`~/.codex`、CC Switch 或桌面端配置。
 - 不请求隐藏推理链；只展示 SDK 返回的文本、工具与权限事件。
 
 ### 12.3 MCP
@@ -705,7 +710,7 @@ TypeScript 开启 `strict`；ESLint + Prettier 统一格式。v1 不引入 React
 | 风险 | 影响 | 缓解 |
 | --- | --- | --- |
 | SDK / CLI 事件漂移 | 流式或工具展示中断 | 契约 fixture、月度升级、诊断版本告警、未知事件忽略不崩溃 |
-| Codex 审批无法回传 | 写入无法在应用内确认 | P3 优先验证 SDK；备选官方 app-server；否则降级只读并明示；不绕过 |
+| Codex 审批无法回传 | 写入无法在应用内确认 | 已接入官方 app-server 的审批请求，并用 DeepSeek 在隔离工作区验证允许与拒绝；其它 Provider 仍需分别验证，找不到线程或协议失败时明确报错，不绕过 |
 | Windows `spawn ENOENT` 误判 | 被当成 CLI 未安装 | 启动前校验 cwd；错误信息区分目录缺失与可执行文件缺失 |
 | 原生 SQLite 模块 ABI 不匹配 | 打包后启动失败 | 已规避：使用 Electron 内置 `node:sqlite`，无原生模块；打包后仍需冒烟 |
 | backdrop-filter + 多层辉光 | 低端 GPU 掉帧 | 限制玻璃层数；辉光伪元素；失焦暂停；实色降级 |

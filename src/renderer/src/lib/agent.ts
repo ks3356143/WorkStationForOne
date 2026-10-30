@@ -22,7 +22,7 @@ export const AGENT_META: Record<AgentId, AgentMeta> = {
     shortName: 'Codex',
     badge: 'X',
     model: '本地 CLI',
-    cli: 'Codex · read-only 沙箱 · 本地 CLI'
+    cli: 'Codex · 本地 CLI'
   }
 }
 
@@ -53,9 +53,18 @@ export function agentSessionMeta(updatedAt: number, messageCount: number, now: n
 
 export function agentCommandPreview(
   agent: AgentId,
-  resumeId?: string
+  resumeId?: string,
+  codexApproval = false
 ): { bin: string; args: string } {
   if (agent === 'codex') {
+    if (codexApproval) {
+      return {
+        bin: 'codex',
+        args: resumeId
+          ? `app-server --stdio · resume ${resumeId}`
+          : 'app-server --stdio · 工作区审批'
+      }
+    }
     return {
       bin: 'codex',
       args: resumeId ? `exec resume ${resumeId} --json` : 'exec --json --sandbox read-only'
@@ -69,10 +78,16 @@ export function agentCommandPreview(
   }
 }
 
+export function workspaceName(path?: string): string {
+  if (!path) return '选择工作区'
+  const parts = path.split(/[\\/]/).filter(Boolean)
+  return parts.at(-1) ?? path
+}
+
 export function demoReply(agent: AgentId): { text: string; tools: ToolCall[] } {
   if (agent === 'codex') {
     return {
-      text: '收到。按只读模式先分析，给你方案后再执行；不会直接改文件。',
+      text: '收到。按工作区审批模式先分析，涉及写入会再向你确认。',
       tools: [{ name: 'context.read', meta: '只读 · 12 条提交', status: '完成' }]
     }
   }

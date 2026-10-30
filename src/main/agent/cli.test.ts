@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { resolveAgentCli, resolveCodexCli, shimTarget } from './cli'
+import { resolveAgentCli, resolveCodexCli, resolveCommand, shimTarget } from './cli'
 
 describe('Windows CLI shim', () => {
   it('展开 %dp0% 并返回引号里的可执行文件', () => {
@@ -51,6 +51,29 @@ describe('解析本机 CLI', () => {
     )
 
     expect(resolveCodexCli({ WS_CODEX_CLI: join(dir, 'codex.cmd'), PATH: '' })).toMatchObject({
+      bin: process.execPath,
+      prefixArgs: [script],
+      viaNode: true
+    })
+  })
+
+  it.skipIf(process.platform !== 'win32')('解析 npm 变量包装（npx.cmd）到 npx-cli.js', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ws-cli-'))
+    const script = join(dir, 'node_modules', 'npm', 'bin', 'npx-cli.js')
+    mkdirSync(dirname(script), { recursive: true })
+    writeFileSync(script, '')
+    writeFileSync(join(dir, 'node.exe'), '')
+    writeFileSync(
+      join(dir, 'npx.cmd'),
+      [
+        '@ECHO OFF',
+        'SET "NODE_EXE=%~dp0\\node.exe"',
+        'SET "NPX_CLI_JS=%~dp0\\node_modules\\npm\\bin\\npx-cli.js"',
+        '"%NODE_EXE%" "%NPX_CLI_JS%" %*'
+      ].join('\r\n')
+    )
+
+    expect(resolveCommand('npx', { PATH: dir })).toMatchObject({
       bin: process.execPath,
       prefixArgs: [script],
       viaNode: true

@@ -50,7 +50,8 @@ export function buildClaudeArgs(
   resumeId?: string,
   provider?: ProviderRuntime,
   sessionId?: string,
-  mcpConfigPath?: string
+  mcpConfigPath?: string,
+  options?: { plugins?: string[]; allowedTools?: string[]; disallowedTools?: string[] }
 ): string[] {
   const args = [
     ...cli.prefixArgs,
@@ -64,11 +65,21 @@ export function buildClaudeArgs(
     'manual',
     '--permission-prompts',
     'host',
+    // 隔离：用户级 settings / MCP 不进入本应用的会话
+    '--setting-sources',
+    'project',
+    '--strict-mcp-config',
     '--allowedTools',
-    ...CLAUDE_ALLOWED_TOOLS
+    ...new Set([...CLAUDE_ALLOWED_TOOLS, ...(options?.allowedTools ?? [])])
   ]
-  if (provider) args.push('--setting-sources', 'project', '--model', provider.model)
+  if (options?.disallowedTools?.length) {
+    args.push('--disallowedTools', ...new Set(options.disallowedTools))
+  }
+  if (provider) args.push('--model', provider.model)
   if (mcpConfigPath) args.push('--mcp-config', mcpConfigPath)
+  for (const plugin of options?.plugins ?? []) {
+    args.push('--plugin-dir', plugin)
+  }
   if (resumeId) args.push('--resume', resumeId)
   else if (sessionId) args.push('--session-id', sessionId)
   return args
@@ -79,6 +90,16 @@ export interface McpRuntimeEndpoint {
   token: string
 }
 
+export interface McpServerConfig {
+  name: string
+  type: 'stdio' | 'http'
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
+  url?: string
+  headers?: Record<string, string>
+}
+
 export interface ClaudeRunOptions {
   prompt: string
   /** 续接上一轮时传 Claude 自己的 session id */
@@ -87,6 +108,14 @@ export interface ClaudeRunOptions {
   provider?: ProviderRuntime
   /** 本地只读 MCP 桥；token 只写进临时配置文件 */
   mcp?: McpRuntimeEndpoint
+  /** 应用私有的外部 MCP Server；只在临时配置里出现 */
+  mcpServers?: McpServerConfig[]
+  /** 应用私有插件目录；只对本次会话生效 */
+  plugins?: string[]
+  /** 外部 MCP 工具白名单（allow），只影响本次会话 */
+  allowedTools?: string[]
+  /** 外部 MCP 工具拒绝列表（deny），只影响本次会话 */
+  disallowedTools?: string[]
   onEvent: (event: AgentRunEvent) => void
   onExit: (info: { code: number | null; stderr: string; cancelled: boolean }) => void
   /** 省略时按环境解析；显式传 null 表示「没有可用的 CLI」 */
@@ -98,19 +127,41 @@ interface McpConfigFile {
   cleanup: () => void
 }
 
-function writeMcpConfig(mcp: McpRuntimeEndpoint): McpConfigFile | null {
+function writeMcpConfig(
+  mcp?: McpRuntimeEndpoint,
+  servers: McpServerConfig[] = []
+): McpConfigFile | null {
+  if (!mcp && servers.length === 0) return null
   try {
     const dir = mkdtempSync(join(tmpdir(), 'ws-mcp-'))
     const path = join(dir, 'mcp.json')
-    const config = {
-      mcpServers: {
-        workstationforone: {
+    const mcpServers: Record<string, unknown> = {}
+    if (mcp) {
+      mcpServers.workstationforone = {
+        type: 'http',
+        url: mcp.url,
+        headers: { Authorization: `Bearer ${mcp.token}` }
+      }
+    }
+    for (const server of servers) {
+      if (server.type === 'stdio') {
+        mcpServers[server.name] = {
+          type: 'stdio',
+          command: server.command ?? '',
+          args: server.args ?? [],
+          ...(server.env && Object.keys(server.env).length > 0 ? { env: server.env } : {})
+        }
+      } else {
+        mcpServers[server.name] = {
           type: 'http',
-          url: mcp.url,
-          headers: { Authorization: `Bearer ${mcp.token}` }
+          url: server.url ?? '',
+          ...(server.headers && Object.keys(server.headers).length > 0
+            ? { headers: server.headers }
+            : {})
         }
       }
     }
+    const config = { mcpServers }
     writeFileSync(path, JSON.stringify(config), { encoding: 'utf8', mode: 0o600 })
     return {
       path,
@@ -152,11 +203,22 @@ export function startClaudeRun(options: ClaudeRunOptions): RunHandle {
     return { sessionId, cancel: () => {}, respondPermission: () => false }
   }
 
-  const mcpConfig = options.mcp ? writeMcpConfig(options.mcp) : null
-  if (options.mcp && !mcpConfig) {
-    console.error('[agent] MCP 临时配置写入失败，本轮不启用数据桥')
+  const mcpConfig = writeMcpConfig(options.mcp, options.mcpServers)
+  if ((options.mcp || options.mcpServers?.length) && !mcpConfig) {
+    console.error('[agent] MCP 临时配置写入失败，本轮不启用数据桥与外部 MCP')
   }
-  const args = buildClaudeArgs(cli, options.resumeId, options.provider, sessionId, mcpConfig?.path)
+  const args = buildClaudeArgs(
+    cli,
+    options.resumeId,
+    options.provider,
+    sessionId,
+    mcpConfig?.path,
+    {
+      ...(options.plugins ? { plugins: options.plugins } : {}),
+      ...(options.allowedTools ? { allowedTools: options.allowedTools } : {}),
+      ...(options.disallowedTools ? { disallowedTools: options.disallowedTools } : {})
+    }
+  )
   const overrides = providerEnv(options.provider)
   const childEnv = {
     ...process.env,

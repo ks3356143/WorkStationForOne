@@ -3,9 +3,10 @@ import { useWorkstation } from '../store/useWorkstation'
 
 interface FleetStripProps {
   summary: FleetSummary
+  onOpenFleet: () => void
 }
 
-export function FleetStrip({ summary }: FleetStripProps) {
+export function FleetStrip({ summary, onOpenFleet }: FleetStripProps) {
   const openAgentSession = useWorkstation((state) => state.openAgentSession)
   const activeSessionId = useWorkstation((state) => state.activeSessionId)
   const activeView = useWorkstation((state) => state.activeView)
@@ -39,6 +40,10 @@ export function FleetStrip({ summary }: FleetStripProps) {
           {summary.waiting} 个待确认 · 去处理
         </button>
       ) : null}
+      <button className="w1-fleetopenlink" type="button" onClick={onOpenFleet}>
+        打开舰队控制台
+        <span aria-hidden="true">›</span>
+      </button>
     </div>
   )
 }

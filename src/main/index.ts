@@ -16,6 +16,9 @@ import { registerNoteHandlers } from './ipc/notes'
 import { registerTaskHandlers } from './ipc/tasks'
 import { McpBridge } from './mcp/server'
 import { McpPermissionBroker } from './mcp/permissions'
+import { CapabilityRepository } from './db/capabilities'
+import { agentCapabilityRuntime, createCapabilityCenter } from './capabilities'
+import { registerCapabilityHandlers } from './ipc/capability'
 import { IPC_CHANNELS } from '../shared/ipc'
 
 const devUrl = process.env.ELECTRON_RENDERER_URL
@@ -118,8 +121,15 @@ if (!gotTheLock) {
 
     database = initDatabase()
     const providers = new ProviderService(database.providers)
+    const capabilities = createCapabilityCenter({
+      repository: new CapabilityRepository(database.db),
+      appDataDir: dirname(database.file),
+      audit: database.audit,
+      version: app.getVersion()
+    })
     // 软删任务保留 30 天后清掉，避免已删行无限堆积。
     database.tasks.purgeDeleted(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    registerCapabilityHandlers(capabilities, database.audit)
     registerAppHandlers({
       db: database.db,
       dir: backupDirFor(database.file),
@@ -180,7 +190,8 @@ if (!gotTheLock) {
       undefined,
       mcpBridge,
       (sessionId) => mcpPermissions?.cancelSession(sessionId),
-      join(dirname(database.file), 'codex-home')
+      join(dirname(database.file), 'codex-home'),
+      agentCapabilityRuntime(capabilities)
     )
     // 到点提醒：轮询数据库，命中「今天 + 正好到点 + 没提醒过」就弹系统通知
     stopReminders = startReminderLoop(database.tasks, {

@@ -167,6 +167,10 @@ async function launch(phase) {
   const child = spawn(
     electronExecutable,
     [
+      // 验证期间窗口可能被其它应用遮挡；关掉后台节流，和冒烟的 backgroundThrottling=false 对齐。
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding',
       `--remote-debugging-port=${PAGE_PORT}`,
       `--inspect=${MAIN_PORT}`,
       '--remote-allow-origins=*',
@@ -214,6 +218,27 @@ async function launch(phase) {
   ])
   await page.call('Page.bringToFront').catch(() => {})
   await page.call('Emulation.setFocusEmulationEnabled', { enabled: true }).catch(() => {})
+  // 其它窗口可能抢走焦点；验证期间把应用窗口置顶并聚焦，和冒烟保持同一前提。
+  try {
+    await evaluate(
+      main,
+      `(() => {
+        let req
+        try { req = require } catch { req = process.mainModule && process.mainModule.require.bind(process.mainModule) }
+        if (!req) return false
+        const { BrowserWindow } = req('electron')
+        const win = BrowserWindow.getAllWindows()[0]
+        if (!win) return false
+        win.setAlwaysOnTop(true, 'screen-saver')
+        win.show()
+        win.focus()
+        return win.isFocused()
+      })()`,
+      'focus window'
+    )
+  } catch (error) {
+    console.error('[focus window]', error.message)
+  }
 
   // Electron 45 没有 getTitleBarOverlay()，用原型探针记录真实的 setTitleBarOverlay 调用。
   try {
@@ -1649,11 +1674,11 @@ async function main() {
   record('渲染进程无 Node require', security.require === 'undefined', security.require)
   record('渲染进程无 process', security.process === 'undefined', security.process)
   record(
-    'preload 桥仅暴露窄接口（tasks/notes/capture/learning/habits/agent/mcp/provider/audit/app.setTheme+backupNow+info）',
+    'preload 桥仅暴露窄接口（tasks/notes/capture/learning/habits/agent/mcp/capability/provider/audit/app.setTheme+backupNow+info）',
     security.invoke === 'function' &&
       !security.dbAccess &&
       [...security.wsKeys].sort().join() ===
-        'agent,app,audit,capture,habits,learning,mcp,notes,provider,tasks' &&
+        'agent,app,audit,capability,capture,habits,learning,mcp,notes,provider,tasks' &&
       security.appKeys.join() === 'setTheme,backupNow,info',
     security
   )

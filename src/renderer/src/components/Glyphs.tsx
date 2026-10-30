@@ -258,3 +258,21 @@ export function TerminalIcon(props: GlyphProps) {
     </svg>
   )
 }
+
+export function FolderIcon(props: GlyphProps) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      <path d="M2.5 4.2h4l1.2 1.4h5.8v7.2H2.5z" />
+      <path d="M2.5 4.2V3.2h4l1.2 1h5.8v1.4" />
+    </svg>
+  )
+}

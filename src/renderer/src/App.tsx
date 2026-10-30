@@ -10,6 +10,7 @@ import {
 import { AgentDock } from './components/agent/AgentDock'
 import { BootOverlay } from './components/BootOverlay'
 import { CommandPalette } from './components/CommandPalette'
+import { FleetSheet } from './components/FleetSheet'
 import { FocusOverlay } from './components/FocusOverlay'
 import { LearningWorkspace } from './components/learning/LearningWorkspace'
 import { NotesView } from './components/NotesView'
@@ -47,7 +48,9 @@ export default function App() {
   const [paletteSeq, setPaletteSeq] = useState(0)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [fleetOpen, setFleetOpen] = useState(false)
   const shortcutsTriggerRef = useRef<HTMLElement | null>(null)
+  const fleetTriggerRef = useRef<HTMLElement | null>(null)
   const [notice, setNotice] = useState<{
     id: number
     text: string
@@ -131,6 +134,19 @@ export default function App() {
     trigger?.focus()
   }, [])
 
+  const openFleet = useCallback(() => {
+    fleetTriggerRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
+    setFleetOpen(true)
+  }, [])
+
+  const closeFleet = useCallback(() => {
+    setFleetOpen(false)
+    const trigger = fleetTriggerRef.current
+    fleetTriggerRef.current = null
+    trigger?.focus()
+  }, [])
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (booting) {
@@ -166,7 +182,8 @@ export default function App() {
       }
       if (event.key === 'Escape') {
         if (event.isComposing || event.keyCode === 229) return
-        if (settingsOpen) setSettingsOpen(false)
+        if (fleetOpen) closeFleet()
+        else if (settingsOpen) setSettingsOpen(false)
         else if (shortcutsOpen) setShortcutsOpen(false)
         else if (commandOpen) closePalette()
         else if (quickNoteOpen) closeQuickNote()
@@ -177,11 +194,13 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [
     booting,
+    closeFleet,
     closeFocus,
     closePalette,
     closeQuickNote,
     commandOpen,
     composeTask,
+    fleetOpen,
     focus,
     openPalette,
     openQuickNote,
@@ -202,7 +221,11 @@ export default function App() {
           <div className="w1-ambient" aria-hidden="true" />
           <TopBar onCommand={openPalette} />
           <div className="w1-body">
-            <WorkspaceNav notify={notify} onOpenSettings={() => setSettingsOpen(true)} />
+            <WorkspaceNav
+              notify={notify}
+              onOpenSettings={() => setSettingsOpen(true)}
+              onOpenFleet={openFleet}
+            />
             <main className="w1-stage">
               <div key={activeView} className="w1-view">
                 {activeView === 'today' ? <TodayDashboard /> : null}
@@ -218,7 +241,11 @@ export default function App() {
               </div>
             </main>
           </div>
-          <StatusBar notify={notify} onShortcuts={() => setShortcutsOpen(true)} />
+          <StatusBar
+            notify={notify}
+            onShortcuts={() => setShortcutsOpen(true)}
+            onFleet={openFleet}
+          />
 
           <AnimatePresence>
             {booting ? <BootOverlay onSkip={() => setBooting(false)} /> : null}
@@ -234,6 +261,10 @@ export default function App() {
             {settingsOpen ? (
               <SettingsSheet onClose={() => setSettingsOpen(false)} notify={notify} />
             ) : null}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {fleetOpen ? <FleetSheet onClose={closeFleet} notify={notify} /> : null}
           </AnimatePresence>
 
           <AnimatePresence>
@@ -261,6 +292,10 @@ export default function App() {
                 onSettings={() => {
                   closePalette()
                   setSettingsOpen(true)
+                }}
+                onFleet={() => {
+                  closePalette()
+                  openFleet()
                 }}
               />
             ) : null}

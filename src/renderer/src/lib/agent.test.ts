@@ -4,7 +4,8 @@ import {
   agentCommandPreview,
   agentSessionDate,
   agentSessionMeta,
-  demoReply
+  demoReply,
+  workspaceName
 } from './agent'
 
 describe('agentCommandPreview', () => {
@@ -32,6 +33,25 @@ describe('agentCommandPreview', () => {
       args: 'exec resume thread-1 --json'
     })
   })
+
+  it('Codex 有活动 Provider 时显示 app-server 与工作区审批', () => {
+    expect(agentCommandPreview('codex', undefined, true)).toEqual({
+      bin: 'codex',
+      args: 'app-server --stdio · 工作区审批'
+    })
+    expect(agentCommandPreview('codex', 'thread-1', true)).toEqual({
+      bin: 'codex',
+      args: 'app-server --stdio · resume thread-1'
+    })
+  })
+})
+
+describe('workspaceName', () => {
+  it('从 Windows 与 POSIX 路径取最后一级目录', () => {
+    expect(workspaceName('C:\\work\\auth')).toBe('auth')
+    expect(workspaceName('/home/me/project/')).toBe('project')
+    expect(workspaceName('')).toBe('选择工作区')
+  })
 })
 
 describe('AGENT_META', () => {
@@ -47,7 +67,7 @@ describe('AGENT_META', () => {
       shortName: 'Codex',
       badge: 'X',
       model: '本地 CLI',
-      cli: 'Codex · read-only 沙箱 · 本地 CLI'
+      cli: 'Codex · 本地 CLI'
     })
   })
 })

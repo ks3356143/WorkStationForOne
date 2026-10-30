@@ -59,6 +59,11 @@ export interface McpToolResult {
   isError?: boolean
 }
 
+/** 供 Codex app-server 识别可免二次审批的只读工具。 */
+export function isReadOnlyMcpTool(name: string): boolean {
+  return MCP_TOOLS.some((tool) => tool.name === name && tool.write !== true)
+}
+
 const MAX_DETAIL = 300
 const MAX_QUERY = 200
 const SNIPPET_OPEN = String.fromCharCode(1)

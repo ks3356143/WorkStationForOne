@@ -83,11 +83,39 @@ describe('Provider 隔离', () => {
     expect(args.join(' ')).not.toContain('--dangerously')
   })
 
-  it('继承模式不添加 provider 参数', () => {
+  it('继承模式不加模型参数，但仍隔离用户 settings 与全局 MCP', () => {
     const args = buildClaudeArgs(cli, undefined)
-    expect(args).not.toContain('--setting-sources')
+    expect(args).toEqual(expect.arrayContaining(['--setting-sources', 'project']))
+    expect(args).toContain('--strict-mcp-config')
     expect(args).not.toContain('--model')
     expect(providerEnv(undefined)).toBeUndefined()
+  })
+
+  it('外部 MCP 工具只把显式 allow / deny 放进参数', () => {
+    const args = buildClaudeArgs(cli, undefined, undefined, undefined, undefined, {
+      allowedTools: ['mcp__memory__read'],
+      disallowedTools: ['mcp__memory__write']
+    })
+    const allowedIndex = args.indexOf('--allowedTools')
+    const disallowedIndex = args.indexOf('--disallowedTools')
+    expect(args.slice(allowedIndex + 1)).toContain('mcp__memory__read')
+    expect(args.slice(disallowedIndex + 1)).toContain('mcp__memory__write')
+    expect(args.join(' ')).not.toContain('--dangerously')
+  })
+
+  it('插件目录只以 --plugin-dir 进入命令行', () => {
+    const args = buildClaudeArgs(cli, undefined, undefined, undefined, undefined, {
+      plugins: ['C:\\Data\\plugins\\demo', 'C:\\Data\\plugins\\other']
+    })
+    expect(args.filter((arg) => arg === '--plugin-dir')).toHaveLength(2)
+    expect(args).toEqual(
+      expect.arrayContaining([
+        '--plugin-dir',
+        'C:\\Data\\plugins\\demo',
+        '--plugin-dir',
+        'C:\\Data\\plugins\\other'
+      ])
+    )
   })
 
   it('MCP 配置只以临时文件路径进入参数，只读工具在允许列表里', () => {

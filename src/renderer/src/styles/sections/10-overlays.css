@@ -1533,11 +1533,13 @@ button.w1-nlchip:hover {
   display: flex;
   flex-direction: column;
   gap: 9px;
-  padding: 11px 12px;
-  border: 1px solid rgb(var(--ac2-rgb) / 0.22);
+  padding: 12px 13px 11px;
+  border: 1px solid rgb(var(--ac2-rgb) / 0.2);
   background:
-    linear-gradient(135deg, rgb(var(--ac2-rgb) / 0.07), transparent 58%),
-    rgb(var(--field-rgb) / 0.25);
+    radial-gradient(340px 130px at 7% 0%, rgb(var(--ac2-rgb) / 0.065), transparent 62%),
+    linear-gradient(125deg, rgb(var(--ac-rgb) / 0.045), transparent 46%),
+    rgb(var(--field-rgb) / 0.24);
+  overflow: hidden;
 }
 
 .w1-provcard::before {
@@ -1545,9 +1547,74 @@ button.w1-nlchip:hover {
   position: absolute;
   left: 0;
   top: 0;
-  width: 42%;
+  width: 54%;
   height: 1px;
-  background: linear-gradient(90deg, var(--ac2), transparent);
+  background: linear-gradient(90deg, var(--ac2), rgb(var(--ac-rgb) / 0.55), transparent);
+}
+
+.w1-provcard::after {
+  content: "";
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  width: 16px;
+  height: 16px;
+  border-top: 1px solid rgb(var(--ac2-rgb) / 0.2);
+  border-right: 1px solid rgb(var(--ac2-rgb) / 0.2);
+  pointer-events: none;
+}
+
+.w1-provdeckhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 20px;
+}
+
+.w1-provkicker {
+  color: rgb(var(--ac2-rgb) / 0.8);
+  font: 9px / 1 var(--mono);
+  letter-spacing: 0.15em;
+}
+
+.w1-provstate {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  height: 20px;
+  padding: 0 7px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.9);
+  background: rgb(var(--field-rgb) / 0.46);
+  color: var(--mu);
+  font: 9.5px / 1 var(--mono);
+  letter-spacing: 0.06em;
+}
+
+.w1-provstate i {
+  width: 4px;
+  height: 4px;
+  flex: none;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.w1-provstate.on {
+  border-color: rgb(var(--ok-rgb) / 0.3);
+  background: rgb(var(--ok-rgb) / 0.07);
+  color: var(--ok-fg);
+}
+
+.w1-provstate.inherit {
+  border-color: rgb(var(--wn-rgb) / 0.28);
+  background: rgb(var(--wn-rgb) / 0.06);
+  color: var(--wn-fg);
+}
+
+.w1-provstate.idle {
+  color: var(--su);
 }
 
 .w1-provseg {
@@ -1577,6 +1644,298 @@ button.w1-nlchip:hover {
   box-shadow: inset 0 0 0 1px rgb(var(--ac2-rgb) / 0.3);
 }
 
+.w1-provseg.w1-provports {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.w1-provseg.w1-provports button.w1-provport {
+  flex: none;
+  width: 100%;
+  height: 56px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 7px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 10px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.9);
+  background: linear-gradient(145deg, rgb(var(--field-rgb) / 0.82), rgb(var(--panel-2-rgb) / 0.18));
+  color: var(--mu);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui),
+    color var(--dur-ui),
+    box-shadow var(--dur-ui);
+}
+
+.w1-provseg.w1-provports button.w1-provport:hover:not(:disabled) {
+  border-color: rgb(var(--ac2-rgb) / 0.4);
+  color: var(--fs);
+}
+
+.w1-provseg.w1-provports button.w1-provport.on {
+  color: var(--fg);
+}
+
+.w1-provseg.w1-provports button.w1-provport.on[data-target="claude"] {
+  border-color: rgb(var(--ac-rgb) / 0.5);
+  background:
+    linear-gradient(145deg, rgb(var(--ac-rgb) / 0.14), rgb(var(--ac2-rgb) / 0.045) 72%),
+    rgb(var(--field-rgb) / 0.5);
+  box-shadow: inset 0 0 0 1px rgb(var(--ac-rgb) / 0.12);
+}
+
+.w1-provseg.w1-provports button.w1-provport.on[data-target="codex"] {
+  border-color: rgb(var(--ac2-rgb) / 0.48);
+  background:
+    linear-gradient(145deg, rgb(var(--ac2-rgb) / 0.13), rgb(var(--ac-rgb) / 0.045) 72%),
+    rgb(var(--field-rgb) / 0.5);
+  box-shadow: inset 0 0 0 1px rgb(var(--ac2-rgb) / 0.12);
+}
+
+.w1-provportglyph {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.95);
+  background: rgb(var(--field-rgb) / 0.65);
+  color: var(--su);
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui),
+    color var(--dur-ui);
+}
+
+.w1-provport.on[data-target="claude"] .w1-provportglyph {
+  border-color: rgb(var(--ac-rgb) / 0.36);
+  background: rgb(var(--ac-rgb) / 0.1);
+  color: var(--ac-fg);
+}
+
+.w1-provport.on[data-target="codex"] .w1-provportglyph {
+  border-color: rgb(var(--ac2-rgb) / 0.34);
+  background: rgb(var(--ac2-rgb) / 0.09);
+  color: var(--ac2-fg);
+}
+
+.w1-provportcopy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.w1-provportcopy b {
+  overflow: hidden;
+  color: currentColor;
+  font: 600 12px / 1.1 var(--sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.w1-provportcopy i {
+  overflow: hidden;
+  color: var(--su);
+  font: 9.5px / 1 var(--mono);
+  font-style: normal;
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.w1-provport.on .w1-provportcopy i {
+  color: var(--mu);
+}
+
+.w1-provled {
+  width: 5px;
+  height: 5px;
+  flex: none;
+  border-radius: 50%;
+  background: rgb(var(--mu-rgb) / 0.34);
+  transition:
+    background-color var(--dur-ui),
+    box-shadow var(--dur-ui);
+}
+
+.w1-provport.on .w1-provled,
+.w1-provfootstate .w1-provled.on {
+  background: var(--ok);
+  box-shadow:
+    0 0 0 2px rgb(var(--ok-rgb) / 0.1),
+    0 0 9px rgb(var(--ok-rgb) / 0.55);
+}
+
+.w1-provseg.w1-provports button.w1-provport:focus-visible {
+  outline: 1px solid rgb(var(--ac2-rgb) / 0.75);
+  outline-offset: 2px;
+}
+
+.w1-provseg.w1-provports button.w1-provport:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.w1-provbus {
+  position: relative;
+  height: 7px;
+  flex: none;
+  margin: -2px 1px;
+}
+
+.w1-provbus::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  top: 3px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    rgb(var(--ac-rgb) / 0.16),
+    rgb(var(--ac2-rgb) / 0.22) 52%,
+    rgb(var(--bd-rgb) / 0.5)
+  );
+}
+
+.w1-provbus::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 6px;
+  height: 6px;
+  border: 1px solid rgb(var(--ac2-rgb) / 0.4);
+  background: rgb(var(--field-rgb));
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.w1-provroute {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.65);
+  background: rgb(var(--field-rgb) / 0.3);
+}
+
+.w1-provroute > span {
+  flex: none;
+  color: var(--su);
+  font: 9.5px / 1 var(--mono);
+  letter-spacing: 0.12em;
+}
+
+.w1-provroute .w1-provseg {
+  flex: 1;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.w1-provroute .w1-provseg button {
+  height: 26px;
+  font-size: 10.5px;
+}
+
+.w1-provbody {
+  display: block;
+}
+
+.w1-provinherit {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 11px;
+  border: 1px solid rgb(var(--ac2-rgb) / 0.14);
+  background:
+    linear-gradient(115deg, rgb(var(--ac2-rgb) / 0.055), transparent 62%),
+    rgb(var(--field-rgb) / 0.26);
+}
+
+.w1-provinheritglyph {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgb(var(--ac2-rgb) / 0.26);
+  background: rgb(var(--ac2-rgb) / 0.07);
+  color: var(--ac2-fg);
+}
+
+.w1-provinheritcopy {
+  min-width: 0;
+}
+
+.w1-provinheritcopy b {
+  display: block;
+  color: var(--fg);
+  font: 600 11.5px / 1.35 var(--sans);
+}
+
+.w1-provinheritcopy p {
+  margin: 3px 0 0;
+  color: var(--mu);
+  font: 10px / 1.5 var(--mono);
+}
+
+.w1-provbadge {
+  padding: 3px 6px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.8);
+  background: rgb(var(--field-rgb) / 0.45);
+  color: var(--su);
+  font: 9px / 1 var(--mono);
+  white-space: nowrap;
+}
+
+.w1-provconn {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.w1-provprotocol {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.w1-provprotocol .w1-provseg {
+  flex: none;
+  padding: 1px;
+  background: rgb(var(--field-rgb) / 0.5);
+}
+
+.w1-provprotocol .w1-provseg button {
+  flex: none;
+  min-width: 84px;
+  height: 23px;
+  padding: 0 10px;
+  color: var(--ac2-fg);
+  font-size: 10px;
+  cursor: default;
+}
+
+.w1-provprotocol .w1-provseg button.on {
+  background: linear-gradient(100deg, rgb(var(--ac2-rgb) / 0.12), rgb(var(--ac-rgb) / 0.07));
+  box-shadow: inset 0 0 0 1px rgb(var(--ac2-rgb) / 0.25);
+}
+
+.w1-provprotocol .w1-provnote {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .w1-provfields {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1594,24 +1953,30 @@ button.w1-nlchip:hover {
   grid-column: 1 / -1;
 }
 
-.w1-provfield span {
-  color: var(--su);
-  font: 10px / 1.2 var(--mono);
-  letter-spacing: 0.08em;
+.w1-provfield > span {
+  color: var(--mu);
+  font: 9.5px / 1.2 var(--mono);
+  letter-spacing: 0.07em;
 }
 
 .w1-provfield input {
-  height: 30px;
+  width: 100%;
+  height: 32px;
   min-width: 0;
   padding: 0 9px;
-  border: 1px solid var(--bd);
+  border: 1px solid rgb(var(--bd-rgb) / 0.9);
   outline: none;
-  background: rgb(var(--field-rgb) / 0.65);
+  background: rgb(var(--field-rgb) / 0.7);
   color: var(--fg);
   font: 12px / 1.4 var(--sans);
   transition:
     border-color var(--dur-ui),
+    background-color var(--dur-ui),
     box-shadow var(--dur-ui);
+}
+
+.w1-provfield input:hover {
+  border-color: rgb(var(--ac2-rgb) / 0.3);
 }
 
 .w1-provfield input::placeholder {
@@ -1619,47 +1984,134 @@ button.w1-nlchip:hover {
 }
 
 .w1-provfield input:focus {
-  border-color: rgb(var(--ac2-rgb) / 0.55);
-  box-shadow: 0 0 18px rgb(var(--ac2-rgb) / 0.08);
+  border-color: rgb(var(--ac2-rgb) / 0.5);
+  background: rgb(var(--field-rgb) / 0.86);
+  box-shadow:
+    0 0 0 1px rgb(var(--ac2-rgb) / 0.12),
+    0 0 20px rgb(var(--ac2-rgb) / 0.07);
+}
+
+.w1-provkey {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+
+.w1-provkey input {
+  width: 100%;
+  padding-right: 66px;
+}
+
+.w1-provkeytag {
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  padding: 2px 5px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.85);
+  background: rgb(var(--field-rgb) / 0.92);
+  color: var(--su);
+  font: 9px / 1 var(--mono);
+  letter-spacing: 0.05em;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.w1-provkeytag.on {
+  border-color: rgb(var(--ok-rgb) / 0.28);
+  background: rgb(var(--ok-rgb) / 0.07);
+  color: var(--ok-fg);
 }
 
 .w1-provfoot {
   display: flex;
   align-items: center;
   gap: 10px;
+  padding-top: 9px;
+  border-top: 1px solid rgb(var(--bd-rgb) / 0.55);
+}
+
+.w1-provfootstate {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 1;
+  min-width: 0;
 }
 
 .w1-provstatus {
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  color: var(--su);
-  font: 10.5px / 1.5 var(--mono);
+  color: var(--mu);
+  font: 10px / 1.5 var(--mono);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .w1-provstatus.on {
+  color: var(--ok-fg);
+}
+
+.w1-provtest {
+  flex: none;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.95);
+  background: rgb(var(--field-rgb) / 0.5);
+  color: var(--fs);
+  font: 10.5px / 1 var(--mono);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui),
+    color var(--dur-ui);
+}
+
+.w1-provtest:hover:not(:disabled) {
+  border-color: rgb(var(--ac2-rgb) / 0.45);
+  background: rgb(var(--ac2-rgb) / 0.06);
   color: var(--ac2-fg);
+}
+
+.w1-provtest:focus-visible {
+  outline: 1px solid rgb(var(--ac2-rgb) / 0.8);
+  outline-offset: 2px;
+}
+
+.w1-provtest:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .w1-provsave {
   flex: none;
-  height: 28px;
-  padding: 0 12px;
-  border: 1px solid rgb(var(--ac2-rgb) / 0.4);
-  background: linear-gradient(100deg, rgb(var(--ac-rgb) / 0.18), rgb(var(--ac2-rgb) / 0.2));
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid rgb(var(--ac2-rgb) / 0.38);
+  background: linear-gradient(100deg, rgb(var(--ac-rgb) / 0.22), rgb(var(--ac2-rgb) / 0.2));
+  box-shadow: inset 0 0 0 1px rgb(var(--glass-hi-rgb) / 0.04);
   color: var(--fg);
-  font: 11px / 1 var(--mono);
+  font: 10.5px / 1 var(--mono);
+  letter-spacing: 0.04em;
   cursor: pointer;
   transition:
     border-color var(--dur-ui),
-    filter var(--dur-ui);
+    filter var(--dur-ui),
+    box-shadow var(--dur-ui);
 }
 
 .w1-provsave:hover:not(:disabled) {
   border-color: rgb(var(--ac2-rgb) / 0.65);
+  box-shadow:
+    0 0 22px rgb(var(--ac2-rgb) / 0.1),
+    inset 0 0 0 1px rgb(var(--glass-hi-rgb) / 0.06);
   filter: brightness(1.08);
+}
+
+.w1-provsave:focus-visible {
+  outline: 1px solid rgb(var(--ac2-rgb) / 0.8);
+  outline-offset: 2px;
 }
 
 .w1-provsave:disabled {
@@ -1667,10 +2119,57 @@ button.w1-nlchip:hover {
   cursor: default;
 }
 
+.w1-provtestresult {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--mu);
+  font: 10px / 1.5 var(--mono);
+}
+
+.w1-provtestresult > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.w1-provtestresult.ok {
+  color: var(--ok-fg);
+}
+
+.w1-provtestresult.ok .w1-provled {
+  background: var(--ok);
+  box-shadow:
+    0 0 0 2px rgb(var(--ok-rgb) / 0.1),
+    0 0 9px rgb(var(--ok-rgb) / 0.55);
+}
+
+.w1-provtestresult.fail {
+  color: var(--dg-fg);
+}
+
+.w1-provtestresult.fail .w1-provled {
+  background: var(--dg);
+  box-shadow:
+    0 0 0 2px rgb(var(--dg-rgb) / 0.09),
+    0 0 9px rgb(var(--dg-rgb) / 0.45);
+}
+
+.w1-provtestresult.testing {
+  color: var(--mu);
+}
+
+.w1-provtestresult.testing .w1-provled {
+  background: var(--ac2);
+  box-shadow: 0 0 9px rgb(var(--ac2-rgb) / 0.5);
+}
+
 .w1-provnote {
   margin: 0;
-  color: var(--su);
-  font: 10.5px / 1.6 var(--mono);
+  color: var(--mu);
+  font: 10px / 1.55 var(--mono);
 }
 
 .w1-setpath {

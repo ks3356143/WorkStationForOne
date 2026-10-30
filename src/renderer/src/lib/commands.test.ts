@@ -49,13 +49,14 @@ describe('buildPaletteCommands', () => {
     expect(sessionCommands[1].hint).not.toContain('当前')
   })
 
-  it('导航命令覆盖五个工作区', () => {
+  it('导航命令覆盖五个工作区与舰队控制台', () => {
     const navigation = buildPaletteCommands(base).filter((command) => command.group === '导航')
 
     expect(navigation.map((command) => command.id)).toEqual([
       'view:today',
       'view:tasks',
       'view:agent',
+      'view:fleet',
       'view:notes',
       'view:learning'
     ])
@@ -63,10 +64,15 @@ describe('buildPaletteCommands', () => {
       { kind: 'view', view: 'today' },
       { kind: 'view', view: 'tasks' },
       { kind: 'view', view: 'agent' },
+      { kind: 'fleet' },
       { kind: 'view', view: 'notes' },
       { kind: 'view', view: 'learning' }
     ])
-    expect(navigation.every((command) => command.hint === '工作区')).toBe(true)
+    expect(
+      navigation
+        .filter((command) => command.action.kind === 'view')
+        .every((command) => command.hint === '工作区')
+    ).toBe(true)
   })
 
   it('操作命令包含开始复习', () => {

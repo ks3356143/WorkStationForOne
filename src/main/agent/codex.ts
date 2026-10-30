@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AgentRunEvent } from '../../shared/agent-stream'
+import type { CodexMcpRuntime } from '../capabilities/codex-mcp'
 import type { ProviderRuntime } from '../providers'
 import { resolveCodexCli, type AgentCli } from './cli'
 
@@ -185,9 +186,43 @@ export interface CodexRunOptions {
 }
 
 /** 写入工具自己的 Codex 配置；token 只通过子进程环境注入，不落文件。 */
-export function writeCodexProviderConfig(home: string, provider: ProviderRuntime): void {
+export interface CodexConfigOptions {
+  /** 本回合的本地 MCP 桥 */
+  mcp?: { url: string }
+  /** 用户启用的外部 MCP；密钥只引用环境变量名 */
+  external?: CodexMcpRuntime
+}
+
+function tomlKey(value: string): string {
+  return /^[A-Za-z0-9_-]+$/.test(value) ? value : JSON.stringify(value)
+}
+
+function tomlArray(values: string[]): string {
+  return `[${values.map((value) => JSON.stringify(value)).join(',')}]`
+}
+
+function tomlInlineTable(entries: Record<string, string>): string {
+  const body = Object.entries(entries)
+    .map(([key, value]) => `${JSON.stringify(key)} = ${JSON.stringify(value)}`)
+    .join(', ')
+  return `{ ${body} }`
+}
+
+export function writeCodexProviderConfig(
+  home: string,
+  provider: ProviderRuntime,
+  options: CodexConfigOptions = {}
+): void {
   mkdirSync(home, { recursive: true })
-  const config = [
+  const external = options.external
+  const excluded = [
+    ...new Set([
+      'WS_CODEX_PROVIDER_TOKEN',
+      'WS_CODEX_MCP_TOKEN',
+      ...(external?.secretEnvNames ?? [])
+    ])
+  ]
+  const lines = [
     `model = ${JSON.stringify(provider.model)}`,
     'model_provider = "workstation"',
     '',
@@ -197,9 +232,45 @@ export function writeCodexProviderConfig(home: string, provider: ProviderRuntime
     `wire_api = ${JSON.stringify(provider.wireApi)}`,
     'env_key = "WS_CODEX_PROVIDER_TOKEN"',
     'requires_openai_auth = false',
+    '',
+    '[shell_environment_policy]',
+    `exclude = [${excluded.map((name) => JSON.stringify(name)).join(', ')}]`,
     ''
-  ].join('\n')
-  writeFileSync(join(home, 'config.toml'), config, { encoding: 'utf8', mode: 0o600 })
+  ]
+  if (options.mcp) {
+    lines.push(
+      '[mcp_servers.workstationforone]',
+      'enabled = true',
+      `url = ${JSON.stringify(options.mcp.url)}`,
+      'bearer_token_env_var = "WS_CODEX_MCP_TOKEN"',
+      ''
+    )
+  }
+  for (const server of external?.servers ?? []) {
+    // 本地桥固定占用 workstationforone，同名外部条目会让 TOML 表冲突。
+    if (server.key === 'workstationforone') continue
+    const key = tomlKey(server.key)
+    lines.push(`[mcp_servers.${key}]`, 'enabled = true')
+    if (server.transport === 'stdio') {
+      lines.push(`command = ${JSON.stringify(server.command)}`)
+      lines.push(`args = ${tomlArray(server.args)}`)
+      if (server.envVars.length > 0) lines.push(`env_vars = ${tomlArray(server.envVars)}`)
+    } else {
+      lines.push(`url = ${JSON.stringify(server.url)}`)
+      if (Object.keys(server.envHttpHeaders).length > 0) {
+        lines.push(`env_http_headers = ${tomlInlineTable(server.envHttpHeaders)}`)
+      }
+    }
+    lines.push('default_tools_approval_mode = "prompt"')
+    if (server.disabledTools.length > 0) {
+      lines.push(`disabled_tools = ${tomlArray(server.disabledTools)}`)
+    }
+    lines.push('')
+    for (const tool of server.allowedTools) {
+      lines.push(`[mcp_servers.${key}.tools.${tomlKey(tool)}]`, 'approval_mode = "auto"', '')
+    }
+  }
+  writeFileSync(join(home, 'config.toml'), lines.join('\n'), { encoding: 'utf8', mode: 0o600 })
 }
 
 export interface CodexRunHandle {

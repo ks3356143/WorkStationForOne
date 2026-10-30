@@ -16,6 +16,7 @@ interface CommandPaletteProps {
   notify: (text: string) => void
   onShortcuts: () => void
   onSettings: () => void
+  onFleet: () => void
 }
 
 const GROUPS: readonly PaletteGroup[] = ['会话', '导航', '操作', '交给 Agent']
@@ -31,19 +32,31 @@ const ACTION_GLYPH: Record<PaletteCommand['action']['kind'], string> = {
   shortcuts: '?',
   backup: '⌸',
   settings: '⚙',
+  fleet: '▦',
   theme: '◑',
   review: '◈',
   send: '↵'
 }
 
-export function CommandPalette({ onClose, notify, onShortcuts, onSettings }: CommandPaletteProps) {
+export function CommandPalette({
+  onClose,
+  notify,
+  onShortcuts,
+  onSettings,
+  onFleet
+}: CommandPaletteProps) {
   const sessions = useWorkstation((state) => state.sessions)
   const activeSessionId = useWorkstation((state) => state.activeSessionId)
   const activeSession = useWorkstation(selectActiveSession)
   const taskFilter = useWorkstation((state) => state.taskFilter)
   const motionOn = useWorkstation((state) => state.motionOn)
   const theme = useWorkstation((state) => state.theme)
-  const typing = useWorkstation((state) => state.typing)
+  // 只针对当前会话：别的会话在跑时仍可以把输入交给这里
+  const typing = useWorkstation(
+    (state) =>
+      Boolean(state.streams[state.activeSessionId]) ||
+      state.pendingPrompts.some((prompt) => prompt.sessionId === state.activeSessionId)
+  )
   const setView = useWorkstation((state) => state.setView)
   const openAgentSession = useWorkstation((state) => state.openAgentSession)
   const openQuickNote = useWorkstation((state) => state.openQuickNote)
@@ -113,6 +126,9 @@ export function CommandPalette({ onClose, notify, onShortcuts, onSettings }: Com
         break
       case 'settings':
         onSettings()
+        break
+      case 'fleet':
+        onFleet()
         break
       case 'backup': {
         const bridge = window.ws?.app

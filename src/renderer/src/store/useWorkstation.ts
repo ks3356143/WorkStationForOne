@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type {
   AgentCreateInput,
+  AgentImportResult,
   AgentMessageRecord,
   AgentSessionPatch,
   AgentSessionRecord,
@@ -19,6 +20,7 @@ import { clozeFrontText } from '../../../shared/cloze'
 import { createInitialData } from '../data/mock'
 import { dateKey } from '../../../shared/date-key'
 import { agentSessionDate, agentSessionMeta } from '../lib/agent'
+import { toChatMessage } from '../lib/chat-message'
 import { toggleCheckin } from '../lib/habits'
 import { dueQueue } from '../lib/learning'
 import { scheduleReview } from '../../../shared/srs'
@@ -143,18 +145,20 @@ interface WorkstationActions {
   openAgentSession: (sessionId: string) => void
   createAgentSession: (agent?: AgentId) => void
   setAgentResume: (sessionId: string, resumeId: string) => void
+  setAgentWorkspace: (sessionId: string, workspace: string) => void
+  importAgentSession: (result: AgentImportResult) => void
   setToolPermission: (sessionId: string, request: AgentPermissionRequest) => void
-  clearToolPermission: () => void
+  clearToolPermission: (sessionId: string) => void
   setMcpPermission: (request: McpPermissionRequest) => void
-  clearMcpPermission: () => void
+  clearMcpPermission: (sessionId: string) => void
   sendMessage: (text: string) => void
-  takePendingPrompt: () => { sessionId: string; prompt: string } | null
+  takePendingPrompt: (sessionId?: string) => { sessionId: string; prompt: string } | null
   beginAgentReply: (sessionId: string, runId: string | null) => void
-  bindAgentRun: (runId: string) => void
-  appendAgentText: (chunk: string) => void
-  upsertAgentTool: (tool: ToolCall, status: string) => void
-  setAgentToolStatus: (toolId: string, status: string) => void
-  finishAgentReply: (error?: string) => void
+  bindAgentRun: (sessionId: string, runId: string) => void
+  appendAgentText: (sessionId: string, chunk: string) => void
+  upsertAgentTool: (sessionId: string, tool: ToolCall, status: string) => void
+  setAgentToolStatus: (sessionId: string, toolId: string, status: string) => void
+  finishAgentReply: (sessionId: string, error?: string) => void
   receiveReply: (text: string, tools?: ToolCall[]) => void
   resolvePermission: (decision: 'allow' | 'deny') => void
   toggleMotion: () => void
@@ -454,8 +458,6 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       activeSessionId: id,
       activeView: 'agent',
       permission: null,
-      toolPermission: null,
-      mcpPermission: null,
       resolution: null
     }))
     browserStorage()?.setItem(ACTIVE_AGENT_KEY, id)
@@ -475,13 +477,86 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     persistAgentSession(sessionId, { resumeId })
   },
 
-  setToolPermission: (sessionId, request) => set({ toolPermission: { ...request, sessionId } }),
+  setAgentWorkspace: (sessionId, workspace) => {
+    set((state) => ({
+      sessions: state.sessions.map((session) =>
+        session.id === sessionId ? { ...session, workspace } : session
+      )
+    }))
+    persistAgentSession(sessionId, { workspace })
+  },
 
-  clearToolPermission: () => set({ toolPermission: null }),
+  importAgentSession: ({ session: record, messages }) => {
+    const now = Date.now()
+    const session: Session = {
+      id: record.id,
+      agent: record.agent,
+      title: record.title,
+      status: record.status,
+      meta: agentSessionMeta(record.updatedAt, messages.length, now),
+      threadDate: agentSessionDate(record.updatedAt, now),
+      ...(record.workspace ? { workspace: record.workspace } : {}),
+      ...(record.resumeId ? { resumeId: record.resumeId } : {})
+    }
+    set((state) => ({
+      sessions: [session, ...state.sessions.filter((item) => item.id !== record.id)],
+      threads: { ...state.threads, [record.id]: messages.map(toChatMessage) },
+      activeSessionId: record.id,
+      activeView: 'agent',
+      permission: null,
+      resolution: null
+    }))
+    browserStorage()?.setItem(ACTIVE_AGENT_KEY, record.id)
+  },
 
-  setMcpPermission: (request) => set({ mcpPermission: request }),
+  setToolPermission: (sessionId, request) =>
+    set((state) => ({
+      toolPermissions: {
+        ...state.toolPermissions,
+        [sessionId]: { ...request, sessionId }
+      },
+      sessions: state.sessions.map((session) =>
+        session.id === sessionId ? { ...session, status: 'wait' as const } : session
+      )
+    })),
 
-  clearMcpPermission: () => set({ mcpPermission: null }),
+  clearToolPermission: (sessionId) =>
+    set((state) => {
+      const toolPermissions = { ...state.toolPermissions }
+      delete toolPermissions[sessionId]
+      const waiting = Boolean(state.mcpPermissions[sessionId])
+      return {
+        toolPermissions,
+        sessions: state.sessions.map((session) =>
+          session.id === sessionId && session.status === 'wait' && !waiting
+            ? { ...session, status: 'run' as const }
+            : session
+        )
+      }
+    }),
+
+  setMcpPermission: (request) =>
+    set((state) => ({
+      mcpPermissions: { ...state.mcpPermissions, [request.sessionId]: request },
+      sessions: state.sessions.map((session) =>
+        session.id === request.sessionId ? { ...session, status: 'wait' as const } : session
+      )
+    })),
+
+  clearMcpPermission: (sessionId) =>
+    set((state) => {
+      const mcpPermissions = { ...state.mcpPermissions }
+      delete mcpPermissions[sessionId]
+      const waiting = Boolean(state.toolPermissions[sessionId])
+      return {
+        mcpPermissions,
+        sessions: state.sessions.map((session) =>
+          session.id === sessionId && session.status === 'wait' && !waiting
+            ? { ...session, status: 'run' as const }
+            : session
+        )
+      }
+    }),
 
   sendMessage: (text) => {
     const trimmed = text.trim()
@@ -508,24 +583,29 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
         ...current.threads,
         [sessionId]: [...(current.threads[sessionId] ?? []), message]
       },
+      pendingPrompts: [...current.pendingPrompts, { sessionId, prompt: trimmed }],
       typing: true,
-      pendingReplyTo: sessionId,
-      pendingPrompt: trimmed,
-      toolPermission: null,
-      mcpPermission: null
+      pendingReplyTo: sessionId
     }))
     persistAgentMessage(sessionId, message)
     persistAgentSession(sessionId, { status: 'run', ...(title !== session.title ? { title } : {}) })
   },
 
-  takePendingPrompt: () => {
+  takePendingPrompt: (sessionId) => {
     const state = get()
-    if (!state.pendingPrompt) return null
-    set({ pendingPrompt: null })
-    return { sessionId: state.activeSessionId, prompt: state.pendingPrompt }
+    // 默认取队首；指定会话时只取属于它的那一条，避免队首被占用时堵住别的会话
+    const index = sessionId
+      ? state.pendingPrompts.findIndex((item) => item.sessionId === sessionId)
+      : 0
+    const next = state.pendingPrompts[index]
+    if (!next) return null
+    set({ pendingPrompts: state.pendingPrompts.filter((_, itemIndex) => itemIndex !== index) })
+    return { sessionId: next.sessionId, prompt: next.prompt }
   },
 
   beginAgentReply: (sessionId, runId) => {
+    // 同一会话始终只有一条流；重复启动时保留已有消息，避免把上一条回复写丢
+    if (get().streams[sessionId]) return
     const now = Date.now()
     const message: ChatMessage = {
       id: nextMessageId('a'),
@@ -541,25 +621,31 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
           : session
       ),
       threads: { ...state.threads, [sessionId]: [...(state.threads[sessionId] ?? []), message] },
+      streams: {
+        ...state.streams,
+        [sessionId]: { runId, messageId: message.id }
+      },
       typing: true,
-      pendingReplyTo: sessionId,
-      streaming: { runId, sessionId, messageId: message.id }
+      pendingReplyTo: sessionId
     }))
     persistAgentSession(sessionId, { status: 'run' })
   },
 
-  bindAgentRun: (runId) => {
-    set((state) => (state.streaming ? { streaming: { ...state.streaming, runId } } : {}))
-  },
+  bindAgentRun: (sessionId, runId) =>
+    set((state) => {
+      const stream = state.streams[sessionId]
+      if (!stream) return {}
+      return { streams: { ...state.streams, [sessionId]: { ...stream, runId } } }
+    }),
 
-  appendAgentText: (chunk) => {
-    const streaming = get().streaming
-    if (!streaming || !chunk) return
+  appendAgentText: (sessionId, chunk) => {
+    const stream = get().streams[sessionId]
+    if (!stream || !chunk) return
     set((state) => ({
       threads: {
         ...state.threads,
-        [streaming.sessionId]: (state.threads[streaming.sessionId] ?? []).map((entry) =>
-          entry.id === streaming.messageId
+        [sessionId]: (state.threads[sessionId] ?? []).map((entry) =>
+          entry.id === stream.messageId
             ? { ...entry, text: appendStreamText(entry.text, chunk) }
             : entry
         )
@@ -567,14 +653,14 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     }))
   },
 
-  upsertAgentTool: (tool, status) => {
-    const streaming = get().streaming
-    if (!streaming) return
+  upsertAgentTool: (sessionId, tool, status) => {
+    const stream = get().streams[sessionId]
+    if (!stream) return
     set((state) => ({
       threads: {
         ...state.threads,
-        [streaming.sessionId]: (state.threads[streaming.sessionId] ?? []).map((entry) => {
-          if (entry.id !== streaming.messageId) return entry
+        [sessionId]: (state.threads[sessionId] ?? []).map((entry) => {
+          if (entry.id !== stream.messageId) return entry
           const tools = entry.tools ? [...entry.tools] : []
           const index = tool.id ? tools.findIndex((item) => item.id === tool.id) : -1
           if (index >= 0) tools[index] = { ...tools[index], ...tool, status }
@@ -585,14 +671,14 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     }))
   },
 
-  setAgentToolStatus: (toolId, status) => {
-    const streaming = get().streaming
-    if (!streaming) return
+  setAgentToolStatus: (sessionId, toolId, status) => {
+    const stream = get().streams[sessionId]
+    if (!stream) return
     set((state) => ({
       threads: {
         ...state.threads,
-        [streaming.sessionId]: (state.threads[streaming.sessionId] ?? []).map((entry) => {
-          if (entry.id !== streaming.messageId || !entry.tools) return entry
+        [sessionId]: (state.threads[sessionId] ?? []).map((entry) => {
+          if (entry.id !== stream.messageId || !entry.tools) return entry
           return {
             ...entry,
             tools: entry.tools.map((tool) => (tool.id === toolId ? { ...tool, status } : tool))
@@ -602,36 +688,49 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     }))
   },
 
-  finishAgentReply: (error) => {
-    const streaming = get().streaming
-    if (!streaming) return
-    const { sessionId, messageId } = streaming
+  finishAgentReply: (sessionId, error) => {
+    const stream = get().streams[sessionId]
+    if (!stream) return
+    const { messageId } = stream
     const now = Date.now()
-    set((state) => ({
-      sessions: state.sessions.map((session) =>
-        session.id === sessionId
-          ? withAgentMeta(
-              { ...session, status: 'idle' },
-              (state.threads[sessionId] ?? []).length,
-              now
-            )
-          : session
-      ),
-      threads: {
-        ...state.threads,
-        [sessionId]: (state.threads[sessionId] ?? []).map((entry) => {
-          if (entry.id !== messageId) return entry
-          if (error) return { ...entry, text: entry.text || error, error: true }
-          // 空回复也要留个痕迹，否则界面像「什么都没发生」
-          return entry.text ? entry : { ...entry, text: '（本轮没有输出）' }
-        })
-      },
-      typing: false,
-      pendingReplyTo: null,
-      streaming: null,
-      toolPermission: null,
-      mcpPermission: null
-    }))
+    const toolPermissions = { ...get().toolPermissions }
+    delete toolPermissions[sessionId]
+    const mcpPermissions = { ...get().mcpPermissions }
+    delete mcpPermissions[sessionId]
+    set((state) => {
+      const streams = { ...state.streams }
+      delete streams[sessionId]
+      const remaining = Object.keys(streams)
+      const nextPending = state.pendingPrompts[0]?.sessionId ?? null
+      const nextActive = remaining.includes(state.activeSessionId)
+        ? state.activeSessionId
+        : (remaining[0] ?? null)
+      return {
+        sessions: state.sessions.map((session) =>
+          session.id === sessionId
+            ? withAgentMeta(
+                { ...session, status: 'idle' },
+                (state.threads[sessionId] ?? []).length,
+                now
+              )
+            : session
+        ),
+        threads: {
+          ...state.threads,
+          [sessionId]: (state.threads[sessionId] ?? []).map((entry) => {
+            if (entry.id !== messageId) return entry
+            if (error) return { ...entry, text: entry.text || error, error: true }
+            // 空回复也要留个痕迹，否则界面像「什么都没发生」
+            return entry.text ? entry : { ...entry, text: '（本轮没有输出）' }
+          })
+        },
+        streams,
+        toolPermissions,
+        mcpPermissions,
+        typing: remaining.length > 0 || state.pendingPrompts.length > 0,
+        pendingReplyTo: nextActive ?? nextPending
+      }
+    })
     const finalMessage = get().threads[sessionId]?.find((message) => message.id === messageId)
     if (finalMessage) persistAgentMessage(sessionId, finalMessage)
     persistAgentSession(sessionId, { status: 'idle' })
@@ -650,19 +749,29 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       tools
     }
     const count = (state.threads[sessionId]?.length ?? 0) + 1
-    set((current) => ({
-      sessions: current.sessions.map((session) =>
-        session.id === sessionId
-          ? withAgentMeta({ ...session, status: 'idle' }, count, now)
-          : session
-      ),
-      threads: {
-        ...current.threads,
-        [sessionId]: [...(current.threads[sessionId] ?? []), message]
-      },
-      typing: false,
-      pendingReplyTo: null
-    }))
+    set((current) => {
+      // 这条回复兑现的是该会话最早的一条待发送提示词
+      const index = current.pendingPrompts.findIndex((item) => item.sessionId === sessionId)
+      const pendingPrompts =
+        index >= 0
+          ? current.pendingPrompts.filter((_, itemIndex) => itemIndex !== index)
+          : current.pendingPrompts
+      const remaining = Object.keys(current.streams)
+      return {
+        sessions: current.sessions.map((session) =>
+          session.id === sessionId
+            ? withAgentMeta({ ...session, status: 'idle' }, count, now)
+            : session
+        ),
+        threads: {
+          ...current.threads,
+          [sessionId]: [...(current.threads[sessionId] ?? []), message]
+        },
+        pendingPrompts,
+        typing: remaining.length > 0 || pendingPrompts.length > 0,
+        pendingReplyTo: remaining[0] ?? pendingPrompts[0]?.sessionId ?? null
+      }
+    })
     persistAgentMessage(sessionId, message)
     persistAgentSession(sessionId, { status: 'idle' })
   },

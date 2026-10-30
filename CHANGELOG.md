@@ -6,6 +6,229 @@
 
 暂无。
 
+## [0.30.0] - 2026-10-30
+
+### 新增
+
+- **历史工具卡**：导入本机会话历史时，Claude 的 `tool_use` / `tool_result` 与 Codex 的 `function_call` / `function_call_output` 会转成现有工具卡，挂到相邻助手消息；执行结果回填「完成 / 失败 / 历史」状态，输入只保留一段压缩摘要。
+- **边界**：工具卡沿用 `tools_json`，无数据库迁移；每条消息最多 20 个工具卡，完整命令输出与文件改动不导入。历史工具卡只读展示，不触发审批或重放。
+
+### 验证
+
+- 729 项单元测试（Claude 工具配对、Codex function call 状态、输入摘要、20 个工具上限、importMessages 工具卡往返）；300 项冒烟（导入线程出现 Read 工具卡与 `smoke-note.txt`、`tools_json` 落库）；运行时功能断言 252/253 通过，唯一失败是当前系统负载下主题切换 2 帧性能阈值（1994ms），待空闲复跑。
+- 导入历史与工具卡在 1440×900 / 1180×720 的暗色 / 白天主题下无横向溢出。
+- 本轮只覆盖 Claude `tool_use` 与 Codex `function_call`；其它自定义工具事件与完整输出不导入。
+
+## [0.29.0] - 2026-10-30
+
+### 新增
+
+- **导入会话历史**：舰队控制台导入本机 Claude / Codex JSONL 时，顺带读取最近 200 条用户 / 助手正文（文件尾部 2 MB），导入后打开会话可直接看到历史，不再只有空聊天区。历史只读展示，新消息仍由原 CLI 续接，不会把旧历史重新喂给模型。
+- **补历史**：已导入的会话不再禁用按钮，改为「补历史」，可重新扫描并补齐新增消息；重复导入使用固定消息 id，幂等覆盖，不产生重复行。
+- **DB v26**：`agent_messages.origin` 标记 `app | import`；导入消息带固定 id 与原始时间，仓储批量写入使用事务。现有应用消息默认 `app`，不受影响。
+- **界面**：导入会话顶部显示「导入自本机 CLI 的只读历史 · 新消息继续由 CLI 续接」，历史正文直接进入现有聊天流。
+
+### 验证
+
+- 728 项单元测试（历史解析、系统行过滤、200 条上限、DB v26 迁移、幂等导入、store 历史映射）；300 项冒烟（导入后线程出现历史正文、`origin='import'` 落库、补历史按钮）；251/251 运行时断言。
+- 导入会话在 1440×900 / 1180×720 的暗色 / 白天主题下无横向溢出，历史说明条与消息行正常折行。
+- 本轮只导入正文，工具卡 / 命令输出不进入历史；更早的 200 条之前的消息不导入。
+
+## [0.28.0] - 2026-10-30
+
+### 新增
+
+- **Codex 外部 MCP**：激活 Codex Provider 后，能力中心里已启用且已信任的外部 MCP 会随应用自己的 `codex-home/config.toml` 下发到 `codex app-server` 会话；继承 CLI 的 `codex exec` 仍保持只读、不接外部 MCP。stdio Server 使用 `env_vars`，HTTP Server 使用 `env_http_headers`，密钥值只进 app-server 子进程环境，并全部加入 `shell_environment_policy.exclude`；配置里只出现环境变量名，不写 `~/.codex`。
+- **审批与工具策略**：外部 Server 默认 `default_tools_approval_mode = "prompt"`，每次工具调用进入现有审批卡；`allow` 写为工具级 `approval_mode = "auto"`，`deny` 写进 `disabled_tools`，app-server 的 elicitation 处理再按同一策略兜底（allow 自动接受、deny 直接拒绝、ask 弹卡）。
+- **界面**：能力中心 MCP 说明更新为「Claude 会话 + Codex Provider 会话」，并注明密钥只进子进程环境与继承 CLI 的 exec 不受影响。
+
+### 验证
+
+- 721 项单元测试（新增 Codex MCP 运行时、密钥环境变量名、TOML 序列化与引号、工具策略、app-server 外部 allow / ask / deny 审批）；298 项冒烟（外部 MCP 说明、Codex Provider 配置包含 `memory` 与本地桥且不含 Provider 密钥）；251/251 运行时断言。
+- 用 Codex CLI 0.166 在临时 `CODEX_HOME` 验证 `env_vars`、`env_http_headers`、`default_tools_approval_mode`、`disabled_tools` 与工具级 `approval_mode` 可被 `codex mcp list --json` 解析。
+- **真实调用验证**：用现有 Codex Provider（`deepseek-flash`）在隔离 `CODEX_HOME` 与临时工作区挂载本地 stdio 外部 MCP，模型实际调用 `echoprobe/echo`，`mcpServer/elicitation/request` 到达并接受，工具返回 `external-mcp-ok`，回合正常完成。真实 elicitation 的 `_meta` 不带 `tool_name`，应用按 `message` 中的工具名解析策略，已补对应回归。
+- 能力中心 MCP 页在 1440×900 / 1180×720、暗色 / 白天均无横向溢出。
+- 本轮真实调用只验证 stdio 外部 MCP；HTTP 外部 MCP 与真实写入类工具仍需单独验证。
+
+## [0.27.0] - 2026-10-30
+
+### 新增
+
+- **导入本机会话**：舰队控制台新增「导入本机」，只读扫描本机 Claude / Codex CLI 的 JSONL 会话（Claude `~/.claude/projects`、Codex `~/.codex/sessions`），解析会话 id、标题、工作区与更新时间。已导入的会话标为「已导入」，工作区目录不存在的禁止导入；导入只建立应用内会话并保存 resume id，不复制历史、不改外部配置，后续消息仍交给原 CLI 续接。导入前应先关闭外部窗口，避免同一会话被两处同时写入。
+- **扫描边界**：只读文件头 128 KB、最多 240 行，跳过符号链接；总数上限 300 个文件、每个 Agent 最多 60 个会话。标题优先使用 Claude 摘要，其次为第一条真实用户消息；系统提醒、命令回显、Codex 环境说明不会被当成标题。自动化可用 `WS_SESSION_SCAN_ROOT` 指向临时 home，不读取真实用户目录。
+- **界面**：舰队控制台头部新增「导入本机」开关，面板按 Claude / Codex 分组显示标题、工作区路径、更新时间和导入状态；导入成功立即进入舰队列表并选中为当前会话。窄窗口下导入面板内部滚动，不挤压模态框。
+
+### 验证
+
+- 712 项单元测试（新增本机会话解析、去重、工作区失效、导入参数校验与 store 导入选中）；296 项冒烟（`WS_SESSION_SCAN_ROOT` 指向临时 home，打开舰队 → 只读扫描 → 导入 → 断言舰队新增、resume id / 工作区落库、按钮变为已导入）；251/251 运行时断言。
+- 舰队导入面板在 1440×900 与 1180×720 的暗色 / 白天主题下均无横向溢出，模态框与导入列表滚动正常。
+- 导入本身不调用模型；真实 Claude / Codex 会话的续接质量仍需单独验证（本轮只验证元数据扫描与落库）。
+
+## [0.26.0] - 2026-10-30
+
+### 新增
+
+- **市场体验**：技能市场按安装量排序（热度 / 名称），卡片显示安装数，默认分批加载 48 个并提供「加载更多」。
+- **本地技能**：支持导入裸 `SKILL.md`、`skills/` 目录或完整插件到应用私有目录；自动包裹插件清单，安装后仍默认停用。支持源文件列表、SKILL.md 预览与打开目录；本地插件移除只删私有目录。
+- **工作区文件与产物**：Agent 顶栏「文件」打开只读文件树，跳过 `.git / node_modules / dist`；点击文件预览文本（越界/二进制/超过 128 KB 均拒绝）；Write / Edit / Patch 工具卡汇总为「本回合产物」。通过 portal 渲染，使用全屏遮罩。
+- **会话预设（DB v25）**：`agent_presets` 保存名称 / Agent / 工作区；舰队控制台「存预设」保存当前会话，预设区一键用相同工作区新建，可删除。
+- **用量统计（DB v25）**：`agent_runs` 记录每轮开始/结束、成功/取消、成本、时长、轮次；舰队「用量」展示近 7 天汇总与每日运行柱。
+
+### 验证
+
+- 703 项单元测试（工作区越界/二进制/大文件、本地技能导入与详情、预设/用量仓储、市场排序与用量纯函数）；294 项冒烟（本地技能导入/详情/移除、工作区文件树/预览、预设保存/删除、用量统计、运行用量落库）；251/251 运行时断言。
+- 工作区与舰队用量界面在 1440×900 / 1180×720 暗色与白天检查无横向溢出。
+- 外部终端窗口导入仍未实现；只统一应用内会话。
+
+## [0.25.0] - 2026-10-30
+
+### 新增
+
+- **MCP 工具级权限（DB v24）**：`mcp_server_tools` 保存工具名、描述、只读标记与 `allow|ask|deny`；连接测试同步工具元数据，改配置清空重测。Claude 启动时只把 allow 放进 `--allowedTools`、deny 放进 `--disallowedTools`，ask 继续走同一张审批卡；自动批准默认只建议用于只读工具。
+- **环境自检**：能力中心显示 node / npx / uvx / git / claude / codex 的路径与版本，缺失项单独标红；只读检查，不自动安装系统工具。
+- **MCP JSON 导入导出**：支持 `mcpServers` 结构批量导入，重名跳过、逐条报错，导入后默认停用未信任；导出保留命令/参数/URL 与 env/header key，**不导出密钥值**。
+- **界面**：工具行可展开为「自动 / 询问 / 禁止」三档；导出面板支持全选 JSON；已安装列表增加分组标题。
+
+### 验证
+
+- 694 项单元测试（新增工具同步/审批保留、环境自检、JSON 解析与脱敏导出、Claude allow/deny 参数）；286 项冒烟（环境标签、JSON 导出/导入、工具级权限设置、移除不残留）；251/251 运行时断言。
+- 1440×900 / 1180×720 暗色与白天下的能力中心环境条、工具面板与 JSON 面板无横向溢出。
+
+## [0.24.0] - 2026-10-30
+
+### 新增
+
+- **舰队控制台**：状态栏「舰队 N」、左侧舰队区与命令面板三处入口；按 Claude / Codex 分组展示所有应用内会话的状态、工作区、消息数、排队与审批数量。
+- **统一操作**：全部 / 运行中 / 待审批 / 空闲筛选；打开会话、停止有 runId 的运行、直接新建 Claude / Codex 会话；汇总运行数与待审批数。
+- **边界**：只统一 WorkStationForOne 自己启动或恢复的会话，不扫描、不接管外部终端窗口；外部窗口导入留到后续单轮。
+
+### 验证
+
+- 687 项单元测试、282 项冒烟（舰队入口、分组列表、汇总、筛选、打开会话）、251/251 运行时断言；舰队控制台在 1440×900 / 1180×720 暗色与白天布局检查无横向溢出。
+- 仍只验证应用内会话；真实模型与外部窗口未涉及。
+
+## [0.23.0] - 2026-10-30
+
+### 新增
+
+- **外部 MCP 连接测试与工具发现（DB v23）**：`mcp_servers` 增加 `tools_json / last_test_at / last_error`；已信任的 stdio / HTTP Server 可执行一次 `initialize → notifications/initialized → tools/list`，10 秒超时，结果写入本机库，能力中心显示连接状态、工具数与工具名。
+- **Windows 命令解析**：stdio 测试命令经统一的 `resolveCommand()` 解析 `.cmd` 包装，`npx` / `uvx` / `node` 不会因直接 spawn 包装而 EINVAL；HTTP 测试携带 `mcp-session-id`，支持 SSE 与 JSON 响应。
+- **真实市场镜像**：Claude CLI 自带的 marketplace add 会做完整 clone，本机网络会卡住，且本地目录不能使用官方保留名。应用改为 `git clone --depth 1 --sparse` 到私有 `market-src`，manifest 改名 `wsfo-official` 后注册本地目录，界面显示「Claude 官方」；真实网络验证到 315 个插件，`agent-sdk-dev` 安装路径可用。CLI 的 multi-line pretty JSON 解析与 `npx.cmd` 的 `SET` 变量包装也一并修正。
+- **真实 MCP 验证**：`npx @modelcontextprotocol/server-sequential-thinking` 完成 initialize 并返回 `sequentialthinking`；`resolveCommand()` 现在能正确从 npx 包装里取 `npx-cli.js`（不是 `npm-prefix.js`）。测试结束用 `taskkill /T` 清理整棵子进程树，避免 npx / uvx 拉起的 MCP Server 残留后台。
+- **界面优化**：MCP 已安装列表增加「已安装 N」小标题与「启用并信任后可测试连接」提示；市场首次加载文案改为 1–2 分钟的官方镜像说明。
+- **管理体验**：自定义 Server 可在能力中心添加、信任、启用、测试、移除；修改命令/URL/参数会清空旧测试结果，避免显示过期工具清单。
+
+### 验证
+
+- 687 项单元测试（新增 stdio / HTTP MCP 探测、信任门槛、测试失败留痕、DB v23 迁移、pretty JSON 与 npm 变量包装）；277 项冒烟（自定义 stdio MCP 添加 → 信任 → 连接测试 → 工具清单 → 移除；Claude 子进程仍只收到启用的 Memory 与私有插件）；251/251 运行时断言。
+- 真实验证：官方市场 315 个插件；`sequential-thinking` MCP 工具发现；`agent-sdk-dev` 通过本地镜像 CLI 安装。
+- 仍未验证：真实模型内的技能触发；外部 MCP 仍只注入 Claude，其它第三方 MCP Server 的连接仍需逐个测试。
+
+## [0.22.0] - 2026-10-30
+
+### 新增
+
+- **能力中心（DB v22）**：`agent_plugins`、`mcp_servers`、`mcp_server_secrets` 三张表；设置页新增「基础 / 能力中心」分区，包含 Claude 插件、外部 MCP 与内置工具目录。
+- **Claude 插件市场**：通过隔离的 `CLAUDE_CONFIG_DIR` 调用 Claude CLI 读取官方市场、安装/更新/卸载插件；插件只落在应用数据目录，Claude 会话通过 `--plugin-dir` 按会话加载，不写 `~/.claude`。新装默认停用，带 hooks/MCP 的插件必须二次确认信任。
+- **外部 MCP 管理**：内置 4 个免配置目录（Memory / Sequential Thinking / Fetch / Time），支持自定义 stdio / HTTP Server；env 与 header 值用 `safeStorage` 加密，列表只回 key；启动 Claude 时解密进临时 `--mcp-config`。新装默认停用未信任，启用需二次确认；支持 npm / PyPI 版本检查与更新。
+- **隔离**：Claude 会话始终带 `--setting-sources project` 与 `--strict-mcp-config`，用户级 settings 与全局 MCP 不进入应用会话；外部 MCP 目前只注入 Claude，Codex exec / app-server 保持原状。
+- **内置工具目录**：展示本地 MCP 桥的 11 个数据工具与读写/域信息；不新增任意 Shell / 文件工具。
+
+### 验证
+
+- 678 项单元测试（新增 DB v22 迁移、插件目录/市场解析、MCP 加密与更新、隔离参数）；274 项冒烟（stub 插件市场安装/启用、MCP 添加/信任/启用、子进程收到私有 `--plugin-dir` 与 `--strict-mcp-config`）；251/251 运行时断言；能力中心在 1440×900 与 1180×720 的暗色/白天布局均无横向溢出。
+- 仍未验证：真实 Claude 市场网络拉取、真实模型内的技能触发、真实第三方 MCP Server 连接；这些需要联网与真实 Provider 单独测试。
+
+## [0.21.0] - 2026-10-30
+
+### 新增
+
+- **多会话并发**：同一会话仍保持串行，不同会话可以同时启动各自的 CLI 子进程。渲染层用 `streams[sessionId]`、按会话排队的待发送提示词与 `runId → sessionId` 事件路由；A 会话慢速运行时，B 会话可以正常发送、流式回复并结束，互不锁输入框。
+- **审批与后台会话**：工具审批卡与 MCP 写入审批卡按会话保存，后台会话的审批不会抢占当前聊天；输入栏上方提示「其它会话有 N 项待审批」，状态栏汇总待审批数量并可直达。
+- **审批 id 隔离**：主进程把工具审批请求 id 加上 `runId:` 前缀再发给渲染层，再按前缀路由回对应运行。Codex app-server 的进程内小整数 id 与 stub 的固定 id 在并发时不会串台。
+- **并发冒烟**：慢速 stub 让两个 Claude 会话同时运行，断言后发会话先完成、慢会话仍在等待，随后各自独立收尾；两个会话同时弹审批卡（stub 故意复用同一个进程内 `request_id`），允许甲后甲完成、乙仍等待，再拒绝乙，验证作用域前缀与按会话落卡。
+
+### 验证
+
+- 661 项单元测试（新增独立流、按会话排队、审批卡互不覆盖、结束只清自己的卡）；265 项冒烟；251/251 运行时断言。
+
+## [0.20.1] - 2026-10-30
+
+### 优化
+
+- **Codex MCP 只读免重复审批**：`isReadOnlyMcpTool()` 从本地桥的工具定义判断只读工具；Codex 的只读 MCP elicitation 直接回 `accept`，仍写 `mcp/read` 审计。写入工具继续进入工具审批卡，允许后才调用桥。
+- **真实读写回归**：DeepSeek `deepseek-flash` 的 `today_overview` 读取不再弹卡，`tasks_create` 写入仍弹卡并落库；审计 read/write 均在，无控制台错误。
+
+### 验证
+
+- 655 项单元测试、254 项冒烟、251/251 运行时断言。
+
+## [0.20.0] - 2026-10-30
+
+### 新增
+
+- **Codex MCP 接入**：激活 Codex Provider 时，主进程为本回合向本地 MCP 桥发放 Token，并在应用自己的 `codex-home/config.toml` 写入 `[mcp_servers.workstationforone]`：`url` + `bearer_token_env_var = "WS_CODEX_MCP_TOKEN"`。Token 只进 app-server 子进程环境，配置不落 Token；`shell_environment_policy` 同时剔除 Provider 与 MCP Token。
+- **MCP 工具审批**：Codex app-server 的 MCP 工具调用会发 `mcpServer/elicitation/request`（`_meta.codex_approval_kind = "mcp_tool_call"`）；适配器把它映射到现有工具审批卡，显示服务器、工具、描述与参数摘要，允许回 `accept`、拒绝回 `decline`。四域 `read|ask|write` 与审计仍由本地 MCP 桥负责。
+- **真实读写验证**：DeepSeek `deepseek-flash` 先调用 `today_overview`（审批卡允许，审计 read），再调用 `tasks_create`（审批卡允许，任务落库，审计 write）；工具卡完成，无控制台错误。
+
+### 验证
+
+- 654 项单元测试（新增 MCP 配置契约、MCP elicitation 允许/拒绝）；254 项冒烟（Codex MCP 审批卡与允许一次）；251/251 运行时断言。
+
+## [0.19.0] - 2026-10-30
+
+### 新增
+
+- **Agent 会话工作区（DB v21）**：`agent_sessions` 新增 `workspace`；每个会话独立选择项目目录，Claude、Codex exec 与 Codex app-server 都以该目录启动，不再使用打包后的安装目录。主进程在保存与启动前校验绝对路径、存在性与目录类型。
+- **选择体验**：Agent 顶栏增加工作区芯片，显示目录名、悬停显示完整路径；未选择时线程内出现说明卡与「选择目录」，输入框和发送按钮保持禁用。目录通过系统原生选择器，取消不改变会话。
+- **测试缝**：`WS_PICK_WORKSPACE` 只用于自动化，跳过原生对话框但仍走同一套目录校验；真实用户仍走系统目录选择器。
+- **真实验证**：在桌面隔离工作区用 DeepSeek `deepseek-flash` 发指令，审批卡显示 cwd 为目标工作区，允许后 `workspace-real.txt` 落在该目录，未使用应用安装目录；无控制台错误。
+
+### 验证
+
+- 651 项单元测试（迁移工作区列、补丁目录校验、Hydrate 与目录名）；252 项冒烟（未选择时禁用、选择后启用与落库、Codex 子进程 cwd、双会话工作区落库）；251/251 运行时断言。
+
+## [0.18.0] - 2026-10-30
+
+### 新增
+
+- **Provider 测试连接**：接线台新增次级「测试连接」按钮，用当前表单值做一次最小 HTTP 探测，不启动 CLI、不执行工具、不保存配置。Codex 请求 `Base URL + /responses`，Claude 请求 `Base URL + /v1/messages`；Key 留空时由主进程解密当前已保存配置的 token。
+- **结果反馈**：测试中显示「正在验证端点与凭据…」；成功后显示绿色「连接正常 · N ms」，失败显示红色可读原因（401 / 404 / 超时 / 连接被拒绝 / TLS / 非兼容 JSON）。结果只停留在当前表单，字段或目标变化即清空。
+- **安全边界**：主进程执行请求，12 秒超时；错误信息截断并剔除 token；测试不落库、不写日志、不把 Key 回传渲染层。按钮要求自定义模式、URL/模型完整且已有 Key 才可用。
+
+### 验证
+
+- 649 项单元测试（新增 6 项轻量探测、2 项测试连接参数校验）；245 项冒烟（本地 mock 端点覆盖成功与失败，另验证 Key 胶囊、双端口与路由）；251/251 运行时断言。
+- 2026-10-30 用真实 DeepSeek `deepseek-flash` 在应用内点击测试连接，返回「连接正常 · 1272 ms」，无控制台错误；同一套 UI 已验证成功与失败两种状态。
+
+## [0.17.1] - 2026-10-30
+
+### 优化
+
+- **Provider 接线台**：设置页的 Agent Provider 从普通表单改为「双端口 + 信号路由 + 状态灯」结构。Claude Code / Codex CLI 作为两个目标端口显示，当前目标有棱镜边、端口字形与绿色状态灯；继承 / 自定义改为路由条，继承态直接展示外部配置不变的说明卡，不再留下空表单。
+- **连接参数层级**：名称与模型并排，Base URL 与 API Key 通栏；API Key 增加「已加密 / 待填写」胶囊，保存区显示状态灯、Provider 名称与唯一主操作按钮。只使用现有主题令牌，暗色、白天与经典皮肤共用一套变量。
+- **细节收口**：目标或路由切换使用 180ms 淡入位移，遵守 `motion-off` 与减少动效；补齐端口卡与保存按钮的键盘焦点样式。Codex 协议保持 Responses-only。
+
+### 验证
+
+- 641 项单元测试、243 项冒烟（新增双端口、信号路由、继承说明卡、加密胶囊四项 UI 断言）、251/251 运行时断言；Provider 卡在 1440×900 / 1180×720 的暗色与白天主题下均无横向溢出，模态框内部滚动正常。
+
+## [0.17.0] - 2026-10-30
+
+### 新增
+
+- **Codex app-server 写入与审批**：激活工具自己的 Codex Provider 后，改为启动 `codex app-server --stdio`，线程使用 `permissions=':workspace'` + `approvalPolicy='on-request'`；Codex 发起的命令执行、文件改动与额外权限审批请求都会进入现有工具审批卡，允许一次只作用于单次请求，拒绝后本轮继续。继承 CLI（没有激活 Codex Provider）时仍走 `codex exec --json` 只读沙箱。
+- **app-server 协议适配**：`initialize → initialized → thread/start|resume → turn/start` 全部走 stdin JSON-RPC；正文用 `item/agentMessage/delta` 流式累积，工具卡、终态与错误映射到既有 `AgentRunEvent`；续接使用 `thread/resume` 与保存的 thread id，找不到线程时明确报错。`turn/completed` 后回收进程。
+- **Provider 隔离加固**：Codex 的自定义 Provider 继续使用应用自己的 `codex-home`；`shell_environment_policy.exclude` 将 `WS_CODEX_PROVIDER_TOKEN` 从 Codex 启动的 shell 环境中剔除，token 不进入命令行、配置文件和子命令环境。未修改 CC Switch、Codex Desktop 或 Claude Desktop 配置。
+- **Provider 协议兼容修正**：Codex CLI 0.166 已移除 Chat Completions 适配，只接受 `wire_api=responses`；设置页移除 Chat 选项，主进程拒绝保存 Codex + Chat，避免配置保存后启动即失败。
+- **界面文案与状态**：Agent 空态去掉「Codex 只读」；Agent 视图会在存在活动 Codex Provider 时显示 `app-server` 审批模式，否则显示继承 CLI 的只读沙箱。审批卡文案改为通用 Agent。
+
+### 验证
+
+- 641 项单元测试（新增 14 项 app-server 协议与审批链路测试、Codex Provider 协议校验与旧 Chat 配置兼容，覆盖流式正文、工具卡、命令/文件/权限审批、续接与错误路径）；239 项冒烟（新增 Provider 激活、app-server 审批卡、允许一次、切回继承、Responses-only 检查）；251/251 运行时断言；双尺寸五视图截图与布局审计。
+- **真实模型验证**：2026-10-30 用 DeepSeek `deepseek-flash` + Responses 在桌面隔离工作区跑通真实 Codex app-server；允许一次后 `inside-real.txt` 落盘，拒绝后 `denied-real.txt` 未创建，渲染进程无控制台错误。Token 只写入隔离测试库，测试后已删除。
+- Codex 的其它 Provider 仍需分别验证。
+
 ## [0.16.0] - 2026-10-29
 
 ### 新增

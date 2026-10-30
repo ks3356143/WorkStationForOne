@@ -1,5 +1,10 @@
 import { ipcMain } from 'electron'
-import type { ProviderSaveInput, ProviderTarget, ProviderWireApi } from '../../shared/ipc'
+import type {
+  ProviderSaveInput,
+  ProviderTarget,
+  ProviderTestInput,
+  ProviderWireApi
+} from '../../shared/ipc'
 import { IPC_CHANNELS } from '../../shared/ipc'
 import type { ProviderService } from '../providers'
 
@@ -20,7 +25,19 @@ function text(value: unknown, label: string, max: number): string {
 
 function assertSaveInput(value: unknown): ProviderSaveInput {
   if (typeof value !== 'object' || value === null) throw new TypeError('Provider 参数必须是对象')
-  const input = value as Record<string, unknown>
+  const connection = assertConnectionFields(value as Record<string, unknown>)
+  return {
+    ...connection,
+    name: text((value as Record<string, unknown>).name, '名称', MAX_NAME)
+  }
+}
+
+function assertTestInput(value: unknown): ProviderTestInput {
+  if (typeof value !== 'object' || value === null) throw new TypeError('Provider 参数必须是对象')
+  return assertConnectionFields(value as Record<string, unknown>)
+}
+
+function assertConnectionFields(input: Record<string, unknown>): ProviderTestInput {
   const baseUrl = text(input.baseUrl, 'Base URL', MAX_URL)
   let parsed: URL
   try {
@@ -32,10 +49,16 @@ function assertSaveInput(value: unknown): ProviderSaveInput {
     throw new TypeError('Base URL 只支持 http(s)')
   }
 
-  const result: ProviderSaveInput = {
-    name: text(input.name, '名称', MAX_NAME),
-    target: assertTarget(input.target),
-    wireApi: assertWireApi(input.wireApi),
+  const target = assertTarget(input.target)
+  const wireApi = assertWireApi(input.wireApi)
+  // Codex CLI 0.166 起移除了 Chat Completions 适配，只接受 Responses。
+  if (target === 'codex' && wireApi !== 'responses') {
+    throw new TypeError('当前 Codex CLI 只支持 Responses 协议')
+  }
+
+  const result: ProviderTestInput = {
+    target,
+    wireApi,
     baseUrl,
     model: text(input.model, '模型', MAX_MODEL)
   }
@@ -64,7 +87,13 @@ function assertActiveId(value: unknown): string | null {
   return text(value, 'Provider id', MAX_ID)
 }
 
-export const providerValidators = { assertSaveInput, assertActiveId, assertTarget, assertWireApi }
+export const providerValidators = {
+  assertSaveInput,
+  assertTestInput,
+  assertActiveId,
+  assertTarget,
+  assertWireApi
+}
 
 export function registerProviderHandlers(service: ProviderService): void {
   ipcMain.handle(IPC.providerList, () => service.list())
@@ -72,4 +101,7 @@ export function registerProviderHandlers(service: ProviderService): void {
   ipcMain.handle(IPC.providerSetActive, (_event, target: unknown, value: unknown) => {
     service.setActive(assertTarget(target), assertActiveId(value))
   })
+  ipcMain.handle(IPC.providerTest, (_event, value: unknown) =>
+    service.testConnection(assertTestInput(value))
+  )
 }

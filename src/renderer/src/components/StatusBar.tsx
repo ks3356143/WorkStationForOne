@@ -6,12 +6,31 @@ import { skinLabel, themeLabel } from '../lib/theme'
 interface StatusBarProps {
   notify: (text: string) => void
   onShortcuts: () => void
+  onFleet: () => void
 }
 
-export function StatusBar({ notify, onShortcuts }: StatusBarProps) {
+export function StatusBar({ notify, onShortcuts, onFleet }: StatusBarProps) {
   const sessionCount = useWorkstation((state) => state.sessions.length)
   const session = useWorkstation(selectActiveSession)
-  const permission = useWorkstation((state) => state.permission)
+  // 审批卡按会话分开保存；状态栏汇总，点击跳到第一个有卡的会话
+  const approvalCount = useWorkstation((state) =>
+    state.sessions.reduce(
+      (count, item) =>
+        count +
+        (state.permission?.sessionId === item.id ? 1 : 0) +
+        (state.toolPermissions[item.id] ? 1 : 0) +
+        (state.mcpPermissions[item.id] ? 1 : 0),
+      0
+    )
+  )
+  const pendingSessionId = useWorkstation((state) => {
+    const pending = state.sessions.find(
+      (item) =>
+        state.permission?.sessionId === item.id ||
+        Boolean(state.toolPermissions[item.id] || state.mcpPermissions[item.id])
+    )
+    return pending?.id ?? ''
+  })
   const motionOn = useWorkstation((state) => state.motionOn)
   const theme = useWorkstation((state) => state.theme)
   const skin = useWorkstation((state) => state.skin)
@@ -46,14 +65,21 @@ export function StatusBar({ notify, onShortcuts }: StatusBarProps) {
         <i className="w1-sdot" />
         MCP 桥
       </button>
-      <span>会话 {sessionCount}</span>
-      {permission ? (
+      <button
+        className="w1-sbtn w1-st-fleet"
+        type="button"
+        title="打开舰队控制台"
+        onClick={onFleet}
+      >
+        舰队 {sessionCount}
+      </button>
+      {approvalCount > 0 ? (
         <button
           className="w1-sbtn pending"
           type="button"
-          onClick={() => openAgentSession(permission.sessionId)}
+          onClick={() => openAgentSession(pendingSessionId)}
         >
-          待审批 1
+          待审批 {approvalCount}
         </button>
       ) : (
         <span>无待审批</span>

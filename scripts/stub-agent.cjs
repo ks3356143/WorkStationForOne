@@ -186,6 +186,78 @@ async function runFlow(prompt) {
     return
   }
 
+  if (prompt.includes('慢会话')) {
+    emit({ type: 'system', subtype: 'init', model: 'stub-model', session_id: 'stub-slow' })
+    await wait(100)
+    emit({
+      type: 'assistant',
+      message: { role: 'assistant', content: [{ type: 'text', text: '慢会话开始。' }] }
+    })
+    // 留出足够窗口让冒烟在它结束前启动并完成另一个会话
+    await wait(4200)
+    emit({
+      type: 'assistant',
+      message: { role: 'assistant', content: [{ type: 'text', text: '慢会话结束。' }] }
+    })
+    emit({
+      type: 'result',
+      subtype: 'success',
+      is_error: false,
+      total_cost_usd: 0.001,
+      duration_ms: 4200,
+      num_turns: 1
+    })
+    return
+  }
+
+  if (prompt.includes('并发审批')) {
+    emit({
+      type: 'system',
+      subtype: 'init',
+      model: 'stub-model',
+      session_id: 'stub-approval-concurrent'
+    })
+    await wait(100)
+    emit({
+      type: 'assistant',
+      message: { role: 'assistant', content: [{ type: 'text', text: '等待并发审批。' }] }
+    })
+    emit({
+      type: 'control_request',
+      request_id: 'perm-1',
+      request: {
+        subtype: 'can_use_tool',
+        tool_name: 'Write',
+        display_name: 'Write',
+        input: { file_path: 'tmp/concurrent.txt', content: 'ok' },
+        tool_use_id: 'stub-concurrent-tool',
+        description: '并发审批写入'
+      }
+    })
+    const decision = await new Promise((resolve) => pendingPermissions.set('perm-1', resolve))
+    emit({
+      type: 'assistant',
+      message: {
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: decision?.behavior === 'allow' ? '并发审批已允许。' : '并发审批已拒绝。'
+          }
+        ]
+      }
+    })
+    emit({
+      type: 'result',
+      subtype: 'success',
+      is_error: false,
+      total_cost_usd: 0.001,
+      duration_ms: 8,
+      num_turns: 1
+    })
+    return
+  }
+
   if (prompt.includes('需要审批')) {
     emit({ type: 'system', subtype: 'init', model: 'stub-model', session_id: 'stub-permission' })
     await wait(120)
@@ -244,6 +316,52 @@ async function runFlow(prompt) {
       is_error: false,
       total_cost_usd: 0.001,
       duration_ms: 12,
+      num_turns: 1
+    })
+    return
+  }
+
+  if (prompt.includes('能力中心检查')) {
+    emit({
+      type: 'system',
+      subtype: 'init',
+      model: 'stub-model',
+      session_id: 'stub-capability'
+    })
+    const pluginDirs = []
+    const argv = process.argv.slice(2)
+    for (let index = 0; index < argv.length; index += 1) {
+      if (argv[index] === '--plugin-dir' && argv[index + 1]) pluginDirs.push(argv[index + 1])
+    }
+    const mcpIndex = argv.indexOf('--mcp-config')
+    const mcpPath = mcpIndex >= 0 ? argv[mcpIndex + 1] : ''
+    let servers = []
+    if (mcpPath) {
+      try {
+        const config = JSON.parse(readFileSync(mcpPath, 'utf8'))
+        servers = Object.keys(config?.mcpServers ?? {})
+      } catch {
+        servers = ['读取失败']
+      }
+    }
+    emit({
+      type: 'assistant',
+      message: {
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: `能力中心：插件 ${pluginDirs.join('|') || '无'}；MCP ${servers.join('|') || '无'}；严格 ${argv.includes('--strict-mcp-config')}`
+          }
+        ]
+      }
+    })
+    emit({
+      type: 'result',
+      subtype: 'success',
+      is_error: false,
+      total_cost_usd: 0,
+      duration_ms: 0,
       num_turns: 1
     })
     return

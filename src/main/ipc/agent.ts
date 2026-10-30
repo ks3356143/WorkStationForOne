@@ -1,16 +1,27 @@
-import { ipcMain, type BrowserWindow } from 'electron'
+import { randomUUID } from 'node:crypto'
+import { statSync } from 'node:fs'
+import { isAbsolute } from 'node:path'
+import { app, dialog, ipcMain, shell, type BrowserWindow, type OpenDialogOptions } from 'electron'
 import type { AgentCli } from '../agent/claude'
 import { startClaudeRun } from '../agent/claude'
+import { discoverLocalSessions } from '../agent/discover'
+import { readSessionHistory } from '../agent/history'
+import { listWorkspaceEntries, readWorkspaceText } from '../agent/workspace'
+import { startCodexAppServerRun } from '../agent/codex-app-server'
 import { startCodexRun } from '../agent/codex'
 import type { AgentRepository } from '../db/agent'
 import type { McpEndpoint } from '../mcp/server'
 import type { ProviderRuntime } from '../providers'
+import type { AgentCapabilityRuntime } from '../capabilities'
 import type { ProviderTarget } from '../../shared/ipc'
 import {
   IPC_CHANNELS,
   type AgentCreateInput,
+  type AgentImportInput,
+  type AgentImportResult,
   type AgentMessageRecord,
   type AgentPermissionResponse,
+  type AgentPresetInput,
   type AgentSendInput,
   type AgentSessionPatch,
   type AgentToolRecord
@@ -24,6 +35,7 @@ const MAX_TITLE = 80
 const MAX_TIME_LABEL = 40
 const MAX_TOOLS = 50
 const MAX_TOOL_TEXT = 120
+const MAX_WORKSPACE = 1000
 
 function assertId(value: unknown, label: string): string {
   if (typeof value !== 'string' || value.length === 0 || value.length > MAX_ID) {
@@ -52,6 +64,33 @@ export function assertAgentSendInput(value: unknown): AgentSendInput {
 function assertAgentKind(value: unknown): 'claude' | 'codex' {
   if (value !== 'claude' && value !== 'codex') throw new TypeError('Agent 类型无效')
   return value
+}
+
+export function assertImportInput(value: unknown): AgentImportInput {
+  if (typeof value !== 'object' || value === null) throw new TypeError('导入会话必须是对象')
+  const input = value as Record<string, unknown>
+  const resumeId = assertId(input.resumeId, '本机会话 id')
+  const rawTitle = typeof input.title === 'string' ? input.title.trim() : ''
+  const title = (rawTitle || '导入的会话').slice(0, 80)
+  return {
+    agent: assertAgentKind(input.agent),
+    resumeId,
+    title,
+    workspace: assertWorkspacePath(input.workspace)
+  }
+}
+
+export function assertPresetInput(value: unknown): AgentPresetInput {
+  if (typeof value !== 'object' || value === null) throw new TypeError('预设必须是对象')
+  const input = value as Record<string, unknown>
+  if (typeof input.name !== 'string') throw new TypeError('预设名称无效')
+  const name = input.name.trim()
+  if (!name || name.length > 80) throw new TypeError('预设名称无效')
+  return {
+    name,
+    agent: assertAgentKind(input.agent),
+    workspace: assertWorkspacePath(input.workspace)
+  }
 }
 
 function assertSessionStatus(value: unknown): 'run' | 'wait' | 'idle' {
@@ -86,8 +125,26 @@ export function assertAgentSessionPatch(value: unknown): AgentSessionPatch {
   if (patch.title !== undefined) result.title = assertTitle(patch.title)
   if (patch.status !== undefined) result.status = assertSessionStatus(patch.status)
   if (patch.resumeId !== undefined) result.resumeId = assertId(patch.resumeId, '续接会话 id')
+  if (patch.workspace !== undefined) result.workspace = assertWorkspacePath(patch.workspace)
   if (Object.keys(result).length === 0) throw new TypeError('会话补丁没有可更新字段')
   return result
+}
+
+/** 工作区必须是存在的绝对目录；不允许相对路径或文件。 */
+export function assertWorkspacePath(value: unknown): string {
+  if (typeof value !== 'string') throw new TypeError('工作区路径无效')
+  const workspace = value.trim()
+  if (!workspace) throw new TypeError('工作区路径不能为空')
+  if (workspace.length > MAX_WORKSPACE) throw new TypeError('工作区路径过长')
+  if (!isAbsolute(workspace)) throw new TypeError('工作区必须是绝对路径')
+  let stat: ReturnType<typeof statSync>
+  try {
+    stat = statSync(workspace)
+  } catch {
+    throw new TypeError('工作区不存在，请重新选择')
+  }
+  if (!stat.isDirectory()) throw new TypeError('工作区必须是目录')
+  return workspace
 }
 
 export function assertPermissionResponse(value: unknown): AgentPermissionResponse {
@@ -168,8 +225,8 @@ export interface McpAccess {
 }
 
 /**
- * 当前只支持一个并发回合：Agent 视图一次只跟一个会话说话，
- * 多开会话的排队与并发留给后续版本，避免 v1 出现交叉写入。
+ * 每个会话同一时间只跑一轮，不同会话可以各跑各的。
+ * 流事件、审批与 MCP Token 都按 run / 会话隔离，互不串台。
  */
 export function registerAgentHandlers(
   getWindow: () => BrowserWindow | null,
@@ -179,16 +236,122 @@ export function registerAgentHandlers(
   codexCli?: AgentCli | null,
   mcp?: McpAccess | null,
   cancelPermissions?: (sessionId: string) => void,
-  codexHome?: string
+  codexHome?: string,
+  capabilities?: AgentCapabilityRuntime
 ): void {
   const runs = new Map<string, ActiveRun>()
-  const permissionRuns = new Map<string, string>()
+  // Codex app-server 与 stub 的审批 id 只在各自进程内唯一；加 run 前缀后才不会串台
+  const permissionRuns = new Map<string, { runId: string; requestId: string }>()
   let seq = 0
 
   ipcMain.handle(IPC.agentThreads, () => ({
     sessions: repository.listSessions(),
     messages: repository.listMessages()
   }))
+
+  ipcMain.handle(IPC.agentPickWorkspace, async (_event, current: unknown) => {
+    // 自动化测试缝：跳过原生对话框，但仍走同一套目录校验。
+    const forced = process.env.WS_PICK_WORKSPACE?.trim()
+    if (forced) return assertWorkspacePath(forced)
+    const win = getWindow()
+    const defaultPath =
+      typeof current === 'string' && current && isAbsolute(current)
+        ? current
+        : app.getPath('documents')
+    const options: OpenDialogOptions = {
+      title: '选择 Agent 工作区',
+      defaultPath,
+      properties: ['openDirectory']
+    }
+    const result = win
+      ? await dialog.showOpenDialog(win, options)
+      : await dialog.showOpenDialog(options)
+    if (result.canceled || !result.filePaths[0]) return null
+    return assertWorkspacePath(result.filePaths[0])
+  })
+
+  const workspaceFor = (sessionId: unknown): string => {
+    const session = repository.findSession(assertId(sessionId, '会话 id'))
+    if (!session) throw new Error('会话不存在')
+    if (!session.workspace) throw new Error('会话还没有选择工作区')
+    return assertWorkspacePath(session.workspace)
+  }
+
+  ipcMain.handle(IPC.agentWorkspaceTree, (_event, sessionId: unknown) =>
+    listWorkspaceEntries(workspaceFor(sessionId))
+  )
+
+  ipcMain.handle(IPC.agentWorkspaceFile, (_event, sessionId: unknown, path: unknown) => {
+    const workspace = workspaceFor(sessionId)
+    if (typeof path !== 'string' || path.length > MAX_WORKSPACE) {
+      throw new TypeError('文件路径无效')
+    }
+    return readWorkspaceText(workspace, path)
+  })
+
+  ipcMain.handle(IPC.agentOpenWorkspace, async (_event, sessionId: unknown) => {
+    const error = await shell.openPath(workspaceFor(sessionId))
+    if (error) throw new Error(error)
+  })
+
+  ipcMain.handle(IPC.agentPresets, () => repository.listPresets())
+
+  ipcMain.handle(IPC.agentSavePreset, (_event, value: unknown) =>
+    repository.savePreset(assertPresetInput(value))
+  )
+
+  ipcMain.handle(IPC.agentRemovePreset, (_event, id: unknown) => {
+    repository.removePreset(assertId(id, '预设 id'))
+  })
+
+  ipcMain.handle(IPC.agentUsage, (_event, days: unknown) => {
+    const value = typeof days === 'number' && Number.isFinite(days) ? Math.trunc(days) : 7
+    const span = Math.min(90, Math.max(1, value))
+    return repository.listRuns(Date.now() - span * 24 * 60 * 60 * 1000)
+  })
+
+  ipcMain.handle(IPC.agentDiscoverSessions, () => {
+    const existing = new Set(
+      repository
+        .listSessions()
+        .filter((session) => session.resumeId)
+        .map((session) => `${session.agent}:${session.resumeId}`)
+    )
+    return discoverLocalSessions(
+      app.getPath('home'),
+      existing,
+      process.env.WS_SESSION_SCAN_ROOT?.trim() || undefined
+    )
+  })
+
+  ipcMain.handle(IPC.agentImportSession, (_event, value): AgentImportResult => {
+    const input = assertImportInput(value)
+    let session = repository
+      .listSessions()
+      .find((item) => item.agent === input.agent && item.resumeId === input.resumeId)
+    if (!session) {
+      const id = `s-${randomUUID()}`
+      repository.createSession({ id, agent: input.agent, title: input.title })
+      const updated = repository.updateSession(id, {
+        workspace: input.workspace,
+        resumeId: input.resumeId
+      })
+      if (!updated) throw new Error('导入会话保存失败')
+      session = updated
+    }
+    const history = readSessionHistory({
+      sessionId: session.id,
+      agent: input.agent,
+      resumeId: input.resumeId,
+      home: app.getPath('home'),
+      scanRoot: process.env.WS_SESSION_SCAN_ROOT?.trim() || undefined
+    })
+    if (history.length > 0) repository.importMessages(session.id, history)
+    return {
+      session: repository.findSession(session.id) ?? session,
+      messages: repository.listMessagesForSession(session.id)
+    }
+  })
 
   ipcMain.handle(IPC.agentCreateSession, (_event, value: unknown) =>
     repository.createSession(assertAgentCreateInput(value))
@@ -208,20 +371,63 @@ export function registerAgentHandlers(
 
   ipcMain.handle(IPC.agentSend, (_event, value: unknown) => {
     const input = assertAgentSendInput(value)
-    if (runs.size > 0) throw new Error('上一轮还在进行中，先取消或等待完成')
+    for (const run of runs.values()) {
+      if (run.sessionId === input.sessionId) {
+        throw new Error('这个会话还在进行中，先等待完成')
+      }
+    }
+    const session = repository.findSession(input.sessionId)
+    if (!session) throw new Error('会话不存在')
+    if (session.agent !== input.agent) throw new Error('会话类型不匹配')
+    if (!session.workspace) throw new Error('请先为会话选择工作区')
+    const workspace = assertWorkspacePath(session.workspace)
     seq += 1
     const runId = `run-${seq}`
+    let runResult: Extract<AgentRunEvent, { kind: 'result' }> | null = null
+    repository.recordRunStart(runId, input.sessionId, Date.now())
 
     const emit = (runEvent: AgentRunEvent) => {
+      let event = runEvent
+      if (runEvent.kind === 'result') runResult = runEvent
       if (runEvent.kind === 'permission') {
-        permissionRuns.set(runEvent.request.requestId, runId)
+        const scoped = `${runId}:${runEvent.request.requestId}`
+        permissionRuns.set(scoped, { runId, requestId: runEvent.request.requestId })
+        event = { ...runEvent, request: { ...runEvent.request, requestId: scoped } }
       }
       const win = getWindow()
       if (!win || win.isDestroyed()) return
-      win.webContents.send(IPC.agentEvent, { runId, event: runEvent })
+      win.webContents.send(IPC.agentEvent, { runId, event })
     }
 
-    const mcpEndpoint = input.agent === 'claude' ? (mcp?.issue(input.sessionId) ?? null) : null
+    const codexProvider = input.agent === 'codex' ? getProvider?.('codex') : undefined
+    const codexServer = Boolean(codexProvider && codexHome)
+    let codexExternalMcp: ReturnType<AgentCapabilityRuntime['codexMcp']> | undefined
+    if (input.agent === 'codex' && codexProvider && codexHome && capabilities) {
+      try {
+        codexExternalMcp = capabilities.codexMcp()
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : '读取 Codex 外部 MCP 配置失败'
+        throw new Error(`无法加载 Codex 外部 MCP：${detail}`)
+      }
+    }
+    const mcpEndpoint =
+      input.agent === 'claude' || codexServer ? (mcp?.issue(input.sessionId) ?? null) : null
+    let claudePlugins: string[] = []
+    let claudeMcpServers: ReturnType<AgentCapabilityRuntime['mcpServers']> = []
+    let claudeAllowedTools: string[] = []
+    let claudeDeniedTools: string[] = []
+    if (input.agent === 'claude' && capabilities) {
+      try {
+        claudePlugins = capabilities.pluginDirs()
+        claudeMcpServers = capabilities.mcpServers()
+        const policy = capabilities.toolPolicy()
+        claudeAllowedTools = policy.allowed
+        claudeDeniedTools = policy.denied
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : '读取能力中心配置失败'
+        throw new Error(`无法加载应用私有技能 / MCP：${detail}`)
+      }
+    }
     const onExit = ({
       code,
       stderr,
@@ -235,8 +441,15 @@ export function registerAgentHandlers(
       if (mcpEndpoint) mcp?.revoke(mcpEndpoint.token)
       cancelPermissions?.(input.sessionId)
       for (const [requestId, owner] of permissionRuns) {
-        if (owner === runId) permissionRuns.delete(requestId)
+        if (owner.runId === runId) permissionRuns.delete(requestId)
       }
+      repository.finishRun(runId, {
+        ok: !cancelled && (runResult?.ok ?? code === 0),
+        cancelled,
+        ...(runResult?.costUsd !== undefined ? { costUsd: runResult.costUsd } : {}),
+        ...(runResult?.durationMs !== undefined ? { durationMs: runResult.durationMs } : {}),
+        ...(runResult?.turns !== undefined ? { turns: runResult.turns } : {})
+      })
       if (cancelled) {
         emit({ kind: 'error', message: '已取消' })
         return
@@ -250,12 +463,30 @@ export function registerAgentHandlers(
     const handle =
       input.agent === 'codex'
         ? (() => {
-            const provider = getProvider?.('codex')
+            // 自定义 Provider 用 app-server 的工作区审批模式；继承 CLI 时仍走
+            // exec 只读，避免为了写入去读改用户自己的 ~/.codex 配置。
+            if (codexProvider && codexHome) {
+              return startCodexAppServerRun({
+                prompt: input.prompt,
+                ...(input.resumeId ? { resumeId: input.resumeId } : {}),
+                cwd: workspace,
+                provider: codexProvider,
+                home: codexHome,
+                ...(mcpEndpoint ? { mcp: mcpEndpoint } : {}),
+                ...(codexExternalMcp && codexExternalMcp.servers.length > 0
+                  ? { externalMcp: codexExternalMcp }
+                  : {}),
+                clientVersion: app.getVersion(),
+                ...(codexCli === undefined ? {} : { cli: codexCli }),
+                onEvent: emit,
+                onExit
+              })
+            }
             return startCodexRun({
               prompt: input.prompt,
               ...(input.resumeId ? { resumeId: input.resumeId } : {}),
-              cwd: process.cwd(),
-              ...(provider ? { provider } : {}),
+              cwd: workspace,
+              ...(codexProvider ? { provider: codexProvider } : {}),
               ...(codexHome ? { home: codexHome } : {}),
               ...(codexCli === undefined ? {} : { cli: codexCli }),
               onEvent: emit,
@@ -267,9 +498,13 @@ export function registerAgentHandlers(
             return startClaudeRun({
               prompt: input.prompt,
               resumeId: input.resumeId,
-              cwd: process.cwd(),
+              cwd: workspace,
               ...(provider ? { provider } : {}),
               ...(mcpEndpoint ? { mcp: mcpEndpoint } : {}),
+              ...(claudePlugins.length > 0 ? { plugins: claudePlugins } : {}),
+              ...(claudeMcpServers.length > 0 ? { mcpServers: claudeMcpServers } : {}),
+              ...(claudeAllowedTools.length > 0 ? { allowedTools: claudeAllowedTools } : {}),
+              ...(claudeDeniedTools.length > 0 ? { disallowedTools: claudeDeniedTools } : {}),
               ...(cli === undefined ? {} : { cli }),
               onEvent: emit,
               onExit
@@ -292,11 +527,11 @@ export function registerAgentHandlers(
 
   ipcMain.handle(IPC.agentPermissionResponse, (_event, value: unknown) => {
     const response = assertPermissionResponse(value)
-    const runId = permissionRuns.get(response.requestId)
-    const run = runId ? runs.get(runId) : undefined
-    if (!run) return false
+    const owner = permissionRuns.get(response.requestId)
+    const run = owner ? runs.get(owner.runId) : undefined
+    if (!owner || !run) return false
     const ok = run.respondPermission(
-      response.requestId,
+      owner.requestId,
       response.allow ? 'allow' : 'deny',
       response.message
     )
@@ -310,5 +545,8 @@ export const registerAgentHandlersIPC = {
   assertAgentCreateInput,
   assertAgentSessionPatch,
   assertAgentMessage,
-  assertPermissionResponse
+  assertImportInput,
+  assertPermissionResponse,
+  assertPresetInput,
+  assertWorkspacePath
 } as const

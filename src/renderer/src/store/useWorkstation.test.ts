@@ -154,6 +154,52 @@ describe('对话', () => {
     expect(state.threads[created.id]).toEqual([])
   })
 
+  it('导入本机会话会选中它、带出历史并切到 Agent 视图', () => {
+    const now = Date.now()
+    useWorkstation.getState().importAgentSession({
+      session: {
+        id: 's-imported',
+        agent: 'codex',
+        title: '外部会话',
+        status: 'idle',
+        resumeId: 'codex-9',
+        workspace: 'E:\\proj',
+        createdAt: now - 1000,
+        updatedAt: now
+      },
+      messages: [
+        {
+          id: 'import-codex-codex-9-0',
+          sessionId: 's-imported',
+          role: 'user',
+          text: '旧问题',
+          timeLabel: '10-01 12:00',
+          createdAt: now - 2000,
+          origin: 'import'
+        }
+      ]
+    })
+
+    const state = useWorkstation.getState()
+    expect(state.activeView).toBe('agent')
+    expect(state.activeSessionId).toBe('s-imported')
+    expect(state.sessions[0]).toMatchObject({
+      id: 's-imported',
+      agent: 'codex',
+      title: '外部会话',
+      resumeId: 'codex-9',
+      workspace: 'E:\\proj'
+    })
+    expect(state.threads['s-imported']).toEqual([
+      expect.objectContaining({
+        id: 'import-codex-codex-9-0',
+        role: 'user',
+        text: '旧问题',
+        imported: true
+      })
+    ])
+  })
+
   it('切换会话后回复仍回到发起消息的会话', () => {
     useWorkstation.getState().sendMessage('先只改任务')
     useWorkstation.getState().setActiveSession('s-x1')
@@ -166,6 +212,158 @@ describe('对话', () => {
     })
     expect(state.threads['s-x1'].at(-1)?.text).not.toBe('好的，等待你的确认。')
     expect(state.pendingReplyTo).toBeNull()
+  })
+
+  it('两个会话各自持有流，一个完成不结束另一个', () => {
+    const store = useWorkstation.getState()
+    store.beginAgentReply('s-1', 'run-1')
+    store.beginAgentReply('s-2', 'run-2')
+    store.appendAgentText('s-1', '会话一')
+    store.appendAgentText('s-2', '会话二')
+    store.finishAgentReply('s-1')
+
+    const state = useWorkstation.getState()
+    expect(state.streams['s-1']).toBeUndefined()
+    expect(state.streams['s-2']).toMatchObject({ runId: 'run-2' })
+    expect(state.threads['s-1'].at(-1)?.text).toBe('会话一')
+    expect(state.threads['s-2'].at(-1)?.text).toBe('会话二')
+    expect(state.sessions.find((session) => session.id === 's-1')?.status).toBe('idle')
+    expect(state.sessions.find((session) => session.id === 's-2')?.status).toBe('run')
+    expect(state.typing).toBe(true)
+  })
+
+  it('待发送提示词按会话排队，不会覆盖前一个会话', () => {
+    const store = useWorkstation.getState()
+    store.sendMessage('会话一先发')
+    store.setActiveSession('s-2')
+    store.sendMessage('会话二再发')
+
+    expect(useWorkstation.getState().pendingPrompts).toEqual([
+      { sessionId: 's-1', prompt: '会话一先发' },
+      { sessionId: 's-2', prompt: '会话二再发' }
+    ])
+    expect(useWorkstation.getState().takePendingPrompt()).toEqual({
+      sessionId: 's-1',
+      prompt: '会话一先发'
+    })
+    expect(useWorkstation.getState().takePendingPrompt()).toEqual({
+      sessionId: 's-2',
+      prompt: '会话二再发'
+    })
+    expect(useWorkstation.getState().pendingPrompts).toEqual([])
+  })
+
+  it('队列被占用时可以单独取走指定会话的提示词', () => {
+    const store = useWorkstation.getState()
+    store.sendMessage('会话一先发')
+    store.setActiveSession('s-2')
+    store.sendMessage('会话二再发')
+
+    expect(useWorkstation.getState().takePendingPrompt('s-2')).toEqual({
+      sessionId: 's-2',
+      prompt: '会话二再发'
+    })
+    expect(useWorkstation.getState().pendingPrompts).toEqual([
+      { sessionId: 's-1', prompt: '会话一先发' }
+    ])
+  })
+
+  it('两个会话的审批卡互不覆盖，清掉一张不影响另一张', () => {
+    const store = useWorkstation.getState()
+    store.beginAgentReply('s-1', 'run-1')
+    store.beginAgentReply('s-2', 'run-2')
+    store.setToolPermission('s-1', {
+      requestId: 'p-1',
+      toolName: 'Edit',
+      toolUseId: 't-1',
+      detail: 'a.ts',
+      inputPreview: '{}'
+    })
+    store.setToolPermission('s-2', {
+      requestId: 'p-2',
+      toolName: 'Write',
+      toolUseId: 't-2',
+      detail: 'b.ts',
+      inputPreview: '{}'
+    })
+
+    expect(useWorkstation.getState().toolPermissions['s-1']?.requestId).toBe('p-1')
+    expect(useWorkstation.getState().toolPermissions['s-2']?.requestId).toBe('p-2')
+
+    store.clearToolPermission('s-1')
+    const state = useWorkstation.getState()
+    expect(state.toolPermissions['s-1']).toBeUndefined()
+    expect(state.toolPermissions['s-2']?.requestId).toBe('p-2')
+    expect(state.sessions.find((item) => item.id === 's-1')?.status).toBe('run')
+    expect(state.sessions.find((item) => item.id === 's-2')?.status).toBe('wait')
+  })
+
+  it('同一会话的工具与 MCP 审批都处理完才回到运行态', () => {
+    const store = useWorkstation.getState()
+    store.beginAgentReply('s-1', 'run-1')
+    store.setToolPermission('s-1', {
+      requestId: 'p-1',
+      toolName: 'Edit',
+      toolUseId: 't-1',
+      detail: 'a.ts',
+      inputPreview: '{}'
+    })
+    store.setMcpPermission({
+      requestId: 'm-1',
+      sessionId: 's-1',
+      domain: 'task',
+      tool: 'tasks_create',
+      detail: '新增任务',
+      preview: '写一条任务',
+      createdAt: 1
+    })
+    store.setMcpPermission({
+      requestId: 'm-2',
+      sessionId: 's-2',
+      domain: 'task',
+      tool: 'tasks_create',
+      detail: '另一个会话',
+      preview: '写另一条任务',
+      createdAt: 2
+    })
+
+    store.clearMcpPermission('s-1')
+    expect(useWorkstation.getState().sessions.find((item) => item.id === 's-1')?.status).toBe(
+      'wait'
+    )
+    expect(useWorkstation.getState().mcpPermissions['s-2']?.requestId).toBe('m-2')
+
+    store.clearToolPermission('s-1')
+    expect(useWorkstation.getState().sessions.find((item) => item.id === 's-1')?.status).toBe('run')
+    expect(useWorkstation.getState().toolPermissions['s-1']).toBeUndefined()
+  })
+
+  it('结束一个会话的回合只清它自己的审批卡', () => {
+    const store = useWorkstation.getState()
+    store.beginAgentReply('s-1', 'run-1')
+    store.beginAgentReply('s-2', 'run-2')
+    store.setToolPermission('s-1', {
+      requestId: 'p-1',
+      toolName: 'Edit',
+      toolUseId: 't-1',
+      detail: 'a.ts',
+      inputPreview: '{}'
+    })
+    store.setToolPermission('s-2', {
+      requestId: 'p-2',
+      toolName: 'Edit',
+      toolUseId: 't-2',
+      detail: 'b.ts',
+      inputPreview: '{}'
+    })
+
+    store.finishAgentReply('s-1')
+
+    const state = useWorkstation.getState()
+    expect(state.toolPermissions['s-1']).toBeUndefined()
+    expect(state.toolPermissions['s-2']?.requestId).toBe('p-2')
+    expect(state.sessions.find((item) => item.id === 's-2')?.status).toBe('wait')
+    expect(state.streams['s-2']).toMatchObject({ runId: 'run-2' })
   })
 })
 

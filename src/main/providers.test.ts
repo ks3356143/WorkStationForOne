@@ -99,4 +99,19 @@ describe('ProviderService', () => {
     ).toThrow(/加密/)
     db.close()
   })
+
+  it('旧 Codex Chat 配置按 Responses 运行，避免 CLI 启动即失败', () => {
+    const { db, service } = setup()
+    service.save({
+      name: '旧 Codex',
+      target: 'codex',
+      wireApi: 'chat',
+      baseUrl: 'https://api.deepseek.com',
+      model: 'deepseek-flash',
+      apiKey: 'old'
+    })
+
+    expect(service.runtime('codex')).toMatchObject({ target: 'codex', wireApi: 'responses' })
+    db.close()
+  })
 })

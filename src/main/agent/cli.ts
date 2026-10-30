@@ -40,10 +40,33 @@ function fromPath(path: string): AgentCli | null {
   return { bin: path, prefixArgs: [], viaNode: false }
 }
 
+/**
+ * 部分 npm 包装不是直接写入口，而是先 SET 变量再调用，例如 npx.cmd：
+ * `SET "NPX_CLI_JS=%~dp0\node_modules\npm\bin\npx-cli.js"`。
+ * 优先取脚本，其次取 exe，避免把 node.exe 单独当成命令启动。
+ */
+function variableShimTarget(
+  text: string,
+  dir: string,
+  exists: (path: string) => boolean
+): string | null {
+  const matches = [...text.matchAll(/SET\s+"?[A-Za-z_][A-Za-z0-9_]*"?=%~dp0([^"\r\n]+)/gi)]
+  const candidates = matches
+    .map((match) => normalize(join(dir, match[1].replace(/^[\\/]+/, ''))))
+    .filter(exists)
+  // npx.cmd 先定义 npm-prefix.js 再定义 npx-cli.js；真正的入口是最后一个脚本。
+  const scripts = candidates.filter((candidate) => isNodeScript(candidate))
+  if (scripts.length > 0) return scripts.at(-1) ?? null
+  return candidates.find((candidate) => /\.exe$/i.test(candidate)) ?? null
+}
+
 function unwrapShim(path: string): AgentCli | null {
   try {
     if (statSync(path).size > MAX_SHIM_BYTES) return null
-    const target = shimTarget(readFileSync(path, 'utf8'), dirname(path), existsSync)
+    const text = readFileSync(path, 'utf8')
+    const target =
+      shimTarget(text, dirname(path), existsSync) ??
+      variableShimTarget(text, dirname(path), existsSync)
     if (!target) return null
     return fromPath(target)
   } catch {
@@ -54,6 +77,23 @@ function unwrapShim(path: string): AgentCli | null {
 function resolvePath(path: string): AgentCli | null {
   if (WINDOWS_SHIM.test(path)) return unwrapShim(path)
   return fromPath(path)
+}
+
+/**
+ * 解析任意 MCP Server 命令。与 Agent CLI 一样处理 Windows `.cmd` 包装，
+ * 否则测试连接时直接 spawn `npx` / `uvx` 会 EINVAL。
+ */
+export function resolveCommand(
+  command: string,
+  env: NodeJS.ProcessEnv = process.env
+): AgentCli | null {
+  const trimmed = command.trim()
+  if (!trimmed) return null
+  if (/[\\/]/.test(trimmed) || /^[A-Za-z]:/.test(trimmed)) {
+    return existsSync(trimmed) ? resolvePath(trimmed) : null
+  }
+  const found = findByPath(trimmed, env)
+  return found ? resolvePath(found) : null
 }
 
 /** 在 PATH 里找可执行文件；Windows 上优先 .exe，其次 .cmd。 */
@@ -89,4 +129,12 @@ export function resolveAgentCli(env: NodeJS.ProcessEnv = process.env): AgentCli 
 /** Codex 与 Claude 共用同一套包装解析；测试只能指向 stub。 */
 export function resolveCodexCli(env: NodeJS.ProcessEnv = process.env): AgentCli | null {
   return resolveNamed('codex', 'WS_CODEX_CLI', env)
+}
+
+/**
+ * 插件市场操作用真实的 Claude CLI，不能复用 WS_AGENT_CLI（冒烟会指向对话 stub）。
+ * 自动化用 WS_CLAUDE_PLUGIN_CLI 单独替换。
+ */
+export function resolvePluginCli(env: NodeJS.ProcessEnv = process.env): AgentCli | null {
+  return resolveNamed('claude', 'WS_CLAUDE_PLUGIN_CLI', env)
 }

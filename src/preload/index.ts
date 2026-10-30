@@ -10,7 +10,8 @@ const api: WsApi = {
   provider: {
     list: () => ipcRenderer.invoke(IPC_CHANNELS.providerList),
     save: (input) => ipcRenderer.invoke(IPC_CHANNELS.providerSave, input),
-    setActive: (target, id) => ipcRenderer.invoke(IPC_CHANNELS.providerSetActive, target, id)
+    setActive: (target, id) => ipcRenderer.invoke(IPC_CHANNELS.providerSetActive, target, id),
+    test: (input) => ipcRenderer.invoke(IPC_CHANNELS.providerTest, input)
   },
   tasks: {
     list: () => ipcRenderer.invoke(IPC_CHANNELS.tasksList),
@@ -77,7 +78,18 @@ const api: WsApi = {
     threads: () => ipcRenderer.invoke(IPC_CHANNELS.agentThreads),
     createSession: (input) => ipcRenderer.invoke(IPC_CHANNELS.agentCreateSession, input),
     updateSession: (id, patch) => ipcRenderer.invoke(IPC_CHANNELS.agentUpdateSession, id, patch),
-    saveMessage: (message) => ipcRenderer.invoke(IPC_CHANNELS.agentSaveMessage, message)
+    saveMessage: (message) => ipcRenderer.invoke(IPC_CHANNELS.agentSaveMessage, message),
+    pickWorkspace: (current) => ipcRenderer.invoke(IPC_CHANNELS.agentPickWorkspace, current),
+    workspaceTree: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.agentWorkspaceTree, sessionId),
+    readWorkspaceFile: (sessionId, path) =>
+      ipcRenderer.invoke(IPC_CHANNELS.agentWorkspaceFile, sessionId, path),
+    openWorkspace: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.agentOpenWorkspace, sessionId),
+    presets: () => ipcRenderer.invoke(IPC_CHANNELS.agentPresets),
+    savePreset: (input) => ipcRenderer.invoke(IPC_CHANNELS.agentSavePreset, input),
+    removePreset: (id) => ipcRenderer.invoke(IPC_CHANNELS.agentRemovePreset, id),
+    usage: (days) => ipcRenderer.invoke(IPC_CHANNELS.agentUsage, days),
+    discoverSessions: () => ipcRenderer.invoke(IPC_CHANNELS.agentDiscoverSessions),
+    importSession: (input) => ipcRenderer.invoke(IPC_CHANNELS.agentImportSession, input)
   },
   mcp: {
     policy: () => ipcRenderer.invoke(IPC_CHANNELS.mcpPolicyList),
@@ -99,6 +111,39 @@ const api: WsApi = {
       ) => listener(domains)
       ipcRenderer.on(IPC_CHANNELS.mcpChanged, handler)
       return () => ipcRenderer.removeListener(IPC_CHANNELS.mcpChanged, handler)
+    }
+  },
+  capability: {
+    builtinTools: () => ipcRenderer.invoke(IPC_CHANNELS.capabilityBuiltinTools),
+    environment: (force) => ipcRenderer.invoke(IPC_CHANNELS.capabilityEnvironment, force),
+    skills: {
+      list: () => ipcRenderer.invoke(IPC_CHANNELS.capabilitySkillsList),
+      importLocal: () => ipcRenderer.invoke(IPC_CHANNELS.capabilitySkillsImportLocal),
+      inspect: (pluginId) => ipcRenderer.invoke(IPC_CHANNELS.capabilitySkillsInspect, pluginId),
+      openFolder: (pluginId) =>
+        ipcRenderer.invoke(IPC_CHANNELS.capabilitySkillsOpenFolder, pluginId),
+      market: (force) => ipcRenderer.invoke(IPC_CHANNELS.capabilitySkillsMarket, force),
+      install: (pluginId) => ipcRenderer.invoke(IPC_CHANNELS.capabilitySkillsInstall, pluginId),
+      update: (pluginId) => ipcRenderer.invoke(IPC_CHANNELS.capabilitySkillsUpdate, pluginId),
+      remove: (pluginId) => ipcRenderer.invoke(IPC_CHANNELS.capabilitySkillsRemove, pluginId),
+      setEnabled: (pluginId, enabled, trust) =>
+        ipcRenderer.invoke(IPC_CHANNELS.capabilitySkillsSetEnabled, pluginId, enabled, trust)
+    },
+    mcp: {
+      list: () => ipcRenderer.invoke(IPC_CHANNELS.capabilityMcpList),
+      catalog: () => ipcRenderer.invoke(IPC_CHANNELS.capabilityMcpCatalog),
+      add: (input) => ipcRenderer.invoke(IPC_CHANNELS.capabilityMcpAdd, input),
+      update: (id, input) => ipcRenderer.invoke(IPC_CHANNELS.capabilityMcpUpdate, id, input),
+      remove: (id) => ipcRenderer.invoke(IPC_CHANNELS.capabilityMcpRemove, id),
+      setEnabled: (id, enabled, trust) =>
+        ipcRenderer.invoke(IPC_CHANNELS.capabilityMcpSetEnabled, id, enabled, trust),
+      test: (id) => ipcRenderer.invoke(IPC_CHANNELS.capabilityMcpTest, id),
+      setToolPolicy: (id, toolName, approval) =>
+        ipcRenderer.invoke(IPC_CHANNELS.capabilityMcpSetToolPolicy, id, toolName, approval),
+      importConfig: (text) => ipcRenderer.invoke(IPC_CHANNELS.capabilityMcpImport, text),
+      exportConfig: () => ipcRenderer.invoke(IPC_CHANNELS.capabilityMcpExport),
+      checkUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.capabilityMcpCheckUpdates),
+      applyUpdate: (id) => ipcRenderer.invoke(IPC_CHANNELS.capabilityMcpApplyUpdate, id)
     }
   },
   audit: {

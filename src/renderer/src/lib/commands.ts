@@ -17,6 +17,7 @@ export type PaletteAction =
   | { kind: 'shortcuts' }
   | { kind: 'backup' }
   | { kind: 'settings' }
+  | { kind: 'fleet' }
   | { kind: 'send'; text: string }
 
 export interface PaletteCommand {
@@ -93,6 +94,14 @@ export function buildPaletteCommands(input: PaletteInput): PaletteCommand[] {
       hint: '工作区',
       value: 'Agent 工作区 会话 对话 agent',
       action: { kind: 'view', view: 'agent' }
+    },
+    {
+      id: 'view:fleet',
+      group: '导航',
+      label: '打开舰队控制台',
+      hint: '全部会话 · 审批 · 停止',
+      value: '舰队 控制台 会话 审批 运行 停止 fleet console',
+      action: { kind: 'fleet' }
     },
     {
       id: 'view:notes',

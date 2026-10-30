@@ -126,15 +126,70 @@
 }
 
 .w1-term .arg {
+  min-width: 0;
+  overflow: hidden;
   color: var(--mu);
+  text-overflow: ellipsis;
 }
 
 .w1-term .loc {
-  margin-left: auto;
+  margin-left: 0;
   padding: 2px 4px;
   border: 1px solid rgb(var(--ok-rgb) / 0.28);
   color: var(--ok);
   letter-spacing: 0.05em;
+}
+
+.w1-aworkspace {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  max-width: 230px;
+  height: 22px;
+  margin-left: auto;
+  padding: 0 7px;
+  border: 1px solid rgb(var(--ac2-rgb) / 0.24);
+  background: rgb(var(--field-rgb) / 0.35);
+  color: var(--ac2-fg);
+  font: 10px / 1 var(--mono);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui),
+    color var(--dur-ui);
+}
+
+.w1-aworkspace span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.w1-aworkspace:hover:not(:disabled) {
+  border-color: rgb(var(--ac2-rgb) / 0.5);
+  background: rgb(var(--ac2-rgb) / 0.07);
+}
+
+.w1-aworkspace.missing {
+  border-color: rgb(var(--wn-rgb) / 0.34);
+  background: rgb(var(--wn-rgb) / 0.06);
+  color: var(--wn-fg);
+}
+
+.w1-aworkspace.missing:hover:not(:disabled) {
+  border-color: rgb(var(--wn-rgb) / 0.55);
+  background: rgb(var(--wn-rgb) / 0.1);
+}
+
+.w1-aworkspace:focus-visible {
+  outline: 1px solid rgb(var(--ac2-rgb) / 0.75);
+  outline-offset: 2px;
+}
+
+.w1-aworkspace:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .w1-thread {
@@ -191,6 +246,28 @@
   opacity: 0.7;
 }
 
+.w1-importnote {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 11px;
+  border: 1px solid rgb(var(--ac2-rgb) / 0.22);
+  background:
+    linear-gradient(90deg, rgb(var(--ac2-rgb) / 0.07), transparent 62%),
+    rgb(var(--field-rgb) / 0.28);
+  color: var(--mu);
+  font: 10.5px / 1.45 var(--mono);
+}
+
+.w1-importnote b {
+  padding: 2px 5px;
+  border: 1px solid rgb(var(--ac2-rgb) / 0.32);
+  color: var(--ac2-fg);
+  font-weight: 500;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+}
+
 .w1-ctx {
   display: flex;
   align-items: center;
@@ -213,6 +290,54 @@
   margin-left: auto;
   font-weight: 400;
   color: var(--ok);
+}
+
+.w1-aworkspacegate {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 13px 14px;
+  border: 1px dashed rgb(var(--wn-rgb) / 0.28);
+  background:
+    linear-gradient(110deg, rgb(var(--wn-rgb) / 0.055), transparent 62%),
+    rgb(var(--field-rgb) / 0.24);
+}
+
+.w1-aworkspacegateicon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgb(var(--wn-rgb) / 0.28);
+  background: rgb(var(--wn-rgb) / 0.07);
+  color: var(--wn-fg);
+}
+
+.w1-aworkspacegatecopy {
+  min-width: 0;
+  flex: 1;
+}
+
+.w1-aworkspacegatecopy b {
+  display: block;
+  color: var(--fg);
+  font: 600 12px / 1.35 var(--sans);
+}
+
+.w1-aworkspacegatecopy p {
+  margin: 3px 0 0;
+  color: var(--mu);
+  font: 10px / 1.5 var(--mono);
+}
+
+.w1-aworkspacegate .w1-pb {
+  flex: none;
+}
+
+.w1-ifield:disabled {
+  cursor: not-allowed;
+  color: var(--su);
 }
 
 .w1-umsg {

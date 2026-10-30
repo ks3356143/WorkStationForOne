@@ -1,15 +1,17 @@
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, m } from 'motion/react'
-import { AGENT_META, agentCommandPreview } from '../../lib/agent'
+import { AGENT_META, agentCommandPreview, workspaceName } from '../../lib/agent'
 import { DURATION, EASE_OUT } from '../../lib/motion'
 import { selectActiveSession, selectActiveThread, useWorkstation } from '../../store/useWorkstation'
 import type { AgentId, Task } from '../../types'
+import { FolderIcon } from '../Glyphs'
 import { Composer } from './Composer'
 import { DockHeader } from './DockHeader'
 import { McpApprovalCard } from './McpApprovalCard'
 import { MessageRow } from './MessageRow'
 import { PermissionCard } from './PermissionCard'
 import { ToolApprovalCard } from './ToolApprovalCard'
+import { WorkspaceSheet } from './WorkspaceSheet'
 
 const EMPTY_TASKS: Task[] = []
 
@@ -21,13 +23,40 @@ export function AgentDock() {
   const activeId = activeSession?.id ?? ''
   const agent = activeSession?.agent ?? 'claude'
   const thread = useWorkstation(selectActiveThread)
-  const typing = useWorkstation((state) => state.typing)
-  const pendingReplyTo = useWorkstation((state) => state.pendingReplyTo)
+  const streamHere = useWorkstation((state) => state.streams[state.activeSessionId])
+  const queuedHere = useWorkstation((state) =>
+    state.pendingPrompts.some((prompt) => prompt.sessionId === state.activeSessionId)
+  )
   const permission = useWorkstation((state) => state.permission)
-  const toolPermission = useWorkstation((state) => state.toolPermission)
+  const toolPermission = useWorkstation((state) => state.toolPermissions[state.activeSessionId])
   const clearToolPermission = useWorkstation((state) => state.clearToolPermission)
-  const mcpPermission = useWorkstation((state) => state.mcpPermission)
+  const mcpPermission = useWorkstation((state) => state.mcpPermissions[state.activeSessionId])
   const clearMcpPermission = useWorkstation((state) => state.clearMcpPermission)
+  // 后台会话的审批不抢占当前聊天，但要在输入栏上方留一个入口
+  const pendingElsewhereId = useWorkstation((state) => {
+    const pending = state.sessions.find(
+      (session) =>
+        session.id !== state.activeSessionId &&
+        Boolean(
+          state.toolPermissions[session.id] ||
+            state.mcpPermissions[session.id] ||
+            state.permission?.sessionId === session.id
+        )
+    )
+    return pending?.id ?? ''
+  })
+  const pendingElsewhereCount = useWorkstation(
+    (state) =>
+      state.sessions.filter(
+        (session) =>
+          session.id !== state.activeSessionId &&
+          Boolean(
+            state.toolPermissions[session.id] ||
+              state.mcpPermissions[session.id] ||
+              state.permission?.sessionId === session.id
+          )
+      ).length
+  )
   const resolution = useWorkstation((state) => state.resolution)
   const taskCount = useWorkstation((state) => state.tasks.length)
   const noteCount = useWorkstation((state) => state.noteTotal)
@@ -37,6 +66,32 @@ export function AgentDock() {
   )
   const sendMessage = useWorkstation((state) => state.sendMessage)
   const resolvePermission = useWorkstation((state) => state.resolvePermission)
+  const setAgentWorkspace = useWorkstation((state) => state.setAgentWorkspace)
+  const [codexApproval, setCodexApproval] = useState(false)
+  const [workspaceBusy, setWorkspaceBusy] = useState(false)
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null)
+  const [workspaceOpen, setWorkspaceOpen] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    const load = () => {
+      void window.ws?.provider
+        .list()
+        .then((list) => {
+          if (alive)
+            setCodexApproval(list.some((profile) => profile.target === 'codex' && profile.active))
+        })
+        .catch(() => {
+          if (alive) setCodexApproval(false)
+        })
+    }
+    load()
+    window.addEventListener('ws:provider-changed', load)
+    return () => {
+      alive = false
+      window.removeEventListener('ws:provider-changed', load)
+    }
+  }, [])
 
   const threadRef = useRef<HTMLDivElement>(null)
   const threadMeta = useRef({
@@ -44,11 +99,33 @@ export function AgentDock() {
     length: thread.length,
     initialized: false
   })
+  const artifacts = useMemo(() => {
+    const root = activeSession?.workspace?.replaceAll('\\', '/').replace(/\/+$/, '')
+    const seen = new Set<string>()
+    const result: { path: string; name: string }[] = []
+    for (const message of thread) {
+      for (const tool of message.tools ?? []) {
+        if (!/write|edit|patch/i.test(tool.name)) continue
+        const raw = tool.meta.split(/\r?\n/)[0]?.trim() ?? ''
+        const pathLike = raw.includes('/') || raw.includes('\\') || /\.[A-Za-z0-9]{1,8}$/.test(raw)
+        if (!raw || !pathLike) continue
+        const normalized = raw.replaceAll('\\', '/')
+        let path = normalized
+        if (root && normalized.startsWith(`${root}/`)) path = normalized.slice(root.length + 1)
+        else if (/^[A-Za-z]:\//.test(normalized) || normalized.startsWith('/')) continue
+        if (path.includes('..') || seen.has(path)) continue
+        seen.add(path)
+        result.push({ path, name: path.split('/').at(-1) ?? path })
+      }
+    }
+    return result
+  }, [activeSession?.workspace, thread])
   const counts = {
     claude: sessions.filter((session) => session.agent === 'claude').length,
     codex: sessions.filter((session) => session.agent === 'codex').length
   }
-  const typingHere = typing && pendingReplyTo === activeId && Boolean(activeId)
+  // 只看当前会话：别的会话在跑不该锁住这里的输入
+  const typingHere = Boolean(activeId) && (Boolean(streamHere) || queuedHere)
   const animateId =
     threadMeta.current.initialized &&
     threadMeta.current.sessionId === activeId &&
@@ -63,7 +140,11 @@ export function AgentDock() {
   // 主进程 60 秒超时后不会再发事件；卡片最多多留 1 秒再自行收起。
   useEffect(() => {
     if (!mcpPermission) return
-    const timer = window.setTimeout(() => clearMcpPermission(), 61_000)
+    const { sessionId, requestId } = mcpPermission
+    const timer = window.setTimeout(() => {
+      const current = useWorkstation.getState().mcpPermissions[sessionId]
+      if (current?.requestId === requestId) clearMcpPermission(sessionId)
+    }, 61_000)
     return () => window.clearTimeout(timer)
   }, [mcpPermission, clearMcpPermission])
 
@@ -103,7 +184,7 @@ export function AgentDock() {
               新建 Claude 会话
             </button>
             <button className="w1-pb" type="button" onClick={() => createAgentSession('codex')}>
-              新建 Codex 会话（只读）
+              新建 Codex 会话
             </button>
           </div>
         </div>
@@ -111,15 +192,32 @@ export function AgentDock() {
     )
   }
 
-  const command = agentCommandPreview(agent, activeSession.resumeId)
+  const command = agentCommandPreview(agent, activeSession.resumeId, codexApproval)
   const meta = AGENT_META[agent]
+  const writeApproval = agent === 'claude' || codexApproval
   const respondPermission =
     typeof window === 'undefined' ? undefined : window.ws?.agent?.respondPermission
 
+  const pickWorkspace = () => {
+    const bridge = typeof window === 'undefined' ? undefined : window.ws?.agent
+    if (!bridge?.pickWorkspace || workspaceBusy || typingHere) return
+    setWorkspaceBusy(true)
+    setWorkspaceError(null)
+    void bridge
+      .pickWorkspace(activeSession.workspace)
+      .then((path) => {
+        if (path) setAgentWorkspace(activeSession.id, path)
+      })
+      .catch((error: unknown) => {
+        setWorkspaceError(error instanceof Error ? error.message : '选择工作区失败')
+      })
+      .finally(() => setWorkspaceBusy(false))
+  }
+
   const resolveMcpPermission = (decision: 'once' | 'session' | 'deny') => {
     if (!mcpPermission) return
-    const requestId = mcpPermission.requestId
-    clearMcpPermission()
+    const { requestId, sessionId } = mcpPermission
+    clearMcpPermission(sessionId)
     void window.ws?.mcp
       ?.respondPermission({ requestId, decision })
       .catch((error) => console.error('[agent] MCP 审批回写失败', error))
@@ -127,8 +225,8 @@ export function AgentDock() {
 
   const resolveToolPermission = (allow: boolean) => {
     if (!toolPermission) return
-    const requestId = toolPermission.requestId
-    clearToolPermission()
+    const { requestId, sessionId } = toolPermission
+    clearToolPermission(sessionId)
     void respondPermission?.({
       requestId,
       allow,
@@ -149,6 +247,26 @@ export function AgentDock() {
         <span className="pr">&gt;</span>
         <b>{command.bin}</b>
         <span className="arg">{command.args}</span>
+        <button
+          className={`w1-aworkspace${activeSession.workspace ? ' on' : ' missing'}`}
+          type="button"
+          title={activeSession.workspace ?? '选择 Agent 工作区'}
+          aria-label={activeSession.workspace ? '更换 Agent 工作区' : '选择 Agent 工作区'}
+          disabled={typingHere || workspaceBusy}
+          onClick={pickWorkspace}
+        >
+          <FolderIcon width={11} height={11} />
+          <span>{workspaceBusy ? '选择中…' : workspaceName(activeSession.workspace)}</span>
+        </button>
+        <button
+          className="w1-aworkspacefiles"
+          type="button"
+          title="查看工作区文件与本回合产物"
+          disabled={!activeSession.workspace}
+          onClick={() => setWorkspaceOpen(true)}
+        >
+          文件
+        </button>
         <span className="loc">本地</span>
       </div>
 
@@ -168,8 +286,35 @@ export function AgentDock() {
             <i>任务 {taskCount}</i>
             <i>笔记 {noteCount}</i>
             <i>习惯 {habitCount}</i>
-            <b>只读</b>
+            <b>{writeApproval ? '审批' : '只读'}</b>
           </div>
+
+          {!activeSession.workspace ? (
+            <div className="w1-aworkspacegate">
+              <span className="w1-aworkspacegateicon">
+                <FolderIcon width={18} height={18} />
+              </span>
+              <span className="w1-aworkspacegatecopy">
+                <b>先选择一个工作区</b>
+                <p>{workspaceError ?? `${meta.name} 会在这个目录里运行；不会使用应用安装目录。`}</p>
+              </span>
+              <button
+                className="w1-pb pri"
+                type="button"
+                disabled={typingHere || workspaceBusy}
+                onClick={pickWorkspace}
+              >
+                {workspaceBusy ? '选择中…' : '选择目录'}
+              </button>
+            </div>
+          ) : null}
+
+          {thread.some((message) => message.imported) ? (
+            <div className="w1-importnote" role="status">
+              <b>历史</b>
+              导入自本机 CLI 的只读历史 · 新消息继续由 CLI 续接
+            </div>
+          ) : null}
 
           {thread.map((message) => (
             <MessageRow
@@ -232,18 +377,36 @@ export function AgentDock() {
         </m.div>
       </div>
 
-      {agent === 'codex' && permission && permission.sessionId !== activeSession.id ? (
+      {pendingElsewhereId && pendingElsewhereCount > 0 ? (
         <button
           className="w1-queue"
           type="button"
-          onClick={() => setActiveSession(permission.sessionId)}
+          onClick={() => setActiveSession(pendingElsewhereId)}
         >
           <span className="w1-queue-dot" />
-          {permission.source} 有 1 项待审批 · 查看
+          其它会话有 {pendingElsewhereCount} 项待审批 · 查看
         </button>
       ) : null}
 
-      <Composer key={activeSession.id} agent={agent} typing={typing} onSend={sendMessage} />
+      <AnimatePresence>
+        {workspaceOpen && activeSession.workspace ? (
+          <WorkspaceSheet
+            sessionId={activeSession.id}
+            workspace={activeSession.workspace}
+            artifacts={artifacts}
+            onClose={() => setWorkspaceOpen(false)}
+          />
+        ) : null}
+      </AnimatePresence>
+
+      <Composer
+        key={activeSession.id}
+        agent={agent}
+        typing={typingHere}
+        writeApproval={writeApproval}
+        workspace={activeSession.workspace}
+        onSend={sendMessage}
+      />
     </aside>
   )
 }
