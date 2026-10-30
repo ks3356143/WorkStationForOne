@@ -10,6 +10,7 @@ import { LearningRepository } from './learning'
 import { McpPolicyRepository } from './mcp'
 import { NoteRepository } from './notes'
 import { ProviderRepository } from './providers'
+import { runInTransaction } from './transaction'
 import { TaskRepository } from './tasks'
 
 export interface DatabaseContext {
@@ -24,6 +25,8 @@ export interface DatabaseContext {
   providers: ProviderRepository
   mcp: McpPolicyRepository
   audit: AuditLog
+  /** 可嵌套事务；MCP 写入用它把业务写入和审计绑在一起 */
+  transaction: <T>(run: () => T) => T
   close: () => void
 }
 
@@ -45,6 +48,7 @@ export function initDatabase(): DatabaseContext {
     agent: new AgentRepository(db),
     providers: new ProviderRepository(db),
     mcp: new McpPolicyRepository(db, audit),
+    transaction: (run) => runInTransaction(db, run),
     close: () => db.close()
   }
 }

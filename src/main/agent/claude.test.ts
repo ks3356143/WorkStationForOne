@@ -127,6 +127,7 @@ describe('startClaudeRun · stub 链路', () => {
   it('MCP 配置通过临时文件交给 CLI，并真的调通只读桥', async () => {
     const bridge = new McpBridge(
       {
+        transaction: (run) => run(),
         tasks: {
           list: () => [],
           find: () => undefined,
@@ -150,7 +151,7 @@ describe('startClaudeRun · stub 链路', () => {
           }
         },
         habits: { list: () => [], setCheckin: () => {} },
-        audit: { record: () => {} }
+        audit: { record: () => {}, recordStrict: () => {} }
       },
       'test'
     )

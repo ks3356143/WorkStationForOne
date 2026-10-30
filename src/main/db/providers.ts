@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
+import { runInTransaction } from './transaction'
 import type { ProviderProfileRecord, ProviderSaveInput } from '../../shared/ipc'
 
 interface ProviderRow {
@@ -97,17 +98,12 @@ export class ProviderRepository {
 
   /** null 表示回到「继承 Claude CLI」。 */
   setActive(id: string | null): void {
-    this.db.exec('BEGIN')
-    try {
+    runInTransaction(this.db, () => {
       this.db.prepare('UPDATE provider_profiles SET active = 0').run()
       if (id) {
         this.db.prepare('UPDATE provider_profiles SET active = 1 WHERE id = ?').run(id)
       }
-      this.db.exec('COMMIT')
-    } catch (error) {
-      this.db.exec('ROLLBACK')
-      throw error
-    }
+    })
   }
 
   activeSecret(): ActiveProvider | undefined {

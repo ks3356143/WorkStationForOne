@@ -13,6 +13,8 @@ import type {
 import type { AuditEntry } from '../db/audit'
 
 export interface McpData {
+  /** 可嵌套事务；MCP 写入把业务写入与审计绑在一起 */
+  transaction: <T>(run: () => T) => T
   tasks: {
     list: () => TaskRecord[]
     find: (id: string) => TaskRecord | undefined
@@ -33,7 +35,10 @@ export interface McpData {
     list: () => HabitRecord[]
     setCheckin: (id: string, day: string, done: boolean) => void
   }
-  audit: { record: (entry: AuditEntry) => void }
+  audit: {
+    record: (entry: AuditEntry) => void
+    recordStrict: (entry: AuditEntry) => void
+  }
 }
 
 export interface McpToolDef {
@@ -670,15 +675,18 @@ export function runMcpTool(
 ): McpToolResult {
   const args = asRecord(rawArgs)
   const today = context.today ?? dateKey()
-  data.audit.record({
-    at: Date.now(),
-    domain: 'mcp',
-    action: context.write ? 'write' : 'read',
-    targetId: context.sessionId,
-    title: name,
-    source: 'agent',
-    detail: clip(JSON.stringify(args), 500)
-  })
+  // 写入审计由 server 放进业务事务里（recordStrict），这里只审计读取。
+  if (!context.write) {
+    data.audit.record({
+      at: Date.now(),
+      domain: 'mcp',
+      action: 'read',
+      targetId: context.sessionId,
+      title: name,
+      source: 'agent',
+      detail: clip(JSON.stringify(args), 500)
+    })
+  }
 
   switch (name) {
     case 'tasks_list':

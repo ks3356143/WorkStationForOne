@@ -72,19 +72,28 @@ export class AuditLog {
 
   record(entry: AuditEntry): void {
     try {
-      this.insert.run(
-        entry.at,
-        entry.domain,
-        entry.action,
-        entry.targetId ?? null,
-        entry.title ?? null,
-        entry.source ?? 'ui',
-        entry.detail ?? null
-      )
+      this.insertEntry(entry)
     } catch (error) {
-      // 审计失败不该让业务写入回滚：数据是主角，记录是证据
+      // 普通审计失败不该让业务写入回滚：数据是主角，记录是证据
       console.error('[audit] 写入失败', error)
     }
+  }
+
+  /** 写入事务内的严格审计：失败必须抛错，让调用方回滚业务写入。 */
+  recordStrict(entry: AuditEntry): void {
+    this.insertEntry(entry)
+  }
+
+  private insertEntry(entry: AuditEntry): void {
+    this.insert.run(
+      entry.at,
+      entry.domain,
+      entry.action,
+      entry.targetId ?? null,
+      entry.title ?? null,
+      entry.source ?? 'ui',
+      entry.detail ?? null
+    )
   }
 
   recent(limit = 50, domain?: AuditDomain): AuditRecord[] {

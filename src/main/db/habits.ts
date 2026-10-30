@@ -1,6 +1,7 @@
 import type { DatabaseSync, StatementSync } from 'node:sqlite'
 import type { AuditLog } from './audit'
 import { isDateKey } from '../../shared/date-key'
+import { runInTransaction } from './transaction'
 import type { HabitRecord } from '../../shared/ipc'
 
 interface HabitRow {
@@ -56,17 +57,12 @@ export class HabitRepository {
     const insert = this.statement(INSERT_HABIT_SQL)
     const checkin = this.statement(CHECKIN_SQL)
     const now = Date.now()
-    this.db.exec('BEGIN')
-    try {
+    runInTransaction(this.db, () => {
       habits.forEach((habit, index) => {
         insert.run(habit.id, habit.name, index, now)
         for (const day of habit.checkins) checkin.run(habit.id, day, now)
       })
-      this.db.exec('COMMIT')
-    } catch (error) {
-      this.db.exec('ROLLBACK')
-      throw error
-    }
+    })
   }
 
   setCheckin(id: string, day: string, done: boolean): void {

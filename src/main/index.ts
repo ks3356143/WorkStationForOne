@@ -144,6 +144,7 @@ if (!gotTheLock) {
     // 本地只读 MCP 桥：只绑 127.0.0.1 随机端口，token 按 Agent 回合发放
     const bridge = new McpBridge(
       {
+        transaction: database.transaction,
         tasks: database.tasks,
         notes: database.notes,
         learning: database.learning,

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { DatabaseSync, StatementSync } from 'node:sqlite'
+import { runInTransaction } from './transaction'
 import { noteLinkName, parseNoteLinks } from '../../shared/note-links'
 import type {
   NoteLinkRef,
@@ -132,15 +133,7 @@ export class NoteRepository {
   }
 
   private transaction<T>(run: () => T): T {
-    this.db.exec('BEGIN')
-    try {
-      const result = run()
-      this.db.exec('COMMIT')
-      return result
-    } catch (error) {
-      this.db.exec('ROLLBACK')
-      throw error
-    }
+    return runInTransaction(this.db, run)
   }
 
   count(): number {

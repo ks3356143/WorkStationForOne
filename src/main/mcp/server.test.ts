@@ -10,6 +10,7 @@ const cards: LearningItemRecord[] = []
 
 function data(): McpData {
   return {
+    transaction: (run) => run(),
     tasks: {
       list: () => tasks,
       find: (id) => tasks.find((task) => task.id === id),
@@ -37,7 +38,7 @@ function data(): McpData {
       list: () => [] as HabitRecord[],
       setCheckin: () => {}
     },
-    audit: { record: vi.fn() }
+    audit: { record: vi.fn(), recordStrict: vi.fn() }
   }
 }
 

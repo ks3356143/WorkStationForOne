@@ -361,15 +361,47 @@ export class McpBridge {
         const cached = this.idempotency.get(cacheKey)
         if (cached) return rpcResult(id, toolResponse(cached))
       }
-      try {
-        const output = runMcpTool(name, params.arguments, this.data, {
-          sessionId,
-          ...(def.write ? { write: true } : {})
-        })
-        if (def.write && !output.isError) {
-          this.idempotency.set(cacheKey, output)
-          this.hooks.notifyChanged?.([def.domain])
+      if (def.write) {
+        try {
+          const output = this.data.transaction(() => {
+            const result = runMcpTool(name, params.arguments, this.data, {
+              sessionId,
+              write: true
+            })
+            // 审计失败会抛出，让业务写入一起回滚。
+            this.data.audit.recordStrict({
+              at: Date.now(),
+              domain: 'mcp',
+              action: 'write',
+              targetId: sessionId,
+              title: name,
+              source: 'agent',
+              detail: clip(JSON.stringify(args))
+            })
+            return result
+          })
+          if (!output.isError) {
+            this.idempotency.set(cacheKey, output)
+            this.hooks.notifyChanged?.([def.domain])
+          }
+          return rpcResult(id, toolResponse(output))
+        } catch (error) {
+          console.error('[mcp] 写入事务失败，已回滚', error)
+          // 回滚后的失败证据尽力记录；这里失败也不能再抛回 JSON-RPC。
+          this.data.audit.record({
+            at: Date.now(),
+            domain: 'mcp',
+            action: 'write',
+            targetId: sessionId,
+            title: name,
+            source: 'agent',
+            detail: 'transaction_failed'
+          })
+          return rpcResult(id, toolResponse({ text: '写入失败，事务已回滚', isError: true }))
         }
+      }
+      try {
+        const output = runMcpTool(name, params.arguments, this.data, { sessionId })
         return rpcResult(id, toolResponse(output))
       } catch {
         return rpcResult(id, toolResponse({ text: '工具执行失败', isError: true }))
