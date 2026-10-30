@@ -159,6 +159,35 @@ describe('工具审批响应', () => {
       })
     ).toThrow(TypeError)
   })
+
+  it('允许时可带作用域，拒绝时忽略作用域', () => {
+    expect(
+      registerAgentHandlersIPC.assertPermissionResponse({
+        requestId: 'p1',
+        allow: true,
+        scope: 'workspace'
+      })
+    ).toEqual({ requestId: 'p1', allow: true, scope: 'workspace' })
+
+    expect(
+      registerAgentHandlersIPC.assertPermissionResponse({
+        requestId: 'p1',
+        allow: false,
+        scope: 'workspace',
+        message: '用户拒绝'
+      })
+    ).toEqual({ requestId: 'p1', allow: false, message: '用户拒绝' })
+  })
+
+  it('拒绝未知作用域', () => {
+    expect(() =>
+      registerAgentHandlersIPC.assertPermissionResponse({
+        requestId: 'p1',
+        allow: true,
+        scope: 'always'
+      })
+    ).toThrow(TypeError)
+  })
 })
 
 describe('发送请求', () => {

@@ -4,6 +4,7 @@ import { AGENT_META, agentCommandPreview, workspaceName } from '../../lib/agent'
 import { DURATION, EASE_OUT } from '../../lib/motion'
 import { selectActiveSession, selectActiveThread, useWorkstation } from '../../store/useWorkstation'
 import type { AgentId, Task } from '../../types'
+import type { McpPermissionDecision } from '../../../../shared/ipc'
 import { FolderIcon } from '../Glyphs'
 import { Composer } from './Composer'
 import { DockHeader } from './DockHeader'
@@ -214,7 +215,7 @@ export function AgentDock() {
       .finally(() => setWorkspaceBusy(false))
   }
 
-  const resolveMcpPermission = (decision: 'once' | 'session' | 'deny') => {
+  const resolveMcpPermission = (decision: McpPermissionDecision) => {
     if (!mcpPermission) return
     const { requestId, sessionId } = mcpPermission
     clearMcpPermission(sessionId)

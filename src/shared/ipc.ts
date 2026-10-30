@@ -1,6 +1,9 @@
 import type { AgentRunEvent } from './agent-stream'
-import type { ApprovalAgent } from './approval-rules'
+import type { ApprovalAgent, ApprovalScope } from './approval-rules'
 import type { RepeatRule } from './repeat'
+
+export { APPROVAL_SCOPES } from './approval-rules'
+export type { ApprovalAgent, ApprovalScope } from './approval-rules'
 
 export type TaskTone = 'agent' | 'hot'
 
@@ -370,6 +373,8 @@ export interface ApprovalRuleRecord {
 export interface AgentPermissionResponse {
   requestId: string
   allow: boolean
+  /** 允许时的作用域；省略按 once。拒绝时忽略 */
+  scope?: ApprovalScope
   /** 拒绝时回给 CLI 的原因，省略时用“用户拒绝” */
   message?: string
 }
@@ -460,6 +465,8 @@ export interface AgentApi {
   usage: (days: number) => Promise<AgentRunRecord[]>
   discoverSessions: () => Promise<DiscoveredAgentSession[]>
   importSession: (input: AgentImportInput) => Promise<AgentImportResult>
+  approvalRules: () => Promise<ApprovalRuleRecord[]>
+  removeApprovalRule: (id: string) => Promise<void>
 }
 
 export const MCP_DOMAINS = ['task', 'habit', 'learning', 'note'] as const
@@ -487,7 +494,7 @@ export interface McpPermissionRequest {
   createdAt: number
 }
 
-export type McpPermissionDecision = 'once' | 'session' | 'deny'
+export type McpPermissionDecision = 'once' | 'session' | 'workspace' | 'deny'
 
 export interface McpPermissionResponse {
   requestId: string
@@ -774,6 +781,8 @@ export const IPC_CHANNELS = {
   agentUsage: 'agent:usage',
   agentDiscoverSessions: 'agent:discover-sessions',
   agentImportSession: 'agent:import-session',
+  agentApprovalRules: 'agent:approval-rules',
+  agentRemoveApprovalRule: 'agent:remove-approval-rule',
   mcpPolicyList: 'mcp:policy-list',
   mcpPolicySet: 'mcp:policy-set',
   mcpChanged: 'mcp:changed',

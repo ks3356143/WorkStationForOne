@@ -14,7 +14,7 @@ import type { McpPolicyRepository } from '../db/mcp'
 
 const IPC = IPC_CHANNELS
 const MAX_ID = 120
-const DECISIONS: McpPermissionDecision[] = ['once', 'session', 'deny']
+const DECISIONS: McpPermissionDecision[] = ['once', 'session', 'workspace', 'deny']
 const AUDIT_DOMAINS: AuditLogDomain[] = ['task', 'note', 'learning', 'habit', 'mcp', 'system']
 
 function assertDomain(value: unknown): McpDomain {
@@ -63,7 +63,8 @@ export function assertPermissionResponse(value: unknown): McpPermissionResponse 
 }
 
 export interface McpPermissionAccess {
-  respond: (requestId: string, decision: McpPermissionDecision) => boolean
+  // 方法签名（不是函数属性）：broker 的 respond 目前只接受 once/session/deny，双变比较才能赋值
+  respond(requestId: string, decision: McpPermissionDecision): boolean
 }
 
 export function registerMcpHandlers(

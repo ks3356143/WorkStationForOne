@@ -27,6 +27,7 @@ import {
   type AgentToolRecord
 } from '../../shared/ipc'
 import type { AgentRunEvent } from '../../shared/agent-stream'
+import { APPROVAL_SCOPES, type ApprovalScope } from '../../shared/approval-rules'
 
 const IPC = IPC_CHANNELS
 const MAX_PROMPT = 20_000
@@ -154,6 +155,15 @@ export function assertPermissionResponse(value: unknown): AgentPermissionRespons
   const result: AgentPermissionResponse = {
     requestId: assertId(input.requestId, '审批请求 id'),
     allow: input.allow
+  }
+  if (input.allow === true && input.scope !== undefined) {
+    if (
+      typeof input.scope !== 'string' ||
+      !(APPROVAL_SCOPES as readonly string[]).includes(input.scope)
+    ) {
+      throw new TypeError('审批作用域无效')
+    }
+    result.scope = input.scope as ApprovalScope
   }
   if (input.message !== undefined) {
     if (typeof input.message !== 'string') throw new TypeError('拒绝原因无效')

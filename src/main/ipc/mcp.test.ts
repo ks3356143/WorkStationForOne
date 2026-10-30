@@ -13,13 +13,19 @@ describe('MCP 权限与审计参数', () => {
     expect(() => registerMcpHandlersIPC.assertMode('auto')).toThrow(TypeError)
   })
 
-  it('审批响应只接受三种决定', () => {
+  it('审批响应只接受四种决定', () => {
     expect(
       registerMcpHandlersIPC.assertPermissionResponse({
         requestId: 'p1',
         decision: 'session'
       })
     ).toEqual({ requestId: 'p1', decision: 'session' })
+    expect(
+      registerMcpHandlersIPC.assertPermissionResponse({
+        requestId: 'p1',
+        decision: 'workspace'
+      })
+    ).toEqual({ requestId: 'p1', decision: 'workspace' })
     expect(() =>
       registerMcpHandlersIPC.assertPermissionResponse({ requestId: '', decision: 'once' })
     ).toThrow(TypeError)

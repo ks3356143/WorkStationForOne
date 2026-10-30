@@ -89,7 +89,9 @@ const api: WsApi = {
     removePreset: (id) => ipcRenderer.invoke(IPC_CHANNELS.agentRemovePreset, id),
     usage: (days) => ipcRenderer.invoke(IPC_CHANNELS.agentUsage, days),
     discoverSessions: () => ipcRenderer.invoke(IPC_CHANNELS.agentDiscoverSessions),
-    importSession: (input) => ipcRenderer.invoke(IPC_CHANNELS.agentImportSession, input)
+    importSession: (input) => ipcRenderer.invoke(IPC_CHANNELS.agentImportSession, input),
+    approvalRules: () => ipcRenderer.invoke(IPC_CHANNELS.agentApprovalRules),
+    removeApprovalRule: (id) => ipcRenderer.invoke(IPC_CHANNELS.agentRemoveApprovalRule, id)
   },
   mcp: {
     policy: () => ipcRenderer.invoke(IPC_CHANNELS.mcpPolicyList),
