@@ -43,7 +43,7 @@ Agent 目前有三条独立审批链路：Claude `can_use_tool`、Codex app-serv
 | `deny` 拒绝 | 当前请求 | 不存 | 全部 |
 
 - 「本会话允许」跨回合有效，直到应用退出；不落库，设置页不列出。
-- 「此工作区允许」跨重启有效；撤销后下一次请求重新弹卡。
+- 「此工作区允许」跨重启有效，作用于该工作区里**同一 Agent 的所有会话**，不只当前会话；撤销后下一次请求重新弹卡。
 - 规则只放行，不拒绝；没有持久拒绝。
 
 ### 3.2 工具资格
@@ -69,7 +69,7 @@ Agent 目前有三条独立审批链路：Claude `can_use_tool`、Codex app-serv
 | Codex app-server | `MCP · workstationforone/tasks_create`、`Shell`、`Patch`、`Permissions` |
 | 本地 MCP 桥（桥内裸名 `tasks_create`） | 按会话 Agent 还原：Claude 为 `mcp__workstationforone__tasks_create`，Codex 为 `MCP · workstationforone/tasks_create` |
 
-- 规范化后，同一 Agent 下的两层审批共用一条规则：Claude 的 `can_use_tool` 卡与桥卡、Codex 的 elicitation 卡与桥卡，都不会为同一工具重复弹卡。
+- 规范化后，同一 Agent 下的两层审批共用一条规则：Claude 的 `can_use_tool` 卡与桥卡、Codex 的 elicitation 卡与桥卡，都不会为同一工具重复弹卡。会话 / 工作区允许会在回写适配器之前先写入规则，因此同一次调用的桥层也会直接命中。
 - 规则表有 `agent` 列，Claude 的规则不会作用于 Codex 会话。
 - 工具名按原样比较（区分大小写）；只有工作区路径做大小写归一化。
 
@@ -131,7 +131,7 @@ export class ApprovalRuleRepository {
 ```
 
 - `list()` 按 `COALESCE(last_used_at, created_at) DESC, created_at DESC, id ASC` 排序，保证同一时间戳下顺序稳定。
-- `upsert` 幂等：命中唯一键时复用已有行的 `id` 与 `created_at`，只把 `last_used_at` 更新为本次时间，返回该行；未命中时插入。重复点「此工作区允许」不会产生重复行。
+- `upsert` 幂等：未命中时插入，`last_used_at = NULL`（表示尚未被自动命中）；命中唯一键时复用已有行的 `id` 与 `created_at`，把 `last_used_at` 更新为本次时间并返回该行。重复点「此工作区允许」不会产生重复行。
 - `touch` 只更新 `last_used_at`；规则已不存在时静默返回。
 - `remove` 返回是否删到行。
 - 仓储挂进 `DatabaseContext.approvalRules`（`src/main/db/index.ts`）。
@@ -232,6 +232,7 @@ autoApprove?: (toolName: string) => 'session' | 'workspace' | null
 - `McpBridge` 的钩子 `isSessionAllowed` 更名为 `isPreApproved(sessionId, tool): boolean`，语义是「本会话已允许 **或** 已命中工作区规则」。`tools/call` 的写入询问分支先用它短路，命中则不再调用 `permissions.request`。
 - `isPreApproved` 由 `index.ts` 接到 `ApprovalRuleService.checkBridge()`；工作区命中会写 `auto:workspace` 审计，会话命中写 `auto:session`。
 - 桥的域权限检查、写入事务与 `mcp/write` 审计完全不变：规则只在 `ask` 模式下替代卡片，不能把 `read` 域变成可写。
+- `index.ts` 里 `ApprovalRuleService` 必须在 `McpPermissionBroker` 与 `McpBridge` 之前创建，broker、bridge 与 `registerAgentHandlers` 共用同一实例。
 - `McpPermissionBroker` 不再持有内存允许集合，改为回调：
 
 ```ts
@@ -313,7 +314,7 @@ interface ActiveRun {
 `permissionRuns` 条目增加 `toolName`。回写时：
 
 1. `allow=true && scope='workspace'` 且工具不合格 → 抛 `TypeError('该工具不支持工作区持久规则')`，不回写 CLI。
-2. `scope='workspace'` → `rules.grantWorkspace({...runContext}, toolName)`；异常记 console，继续第 4 步。
+2. `scope='workspace'` → `rules.grantWorkspace({...runContext}, toolName)`；仅捕获数据库异常并记 console，继续第 4 步（资格不合格已在第 1 步抛错）。
 3. `scope='session'` → `rules.grantSession(...)`。
 4. 调 `run.respondPermission(...)`；无论 allow / deny，最后删除映射（保持现有行为）。
 - 拒绝只使用 `allow=false + message`，`scope` 不参与。
@@ -352,20 +353,21 @@ registerAgentHandlers({
 - 按钮顺序：`拒绝` / `本会话允许` / `此工作区允许`（仅 `request.workspaceScope === true`）/ `允许一次`（主按钮）。
 - 敏感工具只有：`拒绝` / `本会话允许` / `允许一次`。
 - 提示文案：
-  - 合格：「本会话允许只在应用运行期间有效；此工作区允许会记住该工具，可在设置里撤销。」
-  - 不合格：「Bash 与写入类工具只能本会话允许或单次允许，不会写入持久规则。」
+  - 合格：「本会话允许只在应用运行期间有效；此工作区允许会记住该工具，对该工作区里同 Agent 的会话都生效，可在设置里撤销。」
+  - 不合格：「Bash、写入类工具与额外权限只能本会话允许或单次允许，不会写入持久规则。」
+  - `Permissions` 卡额外说明：「本会话允许会让本会话之后的额外权限请求自动通过。」
 - 保留 `busy` 防重复点击与现有动效结构。
 
 ### 8.2 MCP 审批卡（`components/agent/McpApprovalCard.tsx`）
 
 - 按钮：`拒绝` / `本会话允许` / `此工作区允许` / `允许一次`（主按钮）。
-- 提示：「60 秒无操作按拒绝处理。此工作区允许只对这一种工具生效，可在设置里撤销。」
+- 提示：「60 秒无操作按拒绝处理。此工作区允许只对这一种工具生效，对该工作区里同 Agent 的会话都生效，可在设置里撤销。」
 - 保留 61 秒清卡的渲染层兜底。
 
 ### 8.3 AgentDock
 
 - `resolveToolPermission(decision)`：拒绝发 `{requestId, allow:false, message:'用户拒绝'}`；允许发 `{requestId, allow:true, scope: decision}`。
-- 先清本会话卡再异步回写，沿用现有行为；失败只记 console。
+- 先清本会话卡再异步回写，沿用现有行为；回写 `false`（运行已结束或重复回写）只记 console。回写 **抛错**（例如资格校验失败）时把捕获的卡片放回，避免本轮停在 wait。
 - MCP 卡的 `onResolve` 直接透传新的 decision。
 
 ### 8.4 设置页（`components/SettingsSheet.tsx`）
@@ -375,7 +377,7 @@ registerAgentHandlers({
 - 数据：挂载时 `window.ws?.agent?.approvalRules()`；撤销后重新拉取。无桥时显示「仅在桌面应用可用。」
 - 每行：工具名（代码字体）、Agent 标签（Claude / Codex）、工作区（路径过长时中间省略，`title` 给完整路径）、最近使用时间（`从未` / `MM-DD HH:mm`，与现有 `auditTime` 一致）、`撤销` 按钮。
 - 空态：「还没有工作区审批规则。」
-- 底部说明：「只对 MCP 工具与本地只读工具生效；Bash、写入类工具与『本会话允许』不落库，应用退出后失效。」
+- 底部说明：「只对 MCP 工具与本地只读工具生效；对该工作区里同 Agent 的所有会话生效。Bash、写入类工具与『本会话允许』不落库，应用退出后失效。」
 - 撤销成功用现有 `notify()` 提示，并刷新活动记录。
 - 不加二次确认（撤销后再次允许即可恢复）；样式复用 `w1-setgroup` / `w1-setrow` / `w1-pb`，新增类名保持 `w1-setrule*` 前缀。
 
@@ -422,9 +424,11 @@ registerAgentHandlers({
 - **同一路径不同大小写**：`workspace_key` 归一化，命中去重。
 - **重复点「此工作区允许」**：`upsert` 复用同一行，只更新 `last_used_at`。
 - **规则与当前卡片同时存在**：已挂起的卡不自动消失；作答后删除映射。
+- **规则只按工具名匹配**：不校验外部 MCP Server 的 URL、版本或可执行文件；用户用同名 Server 替换后旧规则仍生效。撤销规则或改名 Server 即可失效。
 - **规则创建后本回合立刻再请求**：适配器每次请求都查服务，立即生效。
-- **Codex 本地桥写入**：elicitation 与桥内 broker 两层都可能发卡；规范名一致，一条规则同时压掉两层。
-- **Claude MCP 写入**：`can_use_tool` 与服务桥各有一层；规范名一致，一条规则同时生效。
+- **Claude MCP 写入**：`can_use_tool` 与服务桥各有一层；规范名一致，一条规则同时生效。在 Claude 卡上选「本会话允许 / 此工作区允许」时，规则先落库再回写 CLI，随后的桥调用直接命中，同一次调用不会弹第二张卡；选「允许一次」则桥仍会单独询问。
+- **Codex 本地桥写入**：elicitation 与桥内 broker 两层都可能发卡；规范名一致，一条规则同时压掉两层。在 elicitation 卡上选会话 / 工作区允许，同样在桥调用之前生效。
+- **同工作区另一个同 Agent 会话**：命中同一规则并自动批准；规则不是会话私有的。
 - **规则被撤销后**：下一请求重新弹卡；本会话内存规则不受影响。
 - **应用重启**：工作区规则保留；本会话规则清空；卡片状态本就不持久化。
 - **数据库迁移失败**：沿用 v27 事务回滚与迁移前备份，不影响旧库。
@@ -434,8 +438,9 @@ registerAgentHandlers({
 ### 12.1 单元测试
 
 - `src/shared/approval-rules.test.ts`：`workspaceKey` 分隔符统一 / 去尾分隔符 / 小写 / 根路径；资格矩阵（MCP、本地只读、敏感工具、WebFetch/WebSearch、未知工具）；`bridgeToolName` 双 Agent；`isMcpToolName`。
-- `src/main/db/approval-rules.test.ts`：v26 → v27 迁移；唯一键（大小写不同的工作区视为同一条）；upsert 幂等与 `last_used_at`；`touch`；`remove`；重开库后仍在。
-- `src/main/agent/approval-rules.test.ts`：会话命中 / 工作区命中 / 未命中；`last_used_at` 更新；审计 `auto:session|workspace`；不合格工具 `grantWorkspace` 抛错且不落库；`resolveBridge` 双 Agent 规范名；`check` 在仓储抛错时返回 null（fail closed）；`resetSession`。
+- `src/main/db/approval-rules.test.ts`：v26 → v27 迁移；唯一键（大小写 / 分隔符不同的工作区视为同一条）；upsert 幂等与 `last_used_at`；`touch`；`remove`；重开库后仍在。
+- 既有 `src/main/db/agent.test.ts:73` 与 `src/main/db/capabilities.test.ts:57` 硬编码了最新版本 `26`；加 v27 后前者的 v25→v26 用例改用 `MIGRATIONS.filter(v => v.version <= 26)`，后者改成 `MIGRATIONS.at(-1)!.version`。
+- `src/main/agent/approval-rules.test.ts`：会话命中 / 工作区命中 / 未命中；同工作区不同 Agent 不命中；同 Agent 不同会话共享工作区规则；会话规则不跨会话；`last_used_at` 更新；审计 `auto:session|workspace`；不合格工具 `grantWorkspace` 抛错且不落库；`resolveBridge` 双 Agent 规范名与 Codex 桥规则落库；`check` 在仓储抛错时返回 null（fail closed）；`resetSession`。
 - `src/main/agent/claude.test.ts`：`autoApprove` 命中时不发 permission 事件并写 allow control_response；未命中照旧发卡；`AskUserQuestion` 仍自动拒绝且不经过规则。
 - `src/main/agent/codex-app-server.test.ts`：`MCP · …` 命中时不发卡并回 accept；`Shell` 会话命中；`Patch` / `Permissions` 未命中照旧发卡；外部策略 `deny` 优先于规则。
 - `src/main/mcp/permissions.test.ts`：`isPreApproved` 短路；`session` / `workspace` 决定调用对应回调；`workspace` 授予异常仍放行；超时 / 拒绝不变。
@@ -509,6 +514,7 @@ registerAgentHandlers({
 | `src/renderer/src/components/SettingsSheet.tsx` | 审批规则组 |
 | 样式 | `.w1-pacts` 换行、设置规则行 |
 | `scripts/stub-agent.cjs` / `smoke.cjs` / `runtime-verify.mjs` | 测试缝与断言 |
+| `src/main/db/agent.test.ts` / `capabilities.test.ts` | 更新硬编码的最新 DB 版本断言 |
 | `AGENTS.md` / `CHANGELOG.md` | 规则契约、DB v27、验证数量 |
 
 ## 15. 关键代码位置
