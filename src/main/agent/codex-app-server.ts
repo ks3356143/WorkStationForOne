@@ -238,6 +238,8 @@ export interface CodexAppServerRunOptions {
   externalMcp?: CodexMcpRuntime
   /** 透传给 app-server 的客户端版本，仅用于握手标识 */
   clientVersion?: string
+  /** 规则命中时在发卡前直接放行；返回命中作用域或 null */
+  autoApprove?: (toolName: string) => 'session' | 'workspace' | null
   onEvent: (event: AgentRunEvent) => void
   onExit: (info: CodexAppServerExit) => void
   /** 省略时按环境解析；显式传 null 表示「没有可用的 CLI」 */
@@ -468,6 +470,11 @@ export function startCodexAppServerRun(options: CodexAppServerRunOptions): Codex
 
     const approval = approvalRequest(method, params, parser)
     if (approval) {
+      if (options.autoApprove?.(approval.request.toolName)) {
+        // 规则命中时不发卡也不登记 pending：本轮直接放行，审批链接不到它
+        respondApproval(id, method, params, true)
+        return
+      }
       const requestId = String(id)
       approval.request.requestId = requestId
       pendingApprovals.set(requestId, { id, method, params })
@@ -497,6 +504,11 @@ export function startCodexAppServerRun(options: CodexAppServerRunOptions): Codex
           send({ id, result: { action: 'decline', content: null, _meta: null } })
           return
         }
+        const toolName = `MCP · ${serverName}/${tool}`
+        if (options.autoApprove?.(toolName)) {
+          send({ id, result: { action: 'accept', content: {}, _meta: null } })
+          return
+        }
         const description = asString(meta?.tool_description)
         const preview = JSON.stringify({
           serverName,
@@ -510,7 +522,7 @@ export function startCodexAppServerRun(options: CodexAppServerRunOptions): Codex
           kind: 'permission',
           request: {
             requestId,
-            toolName: `MCP · ${serverName}/${tool}`,
+            toolName,
             toolUseId: asString(params.turnId) ?? serverName,
             detail: clip(description ?? message),
             ...(description ? { description: `允许 ${serverName} 调用 ${tool}？` } : {}),

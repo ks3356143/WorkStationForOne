@@ -38,6 +38,7 @@ function run(
   options: {
     resumeId?: string
     externalMcp?: CodexMcpRuntime
+    autoApprove?: (toolName: string) => 'session' | 'workspace' | null
     onPermission?: (handle: ReturnType<typeof startCodexAppServerRun>) => void
   } = {}
 ) {
@@ -48,6 +49,7 @@ function run(
       prompt,
       ...(options.resumeId ? { resumeId: options.resumeId } : {}),
       ...(options.externalMcp ? { externalMcp: options.externalMcp } : {}),
+      ...(options.autoApprove ? { autoApprove: options.autoApprove } : {}),
       cwd: process.cwd(),
       provider,
       home: home(),
@@ -570,6 +572,60 @@ describe('startCodexAppServerRun · stub 链路', () => {
     expect(events.some((event) => event.kind === 'permission')).toBe(false)
     expect(streamText(events)).toBe('已拒绝外部 MCP。')
     expect(events).toContainEqual({ kind: 'result', ok: true })
+  })
+
+  it('MCP 规则命中时不弹卡并回 accept', async () => {
+    const { events, done } = run('MCP 写', { autoApprove: () => 'workspace' })
+    const exit = await done
+
+    expect(exit).toMatchObject({ code: 0, cancelled: false })
+    expect(events.some((event) => event.kind === 'permission')).toBe(false)
+    expect(streamText(events)).toBe('已允许 MCP 调用。')
+    expect(events).toContainEqual({ kind: 'result', ok: true })
+  })
+
+  it('Shell 会话规则命中时不弹卡', async () => {
+    const asked: string[] = []
+    const { events, done } = run('写一个文件', {
+      autoApprove: (toolName) => {
+        asked.push(toolName)
+        return toolName === 'Shell' ? 'session' : null
+      }
+    })
+    const exit = await done
+
+    expect(asked).toEqual(['Shell'])
+    expect(exit).toMatchObject({ code: 0, cancelled: false })
+    expect(events.some((event) => event.kind === 'permission')).toBe(false)
+    expect(streamText(events)).toBe('已允许写入。')
+  })
+
+  it('Permissions 未命中规则时仍发卡', async () => {
+    const { events, done } = run('额外权限', {
+      autoApprove: () => null,
+      onPermission: (active) => {
+        const request = events.find((event) => event.kind === 'permission')
+        if (request?.kind !== 'permission') return
+        expect(request.request.toolName).toBe('Permissions')
+        expect(active.respondPermission(request.request.requestId, 'allow')).toBe(true)
+      }
+    })
+    const exit = await done
+
+    expect(exit).toMatchObject({ code: 0, cancelled: false })
+    expect(streamText(events)).toBe('已授予额外权限。')
+  })
+
+  it('自动批准不覆盖外部 MCP 的 deny 策略', async () => {
+    const { events, done } = run('外部 MCP 禁止', {
+      externalMcp: externalPolicy('blocked', 'deny'),
+      autoApprove: () => 'workspace'
+    })
+    const exit = await done
+
+    expect(exit).toMatchObject({ code: 0, cancelled: false })
+    expect(events.some((event) => event.kind === 'permission')).toBe(false)
+    expect(streamText(events)).toBe('已拒绝外部 MCP。')
   })
 
   it('续接已有 thread 时使用 thread/resume', async () => {
