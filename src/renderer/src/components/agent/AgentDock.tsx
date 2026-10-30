@@ -224,15 +224,25 @@ export function AgentDock() {
       .catch((error) => console.error('[agent] MCP 审批回写失败', error))
   }
 
-  const resolveToolPermission = (allow: boolean) => {
+  const resolveToolPermission = (decision: 'once' | 'session' | 'workspace' | 'deny') => {
     if (!toolPermission) return
     const { requestId, sessionId } = toolPermission
+    const allow = decision !== 'deny'
     clearToolPermission(sessionId)
     void respondPermission?.({
       requestId,
       allow,
-      ...(allow ? {} : { message: '用户拒绝' })
-    }).catch((error) => console.error('[agent] 回写审批失败', error))
+      ...(allow ? { scope: decision } : { message: '用户拒绝' })
+    })
+      .then((ok) => {
+        if (!ok) console.error('[agent] 审批请求已失效')
+      })
+      .catch((error) => {
+        console.error('[agent] 回写审批失败', error)
+        if (!useWorkstation.getState().toolPermissions[sessionId]) {
+          useWorkstation.getState().setToolPermission(sessionId, toolPermission)
+        }
+      })
   }
 
   return (

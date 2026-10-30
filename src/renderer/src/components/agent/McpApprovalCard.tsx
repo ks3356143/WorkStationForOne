@@ -54,7 +54,8 @@ export function McpApprovalCard({ request, onResolve }: McpApprovalCardProps) {
         <pre>{request.preview || '{}'}</pre>
       </div>
       <p className="w1-toolhint">
-        60 秒无操作按拒绝处理。本会话允许只放行当前工具，不扩大到同域其他写入。
+        60 秒无操作按拒绝处理。此工作区允许只对这一种工具生效，对该工作区里同 Agent
+        的会话都生效，可在设置里撤销。
       </p>
       <div className="w1-pacts">
         <button className="w1-pb" type="button" disabled={busy} onClick={() => resolve('deny')}>
@@ -62,6 +63,14 @@ export function McpApprovalCard({ request, onResolve }: McpApprovalCardProps) {
         </button>
         <button className="w1-pb" type="button" disabled={busy} onClick={() => resolve('session')}>
           本会话允许
+        </button>
+        <button
+          className="w1-pb"
+          type="button"
+          disabled={busy}
+          onClick={() => resolve('workspace')}
+        >
+          此工作区允许
         </button>
         <button className="w1-pb pri" type="button" disabled={busy} onClick={() => resolve('once')}>
           允许一次

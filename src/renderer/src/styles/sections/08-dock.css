@@ -715,6 +715,7 @@
 
 .w1-pacts {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 9px;
   margin-top: 12px;
