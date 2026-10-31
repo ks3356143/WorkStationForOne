@@ -50,7 +50,16 @@ async function runFlow(prompt) {
     }
     const leaked = process.argv.join(' ').includes(token)
     const approval = prompt.includes('审批')
-    const writeMode = prompt.includes('写任务') || approval
+    const ruleWrite = prompt.includes('规则写入')
+    const autoWrite = prompt.includes('自动写入')
+    const writeMode = prompt.includes('写任务') || approval || ruleWrite || autoWrite
+    const title = approval
+      ? 'MCP 审批写入'
+      : ruleWrite
+        ? 'MCP 规则写入'
+        : autoWrite
+          ? 'MCP 自动写入'
+          : 'MCP 写入测试'
     const now = new Date()
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
       now.getDate()
@@ -58,7 +67,7 @@ async function runFlow(prompt) {
     const toolName = writeMode ? 'tasks_create' : 'today_overview'
     const toolArgs = writeMode
       ? {
-          title: approval ? 'MCP 审批写入' : 'MCP 写入测试',
+          title,
           dueDate: today,
           list: 'Agent',
           idempotency_key: `smoke-${Date.now()}`
@@ -127,9 +136,13 @@ async function runFlow(prompt) {
             text:
               overview && !error && !leaked
                 ? writeMode
-                  ? approval
-                    ? 'MCP 审批写入：已创建。'
-                    : 'MCP 写任务：已创建。'
+                  ? ruleWrite
+                    ? 'MCP 规则写入：已创建。'
+                    : autoWrite
+                      ? 'MCP 自动写入：已创建。'
+                      : approval
+                        ? 'MCP 审批写入：已创建。'
+                        : 'MCP 写任务：已创建。'
                   : 'MCP 概览：读取成功。'
                 : `MCP ${writeMode ? '写任务' : '概览'}：${leaked ? 'token 泄漏' : error || '返回为空'}。`
           }
@@ -255,6 +268,57 @@ async function runFlow(prompt) {
       duration_ms: 8,
       num_turns: 1
     })
+    return
+  }
+
+  if (prompt.includes('连续审批')) {
+    emit({
+      type: 'system',
+      subtype: 'init',
+      model: 'stub-model',
+      session_id: 'stub-permission-two'
+    })
+    await wait(100)
+    emit({
+      type: 'control_request',
+      request_id: 'perm-1',
+      request: {
+        subtype: 'can_use_tool',
+        tool_name: 'Write',
+        display_name: 'Write',
+        input: { file_path: 'tmp/first.txt', content: 'ok' },
+        tool_use_id: 'stub-perm-1',
+        description: '连续审批第一次'
+      }
+    })
+    const first = await new Promise((resolve) => pendingPermissions.set('perm-1', resolve))
+    emit({
+      type: 'control_request',
+      request_id: 'perm-2',
+      request: {
+        subtype: 'can_use_tool',
+        tool_name: 'Write',
+        display_name: 'Write',
+        input: { file_path: 'tmp/second.txt', content: 'ok' },
+        tool_use_id: 'stub-perm-2',
+        description: '连续审批第二次'
+      }
+    })
+    const second = await new Promise((resolve) => pendingPermissions.set('perm-2', resolve))
+    const allowed = first?.behavior === 'allow' && second?.behavior === 'allow'
+    emit({
+      type: 'assistant',
+      message: {
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: allowed ? '连续审批：两次均允许。' : '连续审批：未全部允许。'
+          }
+        ]
+      }
+    })
+    emit({ type: 'result', subtype: 'success', is_error: false, num_turns: 1 })
     return
   }
 

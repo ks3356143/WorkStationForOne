@@ -418,13 +418,14 @@ async function run() {
     )
 
     taskRow('提交周报 v2')?.querySelector('.w1-todocb')?.click()
-    await sleep(400)
-    check('完成后离开即将到来', taskRow('提交周报 v2') === undefined, all('.w1-todorowwrap').length)
+    const leftUpcoming = await waitFor(() => taskRow('提交周报 v2') === undefined, 3000)
+    check('完成后离开即将到来', leftUpcoming, all('.w1-todorowwrap').length)
     await taskScopeTo('已完成')
+    await waitFor(() => taskRow('提交周报 v2') !== undefined, 2000)
     check('已完成包含刚完成的任务', taskRow('提交周报 v2') !== undefined)
 
     taskRow('提交周报 v2')?.querySelector('.w1-todobody')?.click()
-    await sleep(300)
+    await waitFor(() => !!one('.w1-todoedit'), 2000)
     one('.w1-tododelete')?.click()
     await waitFor(() => byText('.w1-tododelete', '再次点击确认删除') !== undefined, 1500)
     check('删除需要二次确认', byText('.w1-tododelete', '再次点击确认删除') !== undefined)
@@ -552,26 +553,38 @@ async function run() {
     repeatInput.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
     )
-    await sleep(600)
-    all('.w1-todorowwrap')
-      .find((row) => row.textContent?.includes('每周复盘'))
-      ?.querySelector('.w1-todobody')
-      ?.click()
-    await sleep(400)
-    byText('.w1-todoedit .w1-todopriopt', '每周')?.click()
+    await waitFor(() => taskRow('每周复盘') !== undefined, 3000)
+    // 列表刚经过 View Transition 时行节点可能被替换，等一帧再点，避免点空。
     await sleep(120)
+    taskRow('每周复盘')?.querySelector('.w1-todobody')?.click()
+    if (!(await waitFor(() => !!one('.w1-todoedit'), 2000))) {
+      taskRow('每周复盘')?.querySelector('.w1-todobody')?.click()
+      await waitFor(() => !!one('.w1-todoedit'), 1500)
+    }
+    byText('.w1-todoedit .w1-todopriopt', '每周')?.click()
+    await waitFor(
+      () => byText('.w1-todoedit .w1-todopriopt', '每周')?.getAttribute('aria-pressed') === 'true',
+      1500
+    )
     byText('.w1-todoedit .w1-todosave', '保存')?.click()
-    await sleep(600)
+    const repeatBadge = await waitFor(
+      () =>
+        all('.w1-todorowwrap')
+          .find((row) => row.textContent?.includes('每周复盘'))
+          ?.querySelector('.w1-todorepeat')?.textContent === '↻ 每周',
+      3000
+    )
     const badge = all('.w1-todorowwrap')
       .find((row) => row.textContent?.includes('每周复盘'))
       ?.querySelector('.w1-todorepeat')?.textContent
-    check('保存后任务显示重复标记', badge === '↻ 每周', badge ?? 'missing')
+    check('保存后任务显示重复标记', repeatBadge, badge ?? 'missing')
 
-    all('.w1-todorowwrap')
-      .find((row) => row.textContent?.includes('每周复盘'))
-      ?.querySelector('.w1-todocb')
-      ?.click()
-    await sleep(800)
+    await waitFor(() => !one('.w1-todoedit'), 2000)
+    taskRow('每周复盘')?.querySelector('.w1-todocb')?.click()
+    const repeatCreated = await waitFor(async () => {
+      const list = await window.ws.tasks.list()
+      return list.filter((task) => task.title === '每周复盘').length === 2
+    }, 3000)
     const repeated = await window.ws.tasks.list()
     const copies = repeated.filter((task) => task.title === '每周复盘')
     const openCopy = copies.find((task) => !task.done)
@@ -579,19 +592,23 @@ async function run() {
     const expectedDue = new Date(Date.now() + 7 * 86_400_000).toLocaleDateString('sv-SE')
     check(
       '完成后自动生成下一周的实例',
-      copies.length === 2 && Boolean(openCopy) && openCopy.dueDate === expectedDue,
+      repeatCreated && copies.length === 2 && Boolean(openCopy) && openCopy.dueDate === expectedDue,
       copies.map((task) => (task.done ? 'done@' : 'open@') + (task.dueDate ?? '-')).join(' / ')
     )
     check('新实例落在今天之后', openCopy?.dueDate !== todayKey, openCopy?.dueDate ?? '-')
 
     // 收尾：完成态在「已完成」里，下一轮在「即将到来」里，分别删掉
     const removeRow = async (row) => {
-      row?.querySelector('.w1-todobody')?.click()
-      await sleep(300)
+      if (!row) return
+      row.querySelector('.w1-todobody')?.click()
+      await waitFor(() => !!one('.w1-todoedit'), 2000)
       byText('.w1-todoedit .w1-tododelete', '删除任务')?.click()
-      await sleep(150)
+      await waitFor(
+        () => byText('.w1-todoedit .w1-tododelete', '再次点击确认删除') !== undefined,
+        1500
+      )
       byText('.w1-todoedit .w1-tododelete', '再次点击确认删除')?.click()
-      await sleep(400)
+      await waitFor(() => !one('.w1-todoedit'), 3000)
     }
     byText('.w1-todorow', '已完成')?.click()
     await sleep(400)
@@ -944,6 +961,34 @@ async function run() {
       one('.w1-thread')?.textContent?.slice(-80) ?? ''
     )
 
+    const sessionAskInput = one('#composer-input')
+    setValue(sessionAskInput, '连续审批')
+    await sleep(80)
+    sessionAskInput.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    const firstWriteCard = await waitFor(
+      () => (one('.w1-toolperm')?.textContent ?? '').includes('连续审批第一次'),
+      2500
+    )
+    check(
+      '敏感工具卡没有此工作区允许',
+      firstWriteCard && !(one('.w1-toolperm')?.textContent ?? '').includes('此工作区允许'),
+      one('.w1-toolperm')?.textContent?.slice(0, 140) ?? 'missing'
+    )
+    byText('.w1-toolperm .w1-pb', '本会话允许')?.click()
+    const sessionAllowed = await waitFor(
+      () =>
+        (one('.w1-thread')?.textContent ?? '').includes('连续审批：两次均允许') &&
+        !one('.w1-toolperm'),
+      3000
+    )
+    check(
+      '本会话允许后第二次 Write 自动放行',
+      sessionAllowed,
+      one('.w1-thread')?.textContent?.slice(-120) ?? ''
+    )
+
     const mcpInput = one('#composer-input')
     setValue(mcpInput, 'MCP 概览')
     await sleep(80)
@@ -1008,6 +1053,71 @@ async function run() {
         (one('.w1-thread')?.textContent ?? '').includes('MCP 审批写入：已创建'),
       one('.w1-thread')?.textContent?.slice(-100) ?? ''
     )
+
+    const claudeRuleInput = one('#composer-input')
+    setValue(claudeRuleInput, 'MCP 规则写入')
+    await sleep(80)
+    claudeRuleInput.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    await waitFor(() => !!one('.w1-mcpapprove'), 2000)
+    check(
+      'MCP 卡出现此工作区允许',
+      (one('.w1-mcpapprove')?.textContent ?? '').includes('此工作区允许'),
+      one('.w1-mcpapprove')?.textContent?.slice(0, 120) ?? 'missing'
+    )
+    byText('.w1-mcpapprove .w1-pb', '此工作区允许')?.click()
+    const ruleWriteDone = await waitFor(
+      () => (one('.w1-thread')?.textContent ?? '').includes('MCP 规则写入：已创建'),
+      3000
+    )
+    check('MCP 工作区规则允许后写入完成', ruleWriteDone, one('.w1-thread')?.textContent?.slice(-100) ?? '')
+
+    const autoWriteInput = one('#composer-input')
+    setValue(autoWriteInput, 'MCP 自动写入')
+    await sleep(80)
+    autoWriteInput.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    const autoWriteDone = await waitFor(
+      () =>
+        (one('.w1-thread')?.textContent ?? '').includes('MCP 自动写入：已创建') &&
+        !one('.w1-mcpapprove'),
+      3000
+    )
+    check(
+      '工作区规则命中后第二次 MCP 写入无卡',
+      autoWriteDone,
+      one('.w1-thread')?.textContent?.slice(-100) ?? ''
+    )
+
+    one('.w1-settings')?.click()
+    await waitFor(() => !!one('.w1-settings-sheet'), 2000)
+    const ruleShown = await waitFor(
+      () => (one('.w1-setrules')?.textContent ?? '').includes('tasks_create'),
+      2000
+    )
+    check('设置页显示审批规则', ruleShown, one('.w1-setrules')?.textContent?.slice(0, 120) ?? 'missing')
+    byText('.w1-setrule .w1-setbtn', '撤销')?.click()
+    const ruleRevoked = await waitFor(
+      () => !(one('.w1-setrules')?.textContent ?? '').includes('tasks_create'),
+      2000
+    )
+    check('设置页可撤销审批规则', ruleRevoked, one('.w1-setrules')?.textContent ?? 'empty')
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
+    await waitFor(() => !one('.w1-settings-sheet'), 2000)
+
+    const revokedInput = one('#composer-input')
+    setValue(revokedInput, 'MCP 审批写入')
+    await sleep(80)
+    revokedInput.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    const cardBack = await waitFor(() => !!one('.w1-mcpapprove'), 2500)
+    check('撤销后 MCP 写入重新弹卡', cardBack, one('.w1-mcpapprove')?.textContent?.slice(0, 120) ?? 'missing')
+    byText('.w1-mcpapprove .w1-pb', '拒绝')?.click()
+    await waitFor(() => !one('.w1-mcpapprove'), 2000)
+
     await window.ws.mcp.setPolicy('task', 'write')
     await sleep(150)
 
@@ -1966,7 +2076,12 @@ async function run() {
       approvalShown,
       one('.w1-toolperm')?.textContent?.slice(0, 140) ?? 'missing'
     )
-    byText('.w1-toolperm .w1-pb', '允许一次')?.click()
+    check(
+      'Codex 敏感工具卡没有此工作区允许',
+      !(one('.w1-toolperm')?.textContent ?? '').includes('此工作区允许'),
+      one('.w1-toolperm')?.textContent?.slice(0, 140) ?? 'missing'
+    )
+    byText('.w1-toolperm .w1-pb', '本会话允许')?.click()
     const codexWriteDone = await waitFor(
       () =>
         !one('.w1-toolperm') &&
@@ -1974,10 +2089,44 @@ async function run() {
       6000
     )
     check(
-      'Codex 允许一次后继续本轮',
+      'Codex 本会话允许后继续本轮',
       codexWriteDone &&
         (all('.w1-amsg').at(-1)?.textContent ?? '').includes('已允许写入。'),
       all('.w1-amsg').at(-1)?.textContent?.slice(-120) ?? 'missing'
+    )
+
+    const codexRepeatInput = one('#composer-input')
+    const codexBefore = all('.w1-amsg').length
+    setValue(codexRepeatInput, '写一个文件')
+    await sleep(80)
+    codexRepeatInput.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    const codexRepeatDone = await waitFor(
+      () => all('.w1-amsg').length > codexBefore && !one('.w1-toolperm'),
+      5000
+    )
+    check('Codex Shell 会话规则命中后无卡', codexRepeatDone, all('.w1-amsg').at(-1)?.textContent?.slice(-120) ?? 'missing')
+
+    const codexPermInput = one('#composer-input')
+    setValue(codexPermInput, '额外权限')
+    await sleep(80)
+    codexPermInput.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    const codexPermCard = await waitFor(
+      () => (one('.w1-toolperm')?.textContent ?? '').includes('Permissions'),
+      5000
+    )
+    check(
+      'Codex Permissions 卡没有此工作区允许',
+      codexPermCard && !(one('.w1-toolperm')?.textContent ?? '').includes('此工作区允许'),
+      one('.w1-toolperm')?.textContent?.slice(0, 140) ?? 'missing'
+    )
+    byText('.w1-toolperm .w1-pb', '允许一次')?.click()
+    await waitFor(
+      () => (one('.w1-thread')?.textContent ?? '').includes('已授予额外权限'),
+      5000
     )
 
     const codexMcpInput = one('#composer-input')
@@ -1998,7 +2147,7 @@ async function run() {
       mcpApproval,
       one('.w1-toolperm')?.textContent?.slice(0, 180) ?? 'missing'
     )
-    byText('.w1-toolperm .w1-pb', '允许一次')?.click()
+    byText('.w1-toolperm .w1-pb', '此工作区允许')?.click()
     const mcpAllowed = await waitFor(
       () =>
         !one('.w1-toolperm') &&
@@ -2006,10 +2155,42 @@ async function run() {
       6000
     )
     check(
-      'Codex MCP 允许一次后继续',
+      'Codex MCP 允许后继续',
       mcpAllowed,
       all('.w1-amsg').at(-1)?.textContent?.slice(-120) ?? 'missing'
     )
+
+    const codexMcpRepeat = one('#composer-input')
+    const codexMcpBefore = all('.w1-amsg').length
+    setValue(codexMcpRepeat, 'MCP 写入')
+    await sleep(80)
+    codexMcpRepeat.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    const codexMcpRepeatDone = await waitFor(
+      () => all('.w1-amsg').length > codexMcpBefore && !one('.w1-toolperm'),
+      5000
+    )
+    check(
+      'Codex MCP 工作区规则命中后无卡',
+      codexMcpRepeatDone,
+      all('.w1-amsg').at(-1)?.textContent?.slice(-120) ?? 'missing'
+    )
+
+    one('.w1-settings')?.click()
+    await waitFor(() => !!one('.w1-settings-sheet'), 2000)
+    const codexRuleShown = await waitFor(
+      () => (one('.w1-setrules')?.textContent ?? '').includes('MCP · workstationforone/tasks_create'),
+      2000
+    )
+    check('Codex 审批规则出现在设置', codexRuleShown, one('.w1-setrules')?.textContent?.slice(0, 120) ?? 'missing')
+    byText('.w1-setrule .w1-setbtn', '撤销')?.click()
+    await waitFor(
+      () => !(one('.w1-setrules')?.textContent ?? '').includes('MCP · workstationforone/tasks_create'),
+      2000
+    )
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
+    await waitFor(() => !one('.w1-settings-sheet'), 2000)
 
     one('.w1-settings')?.click()
     await waitFor(() => !!one('.w1-settings-sheet'), 2000)
@@ -2714,6 +2895,16 @@ async function run() {
       mcpApproveAudit: count(
         "SELECT COUNT(*) AS n FROM audit_log WHERE domain = 'mcp' AND action = 'approve'"
       ),
+      mcpAutoTask: count(
+        "SELECT COUNT(*) AS n FROM tasks WHERE title = 'MCP 自动写入' AND deleted_at IS NULL"
+      ),
+      approvalRules: count('SELECT COUNT(*) AS n FROM approval_rules'),
+      approvalRuleAudit: count(
+        "SELECT COUNT(*) AS n FROM audit_log WHERE domain = 'system' AND detail LIKE 'approval-rule:%'"
+      ),
+      autoApproveAudit: count(
+        "SELECT COUNT(*) AS n FROM audit_log WHERE domain = 'mcp' AND action = 'approve' AND detail = 'auto:workspace'"
+      ),
       mcpAuditLeak: count(
         "SELECT COUNT(*) AS n FROM audit_log WHERE domain = 'mcp' AND (detail LIKE '%Bearer%' OR detail LIKE '%token%')"
       ),
@@ -2808,6 +2999,18 @@ async function run() {
     ok: Boolean(dbStats && dbStats.mcpApprovalTask === 1 && dbStats.mcpApproveAudit > 0),
     detail: dbStats
       ? `task ${dbStats.mcpApprovalTask} / approve ${dbStats.mcpApproveAudit}`
+      : '无数据'
+  })
+  results.checks.push({
+    name: '工作区规则自动写入已落库',
+    ok: Boolean(dbStats && dbStats.mcpAutoTask === 1 && dbStats.autoApproveAudit > 0),
+    detail: dbStats ? `task ${dbStats.mcpAutoTask} / auto ${dbStats.autoApproveAudit}` : '无数据'
+  })
+  results.checks.push({
+    name: '审批规则已撤销且审计留痕',
+    ok: Boolean(dbStats && dbStats.approvalRules === 0 && dbStats.approvalRuleAudit > 0),
+    detail: dbStats
+      ? `rules ${dbStats.approvalRules} / audit ${dbStats.approvalRuleAudit}`
       : '无数据'
   })
   results.checks.push({
