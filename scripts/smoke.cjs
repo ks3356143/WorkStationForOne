@@ -2078,7 +2078,7 @@ async function run() {
     )
     check(
       'Codex 敏感工具卡没有此工作区允许',
-      !(one('.w1-toolperm')?.textContent ?? '').includes('此工作区允许'),
+      approvalShown && !(one('.w1-toolperm')?.textContent ?? '').includes('此工作区允许'),
       one('.w1-toolperm')?.textContent?.slice(0, 140) ?? 'missing'
     )
     byText('.w1-toolperm .w1-pb', '本会话允许')?.click()
@@ -2912,8 +2912,14 @@ async function run() {
       approvalRuleAudit: count(
         "SELECT COUNT(*) AS n FROM audit_log WHERE domain = 'system' AND detail LIKE 'approval-rule:%'"
       ),
+      approvalRuleRevokeAudit: count(
+        "SELECT COUNT(*) AS n FROM audit_log WHERE domain = 'system' AND action = 'settings' AND detail LIKE 'approval-rule:revoke%'"
+      ),
       autoApproveAudit: count(
         "SELECT COUNT(*) AS n FROM audit_log WHERE domain = 'mcp' AND action = 'approve' AND detail = 'auto:workspace'"
+      ),
+      claudeAutoApproveAudit: count(
+        "SELECT COUNT(*) AS n FROM audit_log WHERE domain = 'mcp' AND action = 'approve' AND detail = 'auto:workspace' AND title LIKE 'mcp__%'"
       ),
       codexAutoApproveAudit: count(
         "SELECT COUNT(*) AS n FROM audit_log WHERE domain = 'mcp' AND action = 'approve' AND detail = 'auto:workspace' AND title LIKE 'MCP · %'"
@@ -3021,10 +3027,20 @@ async function run() {
   })
   results.checks.push({
     name: '审批规则已撤销且审计留痕',
-    ok: Boolean(dbStats && dbStats.approvalRules === 0 && dbStats.approvalRuleAudit > 0),
+    ok: Boolean(
+      dbStats &&
+        dbStats.approvalRules === 0 &&
+        dbStats.approvalRuleAudit > 0 &&
+        dbStats.approvalRuleRevokeAudit >= 2
+    ),
     detail: dbStats
-      ? `rules ${dbStats.approvalRules} / audit ${dbStats.approvalRuleAudit}`
+      ? `rules ${dbStats.approvalRules} / audit ${dbStats.approvalRuleAudit} / revoke ${dbStats.approvalRuleRevokeAudit}`
       : '无数据'
+  })
+  results.checks.push({
+    name: 'Claude 桥工作区自动批准已审计',
+    ok: Boolean(dbStats && dbStats.claudeAutoApproveAudit > 0),
+    detail: dbStats ? String(dbStats.claudeAutoApproveAudit) : '无数据'
   })
   results.checks.push({
     name: 'Codex MCP 规则自动批准已审计',

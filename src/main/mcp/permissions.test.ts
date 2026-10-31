@@ -87,6 +87,24 @@ describe('MCP 写入审批队列', () => {
     await expect(first).resolves.toBe('workspace')
   })
 
+  it('预检抛错时按未命中处理，仍走审批卡并正常作答', async () => {
+    const sent: McpPermissionRequest[] = []
+    const broker = new McpPermissionBroker({
+      send: (request) => {
+        sent.push(request)
+        return true
+      },
+      isPreApproved: () => {
+        throw new Error('db closed')
+      },
+      timeoutMs: 1000
+    })
+    const first = broker.request(input('s1'))
+    expect(sent).toHaveLength(1)
+    expect(broker.respond(sent[0].requestId, 'once')).toBe(true)
+    await expect(first).resolves.toBe('once')
+  })
+
   it('超时与回合取消都按拒绝处理并写审计', async () => {
     const { broker, sent, audit } = setup(15)
     const timedOut = broker.request(input('s1'))

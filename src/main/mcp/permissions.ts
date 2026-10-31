@@ -47,7 +47,14 @@ export class McpPermissionBroker {
   }
 
   request(input: McpPermissionInput): Promise<McpPermissionOutcome> {
-    if (this.options.isPreApproved?.(input.sessionId, input.tool)) {
+    let preApproved = false
+    try {
+      preApproved = this.options.isPreApproved?.(input.sessionId, input.tool) === true
+    } catch (error) {
+      // 预检异常按未命中处理：宁可多问一次，也不凭异常放行
+      console.error('[mcp] 审批规则预检失败，按未命中处理', error)
+    }
+    if (preApproved) {
       return Promise.resolve('session')
     }
     const request: McpPermissionRequest = {

@@ -226,19 +226,24 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
   const revokeRule = (id: string) => {
     if (!agentApi || ruleBusy) return
     setRuleBusy(true)
-    void agentApi
-      .removeApprovalRule(id)
-      .then(() => {
+    void agentApi.removeApprovalRule(id).then(
+      () => {
         notify('已撤销审批规则')
-        return agentApi.approvalRules().then(setApprovalRules)
-      })
-      .then(() =>
-        auditApi?.recent(30, auditDomain === 'all' ? undefined : auditDomain).then(setAuditRows)
-      )
-      .catch((error: unknown) =>
+        // 撤销已经成功；刷新失败只影响列表显示，不能报成撤销失败
+        return Promise.all([
+          agentApi.approvalRules().then(setApprovalRules),
+          auditApi
+            ?.recent(30, auditDomain === 'all' ? undefined : auditDomain)
+            .then(setAuditRows) ?? Promise.resolve()
+        ])
+          .catch(() => notify('规则已撤销，列表刷新失败'))
+          .finally(() => setRuleBusy(false))
+      },
+      (error: unknown) => {
         notify(error instanceof Error ? `撤销失败：${error.message}` : '撤销失败')
-      )
-      .finally(() => setRuleBusy(false))
+        setRuleBusy(false)
+      }
+    )
   }
 
   const applyProviderTarget = (target: ProviderTarget, list = profiles) => {
@@ -745,7 +750,9 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
                 <div className="w1-setrules">
                   {approvalRules.map((rule) => (
                     <div className="w1-setrule" key={rule.id}>
-                      <code className="w1-setruletool">{rule.toolName}</code>
+                      <code className="w1-setruletool" title={rule.toolName}>
+                        {rule.toolName}
+                      </code>
                       <span className="w1-setruleagent">
                         {rule.agent === 'claude' ? 'Claude' : 'Codex'}
                       </span>
@@ -757,6 +764,7 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
                         type="button"
                         className="w1-setbtn"
                         disabled={ruleBusy}
+                        aria-label={`撤销 ${rule.toolName} 的规则`}
                         onClick={() => revokeRule(rule.id)}
                       >
                         撤销

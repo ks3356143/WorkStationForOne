@@ -311,6 +311,31 @@ function runAppServer() {
     }
   }
 
+  const askUnknownMcp = () => {
+    // 不提供 _meta.tool_name，message 里也没有带引号的工具名：应用必须降级成不可持久的名字
+    emit({
+      id: 9006,
+      method: 'mcpServer/elicitation/request',
+      params: {
+        threadId,
+        turnId: `turn-${turnSeq}`,
+        serverName: 'memory',
+        mode: 'form',
+        _meta: {
+          codex_approval_kind: 'mcp_tool_call',
+          tool_description: '未知工具'
+        },
+        message: 'Allow the memory MCP server to run an unnamed tool?',
+        requestedSchema: { type: 'object', properties: {} }
+      }
+    })
+    approval = (result) => {
+      approval = null
+      const accepted = result.action === 'accept'
+      finishTurn(accepted ? '未知工具审批完成。' : '已拒绝未知工具。')
+    }
+  }
+
   const startTurn = (prompt, resumed) => {
     turnSeq += 1
     const id = `turn-${turnSeq}`
@@ -341,6 +366,10 @@ function runAppServer() {
       }
       if (prompt.includes('外部 MCP')) {
         askExternalMcp(prompt)
+        return
+      }
+      if (prompt.includes('MCP 未知工具')) {
+        askUnknownMcp()
         return
       }
       if (prompt.includes('MCP 工具') || prompt.includes('MCP 写')) {

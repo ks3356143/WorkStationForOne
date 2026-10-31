@@ -628,6 +628,30 @@ describe('startCodexAppServerRun · stub 链路', () => {
     expect(streamText(events)).toBe('已拒绝外部 MCP。')
   })
 
+  it('未解析出 MCP 工具名时使用不可持久卡名，允许后仍完成回合', async () => {
+    const asked: string[] = []
+    const { events, done } = run('MCP 未知工具', {
+      autoApprove: (toolName) => {
+        asked.push(toolName)
+        return null
+      },
+      onPermission: (active) => {
+        const request = events.find((event) => event.kind === 'permission')
+        if (request?.kind !== 'permission') return
+        expect(active.respondPermission(request.request.requestId, 'allow')).toBe(true)
+      }
+    })
+    const exit = await done
+
+    const card = events.find((event) => event.kind === 'permission')
+    const cardName = card?.kind === 'permission' ? card.request.toolName : null
+    expect(asked).toEqual(['MCP 未解析工具 · memory'])
+    expect(cardName).toBe('MCP 未解析工具 · memory')
+    expect(cardName?.startsWith('MCP · ')).toBe(false)
+    expect(exit).toMatchObject({ code: 0, cancelled: false })
+    expect(streamText(events)).toBe('未知工具审批完成。')
+  })
+
   it('续接已有 thread 时使用 thread/resume', async () => {
     const { events, done } = run('继续上次', { resumeId: 'codex-stub-thread' })
     const exit = await done

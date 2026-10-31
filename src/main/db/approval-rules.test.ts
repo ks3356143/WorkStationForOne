@@ -75,6 +75,7 @@ describe('ApprovalRuleRepository', () => {
       ...input,
       id: 'rule-2',
       workspace: 'c:/work/demo',
+      workspaceKey: workspaceKey('c:/work/demo'),
       now: 200
     })
     expect(second).toMatchObject({ id: 'rule-1', lastUsedAt: 200 })

@@ -146,7 +146,8 @@ export class ApprovalRuleService {
     toolName: string,
     scope: ApprovalRuleMatch
   ): void {
-    this.options.audit?.record({
+    // 自动批准必须留下证据：审计写不进去就不放行（check 的 catch 会按未命中处理）
+    this.options.audit?.recordStrict({
       at: this.now(),
       domain: isMcpToolName(context.agent, toolName) ? 'mcp' : 'system',
       action: 'approve',

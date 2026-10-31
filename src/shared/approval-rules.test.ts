@@ -41,6 +41,8 @@ describe('工具资格', () => {
     expect(isWorkspaceScopable('codex', 'Patch')).toBe(false)
     expect(isWorkspaceScopable('codex', 'Permissions')).toBe(false)
     expect(isWorkspaceScopable('codex', 'mcp__memory__read')).toBe(false)
+    // Codex elicitation 缺少工具名时的占位卡名不能冒充 MCP 工具，否则会落成整台 Server 的规则
+    expect(isWorkspaceScopable('codex', 'MCP 未解析工具 · memory')).toBe(false)
   })
 
   it('识别 MCP 工具名', () => {

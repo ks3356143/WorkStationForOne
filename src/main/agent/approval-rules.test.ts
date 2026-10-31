@@ -54,10 +54,14 @@ function setup(seed: ApprovalRuleRecord[] = []) {
   }
   const sessions = {
     findSession: vi.fn((id: string) =>
-      id === 's1' ? session('s1', 'claude') : id === 's2' ? session('s2', 'codex') : undefined
+      id === 's1' || id === 's3'
+        ? session(id, 'claude')
+        : id === 's2'
+          ? session('s2', 'codex')
+          : undefined
     )
   }
-  const audit = { record: vi.fn() }
+  const audit = { record: vi.fn(), recordStrict: vi.fn() }
   const service = new ApprovalRuleService({
     rules: rules as unknown as ApprovalRuleRepository,
     sessions: sessions as unknown as Pick<AgentRepository, 'findSession'>,
@@ -74,7 +78,7 @@ describe('ApprovalRuleService', () => {
     const { service, rules, audit } = setup([rule()])
     expect(service.check(context, 'mcp__memory__read')).toBe('workspace')
     expect(rules.touch).toHaveBeenCalledWith('r1', 500)
-    expect(audit.record).toHaveBeenCalledWith(
+    expect(audit.recordStrict).toHaveBeenCalledWith(
       expect.objectContaining({
         domain: 'mcp',
         action: 'approve',
@@ -89,13 +93,32 @@ describe('ApprovalRuleService', () => {
     service.grantSession(context, 'Bash')
     expect(service.check(context, 'Bash')).toBe('session')
     expect(service.check({ ...context, sessionId: 'other' }, 'Bash')).toBeNull()
-    expect(audit.record).toHaveBeenCalledWith(
+    expect(audit.recordStrict).toHaveBeenCalledWith(
       expect.objectContaining({ domain: 'system', detail: 'auto:session' })
     )
   })
 
   it('工作区规则不跨 Agent', () => {
     const { service } = setup([rule({ agent: 'codex' })])
+    expect(service.check(context, 'mcp__memory__read')).toBeNull()
+  })
+
+  it('工作区规则由同工作区的同 Agent 会话共享，大小写不同也命中', () => {
+    const { service } = setup([rule()])
+    expect(service.check(context, 'mcp__memory__read')).toBe('workspace')
+    expect(
+      service.check(
+        { sessionId: 's3', agent: 'claude', workspace: 'C:/Work/Demo' },
+        'mcp__memory__read'
+      )
+    ).toBe('workspace')
+  })
+
+  it('自动批准审计写入失败时按未命中处理', () => {
+    const { service, audit } = setup([rule()])
+    audit.recordStrict.mockImplementation(() => {
+      throw new Error('audit full')
+    })
     expect(service.check(context, 'mcp__memory__read')).toBeNull()
   })
 
@@ -134,6 +157,18 @@ describe('ApprovalRuleService', () => {
     expect(service.resolveBridge('s2', 'tasks_create')).toMatchObject({
       toolName: 'MCP · workstationforone/tasks_create'
     })
+  })
+
+  it('桥层授予工作区规则会落规范工具名，之后桥调用直接命中', () => {
+    const { service, rules } = setup()
+    service.grantBridgeWorkspace('s1', 'tasks_create')
+    expect(rules.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agent: 'claude',
+        toolName: 'mcp__workstationforone__tasks_create'
+      })
+    )
+    expect(service.checkBridge('s1', 'tasks_create')).toBe(true)
   })
 
   it('桥规则查询抛错时按未命中处理', () => {

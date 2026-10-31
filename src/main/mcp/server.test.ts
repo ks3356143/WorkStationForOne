@@ -313,6 +313,38 @@ describe('MCP HTTP 桥', () => {
     )
   })
 
+  it('只读域不因预检命中而变成可写', async () => {
+    const source = data()
+    const createNote = vi.fn(source.notes.create)
+    source.notes.create = createNote
+    const requestPermission = vi.fn(async () => 'once' as const)
+    bridge = new McpBridge(source, 'test', {
+      mode: () => 'read',
+      requestPermission,
+      isPreApproved: () => true
+    })
+    await bridge.start()
+    const endpoint = bridge.issue('s-read')
+    if (!endpoint) throw new Error('没有 issue token')
+
+    const response = await rpc(endpoint.url, endpoint.token, {
+      jsonrpc: '2.0',
+      id: 22,
+      method: 'tools/call',
+      params: {
+        name: 'notes_create',
+        arguments: { title: '只读域不该写入', idempotency_key: 'read-1' }
+      }
+    })
+    const body = (await response.json()) as {
+      result: { isError?: boolean; content: { text: string }[] }
+    }
+    expect(body.result.isError).toBe(true)
+    expect(body.result.content[0].text).toBe('denied_by_policy')
+    expect(createNote).not.toHaveBeenCalled()
+    expect(requestPermission).not.toHaveBeenCalled()
+  })
+
   it('服务关闭后在同一端口自动重启，旧 token 仍可用', async () => {
     const source = data()
     bridge = new McpBridge(source, 'test', {}, { restartDelayMs: 10 })

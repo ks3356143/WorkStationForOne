@@ -487,7 +487,10 @@ export function startCodexAppServerRun(options: CodexAppServerRunOptions): Codex
       if (asString(meta?.codex_approval_kind) === 'mcp_tool_call') {
         const serverName = asString(params.serverName) ?? 'MCP'
         const message = asString(params.message) ?? ''
-        const tool = asString(meta?.tool_name) ?? message.match(/tool\s+"([^"]+)"/i)?.[1] ?? 'tool'
+        const namedTool =
+          asString(meta?.tool_name) ?? message.match(/tool\s+"([^"]+)"/i)?.[1] ?? null
+        // 名字解析不出来时仍用占位符查外部策略 / 展示详情，但审批卡不能冒充可持久工具
+        const tool = namedTool ?? 'tool'
         if (serverName === 'workstationforone' && isReadOnlyMcpTool(tool)) {
           // 读工具已经在本地桥侧放行并审计，不再让用户重复点一次 Codex 审批。
           send({ id, result: { action: 'accept', content: {}, _meta: null } })
@@ -504,7 +507,10 @@ export function startCodexAppServerRun(options: CodexAppServerRunOptions): Codex
           send({ id, result: { action: 'decline', content: null, _meta: null } })
           return
         }
-        const toolName = `MCP · ${serverName}/${tool}`
+        // 未解析出工具名时不伪装成 `MCP · server/tool`：该前缀是工作区规则的资格标记
+        const toolName = namedTool
+          ? `MCP · ${serverName}/${tool}`
+          : `MCP 未解析工具 · ${serverName}`
         if (options.autoApprove?.(toolName)) {
           send({ id, result: { action: 'accept', content: {}, _meta: null } })
           return

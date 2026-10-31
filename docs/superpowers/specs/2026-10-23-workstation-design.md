@@ -20,7 +20,7 @@
 | Agent 接入 | 官方 SDK | 主进程 spawn 本机 `claude` CLI（stream-json）；Codex 继承 CLI 时 `codex exec --json` 只读，激活工具 Provider 后 `codex app-server --stdio` 工作区审批，不依赖 SDK；`.cmd` 包装解析到原生入口 |
 | 工具审批 | 权限卡逐行 diff，写操作需允许 | 读工具自动放行；Claude 写工具通过 can_use_tool 弹通用审批卡；Codex app-server 的 command / fileChange / permissions 请求进入同一审批卡，允许一次 / 本会话 / 拒绝（v0.31.0，DB v27：MCP 与本地只读工具另可按工作区持久放行）；AskUserQuestion 自动拒绝 |
 | 会话 | 恢复 / Fork / 持久化 | `--session-id` / `--resume` 续接；会话、消息与 resume id 持久化（DB v16），空库从空态开始；同一会话串行，不同会话可并行，按 `runId` 路由事件与审批 |
-| 本地 MCP | 11 个工具 + 分区授权 | 11 个工具已实现（5 读 + 6 写）；四域 `read|ask|write` 权限（DB v19）；询问模式 + 写入审批卡（允许一次 / 本会话允许 / 拒绝，60 秒超时）；设置页有只读审计列表 |
+| 本地 MCP | 11 个工具 + 分区授权 | 11 个工具已实现（5 读 + 6 写）；四域 `read|ask|write` 权限（DB v19）；询问模式 + 写入审批卡（允许一次 / 本会话允许 / 此工作区允许 / 拒绝，60 秒超时）；设置页有只读审计列表 |
 | 能力中心 | — | 设置页「基础 / 能力中心」：Claude 插件市场（应用私有目录 + `--plugin-dir`、热度排序/分批加载、本地 SKILL.md 导入与源文件预览）、外部 MCP（stdio / HTTP、密钥加密、更新检查、连接测试与工具发现、工具级 allow/ask/deny、环境自检、JSON 导入导出、`--strict-mcp-config`；v0.28.0 同步下发 Codex Provider 的 app-server，密钥用环境变量引用）、内置 11 个数据工具目录（DB v24）；新装默认停用，执行组件需二次信任 |
 | Agent 工作区/预设 | — | Agent 顶栏只读文件树 + 产物列表（v0.26.0）；`agent_presets` 工作区预设与 `agent_runs` 近 7 天用量（DB v25），入口在舰队控制台；本机 CLI 会话只读扫描与导入（v0.27.0 → v0.30.0，元数据 + 最近 200 条只读正文与工具卡，DB v26 `origin` 标记） |
 | 任务 | 基础 CRUD | 计划今天与容量条、排程预览、拖拽改期、重复、子任务、提醒、只做三件事、清单重命名、完成热力图 |
