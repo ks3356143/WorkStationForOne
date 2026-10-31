@@ -630,7 +630,7 @@
 .w1-toolhint {
   margin: 8px 0 0 !important;
   color: var(--su) !important;
-  font: 11px / 1.5 var(--mono) !important;
+  font: 12px / 1.6 var(--sans) !important;
 }
 
 .w1-perm p {

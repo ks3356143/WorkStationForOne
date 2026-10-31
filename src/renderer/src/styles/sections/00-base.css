@@ -119,9 +119,11 @@ button {
   --neu-in:
     inset 0 2px 1px rgb(var(--glass-hi-rgb) / var(--glass-inset-a)),
     inset 0 -2px 2px rgb(var(--glass-deep-rgb) / 0.5);
-  --mono: "Cascadia Code", "Cascadia Mono", Consolas, monospace;
-  --sans: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", sans-serif;
-  --disp: "Segoe UI Variable Display", "Segoe UI", "Microsoft YaHei UI", sans-serif;
+  /* 全局界面字体：中文优先苹方，拉丁与数字保留终端等宽；均为非衬线字体 */
+  --mono:
+    "Cascadia Code", "Cascadia Mono", "PingFang SC", "Microsoft YaHei UI", Consolas, monospace;
+  --sans: "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
+  --disp: "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
   --dur-press: 120ms;
@@ -153,7 +155,7 @@ button {
     radial-gradient(720px 520px at 42% 46%, rgb(var(--prism-3-rgb) / 0.05), transparent 72%),
     var(--bg0);
   color: var(--fg);
-  font: 15px / 1.6 var(--sans);
+  font: 16px / 1.6 var(--sans);
   -webkit-font-smoothing: antialiased;
   user-select: none;
 }
