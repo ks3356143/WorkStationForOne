@@ -6,6 +6,13 @@
 
 暂无。
 
+## [0.32.1] - 2026-11-01
+
+### 修复
+
+- **Claude 本地 MCP 写工具**：把 `tasks_create / tasks_update / tasks_complete / habits_check / learning_review / notes_create` 放回 CLI 的 `--allowedTools`；最终闸门仍是主进程的本地 MCP 桥（域权限 + 审批卡）。修复真实 CLI 下 MCP 写工具被 CLI 直接拒绝、应用收不到审批事件的问题。
+- **真实验证**：DeepSeek `/anthropic` Provider + 真实 Claude CLI：第一次桥卡「此工作区允许」创建任务；第二次同工具无卡自动写入；设置撤销后第三次桥卡拒绝、任务未创建；审计有 write / auto:workspace / approval-rule create / revoke。777 项单元测试通过；无数据库变更。
+
 ## [0.32.0] - 2026-11-01
 
 ### 新增

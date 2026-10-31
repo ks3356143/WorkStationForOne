@@ -15,9 +15,9 @@ import { resolveAgentCli, type AgentCli } from './cli'
 export { resolveAgentCli, type AgentCli } from './cli'
 
 /**
- * 只读工具白名单。写入类工具一律不开，也不允许 --dangerously-* 之类的开关：
- * v1 的 Agent 只能读，不能静默改用户的文件。
- * MCP 只读桥由本应用注入，工具名固定为 mcp__workstationforone__*。
+ * CLI 侧的本地 MCP 工具白名单：5 个读取 + 6 个写入。写入工具的最终闸门是
+ * 主进程的本地 MCP 桥（域权限 + 审批卡），所以允许 CLI 直接发起调用；
+ * CLI 原生写入工具（Edit / Write / Bash）仍不得加入白名单。
  */
 export const CLAUDE_ALLOWED_TOOLS = [
   'Read',
@@ -28,7 +28,13 @@ export const CLAUDE_ALLOWED_TOOLS = [
   'mcp__workstationforone__notes_search',
   'mcp__workstationforone__learning_due',
   'mcp__workstationforone__habits_summary',
-  'mcp__workstationforone__today_overview'
+  'mcp__workstationforone__today_overview',
+  'mcp__workstationforone__tasks_create',
+  'mcp__workstationforone__tasks_update',
+  'mcp__workstationforone__tasks_complete',
+  'mcp__workstationforone__habits_check',
+  'mcp__workstationforone__learning_review',
+  'mcp__workstationforone__notes_create'
 ] as const
 
 const RUN_TIMEOUT_MS = 10 * 60 * 1000

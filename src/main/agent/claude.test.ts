@@ -120,7 +120,7 @@ describe('Provider 隔离', () => {
     )
   })
 
-  it('MCP 配置只以临时文件路径进入参数，只读工具在允许列表里', () => {
+  it('MCP 配置只以临时文件路径进入参数，本地 MCP 读写工具都在允许列表里', () => {
     const path = 'C:\\Temp\\ws-mcp-test\\mcp.json'
     const args = buildClaudeArgs(cli, undefined, undefined, undefined, path)
     expect(args).toEqual(expect.arrayContaining(['--mcp-config', path]))
@@ -130,10 +130,17 @@ describe('Provider 隔离', () => {
         'mcp__workstationforone__notes_search',
         'mcp__workstationforone__learning_due',
         'mcp__workstationforone__habits_summary',
-        'mcp__workstationforone__today_overview'
+        'mcp__workstationforone__today_overview',
+        'mcp__workstationforone__tasks_create',
+        'mcp__workstationforone__tasks_update',
+        'mcp__workstationforone__tasks_complete',
+        'mcp__workstationforone__habits_check',
+        'mcp__workstationforone__learning_review',
+        'mcp__workstationforone__notes_create'
       ])
     )
     expect(args.join(' ')).not.toMatch(/Bearer|token/i)
+    expect(args.join(' ')).not.toContain('--dangerously')
   })
 })
 
