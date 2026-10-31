@@ -1,5 +1,7 @@
 import { safeStorage } from 'electron'
 import type {
+  ProviderModelsInput,
+  ProviderModelsResult,
   ProviderProfileRecord,
   ProviderSaveInput,
   ProviderTarget,
@@ -8,7 +10,7 @@ import type {
   ProviderWireApi
 } from '../shared/ipc'
 import type { ProviderRepository } from './db/providers'
-import { testProviderConnection } from './provider-connection'
+import { listProviderModels, testProviderConnection } from './provider-connection'
 
 export interface ProviderRuntime {
   baseUrl: string
@@ -59,6 +61,31 @@ export class ProviderService {
       wireApi: input.wireApi,
       baseUrl: input.baseUrl,
       model: input.model,
+      token
+    })
+  }
+
+  async listModels(input: ProviderModelsInput): Promise<ProviderModelsResult> {
+    let token = input.apiKey?.trim()
+    if (!token && input.id) {
+      if (!safeStorage.isEncryptionAvailable()) {
+        return {
+          ok: false,
+          models: [],
+          latencyMs: 0,
+          message: '系统加密不可用，无法读取 Provider API Key'
+        }
+      }
+      const encrypted = this.repository.secretFor(input.id, input.target)
+      if (encrypted) token = safeStorage.decryptString(encrypted)
+    }
+    if (!token) {
+      return { ok: false, models: [], latencyMs: 0, message: '没有可用的 API Key，请先填写' }
+    }
+    return listProviderModels({
+      target: input.target,
+      wireApi: input.wireApi,
+      baseUrl: input.baseUrl,
       token
     })
   }

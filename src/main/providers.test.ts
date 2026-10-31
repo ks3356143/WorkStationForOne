@@ -1,3 +1,4 @@
+import { createServer } from 'node:http'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -112,6 +113,56 @@ describe('ProviderService', () => {
     })
 
     expect(service.runtime('codex')).toMatchObject({ target: 'codex', wireApi: 'responses' })
+    db.close()
+  })
+
+  it('模型列表复用已保存的 Key', async () => {
+    const { db, service } = setup()
+    const server = createServer((req, res) => {
+      req.resume()
+      if (req.url === '/v1/models') {
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ data: [{ id: 'saved-model' }] }))
+        return
+      }
+      res.writeHead(404, { 'content-type': 'application/json' })
+      res.end('{}')
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('测试服务器没有端口')
+    const baseUrl = `http://127.0.0.1:${address.port}`
+    try {
+      const saved = service.save({
+        name: 'Claude 代理',
+        target: 'claude',
+        wireApi: 'responses',
+        baseUrl,
+        model: 'm',
+        apiKey: 'keep'
+      })
+      const result = await service.listModels({
+        id: saved.id,
+        target: 'claude',
+        wireApi: 'responses',
+        baseUrl
+      })
+      expect(result).toMatchObject({ ok: true, models: ['saved-model'] })
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+      db.close()
+    }
+  })
+
+  it('没有 Key 时不发请求并明确拒绝', async () => {
+    const { db, service } = setup()
+    const result = await service.listModels({
+      target: 'codex',
+      wireApi: 'responses',
+      baseUrl: 'http://127.0.0.1:1'
+    })
+    expect(result).toMatchObject({ ok: false, models: [] })
+    expect(result.message).toContain('API Key')
     db.close()
   })
 })

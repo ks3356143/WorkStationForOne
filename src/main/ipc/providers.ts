@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import type {
+  ProviderModelsInput,
   ProviderSaveInput,
   ProviderTarget,
   ProviderTestInput,
@@ -37,7 +38,12 @@ function assertTestInput(value: unknown): ProviderTestInput {
   return assertConnectionFields(value as Record<string, unknown>)
 }
 
-function assertConnectionFields(input: Record<string, unknown>): ProviderTestInput {
+function assertModelsInput(value: unknown): ProviderModelsInput {
+  if (typeof value !== 'object' || value === null) throw new TypeError('Provider 参数必须是对象')
+  return assertConnectionBase(value as Record<string, unknown>)
+}
+
+function assertConnectionBase(input: Record<string, unknown>): Omit<ProviderTestInput, 'model'> {
   const baseUrl = text(input.baseUrl, 'Base URL', MAX_URL)
   let parsed: URL
   try {
@@ -56,11 +62,10 @@ function assertConnectionFields(input: Record<string, unknown>): ProviderTestInp
     throw new TypeError('当前 Codex CLI 只支持 Responses 协议')
   }
 
-  const result: ProviderTestInput = {
+  const result: Omit<ProviderTestInput, 'model'> = {
     target,
     wireApi,
-    baseUrl,
-    model: text(input.model, '模型', MAX_MODEL)
+    baseUrl
   }
   if (input.id !== undefined) result.id = text(input.id, 'Provider id', MAX_ID)
   if (input.apiKey !== undefined) {
@@ -70,6 +75,13 @@ function assertConnectionFields(input: Record<string, unknown>): ProviderTestInp
     if (apiKey) result.apiKey = apiKey
   }
   return result
+}
+
+function assertConnectionFields(input: Record<string, unknown>): ProviderTestInput {
+  return {
+    ...assertConnectionBase(input),
+    model: text(input.model, '模型', MAX_MODEL)
+  }
 }
 
 function assertTarget(value: unknown): ProviderTarget {
@@ -90,6 +102,7 @@ function assertActiveId(value: unknown): string | null {
 export const providerValidators = {
   assertSaveInput,
   assertTestInput,
+  assertModelsInput,
   assertActiveId,
   assertTarget,
   assertWireApi
@@ -103,5 +116,8 @@ export function registerProviderHandlers(service: ProviderService): void {
   })
   ipcMain.handle(IPC.providerTest, (_event, value: unknown) =>
     service.testConnection(assertTestInput(value))
+  )
+  ipcMain.handle(IPC.providerModels, (_event, value: unknown) =>
+    service.listModels(assertModelsInput(value))
   )
 }

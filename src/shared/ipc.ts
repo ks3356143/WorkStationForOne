@@ -353,11 +353,30 @@ export interface ProviderTestResult {
   message: string
 }
 
+export interface ProviderModelsInput {
+  /** 编辑已保存配置时可省略 apiKey，由主进程解密旧 token */
+  id?: string
+  target: ProviderTarget
+  wireApi: ProviderWireApi
+  baseUrl: string
+  /** 只用于本次拉取，不落库、不回显 */
+  apiKey?: string
+}
+
+export interface ProviderModelsResult {
+  ok: boolean
+  models: string[]
+  latencyMs: number
+  status?: number
+  message: string
+}
+
 export interface ProviderApi {
   list: () => Promise<ProviderProfileRecord[]>
   save: (input: ProviderSaveInput) => Promise<ProviderProfileRecord>
   setActive: (target: ProviderTarget, id: string | null) => Promise<void>
   test: (input: ProviderTestInput) => Promise<ProviderTestResult>
+  listModels: (input: ProviderModelsInput) => Promise<ProviderModelsResult>
 }
 
 /** 工作区级审批规则；会话级放行只存在内存，不落库。 */
@@ -816,6 +835,7 @@ export const IPC_CHANNELS = {
   providerSave: 'provider:save',
   providerSetActive: 'provider:set-active',
   providerTest: 'provider:test',
+  providerModels: 'provider:list-models',
   appSetTheme: 'app:set-theme',
   appBackupNow: 'app:backup-now',
   appInfo: 'app:info'

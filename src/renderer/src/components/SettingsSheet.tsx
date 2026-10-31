@@ -70,6 +70,12 @@ type ProviderTestState =
   | { kind: 'ok' | 'fail'; message: string; latencyMs?: number }
   | null
 
+type ProviderModelsState =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'ok'; models: string[]; message: string }
+  | { kind: 'fail'; message: string }
+
 export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
   const theme = useWorkstation((state) => state.theme)
   const skin = useWorkstation((state) => state.skin)
@@ -94,6 +100,9 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
   const [providerBusy, setProviderBusy] = useState(false)
   const [providerTest, setProviderTest] = useState<ProviderTestState>(null)
   const providerTestSeq = useRef(0)
+  const [providerModels, setProviderModels] = useState<ProviderModelsState>({ kind: 'idle' })
+  const providerModelsSeq = useRef(0)
+  const providerModelsLoading = providerModels.kind === 'loading'
   const activeProfile = profiles.find(
     (profile) => profile.target === providerTarget && profile.active
   )
@@ -184,6 +193,12 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
     providerTestSeq.current += 1
     setProviderTest(null)
   }, [providerTarget, providerMode, providerUrl, providerModel, providerKey])
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 目标/模式/端点变化时清空旧模型列表
+  useEffect(() => {
+    providerModelsSeq.current += 1
+    setProviderModels({ kind: 'idle' })
+  }, [providerTarget, providerMode, providerUrl, providerKey])
 
   useEffect(() => {
     if (!auditApi) return
@@ -317,6 +332,45 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
         setProviderTest({
           kind: 'fail',
           message: error instanceof Error ? error.message : '测试失败'
+        })
+      })
+  }
+
+  const runProviderModels = () => {
+    if (!providerApi || providerModelsLoading) return
+    const baseUrl = providerUrl.trim()
+    const apiKey = providerKey.trim()
+    if (!baseUrl) {
+      notify('先填 Base URL')
+      return
+    }
+    if (!apiKey && !activeProfile?.hasToken) {
+      notify('先填 API Key')
+      return
+    }
+    setProviderModels({ kind: 'loading' })
+    const seq = ++providerModelsSeq.current
+    void providerApi
+      .listModels({
+        ...(activeProfile ? { id: activeProfile.id } : {}),
+        target: providerTarget,
+        wireApi: providerTarget === 'codex' ? 'responses' : providerWireApi,
+        baseUrl,
+        ...(apiKey ? { apiKey } : {})
+      })
+      .then((result) => {
+        if (seq !== providerModelsSeq.current) return
+        setProviderModels(
+          result.ok
+            ? { kind: 'ok', models: result.models, message: result.message }
+            : { kind: 'fail', message: result.message }
+        )
+      })
+      .catch((error: unknown) => {
+        if (seq !== providerModelsSeq.current) return
+        setProviderModels({
+          kind: 'fail',
+          message: error instanceof Error ? error.message : '拉取模型失败'
         })
       })
   }
@@ -593,15 +647,45 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
                             onChange={(event) => setProviderName(event.target.value)}
                           />
                         </label>
-                        <label className="w1-provfield">
+                        <div className="w1-provfield">
                           <span>模型</span>
-                          <input
-                            value={providerModel}
-                            placeholder="deepseek-flash"
-                            aria-label="Provider 模型"
-                            onChange={(event) => setProviderModel(event.target.value)}
-                          />
-                        </label>
+                          <div className="w1-provmodelrow">
+                            <input
+                              value={providerModel}
+                              placeholder="deepseek-flash"
+                              aria-label="Provider 模型"
+                              onChange={(event) => setProviderModel(event.target.value)}
+                            />
+                            <button
+                              type="button"
+                              className="w1-setbtn"
+                              disabled={providerModelsLoading || providerBusy}
+                              onClick={runProviderModels}
+                            >
+                              {providerModelsLoading ? '拉取中…' : '拉取模型'}
+                            </button>
+                          </div>
+                          {providerModels.kind === 'ok' && providerModels.models.length > 0 ? (
+                            <div className="w1-provmodels" role="listbox" aria-label="模型列表">
+                              {providerModels.models.map((model) => (
+                                <button
+                                  key={model}
+                                  type="button"
+                                  role="option"
+                                  aria-selected={providerModel === model}
+                                  onClick={() => {
+                                    setProviderModel(model)
+                                    setProviderModels({ kind: 'idle' })
+                                  }}
+                                >
+                                  {model}
+                                </button>
+                              ))}
+                            </div>
+                          ) : providerModels.kind === 'ok' || providerModels.kind === 'fail' ? (
+                            <p className="w1-provnote">{providerModels.message}</p>
+                          ) : null}
+                        </div>
                         <label className="w1-provfield wide">
                           <span>Base URL</span>
                           <input

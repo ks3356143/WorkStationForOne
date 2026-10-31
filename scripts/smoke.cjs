@@ -137,6 +137,11 @@ const providerProbe = createServer((req, res) => {
     res.end(JSON.stringify({ object: 'response', output_text: 'OK' }))
     return
   }
+  if (req.method === 'GET' && req.url === '/models') {
+    res.writeHead(200, { 'content-type': 'application/json' })
+    res.end(JSON.stringify({ data: [{ id: 'smoke-model-a' }, { id: 'smoke-model-b' }] }))
+    return
+  }
   res.writeHead(404, { 'content-type': 'application/json' })
   res.end(JSON.stringify({ error: { message: 'probe endpoint not found' } }))
 })
@@ -1694,6 +1699,26 @@ async function run() {
       'Provider 测试连接成功',
       probeOk && (one('.w1-provtestresult.ok')?.textContent ?? '').includes('ms'),
       one('.w1-provtestresult')?.textContent ?? 'missing'
+    )
+    byText('.w1-provmodelrow button', '拉取模型')?.click()
+    const modelsLoaded = await waitFor(
+      () => Boolean(byText('.w1-provmodels button', 'smoke-model-a')),
+      4000
+    )
+    check(
+      'Provider 模型列表可拉取',
+      modelsLoaded && (one('.w1-provmodels')?.textContent ?? '').includes('smoke-model-b'),
+      one('.w1-provmodels')?.textContent?.slice(0, 120) ?? 'missing'
+    )
+    byText('.w1-provmodels button', 'smoke-model-a')?.click()
+    await waitFor(
+      () => (one('input[aria-label="Provider 模型"]')?.value ?? '') === 'smoke-model-a',
+      2000
+    )
+    check(
+      '选择模型会回填输入框',
+      (one('input[aria-label="Provider 模型"]')?.value ?? '') === 'smoke-model-a',
+      one('input[aria-label="Provider 模型"]')?.value ?? 'missing'
     )
     setValue(one('input[aria-label="Provider Base URL"]'), 'http://127.0.0.1:23339')
     await sleep(120)

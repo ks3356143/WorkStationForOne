@@ -88,6 +88,50 @@ describe('Provider 目标与协议', () => {
   })
 })
 
+describe('Provider 模型列表参数', () => {
+  it('不需要模型字段，保留 id 与临时 Key', () => {
+    expect(
+      providerValidators.assertModelsInput({
+        id: 'provider-1',
+        target: 'codex',
+        wireApi: 'responses',
+        baseUrl: ' https://api.deepseek.com ',
+        apiKey: ' sk-test '
+      })
+    ).toEqual({
+      id: 'provider-1',
+      target: 'codex',
+      wireApi: 'responses',
+      baseUrl: 'https://api.deepseek.com',
+      apiKey: 'sk-test'
+    })
+  })
+
+  it('拒绝 Codex + Chat、非法地址与空 Base URL', () => {
+    expect(() =>
+      providerValidators.assertModelsInput({
+        target: 'codex',
+        wireApi: 'chat',
+        baseUrl: 'https://api.deepseek.com'
+      })
+    ).toThrow('当前 Codex CLI 只支持 Responses 协议')
+    expect(() =>
+      providerValidators.assertModelsInput({
+        target: 'claude',
+        wireApi: 'responses',
+        baseUrl: 'file:///tmp/key'
+      })
+    ).toThrow(TypeError)
+    expect(() =>
+      providerValidators.assertModelsInput({
+        target: 'claude',
+        wireApi: 'responses',
+        baseUrl: '   '
+      })
+    ).toThrow(TypeError)
+  })
+})
+
 describe('Provider 测试连接参数', () => {
   it('不需要名称，保留 id 与临时 Key 并去掉首尾空白', () => {
     expect(
