@@ -193,7 +193,8 @@
   background: rgb(var(--field-rgb) / 0.1);
 }
 
-.w1-caprow {
+/* 限定在能力中心列表内：任务视图也用 .w1-caprow 表示今日容量行 */
+.w1-caplist .w1-caprow {
   display: grid;
   grid-template-columns: 30px minmax(0, 1fr) auto;
   align-items: center;
@@ -202,11 +203,11 @@
   border-bottom: 1px solid rgb(var(--bd-rgb) / 0.26);
 }
 
-.w1-caprow:last-child {
+.w1-caplist .w1-caprow:last-child {
   border-bottom: 0;
 }
 
-.w1-caprow:not(.static):hover {
+.w1-caplist .w1-caprow:not(.static):hover {
   background: rgb(var(--ac-rgb) / 0.035);
 }
 
