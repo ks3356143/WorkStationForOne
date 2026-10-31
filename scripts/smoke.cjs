@@ -2097,18 +2097,23 @@ async function run() {
 
     const codexRepeatInput = one('#composer-input')
     const codexBefore = all('.w1-amsg').length
+    await waitFor(() => !one('.w1-typing'), 6000)
     setValue(codexRepeatInput, '写一个文件')
     await sleep(80)
     codexRepeatInput.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
     )
     const codexRepeatDone = await waitFor(
-      () => all('.w1-amsg').length > codexBefore && !one('.w1-toolperm'),
+      () =>
+        all('.w1-amsg').length > codexBefore &&
+        (all('.w1-amsg').at(-1)?.textContent ?? '').includes('已允许写入。') &&
+        !one('.w1-toolperm'),
       5000
     )
     check('Codex Shell 会话规则命中后无卡', codexRepeatDone, all('.w1-amsg').at(-1)?.textContent?.slice(-120) ?? 'missing')
 
     const codexPermInput = one('#composer-input')
+    await waitFor(() => !one('.w1-typing'), 6000)
     setValue(codexPermInput, '额外权限')
     await sleep(80)
     codexPermInput.dispatchEvent(
@@ -2130,6 +2135,7 @@ async function run() {
     )
 
     const codexMcpInput = one('#composer-input')
+    await waitFor(() => !one('.w1-typing'), 6000)
     setValue(codexMcpInput, 'MCP 写入')
     await sleep(80)
     codexMcpInput.dispatchEvent(
@@ -2162,13 +2168,17 @@ async function run() {
 
     const codexMcpRepeat = one('#composer-input')
     const codexMcpBefore = all('.w1-amsg').length
+    await waitFor(() => !one('.w1-typing'), 6000)
     setValue(codexMcpRepeat, 'MCP 写入')
     await sleep(80)
     codexMcpRepeat.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
     )
     const codexMcpRepeatDone = await waitFor(
-      () => all('.w1-amsg').length > codexMcpBefore && !one('.w1-toolperm'),
+      () =>
+        all('.w1-amsg').length > codexMcpBefore &&
+        (all('.w1-amsg').at(-1)?.textContent ?? '').includes('已允许 MCP 调用。') &&
+        !one('.w1-toolperm'),
       5000
     )
     check(
@@ -2905,6 +2915,9 @@ async function run() {
       autoApproveAudit: count(
         "SELECT COUNT(*) AS n FROM audit_log WHERE domain = 'mcp' AND action = 'approve' AND detail = 'auto:workspace'"
       ),
+      codexAutoApproveAudit: count(
+        "SELECT COUNT(*) AS n FROM audit_log WHERE domain = 'mcp' AND action = 'approve' AND detail = 'auto:workspace' AND title LIKE 'MCP · %'"
+      ),
       mcpAuditLeak: count(
         "SELECT COUNT(*) AS n FROM audit_log WHERE domain = 'mcp' AND (detail LIKE '%Bearer%' OR detail LIKE '%token%')"
       ),
@@ -3012,6 +3025,11 @@ async function run() {
     detail: dbStats
       ? `rules ${dbStats.approvalRules} / audit ${dbStats.approvalRuleAudit}`
       : '无数据'
+  })
+  results.checks.push({
+    name: 'Codex MCP 规则自动批准已审计',
+    ok: Boolean(dbStats && dbStats.codexAutoApproveAudit > 0),
+    detail: dbStats ? String(dbStats.codexAutoApproveAudit) : '无数据'
   })
   results.checks.push({
     name: 'MCP 域权限默认值已落库',
