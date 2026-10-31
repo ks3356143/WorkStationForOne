@@ -1699,6 +1699,17 @@ async function main() {
   )
   phases[0].security = security
 
+  const approvalRules = await pageEval(
+    `(async () => {
+      const fn = window.ws?.agent?.approvalRules
+      if (typeof fn !== 'function') return 'missing'
+      const list = await fn()
+      return Array.isArray(list) && list.length === 0 ? 'ok' : JSON.stringify(list)
+    })()`,
+    'approval rules'
+  )
+  record('审批规则接口可用且为空', approvalRules === 'ok', approvalRules)
+
   if (p1Initial.theme !== 'dark') {
     const toDark = await pageEval(clickThemeExpr, 'toggle dark')
     record(
