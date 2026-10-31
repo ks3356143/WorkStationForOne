@@ -1463,8 +1463,8 @@ button.w1-nlchip:hover {
 
 .w1-settings-sheet {
   position: relative;
-  width: min(560px, calc(100vw - 80px));
-  max-height: min(640px, calc(100vh - 96px));
+  width: min(760px, calc(100vw - 80px));
+  max-height: min(720px, calc(100vh - 96px));
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1484,6 +1484,10 @@ button.w1-nlchip:hover {
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: rgb(var(--ac-rgb) / 0.3) transparent;
+}
+
+.w1-settings-sheet.wide {
+  width: min(1040px, calc(100vw - 80px));
 }
 
 .w1-settings-sheet::before {
