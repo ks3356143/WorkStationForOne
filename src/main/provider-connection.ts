@@ -4,6 +4,11 @@ import type {
   ProviderTestResult,
   ProviderWireApi
 } from '../shared/ipc'
+import {
+  providerAuthScheme,
+  providerEndpoint,
+  type ProviderAuthScheme
+} from '../shared/provider-profile'
 
 const DEFAULT_TIMEOUT_MS = 12_000
 const MAX_ERROR = 180
@@ -14,6 +19,8 @@ export interface ProviderConnectionInput {
   baseUrl: string
   model: string
   token: string
+  /** 测试缝：省略时按 Base URL 推断 */
+  authScheme?: ProviderAuthScheme
 }
 
 export interface ProviderConnectionOptions {
@@ -54,24 +61,38 @@ function statusLabel(status: number): string {
   return '请求被拒绝'
 }
 
-function urlFor(target: ProviderTarget, baseUrl: string): string {
-  const base = baseUrl.replace(/\/+$/, '')
-  return target === 'codex' ? `${base}/responses` : `${base}/v1/messages`
+interface AuthInput {
+  target: ProviderTarget
+  baseUrl: string
+  token: string
+  authScheme?: ProviderAuthScheme
+}
+
+/** 首选鉴权头在前；401/403 时由调用方尝试另一种，兼容两类 Anthropic 端点。 */
+function authHeaders(input: AuthInput): Array<Record<string, string>> {
+  if (input.target === 'codex') return [{ Authorization: `Bearer ${input.token}` }]
+  const scheme = input.authScheme ?? providerAuthScheme(input.target, input.baseUrl)
+  const apiKey = { 'x-api-key': input.token, 'anthropic-version': '2023-06-01' }
+  const bearer = {
+    Authorization: `Bearer ${input.token}`,
+    'anthropic-version': '2023-06-01'
+  }
+  return scheme === 'api-key' ? [apiKey, bearer] : [bearer, apiKey]
 }
 
 function requestFor(input: ProviderConnectionInput): {
   url: string
   body: unknown
-  headers: Record<string, string>
+  headersList: Array<Record<string, string>>
 } {
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${input.token}`,
-    'Content-Type': 'application/json'
-  }
+  const headersList = authHeaders(input).map((headers) => ({
+    'Content-Type': 'application/json',
+    ...headers
+  }))
   if (input.target === 'codex') {
     return {
-      url: urlFor('codex', input.baseUrl),
-      headers,
+      url: providerEndpoint('codex', input.baseUrl),
+      headersList,
       body: {
         model: input.model,
         input: 'Reply with exactly OK. Do not use any tools.',
@@ -80,10 +101,9 @@ function requestFor(input: ProviderConnectionInput): {
       }
     }
   }
-  headers['anthropic-version'] = '2023-06-01'
   return {
-    url: urlFor('claude', input.baseUrl),
-    headers,
+    url: providerEndpoint('claude', input.baseUrl),
+    headersList,
     body: {
       model: input.model,
       max_tokens: 8,
@@ -101,6 +121,8 @@ export interface ProviderModelsConnectionInput {
   wireApi: ProviderWireApi
   baseUrl: string
   token: string
+  /** 测试缝：省略时按 Base URL 推断 */
+  authScheme?: ProviderAuthScheme
 }
 
 function modelsUrls(target: ProviderTarget, baseUrl: string): string[] {
@@ -111,16 +133,6 @@ function modelsUrls(target: ProviderTarget, baseUrl: string): string[] {
   const urls = [`${base}/models`]
   if (!/\/v1$/i.test(base)) urls.push(`${base}/v1/models`)
   return urls
-}
-
-function modelsHeaders(input: ProviderModelsConnectionInput): Array<Record<string, string>> {
-  if (input.target === 'claude') {
-    return [
-      { 'x-api-key': input.token, 'anthropic-version': '2023-06-01' },
-      { Authorization: `Bearer ${input.token}`, 'anthropic-version': '2023-06-01' }
-    ]
-  }
-  return [{ Authorization: `Bearer ${input.token}` }]
 }
 
 function parseModels(text: string): { models: string[]; message?: string } {
@@ -171,7 +183,7 @@ export async function listProviderModels(
 
   try {
     for (const url of modelsUrls(input.target, input.baseUrl)) {
-      const headersList = modelsHeaders(input)
+      const headersList = authHeaders(input)
       for (let index = 0; index < headersList.length; index += 1) {
         const response = await fetchImpl(url, {
           method: 'GET',
@@ -270,49 +282,69 @@ export async function testProviderConnection(
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   const started = Date.now()
-  const { url, headers, body } = requestFor(input)
+  const { url, headersList, body } = requestFor(input)
   const redact = (value: string) =>
     input.token ? value.split(input.token).join('[已隐藏]') : value
+  let lastStatus: number | undefined
+  let lastDetail = ''
 
   try {
-    const response = await fetchImpl(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-      signal: controller.signal
-    })
-    const text = await response.text()
-    const latencyMs = Math.max(0, Date.now() - started)
-    if (!response.ok) {
-      const detail = redact(errorDetail(text))
-      return {
-        ok: false,
-        status: response.status,
-        latencyMs,
-        message: `${statusLabel(response.status)}（${response.status}）${detail ? `：${detail}` : ''}`
+    for (let index = 0; index < headersList.length; index += 1) {
+      const response = await fetchImpl(url, {
+        method: 'POST',
+        headers: headersList[index],
+        body: JSON.stringify(body),
+        signal: controller.signal
+      })
+      const text = await response.text()
+      const latencyMs = Math.max(0, Date.now() - started)
+      if (!response.ok) {
+        lastStatus = response.status
+        lastDetail = redact(errorDetail(text))
+        // 鉴权方式可能猜错：只在凭据被拒时换另一种头重试
+        if (
+          (response.status === 401 || response.status === 403) &&
+          index < headersList.length - 1
+        ) {
+          continue
+        }
+        return {
+          ok: false,
+          status: response.status,
+          latencyMs,
+          message: `${statusLabel(response.status)}（${response.status}）${lastDetail ? `：${lastDetail}` : ''}`
+        }
       }
-    }
 
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(text)
-    } catch {
-      return {
-        ok: false,
-        status: response.status,
-        latencyMs,
-        message: '端点返回了非 JSON 响应，可能不是兼容接口'
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(text)
+      } catch {
+        return {
+          ok: false,
+          status: response.status,
+          latencyMs,
+          message: '端点返回了非 JSON 响应，可能不是兼容接口'
+        }
       }
-    }
-    if (!asRecord(parsed)) {
-      return {
-        ok: false,
-        status: response.status,
-        latencyMs,
-        message: '端点返回了非 JSON 对象，可能不是兼容接口'
+      if (!asRecord(parsed)) {
+        return {
+          ok: false,
+          status: response.status,
+          latencyMs,
+          message: '端点返回了非 JSON 对象，可能不是兼容接口'
+        }
       }
+      return { ok: true, status: response.status, latencyMs, message: '连接正常' }
     }
-    return { ok: true, status: response.status, latencyMs, message: '连接正常' }
+    return {
+      ok: false,
+      ...(lastStatus ? { status: lastStatus } : {}),
+      latencyMs: Math.max(0, Date.now() - started),
+      message: lastStatus
+        ? `${statusLabel(lastStatus)}（${lastStatus}）${lastDetail ? `：${lastDetail}` : ''}`
+        : '没有可用的端点'
+    }
   } catch (error) {
     const latencyMs = Math.max(0, Date.now() - started)
     const name = asRecord(error)?.name

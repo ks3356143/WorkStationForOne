@@ -12,6 +12,7 @@ import type {
   ProviderTarget,
   ProviderWireApi
 } from '../../../shared/ipc'
+import { providerAuthScheme, providerEndpoint } from '../../../shared/provider-profile'
 import { DURATION, EASE_OUT } from '../lib/motion'
 import { skinLabel, themeLabel } from '../lib/theme'
 import { useWorkstation } from '../store/useWorkstation'
@@ -107,6 +108,13 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
     (profile) => profile.target === providerTarget && profile.active
   )
   const providerLabel = providerTarget === 'claude' ? 'Claude Code' : 'Codex CLI'
+  const providerEndpointHint = providerEndpoint(providerTarget, providerUrl)
+  const providerAuthHint =
+    providerTarget === 'codex'
+      ? 'Bearer'
+      : providerAuthScheme(providerTarget, providerUrl) === 'api-key'
+        ? 'x-api-key · 官方'
+        : 'Bearer · 兼容端点'
   const providerState = providerBusy
     ? '同步中'
     : activeProfile
@@ -654,12 +662,15 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
                               value={providerModel}
                               placeholder="deepseek-flash"
                               aria-label="Provider 模型"
+                              spellCheck={false}
                               onChange={(event) => setProviderModel(event.target.value)}
                             />
                             <button
                               type="button"
                               className="w1-setbtn"
-                              disabled={providerModelsLoading || providerBusy}
+                              disabled={
+                                providerModelsLoading || providerBusy || !providerUrl.trim()
+                              }
                               onClick={runProviderModels}
                             >
                               {providerModelsLoading ? '拉取中…' : '拉取模型'}
@@ -683,7 +694,9 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
                               ))}
                             </div>
                           ) : providerModels.kind === 'ok' || providerModels.kind === 'fail' ? (
-                            <p className="w1-provnote">{providerModels.message}</p>
+                            <p className="w1-provnote" role="status" aria-live="polite">
+                              {providerModels.message}
+                            </p>
                           ) : null}
                         </div>
                         <label className="w1-provfield wide">
@@ -692,9 +705,25 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
                             value={providerUrl}
                             placeholder="https://api.deepseek.com"
                             aria-label="Provider Base URL"
+                            spellCheck={false}
                             onChange={(event) => setProviderUrl(event.target.value)}
                           />
                         </label>
+                        {providerEndpointHint ? (
+                          <div className="w1-provmeta" role="group" aria-label="Provider 连接详情">
+                            <span className="w1-provmetachip">
+                              <i>鉴权</i>
+                              <b>{providerAuthHint}</b>
+                            </span>
+                            <span
+                              className="w1-provmetachip w1-provmetaendpoint"
+                              title={providerEndpointHint}
+                            >
+                              <i>端点</i>
+                              <b>{providerEndpointHint}</b>
+                            </span>
+                          </div>
+                        ) : null}
                         <label className="w1-provfield wide">
                           <span>API Key</span>
                           <div className="w1-provkey">

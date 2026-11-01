@@ -9,6 +9,7 @@ import {
   type AgentPermissionRequest,
   type AgentRunEvent
 } from '../../shared/agent-stream'
+import { providerAuthScheme } from '../../shared/provider-profile'
 import type { ProviderRuntime } from '../providers'
 import { resolveAgentCli, type AgentCli } from './cli'
 
@@ -41,14 +42,31 @@ const RUN_TIMEOUT_MS = 10 * 60 * 1000
 
 export function providerEnv(provider?: ProviderRuntime): NodeJS.ProcessEnv | undefined {
   if (!provider) return undefined
+  // 官方 Anthropic 只认 x-api-key；第三方兼容端点普遍用 Bearer。
+  const auth =
+    providerAuthScheme(provider.target, provider.baseUrl) === 'api-key'
+      ? { ANTHROPIC_API_KEY: provider.token }
+      : { ANTHROPIC_AUTH_TOKEN: provider.token }
   return {
     ANTHROPIC_BASE_URL: provider.baseUrl,
-    ANTHROPIC_AUTH_TOKEN: provider.token,
+    ...auth,
     ANTHROPIC_MODEL: provider.model,
     ANTHROPIC_DEFAULT_HAIKU_MODEL: provider.model,
     ANTHROPIC_DEFAULT_SONNET_MODEL: provider.model,
     ANTHROPIC_DEFAULT_OPUS_MODEL: provider.model
   }
+}
+
+/** 自定义 Provider 生效时，继承环境里的另一种鉴权变量必须移除，否则 CLI 可能用到旧凭据。 */
+export function withProviderEnv(
+  base: NodeJS.ProcessEnv,
+  provider?: ProviderRuntime
+): NodeJS.ProcessEnv {
+  const env = { ...base }
+  if (!provider) return env
+  delete env.ANTHROPIC_API_KEY
+  delete env.ANTHROPIC_AUTH_TOKEN
+  return { ...env, ...providerEnv(provider) }
 }
 
 export function buildClaudeArgs(
@@ -227,12 +245,13 @@ export function startClaudeRun(options: ClaudeRunOptions): RunHandle {
       ...(options.disallowedTools ? { disallowedTools: options.disallowedTools } : {})
     }
   )
-  const overrides = providerEnv(options.provider)
-  const childEnv = {
-    ...process.env,
-    ...(cli.viaNode ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
-    ...overrides
-  }
+  const childEnv = withProviderEnv(
+    {
+      ...process.env,
+      ...(cli.viaNode ? { ELECTRON_RUN_AS_NODE: '1' } : {})
+    },
+    options.provider
+  )
 
   const child: ChildProcessWithoutNullStreams = spawn(cli.bin, args, {
     cwd: options.cwd,

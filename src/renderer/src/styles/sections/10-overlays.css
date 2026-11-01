@@ -1957,6 +1957,51 @@ button.w1-nlchip:hover {
   grid-column: 1 / -1;
 }
 
+/* Base URL 下的连接摘要：鉴权方式与实际请求端点，避免填错路径后只看到 404。 */
+.w1-provmeta {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+  margin-top: -2px;
+}
+
+.w1-provmetachip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 3px 8px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.45);
+  background: rgb(var(--field-rgb) / 0.32);
+  color: var(--su);
+  font: 500 11.5px / 1.5 var(--mono);
+  white-space: nowrap;
+}
+
+.w1-provmetachip i {
+  color: rgb(var(--ac2-rgb) / 0.9);
+  font-style: normal;
+  letter-spacing: 0.06em;
+}
+
+.w1-provmetachip b {
+  min-width: 0;
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.w1-provmetachip.w1-provmetaendpoint {
+  flex: 1;
+  overflow: hidden;
+}
+
+.w1-provmetachip.w1-provmetaendpoint b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .w1-provmodelrow {
   display: flex;
   align-items: center;

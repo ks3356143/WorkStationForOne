@@ -6,6 +6,19 @@
 
 暂无。
 
+## [0.33.0] - 2026-11-01
+
+### 新增
+
+- **官方 Anthropic 鉴权**：Provider 按 Base URL 主机自动选择鉴权方式——`api.anthropic.com` 注入 `ANTHROPIC_API_KEY`（x-api-key），第三方 Anthropic 兼容端点继续用 `ANTHROPIC_AUTH_TOKEN`（Bearer）。自定义 Provider 生效时会移除继承环境里的另一种变量，避免 shell 中的旧 Key 抢占。
+- 「测试连接」与「拉取模型」按同一推断顺序先发对应鉴权头，凭据被拒（401/403）时自动回退另一种；Key 仍只在主进程与子进程环境出现。
+- **Provider 卡连接摘要**：Base URL 下实时显示推断的鉴权方式（官方 `x-api-key` / 兼容端点 `Bearer`）与实际请求端点（如 `/anthropic/v1/messages`），填错路径时不必等 404；未填地址时「拉取模型」直接禁用。设置页加入 `npm run capture -- ... settings` 截图支持。
+
+### 验证
+
+- 新增鉴权推断、端点拼接、官方头优先、401 回退、环境变量互斥的单元测试；788 项单元测试、320 项冒烟通过，无数据库变更。
+- 设置页在 1440×900 / 1180×720 暗色下截图与布局审计通过；DeepSeek `/anthropic` 的 Bearer 路径回归通过；官方 Anthropic 真实 Key 尚未实测。
+
 ## [0.32.1] - 2026-11-01
 
 ### 修复

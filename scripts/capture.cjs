@@ -12,7 +12,8 @@ const isView = (value) =>
   value === 'tasks' ||
   value === 'agent' ||
   value === 'notes' ||
-  value === 'learning'
+  value === 'learning' ||
+  value === 'settings'
 const isSkin = (value) => value === 'prism' || value === 'classic'
 const theme = extras.filter(isTheme).at(-1) ?? 'dark'
 const view = extras.filter(isView).at(-1) ?? 'today'
@@ -24,7 +25,8 @@ const VIEW_LABELS = {
   tasks: '任务',
   agent: 'Agent',
   notes: '笔记',
-  learning: '学习'
+  learning: '学习',
+  settings: '设置'
 }
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms))
@@ -60,7 +62,15 @@ async function run() {
   win.focus()
   await sleep(2600)
 
-  if (view !== 'today') {
+  if (view === 'settings') {
+    const opened = await win.webContents.executeJavaScript(`(() => {
+      const button = document.querySelector('.w1-settings')
+      button?.click()
+      return Boolean(button)
+    })()`)
+    if (!opened) throw new Error('找不到设置入口')
+    await sleep(650)
+  } else if (view !== 'today') {
     const switched = await win.webContents.executeJavaScript(`(() => {
       const target = ${JSON.stringify(VIEW_LABELS[view])}
       const item = [...document.querySelectorAll('.w1-navitem')].find(
@@ -120,7 +130,7 @@ async function run() {
           active: el.classList.contains('on')
         })),
         headings: [...document.querySelectorAll('h1, h2, h3')].map((el) => el.textContent.trim().slice(0, 40)),
-        rects: Object.fromEntries(['.w1', '.w1-bar', '.w1-body', '.w1-nav', '.w1-navitem.on', '.w1-stage', '.w1-view', '.w1-main', '.w1-workspace', '.w1-agent', '.w1-rail', '.w1-railscroll', '.w1-dock', '.w1-thread', '.w1-compose', '.w1-notesview', '.w1-nvbox', '.w1-nvlist', '.w1-nvrow', '.w1-bento', '.w1-tasks', '.w1-todos', '.w1-todorail', '.w1-todomain', '.w1-todoscroll', '.w1-card.w1-note', '.w1-status', '.w1-rbtn', '.w1-nlist'].map((selector) => [selector, rect(selector)])),
+        rects: Object.fromEntries(['.w1', '.w1-bar', '.w1-body', '.w1-nav', '.w1-navitem.on', '.w1-stage', '.w1-view', '.w1-main', '.w1-workspace', '.w1-agent', '.w1-rail', '.w1-railscroll', '.w1-dock', '.w1-thread', '.w1-compose', '.w1-notesview', '.w1-nvbox', '.w1-nvlist', '.w1-nvrow', '.w1-bento', '.w1-tasks', '.w1-todos', '.w1-todorail', '.w1-todomain', '.w1-todoscroll', '.w1-card.w1-note', '.w1-status', '.w1-rbtn', '.w1-nlist', '.w1-settings-sheet', '.w1-provfields', '.w1-provmeta'].map((selector) => [selector, rect(selector)])),
         noteItems: [...document.querySelectorAll('.w1-nitem')].map((el) => ({ text: el.textContent.slice(0, 24), display: getComputedStyle(el).display })),
         outsideViewport,
         overflowX,

@@ -43,11 +43,17 @@ function readBody(req: IncomingMessage): Promise<string> {
 
 describe('Provider 轻量连接测试', () => {
   it('Codex 请求 /responses，并携带 Bearer token 与模型', async () => {
-    let seen: { url?: string; auth?: string; body?: Record<string, unknown> } = {}
+    let seen: {
+      url?: string
+      auth?: string
+      contentType?: string
+      body?: Record<string, unknown>
+    } = {}
     const baseUrl = await withServer(async (req, res) => {
       seen = {
         url: req.url,
         auth: req.headers.authorization,
+        contentType: req.headers['content-type'],
         body: JSON.parse(await readBody(req)) as Record<string, unknown>
       }
       res.writeHead(200, { 'content-type': 'application/json' })
@@ -66,6 +72,7 @@ describe('Provider 轻量连接测试', () => {
     expect(result.latencyMs).toBeGreaterThanOrEqual(0)
     expect(seen.url).toBe('/responses')
     expect(seen.auth).toBe('Bearer secret-token')
+    expect(seen.contentType).toBe('application/json')
     expect(seen.body).toMatchObject({ model: 'deepseek-flash', stream: false })
     expect(JSON.stringify(result)).not.toContain('secret-token')
   })
@@ -95,6 +102,61 @@ describe('Provider 轻量连接测试', () => {
     expect(seen.url).toBe('/v1/messages')
     expect(seen.auth).toBe('Bearer secret-token')
     expect(seen.version).toBe('2023-06-01')
+  })
+
+  it('官方 Anthropic 模式先发 x-api-key 与 anthropic-version', async () => {
+    let seen: { auth?: string; key?: string; version?: string } = {}
+    const baseUrl = await withServer(async (req, res) => {
+      seen = {
+        auth: req.headers.authorization,
+        key: req.headers['x-api-key'] as string | undefined,
+        version: req.headers['anthropic-version'] as string | undefined
+      }
+      await readBody(req)
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ id: 'msg-1', type: 'message', content: [] }))
+    })
+
+    const result = await testProviderConnection({
+      target: 'claude',
+      wireApi: 'responses',
+      baseUrl,
+      model: 'claude-sonnet-4-5',
+      token: 'secret-token',
+      authScheme: 'api-key'
+    })
+
+    expect(result).toMatchObject({ ok: true, status: 200 })
+    expect(seen.key).toBe('secret-token')
+    expect(seen.auth).toBeUndefined()
+    expect(seen.version).toBe('2023-06-01')
+  })
+
+  it('官方模式被拒时回退 Bearer', async () => {
+    let attempts = 0
+    const baseUrl = await withServer(async (req, res) => {
+      attempts += 1
+      await readBody(req)
+      if (req.headers['x-api-key']) {
+        res.writeHead(401, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ error: { message: 'use bearer' } }))
+        return
+      }
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ id: 'msg-2', type: 'message', content: [] }))
+    })
+
+    const result = await testProviderConnection({
+      target: 'claude',
+      wireApi: 'responses',
+      baseUrl,
+      model: 'claude-sonnet-4-5',
+      token: 'secret-token',
+      authScheme: 'api-key'
+    })
+
+    expect(result).toMatchObject({ ok: true, status: 200 })
+    expect(attempts).toBe(2)
   })
 
   it('401 返回可读失败原因，且不回显 token', async () => {
@@ -285,7 +347,8 @@ describe('Provider 模型列表', () => {
       target: 'claude',
       wireApi: 'responses',
       baseUrl,
-      token: 'secret-token'
+      token: 'secret-token',
+      authScheme: 'api-key'
     })
 
     expect(result).toMatchObject({
@@ -298,6 +361,30 @@ describe('Provider 模型列表', () => {
       version: '2023-06-01'
     })
     expect(seen.auth).toBeUndefined()
+  })
+
+  it('第三方 Anthropic 端点默认先发 Bearer', async () => {
+    let seen: { auth?: string; key?: string } = {}
+    const baseUrl = await withServer(async (req, res) => {
+      seen = {
+        auth: req.headers.authorization,
+        key: req.headers['x-api-key'] as string | undefined
+      }
+      await readBody(req)
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ data: [{ id: 'proxy-model' }] }))
+    })
+
+    const result = await listProviderModels({
+      target: 'claude',
+      wireApi: 'responses',
+      baseUrl,
+      token: 'secret-token'
+    })
+
+    expect(result).toMatchObject({ ok: true, models: ['proxy-model'] })
+    expect(seen.auth).toBe('Bearer secret-token')
+    expect(seen.key).toBeUndefined()
   })
 
   it('Anthropic 兼容代理拒绝 x-api-key 时回退 Bearer', async () => {
@@ -318,7 +405,8 @@ describe('Provider 模型列表', () => {
       target: 'claude',
       wireApi: 'responses',
       baseUrl,
-      token: 'secret-token'
+      token: 'secret-token',
+      authScheme: 'api-key'
     })
 
     expect(result).toMatchObject({ ok: true, models: ['proxy-model'] })

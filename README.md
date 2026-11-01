@@ -108,7 +108,7 @@ docs/superpowers/specs/ 产品与架构设计规格
 ## 安全边界
 
 - 渲染进程没有 Node、数据库或文件系统访问权；所有能力经 `src/shared/ipc.ts` 的类型契约 + 主进程入参校验。
-- Agent 提示词只走 stdin，子进程 `shell: false`，不添加 `--dangerously-*`；Claude 只开放只读工具白名单；Codex 继承 CLI 时固定只读，激活工具 Provider 后使用隔离的 `codex-home` 与 `codex app-server` 工作区审批，`shell_environment_policy` 会把 Provider token 从 Codex 启动的 shell 环境里剔除；两条路径都不写 `~/.codex/config.toml`。
+- Agent 提示词只走 stdin，子进程 `shell: false`，不添加 `--dangerously-*`；Claude 的原生写入工具只能经审批卡放行，本地 MCP 写工具还需通过桥的域权限；Codex 继承 CLI 时固定只读，激活工具 Provider 后使用隔离的 `codex-home` 与 `codex app-server` 工作区审批，`shell_environment_policy` 会把 Provider token 从 Codex 启动的 shell 环境里剔除；两条路径都不写 `~/.codex/config.toml`。
 - MCP 数据桥只绑 `127.0.0.1` 随机端口，Bearer Token 按 Agent 回合生成并回收；配置只写临时文件，回合结束即删，Token 不进日志、审计或命令行。写入受四域 `read|ask|write` 权限约束，并要求 `idempotency_key`；询问卡 60 秒超时按拒绝。
 - 应用是单实例的；关闭窗口即退出。
 - 仓库不包含任何密钥、登录态或个人配置。
@@ -117,7 +117,7 @@ docs/superpowers/specs/ 产品与架构设计规格
 
 - 工具审批：所有工具都可「本会话允许」；工作区持久规则只对 MCP 与本地只读工具开放，Bash / Write / Edit 等敏感工具不落库；宿主内问答（AskUserQuestion）会被自动拒绝。
 - Agent 依赖本机 `claude` CLI 已登录且模型可用；继承模式下若全局配置指向的模型被网关拒绝，会明确显示 API 错误，可在设置里改用自定义 Provider。
-- 自定义 Provider 优先于全局 Claude settings，但仍会加载当前目录的项目级 settings；API Key 不写入日志、命令行或渲染层。
+- 自定义 Provider 优先于全局 Claude settings，但仍会加载当前目录的项目级 settings；API Key 不写入日志、命令行或渲染层。官方 Anthropic 地址自动使用 `x-api-key`，第三方 Anthropic 兼容端点使用 Bearer；连接测试与模型列表会按推断顺序尝试并在凭据被拒时回退另一种。要求 `x-api-key` 但域名不是 `anthropic.com` 的自定义网关目前会按 Bearer 处理。
 - Codex 继承 CLI 时只读；激活工具 Provider 后走 `codex app-server`，工作区内的改动由 Codex 沙箱与 `on-request` 策略决定，越界、联网或额外权限会弹审批卡。Codex CLI 0.166 起只支持 Responses 协议，设置页已移除 Chat。DeepSeek `deepseek-flash` 的真实 app-server、工作区写入、MCP 读取 `today_overview` 与写入 `tasks_create` 均已验证；MCP 工具调用进入同一张审批卡，四域权限与审计由本地桥负责。其它 Provider 仍需分别验证。
 - 审计日志已有记录与设置页「活动记录」入口，但只读展示，不支持删除或导出。
 - 笔记双链只按「唯一首行」解析：重名或找不到的目标不建立链接；目标改首行后旧链接仍指向它，但正文里显示的是保存时的标题快照。

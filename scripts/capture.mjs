@@ -9,7 +9,8 @@ const isView = (value) =>
   value === 'tasks' ||
   value === 'agent' ||
   value === 'notes' ||
-  value === 'learning'
+  value === 'learning' ||
+  value === 'settings'
 const isSkin = (value) => value === 'prism' || value === 'classic'
 const audit = extras.find((value) => !isTheme(value) && !isView(value) && !isSkin(value))
 

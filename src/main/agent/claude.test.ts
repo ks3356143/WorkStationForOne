@@ -6,6 +6,7 @@ import {
   providerEnv,
   resolveAgentCli,
   startClaudeRun,
+  withProviderEnv,
   type RunHandle
 } from './claude'
 import type { AgentRunEvent } from '../../shared/agent-stream'
@@ -74,6 +75,33 @@ describe('Provider 隔离', () => {
       ANTHROPIC_DEFAULT_SONNET_MODEL: provider.model,
       ANTHROPIC_DEFAULT_OPUS_MODEL: provider.model
     })
+  })
+
+  it('官方 Anthropic 用 ANTHROPIC_API_KEY 而不是 Bearer token', () => {
+    const official = { ...provider, baseUrl: 'https://api.anthropic.com' }
+    const env = providerEnv(official)
+    expect(env).toMatchObject({ ANTHROPIC_API_KEY: provider.token })
+    expect(env?.ANTHROPIC_AUTH_TOKEN).toBeUndefined()
+  })
+
+  it('自定义 provider 生效时移除继承环境里的另一种鉴权变量', () => {
+    const inherited = {
+      PATH: 'C:\\bin',
+      ANTHROPIC_API_KEY: 'old-api-key',
+      ANTHROPIC_AUTH_TOKEN: 'old-bearer'
+    }
+    const thirdParty = withProviderEnv(inherited, provider)
+    expect(thirdParty.ANTHROPIC_AUTH_TOKEN).toBe(provider.token)
+    expect(thirdParty.ANTHROPIC_API_KEY).toBeUndefined()
+    expect(thirdParty.PATH).toBe('C:\\bin')
+
+    const official = withProviderEnv(inherited, {
+      ...provider,
+      baseUrl: 'https://api.anthropic.com'
+    })
+    expect(official.ANTHROPIC_API_KEY).toBe(provider.token)
+    expect(official.ANTHROPIC_AUTH_TOKEN).toBeUndefined()
+    expect(withProviderEnv(inherited, undefined)).toMatchObject(inherited)
   })
 
   it('自定义 provider 忽略用户级 settings 并固定模型，token 不进参数', () => {

@@ -1680,6 +1680,13 @@ async function run() {
     setValue(one('input[aria-label="Provider Base URL"]'), 'http://127.0.0.1:23334')
     setValue(one('input[aria-label="Provider 模型"]'), 'smoke-codex-model')
     setValue(one('input[aria-label="Provider API Key"]'), 'sk-smoke-codex-secret')
+    await sleep(120)
+    const providerMeta = one('.w1-provmeta')?.textContent ?? ''
+    check(
+      'Provider 卡显示鉴权与端点',
+      providerMeta.includes('Bearer') && providerMeta.includes('/responses'),
+      providerMeta || 'missing'
+    )
     byText('.w1-provsave', '保存并启用')?.click()
     await waitFor(
       () => (one('.w1-provstatus')?.textContent ?? '').includes('已加密保存'),
