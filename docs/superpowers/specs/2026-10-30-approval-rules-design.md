@@ -1,10 +1,10 @@
 # Agent 审批持久规则（v0.31.0 / DB v27）
 
-- 状态：已实现（2026-10-31，v0.31.0 / DB v27）；2026-11-01 v0.34.0 增加外部 MCP `approval_request` 中继
+- 状态：已实现（2026-10-31，v0.31.0 / DB v27）；2026-11-01 v0.34.0 增加 `approval_request` 中继，v0.34.2 覆盖所有 Claude 会话原生工具
 - 日期：2026-10-30
 - 范围：工具审批的「本会话允许 / 此工作区允许」、工作区规则持久化、审批链路接入、设置页规则撤销、审计与测试
 - 关联：`docs/superpowers/specs/2026-10-23-workstation-design.md`、`AGENTS.md`
-- 后续（2026-11-01，v0.34.0）：真实 Claude 2.1.316 在 print 模式下不会为外部 MCP 的 ask 工具发 `can_use_tool`，而是直接 `permission_denied`。因此新增第四条链路——本机桥 `approval_request` 经 `--permission-prompt-tool` 中继到同一张审批卡；中继只在有外部 MCP 的 Claude 会话暴露，复用本文件的规则 / 作用域 / 审计，外部 MCP 会话里的原生写入工具也经它审批。该版本新增 `--permission-prompt-tool` 启动参数，偏离原非目标中的「不改 CLI 启动参数」。
+- 后续（2026-11-01，v0.34.0）：真实 Claude 2.1.316 在 print 模式下不会为外部 MCP 的 ask 工具发 `can_use_tool`，而是直接 `permission_denied`。因此新增第四条链路——本机桥 `approval_request` 经 `--permission-prompt-tool` 中继到同一张审批卡；中继在所有有本地桥的 Claude 会话暴露，复用本文件的规则 / 作用域 / 审计，原生 `Write` / `Bash` 与外部 MCP 工具都经它审批；公网 DeepWiki 的远程工具调用已实测。该版本新增 `--permission-prompt-tool` 启动参数，偏离原非目标中的「不改 CLI 启动参数」。
 
 ## 1. 背景与目标
 

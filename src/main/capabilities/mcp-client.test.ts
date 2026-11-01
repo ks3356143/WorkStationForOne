@@ -108,4 +108,37 @@ describe('MCP 连接探测', () => {
       'tools/list:session-1'
     ])
   })
+
+  it('http：401 给出可读鉴权原因，且不回显请求头凭据', async () => {
+    const server = createServer((req, res) => {
+      req.resume()
+      req.on('end', () => {
+        res.statusCode = 401
+        res.setHeader('content-type', 'application/json')
+        res.end(
+          JSON.stringify({
+            error: 'invalid_token',
+            error_description: 'Authentication required'
+          })
+        )
+      })
+    })
+    servers.push(server)
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('测试服务器没有端口')
+
+    const error = await probeMcpServer({
+      transport: 'http',
+      url: `http://127.0.0.1:${address.port}/mcp`,
+      headers: { Authorization: 'Bearer super-secret-token' },
+      version: 'test'
+    }).catch((reason: unknown) => reason)
+
+    expect(error).toBeInstanceOf(Error)
+    const message = (error as Error).message
+    expect(message).toContain('凭据被拒绝（401）')
+    expect(message).toContain('Authentication required')
+    expect(message).not.toContain('super-secret-token')
+  })
 })

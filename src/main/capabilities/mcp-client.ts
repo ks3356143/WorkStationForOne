@@ -67,6 +67,45 @@ function rpcError(response: JsonRpcResponse): string {
   return typeof message === 'string' && message ? message : 'MCP Server 返回错误'
 }
 
+function clipHttp(value: string, max = 160): string {
+  const flat = value.replace(/\s+/g, ' ').trim()
+  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat
+}
+
+function httpStatusLabel(status: number): string {
+  if (status === 401 || status === 403) return '凭据被拒绝'
+  if (status === 404) return '端点不存在'
+  if (status === 405) return '请求方式不被接受'
+  if (status === 429) return '请求受限'
+  if (status >= 500) return '服务异常'
+  return '请求被拒绝'
+}
+
+/** 把远端错误体变成可读原因，并抹掉请求头里的凭据值。 */
+function httpFailure(status: number, body: string, headers: Record<string, string>): Error {
+  let detail = ''
+  const flat = body.replace(/\s+/g, ' ').trim()
+  if (flat) {
+    try {
+      const payload = asRecord(JSON.parse(flat))
+      const nested = asRecord(payload.error)
+      const candidate =
+        (typeof payload.error_description === 'string' && payload.error_description) ||
+        (typeof payload.message === 'string' && payload.message) ||
+        (typeof nested.message === 'string' && nested.message) ||
+        (typeof payload.error === 'string' && payload.error) ||
+        ''
+      detail = clipHttp(candidate || flat)
+    } catch {
+      detail = clipHttp(flat)
+    }
+  }
+  for (const value of Object.values(headers)) {
+    if (value.length >= 4) detail = detail.split(value).join('[已隐藏]')
+  }
+  return new Error(`MCP ${httpStatusLabel(status)}（${status}）${detail ? `：${detail}` : ''}`)
+}
+
 /**
  * npx / uvx 会再拉子进程；只 kill 包装进程会留下真正运行 MCP Server 的 node。
  * Windows 用 taskkill /T 杀掉整棵树，避免测试连接后残留后台进程。
@@ -269,10 +308,11 @@ async function probeHttp(input: McpProbeInput): Promise<McpProbeResult> {
     },
     timeoutMs
   )
-  if (!initResponse.ok) throw new Error(`MCP HTTP ${initResponse.status}`)
+  const initText = await initResponse.text()
+  if (!initResponse.ok) throw httpFailure(initResponse.status, initText, baseHeaders)
   const sessionId = initResponse.headers.get('mcp-session-id')
   const contentType = initResponse.headers.get('content-type') ?? ''
-  const init = parseRpcText(await initResponse.text(), 1, contentType)
+  const init = parseRpcText(initText, 1, contentType)
   if (init.error) throw new Error(rpcError(init))
   const headers = sessionId ? { ...baseHeaders, 'mcp-session-id': sessionId } : baseHeaders
 
@@ -283,7 +323,7 @@ async function probeHttp(input: McpProbeInput): Promise<McpProbeResult> {
     timeoutMs
   )
   if (!notification.ok && notification.status !== 202 && notification.status !== 204) {
-    throw new Error(`MCP initialized 通知失败：HTTP ${notification.status}`)
+    throw httpFailure(notification.status, await notification.text(), headers)
   }
   const listResponse = await postJson(
     url,
@@ -291,9 +331,10 @@ async function probeHttp(input: McpProbeInput): Promise<McpProbeResult> {
     { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} },
     timeoutMs
   )
-  if (!listResponse.ok) throw new Error(`MCP HTTP ${listResponse.status}`)
+  const listText = await listResponse.text()
+  if (!listResponse.ok) throw httpFailure(listResponse.status, listText, headers)
   const listType = listResponse.headers.get('content-type') ?? ''
-  const list = parseRpcText(await listResponse.text(), 2, listType)
+  const list = parseRpcText(listText, 2, listType)
   if (list.error) throw new Error(rpcError(list))
   return { tools: toolInfoFrom(list.result) }
 }

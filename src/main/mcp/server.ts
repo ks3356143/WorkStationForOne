@@ -351,6 +351,14 @@ export class McpBridge {
         text: JSON.stringify({ behavior: 'deny', message: '不能审批审批工具本身' })
       })
     }
+    if (toolName === 'AskUserQuestion') {
+      return toolResponse({
+        text: JSON.stringify({
+          behavior: 'deny',
+          message: 'WorkStationForOne 暂不支持交互问答'
+        })
+      })
+    }
     let decision: McpExternalApprovalDecision
     try {
       decision = this.hooks.requestExternalApproval

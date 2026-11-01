@@ -496,8 +496,9 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
         throw new Error(`无法加载应用私有技能 / MCP：${detail}`)
       }
     }
-    const useBridgeApproval =
-      input.agent === 'claude' && Boolean(mcpEndpoint) && claudeMcpServers.length > 0
+    // 真实 CLI 在 print 模式下不会把原生工具或外部 MCP 的权限交给 host；
+    // 所有有本地桥的 Claude 会话统一用 approval_request 中继。
+    const useBridgeApproval = input.agent === 'claude' && Boolean(mcpEndpoint)
     if (useBridgeApproval) bridgeRelaySessions.add(input.sessionId)
 
     const onExit = ({

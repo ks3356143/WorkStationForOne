@@ -6,6 +6,32 @@
 
 暂无。
 
+## [0.34.2] - 2026-11-01
+
+### 修复
+
+- **原生工具审批**：真实 Claude 2.1.316 在 print 模式下同样不会为原生 `Write` / `Bash` 发 `can_use_tool`，会直接拒绝。`approval_request` 中继现在覆盖所有有本地桥的 Claude 会话，不再只限于存在外部 MCP 的会话；`AskUserQuestion` 在中继层自动拒绝。
+- 原生工具与外部 MCP 的审批卡、会话 / 工作区规则和审计保持同一套；敏感工具仍不出现「此工作区允许」。
+
+### 验证
+
+- 真实 DeepSeek `/anthropic` + Claude CLI，无外部 MCP 的临时会话：`Write` 卡 → 允许一次 → 文件写入；`Bash` 卡 → 允许一次 → 重定向文件写入；两次 requestId 均为 `bridge-...`，工具卡完成，无控制台错误。
+- 794 项单元测试、322 项冒烟通过。
+- 仍未实测：需要密钥的成功鉴权公网 Server、真实 Codex 外部 MCP 写入工具。
+
+## [0.34.1] - 2026-11-01
+
+### 改进
+
+- **远程 MCP 鉴权错误**：HTTP 401 / 403 显示「凭据被拒绝」、404「端点不存在」、429「请求受限」、5xx「服务异常」，并带上远端 `error_description` / `message`；错误体里出现请求头凭据时会抹成 `[已隐藏]`。
+
+### 验证
+
+- **公网远程 MCP**：DeepWiki `https://mcp.deepwiki.com/mcp`（SSE）测试连接列出 3 个工具；真实 Claude + DeepSeek 调用 `read_wiki_structure`（`facebook/react`），审批卡「允许一次」后返回真实仓库文档结构，工具卡状态完成、无控制台错误。
+- **鉴权差异**：Semgrep `https://mcp.semgrep.ai/mcp` 无凭据时返回「MCP 凭据被拒绝（401）：Authentication required」，不再只有裸状态码。
+- 793 项单元测试、322 项冒烟通过。
+- 仍未实测：需要密钥的成功鉴权公网 Server（当前没有对应凭据），以及真实 Codex 外部 MCP 写入工具。
+
 ## [0.34.0] - 2026-11-01
 
 ### 修复

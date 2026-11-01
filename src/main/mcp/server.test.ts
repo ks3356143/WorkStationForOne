@@ -411,6 +411,44 @@ describe('MCP HTTP 桥', () => {
     )
   })
 
+  it('中继自动拒绝 AskUserQuestion，不弹卡', async () => {
+    const source = data()
+    const requestExternalApproval = vi.fn(async () => ({
+      behavior: 'allow' as const,
+      updatedInput: {}
+    }))
+    bridge = new McpBridge(source, 'test', {
+      hasApprovalRelay: () => true,
+      requestExternalApproval
+    })
+    await bridge.start()
+    const endpoint = bridge.issue('s-question')
+    if (!endpoint) throw new Error('没有 issue token')
+
+    const response = await rpc(endpoint.url, endpoint.token, {
+      jsonrpc: '2.0',
+      id: 36,
+      method: 'tools/call',
+      params: {
+        name: 'approval_request',
+        arguments: {
+          tool_name: 'AskUserQuestion',
+          input: { question: '继续吗？' },
+          tool_use_id: 'tu-4'
+        }
+      }
+    })
+    const body = (await response.json()) as {
+      result: { content: { text: string }[]; isError?: boolean }
+    }
+    expect(body.result.isError).toBeUndefined()
+    expect(JSON.parse(body.result.content[0].text)).toMatchObject({
+      behavior: 'deny',
+      message: expect.stringContaining('暂不支持交互问答')
+    })
+    expect(requestExternalApproval).not.toHaveBeenCalled()
+  })
+
   it('没有外部 MCP 的会话不暴露也不接受 approval_request', async () => {
     const { endpoint } = await start()
     const list = await rpc(endpoint.url, endpoint.token, {
