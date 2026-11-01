@@ -6,6 +6,14 @@
 
 暂无。
 
+## [0.34.3] - 2026-11-01
+
+### 验证
+
+- **Codex 外部 MCP 写入**：临时库复制 DeepSeek Token 激活 Codex Provider，真实 `codex app-server` + 本地 HTTP 外部 MCP（`X-E2E-Key` 请求头，`write_probe` 写入工具）。能力中心测试连接列出工具；模型调用触发 `MCP · e2e-codex-http/write_probe` 审批卡，允许一次后工具执行、文件写入、工具卡完成。`codex-home/config.toml` 只出现 `env_http_headers` 变量名，不出现密钥值；`shell_environment_policy.exclude` 包含该变量；无控制台错误。
+- 794 项单元测试、322 项冒烟通过；无代码变更。
+- 仍未实测：需要密钥的成功鉴权公网 Server、其他 Codex Provider、OAuth 类远程 MCP。
+
 ## [0.34.2] - 2026-11-01
 
 ### 修复
