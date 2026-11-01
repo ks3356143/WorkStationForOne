@@ -1,13 +1,14 @@
 # Agent 审批持久规则（v0.31.0 / DB v27）
 
-- 状态：已实现（2026-10-31，v0.31.0 / DB v27）
+- 状态：已实现（2026-10-31，v0.31.0 / DB v27）；2026-11-01 v0.34.0 增加外部 MCP `approval_request` 中继
 - 日期：2026-10-30
-- 范围：工具审批的「本会话允许 / 此工作区允许」、工作区规则持久化、三条审批链路接入、设置页规则撤销、审计与测试
+- 范围：工具审批的「本会话允许 / 此工作区允许」、工作区规则持久化、审批链路接入、设置页规则撤销、审计与测试
 - 关联：`docs/superpowers/specs/2026-10-23-workstation-design.md`、`AGENTS.md`
+- 后续（2026-11-01，v0.34.0）：真实 Claude 2.1.316 在 print 模式下不会为外部 MCP 的 ask 工具发 `can_use_tool`，而是直接 `permission_denied`。因此新增第四条链路——本机桥 `approval_request` 经 `--permission-prompt-tool` 中继到同一张审批卡；中继只在有外部 MCP 的 Claude 会话暴露，复用本文件的规则 / 作用域 / 审计，外部 MCP 会话里的原生写入工具也经它审批。该版本新增 `--permission-prompt-tool` 启动参数，偏离原非目标中的「不改 CLI 启动参数」。
 
 ## 1. 背景与目标
 
-Agent 目前有三条独立审批链路：Claude `can_use_tool`、Codex app-server（Shell / Patch / Permissions / MCP elicitation）、本地 MCP 数据桥的写入审批。三者都只有「允许一次」；MCP 写入卡另有「本会话允许」。用户在同一工作区反复使用同一 MCP 工具时，每次都要点一次卡。
+Agent 有三条独立审批链路：Claude `can_use_tool`、Codex app-server（Shell / Patch / Permissions / MCP elicitation）、本地 MCP 数据桥的写入审批（v0.34.0 另增外部 MCP `approval_request` 中继，见顶部后续说明）。三者都只有「允许一次」；MCP 写入卡另有「本会话允许」。用户在同一工作区反复使用同一 MCP 工具时，每次都要点一次卡。
 
 目标：让 **MCP 工具与本地只读工具**可以按「Agent + 工作区 + 工具」持久放行，并在设置里撤销；**Bash / Shell / Write / Edit / Patch / Permissions 等敏感工具永远不能持久**，最多「本会话允许」（主进程内存，应用退出即失效）。减少的是重复的 MCP 审批，不是 shell / 文件写入的逐次复核。
 
@@ -16,7 +17,7 @@ Agent 目前有三条独立审批链路：Claude `can_use_tool`、Codex app-serv
 **范围**
 
 - DB v27 `approval_rules` 与仓储、规则服务。
-- Claude `can_use_tool`、Codex app-server、本地 MCP 桥三条链路在**发卡之前**检查规则并自动批准。
+- Claude `can_use_tool`、Codex app-server、本地 MCP 桥三条链路（以及 v0.34.0 的外部 MCP 中继）在**发卡之前**检查规则并自动批准。
 - 工具卡与 MCP 卡增加作用域按钮，设置页「基础」增加规则列表与撤销。
 - 规则创建 / 撤销 / 自动批准的审计。
 
@@ -61,7 +62,7 @@ Agent 目前有三条独立审批链路：Claude `can_use_tool`、Codex app-serv
 
 ### 3.3 规范工具名
 
-同一工具在三条链路上名字不同，规则必须先规范化到同一名字：
+同一工具在审批链路上名字不同（含 v0.34.0 的外部 MCP 中继），规则必须先规范化到同一名字：
 
 | 链路 | 规范工具名示例 |
 | --- | --- |

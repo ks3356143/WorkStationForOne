@@ -75,7 +75,13 @@ export function buildClaudeArgs(
   provider?: ProviderRuntime,
   sessionId?: string,
   mcpConfigPath?: string,
-  options?: { plugins?: string[]; allowedTools?: string[]; disallowedTools?: string[] }
+  options?: {
+    plugins?: string[]
+    allowedTools?: string[]
+    disallowedTools?: string[]
+    /** 外部 MCP 的 ask 工具经本机桥中继到审批卡 */
+    permissionPromptTool?: string
+  }
 ): string[] {
   const args = [
     ...cli.prefixArgs,
@@ -89,6 +95,10 @@ export function buildClaudeArgs(
     'manual',
     '--permission-prompts',
     'host',
+    // 外部 MCP 的 ask 工具不会被 CLI 发给 host；显式指定桥内中继工具接管。
+    ...(options?.permissionPromptTool
+      ? ['--permission-prompt-tool', options.permissionPromptTool]
+      : []),
     // 隔离：用户级 settings / MCP 不进入本应用的会话
     '--setting-sources',
     'project',
@@ -142,6 +152,8 @@ export interface ClaudeRunOptions {
   disallowedTools?: string[]
   /** 规则命中时在发卡前直接放行；返回命中作用域或 null */
   autoApprove?: (toolName: string) => 'session' | 'workspace' | null
+  /** 外部 MCP 的 ask 工具由 CLI 调用的审批中继工具 */
+  permissionPromptTool?: string
   onEvent: (event: AgentRunEvent) => void
   onExit: (info: { code: number | null; stderr: string; cancelled: boolean }) => void
   /** 省略时按环境解析；显式传 null 表示「没有可用的 CLI」 */
@@ -242,7 +254,10 @@ export function startClaudeRun(options: ClaudeRunOptions): RunHandle {
     {
       ...(options.plugins ? { plugins: options.plugins } : {}),
       ...(options.allowedTools ? { allowedTools: options.allowedTools } : {}),
-      ...(options.disallowedTools ? { disallowedTools: options.disallowedTools } : {})
+      ...(options.disallowedTools ? { disallowedTools: options.disallowedTools } : {}),
+      ...(options.permissionPromptTool
+        ? { permissionPromptTool: options.permissionPromptTool }
+        : {})
     }
   )
   const childEnv = withProviderEnv(

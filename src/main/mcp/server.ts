@@ -9,6 +9,34 @@ export interface McpEndpoint {
   token: string
 }
 
+/** CLI 的 --permission-prompt-tool 指向此工具；只在有外部 MCP 的 Claude 会话里暴露。 */
+export const APPROVAL_TOOL = {
+  name: 'approval_request',
+  description:
+    '内部权限转发工具：仅由 Claude Code 的 --permission-prompt-tool 调用，模型不要直接调用。',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      tool_name: { type: 'string' },
+      input: { type: 'object' },
+      tool_use_id: { type: 'string' }
+    },
+    required: ['tool_name'],
+    additionalProperties: true
+  }
+} as const
+
+export interface McpExternalApprovalInput {
+  sessionId: string
+  toolName: string
+  input: Record<string, unknown>
+  toolUseId: string
+}
+
+export type McpExternalApprovalDecision =
+  | { behavior: 'allow'; updatedInput: Record<string, unknown> }
+  | { behavior: 'deny'; message: string }
+
 export interface McpHooks {
   /** 当前域权限；缺省使用默认模式 */
   mode?: (domain: McpDomain) => McpMode
@@ -18,6 +46,12 @@ export interface McpHooks {
   requestPermission?: (input: McpPermissionInput) => Promise<McpPermissionOutcome>
   /** 本会话已允许或命中工作区审批规则；命中则跳过询问卡 */
   isPreApproved?: (sessionId: string, tool: string) => boolean
+  /** 外部 MCP 工具的审批中继；由 Agent IPC 弹同一张工具审批卡 */
+  requestExternalApproval?: (
+    input: McpExternalApprovalInput
+  ) => Promise<McpExternalApprovalDecision>
+  /** 只有存在外部 MCP 的 Claude 会话才暴露 approval_request */
+  hasApprovalRelay?: (sessionId: string) => boolean
 }
 
 export interface McpBridgeOptions {
@@ -292,6 +326,52 @@ export class McpBridge {
     res.end(JSON.stringify(Array.isArray(payload) ? responses : responses[0]))
   }
 
+  private relayEnabled(sessionId: string): boolean {
+    try {
+      return this.hooks.hasApprovalRelay?.(sessionId) === true
+    } catch {
+      // 查询失败按不暴露处理
+      return false
+    }
+  }
+
+  /** CLI 的 --permission-prompt-tool 会带 {tool_name,input,tool_use_id} 调用这里。 */
+  private async handleApprovalRequest(sessionId: string, raw: unknown): Promise<unknown> {
+    const args = asRecord(raw)
+    const toolName = typeof args.tool_name === 'string' ? args.tool_name.trim() : ''
+    const toolUseId = typeof args.tool_use_id === 'string' ? args.tool_use_id.trim() : ''
+    const input = asRecord(args.input)
+    if (!toolName || toolName.length > 300) {
+      return toolResponse({
+        text: JSON.stringify({ behavior: 'deny', message: '审批请求缺少有效的工具名' })
+      })
+    }
+    if (toolName === APPROVAL_TOOL.name) {
+      return toolResponse({
+        text: JSON.stringify({ behavior: 'deny', message: '不能审批审批工具本身' })
+      })
+    }
+    let decision: McpExternalApprovalDecision
+    try {
+      decision = this.hooks.requestExternalApproval
+        ? await this.hooks.requestExternalApproval({ sessionId, toolName, input, toolUseId })
+        : { behavior: 'deny', message: '应用审批服务不可用' }
+    } catch (error) {
+      console.error('[mcp] 外部工具审批失败', error)
+      decision = { behavior: 'deny', message: '审批请求失败' }
+    }
+    this.data.audit.record({
+      at: Date.now(),
+      domain: 'mcp',
+      action: decision.behavior === 'allow' ? 'approve' : 'deny',
+      targetId: sessionId,
+      title: clip(toolName, 200),
+      source: 'agent',
+      detail: 'external'
+    })
+    return toolResponse({ text: JSON.stringify(decision) })
+  }
+
   private async dispatch(message: unknown, sessionId: string): Promise<unknown | null> {
     const record = asRecord(message)
     const hasId = Object.hasOwn(record, 'id')
@@ -314,11 +394,21 @@ export class McpBridge {
       })
     }
     if (method === 'ping') return rpcResult(id, {})
-    if (method === 'tools/list') return rpcResult(id, { tools: MCP_TOOLS })
+    if (method === 'tools/list') {
+      return rpcResult(id, {
+        tools: this.relayEnabled(sessionId) ? [...MCP_TOOLS, APPROVAL_TOOL] : MCP_TOOLS
+      })
+    }
     if (method === 'tools/call') {
       const params = asRecord(record.params)
       const name = typeof params.name === 'string' ? params.name : ''
       if (!name) return rpcError(id, -32602, '缺少工具名')
+      if (name === APPROVAL_TOOL.name) {
+        if (!this.relayEnabled(sessionId)) {
+          return rpcResult(id, toolResponse({ text: `未知工具：${name}`, isError: true }))
+        }
+        return rpcResult(id, await this.handleApprovalRequest(sessionId, params.arguments))
+      }
       const def = MCP_TOOLS.find((tool) => tool.name === name)
       if (!def) {
         return rpcResult(id, toolResponse({ text: `未知工具：${name}`, isError: true }))

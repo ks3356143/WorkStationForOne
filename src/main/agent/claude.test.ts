@@ -121,6 +121,19 @@ describe('Provider 隔离', () => {
     expect(providerEnv(undefined)).toBeUndefined()
   })
 
+  it('有外部 MCP 时把审批中继工具传给 CLI', () => {
+    const args = buildClaudeArgs(cli, undefined, undefined, undefined, undefined, {
+      permissionPromptTool: 'mcp__workstationforone__approval_request'
+    })
+    expect(args).toEqual(
+      expect.arrayContaining([
+        '--permission-prompt-tool',
+        'mcp__workstationforone__approval_request'
+      ])
+    )
+    expect(buildClaudeArgs(cli, undefined)).not.toContain('--permission-prompt-tool')
+  })
+
   it('外部 MCP 工具只把显式 allow / deny 放进参数', () => {
     const args = buildClaudeArgs(cli, undefined, undefined, undefined, undefined, {
       allowedTools: ['mcp__memory__read'],

@@ -53,6 +53,7 @@ let mainWindow: BrowserWindow | null = null
 let stopReminders: (() => void) | null = null
 let mcpBridge: McpBridge | null = null
 let mcpPermissions: McpPermissionBroker | null = null
+let agentHandlers: ReturnType<typeof registerAgentHandlers> | null = null
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -179,7 +180,11 @@ if (!gotTheLock) {
           if (win && !win.isDestroyed()) win.webContents.send(IPC_CHANNELS.mcpChanged, domains)
         },
         requestPermission: (input) => permissions.request(input),
-        isPreApproved: (sessionId, tool) => approvalRules.checkBridge(sessionId, tool)
+        isPreApproved: (sessionId, tool) => approvalRules.checkBridge(sessionId, tool),
+        requestExternalApproval: (input) =>
+          agentHandlers?.requestBridgeApproval(input) ??
+          Promise.resolve({ behavior: 'deny', message: '审批服务未就绪' }),
+        hasApprovalRelay: (sessionId) => agentHandlers?.hasApprovalRelay(sessionId) ?? false
       }
     )
     try {
@@ -192,7 +197,7 @@ if (!gotTheLock) {
     // 上次进程退出后 run/wait 已不存在，重启时统一回落为 idle。
     database.agent.resetTransientStatuses()
     // 捕获窗是另一个 BrowserWindow，Agent 事件只回主窗口
-    registerAgentHandlers({
+    agentHandlers = registerAgentHandlers({
       getWindow: () => mainWindow,
       repository: database.agent,
       getProvider: (target) => providers.runtime(target),

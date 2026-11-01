@@ -11,7 +11,11 @@ import { listWorkspaceEntries, readWorkspaceText } from '../agent/workspace'
 import { startCodexAppServerRun } from '../agent/codex-app-server'
 import { startCodexRun } from '../agent/codex'
 import type { AgentRepository } from '../db/agent'
-import type { McpEndpoint } from '../mcp/server'
+import type {
+  McpEndpoint,
+  McpExternalApprovalDecision,
+  McpExternalApprovalInput
+} from '../mcp/server'
 import type { ProviderRuntime } from '../providers'
 import type { AgentCapabilityRuntime } from '../capabilities'
 import type { ProviderTarget } from '../../shared/ipc'
@@ -27,7 +31,7 @@ import {
   type AgentSessionPatch,
   type AgentToolRecord
 } from '../../shared/ipc'
-import type { AgentRunEvent } from '../../shared/agent-stream'
+import { summarizeToolInput, type AgentRunEvent } from '../../shared/agent-stream'
 import { APPROVAL_SCOPES, type ApprovalScope } from '../../shared/approval-rules'
 
 const IPC = IPC_CHANNELS
@@ -225,11 +229,18 @@ export function assertAgentMessage(value: unknown): AgentMessageRecord {
 }
 
 interface ActiveRun {
+  runId: string
   sessionId: string
   agent: 'claude' | 'codex'
   workspace: string
   cancel: () => void
   respondPermission: (requestId: string, behavior: 'allow' | 'deny', message?: string) => boolean
+}
+
+interface PermissionOwner {
+  runId: string
+  toolName: string
+  respond: (behavior: 'allow' | 'deny', message?: string) => boolean
 }
 
 export interface McpAccess {
@@ -250,11 +261,16 @@ export interface AgentHandlerOptions {
   approvalRules: ApprovalRuleService
 }
 
+export interface AgentBridgeHandlers {
+  requestBridgeApproval: (input: McpExternalApprovalInput) => Promise<McpExternalApprovalDecision>
+  hasApprovalRelay: (sessionId: string) => boolean
+}
+
 /**
  * 每个会话同一时间只跑一轮，不同会话可以各跑各的。
  * 流事件、审批与 MCP Token 都按 run / 会话隔离，互不串台。
  */
-export function registerAgentHandlers(options: AgentHandlerOptions): void {
+export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridgeHandlers {
   const {
     getWindow,
     repository,
@@ -269,7 +285,9 @@ export function registerAgentHandlers(options: AgentHandlerOptions): void {
   } = options
   const runs = new Map<string, ActiveRun>()
   // Codex app-server 与 stub 的审批 id 只在各自进程内唯一；加 run 前缀后才不会串台
-  const permissionRuns = new Map<string, { runId: string; requestId: string; toolName: string }>()
+  const permissionRuns = new Map<string, PermissionOwner>()
+  // 只有配置了外部 MCP 的 Claude 会话才暴露桥内审批中继
+  const bridgeRelaySessions = new Set<string>()
   let seq = 0
 
   ipcMain.handle(IPC.agentThreads, () => ({
@@ -427,8 +445,10 @@ export function registerAgentHandlers(options: AgentHandlerOptions): void {
         const scoped = `${runId}:${runEvent.request.requestId}`
         permissionRuns.set(scoped, {
           runId,
-          requestId: runEvent.request.requestId,
-          toolName: runEvent.request.toolName
+          toolName: runEvent.request.toolName,
+          respond: (behavior, message) =>
+            runs.get(runId)?.respondPermission(runEvent.request.requestId, behavior, message) ??
+            false
         })
         event = {
           ...runEvent,
@@ -476,6 +496,10 @@ export function registerAgentHandlers(options: AgentHandlerOptions): void {
         throw new Error(`无法加载应用私有技能 / MCP：${detail}`)
       }
     }
+    const useBridgeApproval =
+      input.agent === 'claude' && Boolean(mcpEndpoint) && claudeMcpServers.length > 0
+    if (useBridgeApproval) bridgeRelaySessions.add(input.sessionId)
+
     const onExit = ({
       code,
       stderr,
@@ -486,10 +510,14 @@ export function registerAgentHandlers(options: AgentHandlerOptions): void {
       cancelled: boolean
     }) => {
       runs.delete(runId)
+      bridgeRelaySessions.delete(input.sessionId)
       if (mcpEndpoint) mcp?.revoke(mcpEndpoint.token)
       cancelPermissions?.(input.sessionId)
       for (const [requestId, owner] of permissionRuns) {
-        if (owner.runId === runId) permissionRuns.delete(requestId)
+        if (owner.runId !== runId) continue
+        // 桥内中继的 Promise 必须收尾，否则外部 MCP 调用会一直挂着
+        owner.respond('deny', '会话已结束')
+        permissionRuns.delete(requestId)
       }
       repository.finishRun(runId, {
         ok: !cancelled && (runResult?.ok ?? code === 0),
@@ -558,6 +586,9 @@ export function registerAgentHandlers(options: AgentHandlerOptions): void {
               ...(claudeMcpServers.length > 0 ? { mcpServers: claudeMcpServers } : {}),
               ...(claudeAllowedTools.length > 0 ? { allowedTools: claudeAllowedTools } : {}),
               ...(claudeDeniedTools.length > 0 ? { disallowedTools: claudeDeniedTools } : {}),
+              ...(useBridgeApproval
+                ? { permissionPromptTool: 'mcp__workstationforone__approval_request' }
+                : {}),
               ...(cli === undefined ? {} : { cli }),
               onEvent: emit,
               onExit
@@ -565,6 +596,7 @@ export function registerAgentHandlers(options: AgentHandlerOptions): void {
           })()
 
     runs.set(runId, {
+      runId,
       sessionId: input.sessionId,
       agent: input.agent,
       workspace,
@@ -611,14 +643,71 @@ export function registerAgentHandlers(options: AgentHandlerOptions): void {
       )
     }
 
-    const ok = run.respondPermission(
-      owner.requestId,
-      response.allow ? 'allow' : 'deny',
-      response.message
-    )
+    const ok = owner.respond(response.allow ? 'allow' : 'deny', response.message)
     permissionRuns.delete(response.requestId)
     return ok
   })
+
+  const requestBridgeApproval = async (
+    input: McpExternalApprovalInput
+  ): Promise<McpExternalApprovalDecision> => {
+    const session = repository.findSession(input.sessionId)
+    if (session?.agent !== 'claude') {
+      return { behavior: 'deny', message: '会话不存在或类型不匹配' }
+    }
+    if (!session.workspace) return { behavior: 'deny', message: '会话还没有选择工作区' }
+    const workspace = assertWorkspacePath(session.workspace)
+    const auto = approvalRules.check(
+      { sessionId: input.sessionId, agent: 'claude', workspace },
+      input.toolName
+    )
+    if (auto) return { behavior: 'allow', updatedInput: input.input }
+    const run = [...runs.values()].find(
+      (item) => item.sessionId === input.sessionId && item.agent === 'claude'
+    )
+    if (!run) return { behavior: 'deny', message: '会话没有进行中的运行' }
+
+    const requestId = `${run.runId}:bridge-${randomUUID()}`
+    const inputJson = JSON.stringify(input.input)
+    const event: AgentRunEvent = {
+      kind: 'permission',
+      request: {
+        requestId,
+        toolName: input.toolName,
+        toolUseId: input.toolUseId,
+        detail: summarizeToolInput(input.toolName, input.input),
+        inputPreview: inputJson.length > 1200 ? `${inputJson.slice(0, 1199)}…` : inputJson,
+        workspaceScope: approvalRules.isWorkspaceEligible('claude', input.toolName)
+      }
+    }
+
+    return new Promise<McpExternalApprovalDecision>((resolve) => {
+      permissionRuns.set(requestId, {
+        runId: run.runId,
+        toolName: input.toolName,
+        respond: (behavior, message) => {
+          resolve(
+            behavior === 'allow'
+              ? { behavior: 'allow', updatedInput: input.input }
+              : { behavior: 'deny', message: message?.trim() || '用户拒绝' }
+          )
+          return true
+        }
+      })
+      const win = getWindow()
+      if (!win || win.isDestroyed()) {
+        permissionRuns.delete(requestId)
+        resolve({ behavior: 'deny', message: '应用窗口不可用' })
+        return
+      }
+      win.webContents.send(IPC.agentEvent, { runId: run.runId, event })
+    })
+  }
+
+  return {
+    requestBridgeApproval,
+    hasApprovalRelay: (sessionId: string) => bridgeRelaySessions.has(sessionId)
+  }
 }
 
 export const registerAgentHandlersIPC = {

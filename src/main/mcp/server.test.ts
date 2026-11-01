@@ -345,6 +345,132 @@ describe('MCP HTTP 桥', () => {
     expect(requestPermission).not.toHaveBeenCalled()
   })
 
+  it('有外部 MCP 的会话暴露 approval_request，allow 决策回给 CLI', async () => {
+    const source = data()
+    const approvals: Array<{
+      sessionId: string
+      toolName: string
+      input: Record<string, unknown>
+      toolUseId: string
+    }> = []
+    bridge = new McpBridge(source, 'test', {
+      hasApprovalRelay: (sessionId) => sessionId === 's-ext',
+      requestExternalApproval: async (input) => {
+        approvals.push(input)
+        return { behavior: 'allow', updatedInput: input.input }
+      }
+    })
+    await bridge.start()
+    const endpoint = bridge.issue('s-ext')
+    if (!endpoint) throw new Error('没有 issue token')
+
+    const list = await rpc(endpoint.url, endpoint.token, {
+      jsonrpc: '2.0',
+      id: 31,
+      method: 'tools/list'
+    })
+    const listBody = (await list.json()) as { result: { tools: { name: string }[] } }
+    expect(listBody.result.tools.map((tool) => tool.name)).toContain('approval_request')
+    expect(listBody.result.tools).toHaveLength(12)
+
+    const response = await rpc(endpoint.url, endpoint.token, {
+      jsonrpc: '2.0',
+      id: 32,
+      method: 'tools/call',
+      params: {
+        name: 'approval_request',
+        arguments: {
+          tool_name: 'mcp__demo__write_probe',
+          input: { text: 'ok' },
+          tool_use_id: 'tu-1'
+        }
+      }
+    })
+    const body = (await response.json()) as {
+      result: { content: { text: string }[]; isError?: boolean }
+    }
+    expect(body.result.isError).toBeUndefined()
+    expect(JSON.parse(body.result.content[0].text)).toEqual({
+      behavior: 'allow',
+      updatedInput: { text: 'ok' }
+    })
+    expect(approvals[0]).toEqual({
+      sessionId: 's-ext',
+      toolName: 'mcp__demo__write_probe',
+      input: { text: 'ok' },
+      toolUseId: 'tu-1'
+    })
+    expect(source.audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        domain: 'mcp',
+        action: 'approve',
+        targetId: 's-ext',
+        title: 'mcp__demo__write_probe',
+        detail: 'external'
+      })
+    )
+  })
+
+  it('没有外部 MCP 的会话不暴露也不接受 approval_request', async () => {
+    const { endpoint } = await start()
+    const list = await rpc(endpoint.url, endpoint.token, {
+      jsonrpc: '2.0',
+      id: 33,
+      method: 'tools/list'
+    })
+    const listBody = (await list.json()) as { result: { tools: { name: string }[] } }
+    expect(listBody.result.tools).toHaveLength(11)
+    expect(listBody.result.tools.map((tool) => tool.name)).not.toContain('approval_request')
+
+    const response = await rpc(endpoint.url, endpoint.token, {
+      jsonrpc: '2.0',
+      id: 34,
+      method: 'tools/call',
+      params: {
+        name: 'approval_request',
+        arguments: { tool_name: 'mcp__demo__write_probe', input: {}, tool_use_id: 'tu-2' }
+      }
+    })
+    const body = (await response.json()) as { result: { isError?: boolean } }
+    expect(body.result.isError).toBe(true)
+  })
+
+  it('中继拒绝时回给 CLI deny 决策', async () => {
+    const source = data()
+    bridge = new McpBridge(source, 'test', {
+      hasApprovalRelay: () => true,
+      requestExternalApproval: async () => ({ behavior: 'deny', message: '用户拒绝' })
+    })
+    await bridge.start()
+    const endpoint = bridge.issue('s-deny')
+    if (!endpoint) throw new Error('没有 issue token')
+
+    const response = await rpc(endpoint.url, endpoint.token, {
+      jsonrpc: '2.0',
+      id: 35,
+      method: 'tools/call',
+      params: {
+        name: 'approval_request',
+        arguments: {
+          tool_name: 'mcp__demo__write_probe',
+          input: { text: 'no' },
+          tool_use_id: 'tu-3'
+        }
+      }
+    })
+    const body = (await response.json()) as {
+      result: { content: { text: string }[]; isError?: boolean }
+    }
+    expect(body.result.isError).toBeUndefined()
+    expect(JSON.parse(body.result.content[0].text)).toEqual({
+      behavior: 'deny',
+      message: '用户拒绝'
+    })
+    expect(source.audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ domain: 'mcp', action: 'deny', detail: 'external' })
+    )
+  })
+
   it('服务关闭后在同一端口自动重启，旧 token 仍可用', async () => {
     const source = data()
     bridge = new McpBridge(source, 'test', {}, { restartDelayMs: 10 })

@@ -6,6 +6,28 @@
 
 暂无。
 
+## [0.34.0] - 2026-11-01
+
+### 修复
+
+- **外部 MCP 写入审批**：真实 Claude 2.1.316 在 print 模式下不会为外部 MCP 的 `ask` 工具发 `can_use_tool`，而是直接 `permission_denied`。本机桥新增 `approval_request` 中继工具，Claude 会话存在外部 MCP 时通过 `--permission-prompt-tool` 接管；中继复用现有工具审批卡、会话 / 工作区规则与 MCP 审计。中继只在有外部 MCP 的 Claude 会话暴露，没有外部 MCP 的会话仍走原有控制请求路径。
+- 中继把 CLI 的 `{tool_name,input,tool_use_id}` 转成 allow / deny 决策返回；拒绝、应用窗口不可用、会话结束都按拒绝收尾，不默认放行。
+
+### 验证
+
+- 真实 DeepSeek `/anthropic` + Claude CLI + 本机 Streamable HTTP 外部 MCP `write_probe`：审批卡出现（含「此工作区允许」）→ 允许一次 → 工具真实执行并写入 nonce → 模型原样回报 `E2E_WRITE_OK`；数据库工具卡状态为完成，无控制台错误。
+- 同一真实会话里 Claude 原生 `Write` 也经中继弹卡（requestId `bridge-...`，无「此工作区允许」），允许一次后文件落盘、工具卡完成；没有外部 MCP 的会话仍保留原 `can_use_tool` 路径。
+- 792 项单元测试、322 项冒烟通过；冒烟断言能力中心会话收到 `--permission-prompt-tool mcp__workstationforone__approval_request`。
+- 仍未实测：公网远程 HTTP MCP Server 的鉴权差异，以及真实 Codex 外部 MCP 写入工具。
+
+## [0.33.1] - 2026-11-01
+
+### 验证
+
+- **HTTP 外部 MCP**：冒烟新增本机 Streamable HTTP 探针，从设置页完成添加、信任、启用与连接测试；走 `initialize → notifications/initialized → tools/list`，`tools/list` 以 SSE 返回，校验解密后的 `X-Smoke-Key` 请求头、`mcp-session-id` 透传、两个工具落库，并断言 Claude 临时 MCP 配置里 `http-mcp=http`。
+- 322 项冒烟、0 失败、0 控制台错误；无数据库与业务代码变更。
+- 仍未实测：公网远程 HTTP MCP Server 的鉴权差异，以及真实写入类外部 MCP 工具经模型调用的审批链路。
+
 ## [0.33.0] - 2026-11-01
 
 ### 新增

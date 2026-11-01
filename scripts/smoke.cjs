@@ -148,6 +148,98 @@ const providerProbe = createServer((req, res) => {
 providerProbe.on('error', (error) => console.error('[smoke] Provider 探针服务失败', error))
 providerProbe.listen(23334, '127.0.0.1')
 
+// HTTP 外部 MCP 探针：走真实的 Streamable HTTP initialize / tools/list，并校验加密请求头解密后的透传。
+const mcpHttpRequests = []
+const mcpHttpProbe = createServer((req, res) => {
+  let body = ''
+  req.setEncoding('utf8')
+  req.on('data', (chunk) => {
+    body += chunk
+  })
+  req.on('end', () => {
+    let message = null
+    try {
+      message = JSON.parse(body)
+    } catch {
+      message = null
+    }
+    if (req.method !== 'POST' || req.url !== '/mcp') {
+      res.writeHead(404, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ error: { message: 'not found' } }))
+      return
+    }
+    if (req.headers['x-smoke-key'] !== 'smoke-secret') {
+      res.writeHead(401, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ error: { message: 'missing smoke key' } }))
+      return
+    }
+    mcpHttpRequests.push({
+      method: message?.method ?? '',
+      session: req.headers['mcp-session-id'] ?? ''
+    })
+    if (message?.method === 'notifications/initialized') {
+      res.writeHead(202)
+      res.end()
+      return
+    }
+    if (message?.method === 'initialize') {
+      res.writeHead(200, {
+        'content-type': 'application/json',
+        'mcp-session-id': 'smoke-http-session'
+      })
+      res.end(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          id: message.id,
+          result: {
+            protocolVersion: message.params?.protocolVersion ?? '2025-06-18',
+            capabilities: { tools: {} },
+            serverInfo: { name: 'smoke-http-mcp', version: '1.0.0' }
+          }
+        })
+      )
+      return
+    }
+    if (message?.method === 'tools/list') {
+      // SSE 分支：真实 Streamable HTTP 服务器常以 text/event-stream 返回。
+      res.writeHead(200, { 'content-type': 'text/event-stream' })
+      res.end(
+        `event: message\ndata: ${JSON.stringify({
+          jsonrpc: '2.0',
+          id: message.id,
+          result: {
+            tools: [
+              {
+                name: 'http_echo',
+                description: 'HTTP echo',
+                inputSchema: { type: 'object' },
+                annotations: { readOnlyHint: true, destructiveHint: false }
+              },
+              {
+                name: 'http_write',
+                description: 'HTTP write tool',
+                inputSchema: { type: 'object' },
+                annotations: { readOnlyHint: false, destructiveHint: false }
+              }
+            ]
+          }
+        })}\n\n`
+      )
+      return
+    }
+    res.writeHead(200, { 'content-type': 'application/json' })
+    res.end(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: message?.id ?? null,
+        error: { code: -32601, message: 'unsupported method' }
+      })
+    )
+  })
+})
+mcpHttpProbe.on('error', (error) => console.error('[smoke] HTTP MCP 探针服务失败', error))
+mcpHttpProbe.listen(23335, '127.0.0.1')
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const consoleErrors = []
@@ -213,9 +305,15 @@ async function run() {
     const taskRow = (text) => all('.w1-todorowwrap').find((el) => el.textContent?.includes(text))
     const setValue = (el, value) => {
       if (!el) throw new Error('setValue target missing')
-      const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype
+      const proto =
+        el instanceof HTMLTextAreaElement
+          ? HTMLTextAreaElement.prototype
+          : el instanceof HTMLSelectElement
+            ? HTMLSelectElement.prototype
+            : HTMLInputElement.prototype
       Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value)
       el.dispatchEvent(new Event('input', { bubbles: true }))
+      if (el instanceof HTMLSelectElement) el.dispatchEvent(new Event('change', { bubbles: true }))
     }
     const waitFor = async (fn, timeout = 3000) => {
       const started = Date.now()
@@ -1995,6 +2093,49 @@ async function run() {
       byText('.w1-captoolpanel', '工具级权限')?.textContent?.slice(0, 120) ?? 'missing'
     )
 
+    // HTTP 外部 MCP：真实 Streamable HTTP + 加密请求头
+    byText('.w1-caphead .w1-capmini.pri', '自定义 Server')?.click()
+    await waitFor(() => !!one('.w1-capform'), 2000)
+    setValue(one('input[aria-label="MCP 名称"]'), 'HTTP MCP')
+    setValue(one('select[aria-label="MCP 传输方式"]'), 'http')
+    await sleep(150)
+    setValue(one('input[aria-label="MCP URL"]'), 'http://127.0.0.1:23335/mcp')
+    setValue(one('textarea[aria-label="MCP 请求头"]'), 'X-Smoke-Key=smoke-secret')
+    byText('.w1-capform .w1-capmini.pri', '添加 Server')?.click()
+    const httpAdded = await waitFor(() => Boolean(byText('.w1-caprow', 'HTTP MCP')), 4000)
+    byText('.w1-caprow', 'HTTP MCP')?.querySelector('.w1-setbtn')?.click()
+    await waitFor(
+      () =>
+        (byText('.w1-caprow', 'HTTP MCP')?.querySelector('.w1-setbtn')?.textContent ?? '') ===
+        '确认信任并启用',
+      2000
+    )
+    byText('.w1-caprow', 'HTTP MCP')?.querySelector('.w1-setbtn')?.click()
+    await waitFor(
+      () =>
+        (byText('.w1-caprow', 'HTTP MCP')?.querySelector('.w1-setbtn')?.textContent ?? '') ===
+        '已启用',
+      2000
+    )
+    const httpTestButton = [
+      ...(byText('.w1-caprow', 'HTTP MCP')?.querySelectorAll('.w1-capmini') ?? [])
+    ].find((button) => button.textContent === '测试')
+    httpTestButton?.click()
+    const httpTested = await waitFor(() => {
+      const text = byText('.w1-caprow', 'HTTP MCP')?.textContent ?? ''
+      return text.includes('已连接') && text.includes('http_echo') && text.includes('http_write')
+    }, 5000)
+    const httpState = await window.ws.capability.mcp.list()
+    const httpServer = httpState.find((server) => server.name === 'HTTP MCP')
+    check(
+      'HTTP 外部 MCP 可测试连接并列出工具',
+      httpAdded &&
+        httpTested &&
+        httpServer?.transport === 'http' &&
+        httpServer?.tools.some((tool) => tool.name === 'http_write'),
+      byText('.w1-caprow', 'HTTP MCP')?.textContent?.slice(-120) ?? 'missing'
+    )
+
     await waitFor(() => {
       const buttons = [...(byText('.w1-caprow', 'Stub MCP')?.querySelectorAll('.w1-capmini') ?? [])]
       return buttons.length > 0 && buttons.every((button) => !button.disabled)
@@ -2018,8 +2159,13 @@ async function run() {
     const remainingMcp = await window.ws.capability.mcp.list()
     check(
       '自定义 MCP 可移除且不残留',
-      stubRemoved && remainingMcp.length === 1 && remainingMcp[0].catalogId === 'memory',
-      JSON.stringify(remainingMcp.map((server) => server.name))
+      stubRemoved &&
+        remainingMcp.length === 2 &&
+        remainingMcp.some((server) => server.catalogId === 'memory') &&
+        remainingMcp.some(
+          (server) => server.name === 'HTTP MCP' && server.transport === 'http'
+        ),
+      JSON.stringify(remainingMcp.map((server) => [server.name, server.transport]))
     )
 
     byText('.w1-capnav button', '内置工具')?.click()
@@ -2054,7 +2200,9 @@ async function run() {
       capabilityReply &&
         capabilityText.includes('claude-plugins') &&
         capabilityText.includes('memory') &&
-        capabilityText.includes('workstationforone') &&
+        capabilityText.includes('workstationforone=http') &&
+        capabilityText.includes('http-mcp=http') &&
+        capabilityText.includes('审批 mcp__workstationforone__approval_request') &&
         capabilityText.includes('严格 true'),
       capabilityText.slice(-180)
     )
@@ -2893,6 +3041,13 @@ async function run() {
   }
 
   results.checks.push(...(await runCaptureChecks(win)))
+  results.checks.push({
+    name: 'HTTP 外部 MCP 请求头解密后透传',
+    ok: mcpHttpRequests.some(
+      (item) => item.method === 'tools/list' && item.session === 'smoke-http-session'
+    ),
+    detail: JSON.stringify(mcpHttpRequests.slice(0, 8))
+  })
 
   // 主进程侧的证据：这一轮 UI 操作必须真的落进 SQLite。
   const dbFile = join(dataDir, 'db', 'workstation.db')
@@ -2923,6 +3078,10 @@ async function run() {
       agentRuns: count('SELECT COUNT(*) AS n FROM agent_runs'),
       plugins: count('SELECT COUNT(*) AS n FROM agent_plugins'),
       mcpServers: count('SELECT COUNT(*) AS n FROM mcp_servers'),
+      mcpHttp: count("SELECT COUNT(*) AS n FROM mcp_servers WHERE transport = 'http'"),
+      mcpHttpTools: count(
+        "SELECT COUNT(*) AS n FROM mcp_server_tools WHERE server_id IN (SELECT id FROM mcp_servers WHERE transport = 'http')"
+      ),
       mcpAudit: count("SELECT COUNT(*) AS n FROM audit_log WHERE domain = 'mcp'"),
       mcpWrites: count(
         "SELECT COUNT(*) AS n FROM audit_log WHERE domain = 'mcp' AND action = 'write'"
@@ -3014,8 +3173,16 @@ async function run() {
   })
   results.checks.push({
     name: '能力中心插件与 MCP 已落库',
-    ok: Boolean(dbStats && dbStats.plugins === 1 && dbStats.mcpServers === 1),
-    detail: dbStats ? `${dbStats.plugins} 插件 / ${dbStats.mcpServers} MCP` : '无数据'
+    ok: Boolean(
+      dbStats &&
+        dbStats.plugins === 1 &&
+        dbStats.mcpServers === 2 &&
+        dbStats.mcpHttp === 1 &&
+        dbStats.mcpHttpTools === 2
+    ),
+    detail: dbStats
+      ? `${dbStats.plugins} 插件 / ${dbStats.mcpServers} MCP / HTTP 工具 ${dbStats.mcpHttpTools}`
+      : '无数据'
   })
   let codexConfig = ''
   try {
@@ -3223,6 +3390,11 @@ async function runCaptureChecks(mainWin) {
 function cleanup() {
   try {
     providerProbe.close()
+  } catch {
+    // 探针已关闭
+  }
+  try {
+    mcpHttpProbe.close()
   } catch {
     // 探针已关闭
   }

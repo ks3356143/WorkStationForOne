@@ -399,11 +399,18 @@ async function runFlow(prompt) {
     }
     const mcpIndex = argv.indexOf('--mcp-config')
     const mcpPath = mcpIndex >= 0 ? argv[mcpIndex + 1] : ''
+    const promptToolIndex = argv.indexOf('--permission-prompt-tool')
+    const promptTool = promptToolIndex >= 0 ? argv[promptToolIndex + 1] : ''
     let servers = []
+    let serverTypes = []
     if (mcpPath) {
       try {
         const config = JSON.parse(readFileSync(mcpPath, 'utf8'))
-        servers = Object.keys(config?.mcpServers ?? {})
+        const entries = Object.entries(config?.mcpServers ?? {})
+        servers = entries.map(([name]) => name)
+        serverTypes = entries.map(
+          ([name, value]) => `${name}=${value?.type ?? (value?.url ? 'http' : 'stdio')}`
+        )
       } catch {
         servers = ['读取失败']
       }
@@ -415,7 +422,7 @@ async function runFlow(prompt) {
         content: [
           {
             type: 'text',
-            text: `能力中心：插件 ${pluginDirs.join('|') || '无'}；MCP ${servers.join('|') || '无'}；严格 ${argv.includes('--strict-mcp-config')}`
+            text: `能力中心：插件 ${pluginDirs.join('|') || '无'}；MCP ${servers.join('|') || '无'}；类型 ${serverTypes.join('|') || '无'}；审批 ${promptTool || '无'}；严格 ${argv.includes('--strict-mcp-config')}`
           }
         ]
       }
