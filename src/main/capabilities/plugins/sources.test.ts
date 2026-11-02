@@ -55,8 +55,14 @@ describe('parseMarketplace', () => {
     )
     expect(parsed.name).toBe('community')
     expect(parsed.plugins).toEqual([
-      { name: 'demo', source: './plugins/demo', description: 'Demo' },
-      { name: 'plain', source: '', description: '' }
+      {
+        name: 'demo',
+        source: './plugins/demo',
+        sourceKind: 'local',
+        subdir: '',
+        description: 'Demo'
+      },
+      { name: 'plain', source: '', sourceKind: 'local', subdir: '', description: '' }
     ])
   })
 
@@ -68,6 +74,48 @@ describe('parseMarketplace', () => {
         JSON.stringify({ name: 'x', plugins: [{ name: 'bad', source: '../../../etc' }] })
       )
     ).toThrow(/仓库外/)
+  })
+
+  it('解析 url 与 git-subdir 形态的外部来源', () => {
+    const parsed = parseMarketplace(
+      JSON.stringify({
+        name: 'x',
+        plugins: [
+          {
+            name: 'remote',
+            source: { source: 'url', url: 'https://github.com/a/b.git', sha: 'abc' }
+          },
+          {
+            name: 'sub',
+            source: {
+              source: 'git-subdir',
+              url: 'https://github.com/c/d.git',
+              path: 'plugins/sub',
+              ref: 'v1'
+            }
+          }
+        ]
+      })
+    )
+    expect(parsed.plugins[0]).toMatchObject({
+      name: 'remote',
+      source: 'https://github.com/a/b.git',
+      sourceKind: 'url',
+      subdir: ''
+    })
+    expect(parsed.plugins[1]).toMatchObject({
+      name: 'sub',
+      source: 'https://github.com/c/d.git',
+      sourceKind: 'git-subdir',
+      subdir: 'plugins/sub'
+    })
+  })
+
+  it('本地相对路径仍带 local 标记', () => {
+    const parsed = parseMarketplace(
+      JSON.stringify({ name: 'x', plugins: [{ name: 'a', source: './plugins/a' }] })
+    )
+    expect(parsed.plugins[0]).toMatchObject({ sourceKind: 'local', source: './plugins/a' })
   })
 
   it('没有 plugins 数组时返回空列表', () => {

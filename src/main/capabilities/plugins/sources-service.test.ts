@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { CapabilityRepository } from '../../db/capabilities'
 import { migrate, openDatabase } from '../../db/database'
-import { PluginSourceService } from './sources-service'
+import { githubSlug, PluginSourceService } from './sources-service'
 
 const dirs: string[] = []
 
@@ -50,6 +50,22 @@ function setup() {
   })
   return { base, db, repository, service }
 }
+
+describe('githubSlug', () => {
+  it('把 GitHub 地址转成 owner/repo', () => {
+    expect(githubSlug('https://github.com/anthropics/claude-plugins-official')).toBe(
+      'anthropics/claude-plugins-official'
+    )
+    expect(githubSlug('https://github.com/a/b.git')).toBe('a/b')
+    expect(githubSlug('git@github.com:a/b.git')).toBe('a/b')
+  })
+
+  it('非 GitHub 地址返回 null', () => {
+    expect(githubSlug('https://gitlab.com/a/b')).toBeNull()
+    expect(githubSlug('D:plugins')).toBeNull()
+    expect(githubSlug(undefined)).toBeNull()
+  })
+})
 
 describe('PluginSourceService', () => {
   it('添加本地目录源后入库并读到插件清单', async () => {

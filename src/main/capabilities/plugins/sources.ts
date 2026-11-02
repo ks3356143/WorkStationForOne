@@ -51,9 +51,22 @@ export function sourceSlug(name: string): string {
   return slug === 'wsfo-official' ? `${slug}-local` : slug
 }
 
+/**
+ * 清单里的 source 有三种真实形态：
+ * - 相对路径字符串（`./plugins/x`）
+ * - `{ source: 'url', url }`：插件在另一个 Git 仓库
+ * - `{ source: 'git-subdir', url, path, ref }`：另一个仓库的子目录
+ * 后两种无法用本地路径引用，标记为 external 供界面说明。
+ */
+export type MarketplaceSourceKind = 'local' | 'url' | 'git-subdir'
+
 export interface MarketplacePlugin {
   name: string
+  /** 相对路径（local）或外部 Git 地址 */
   source: string
+  sourceKind: MarketplaceSourceKind
+  /** git-subdir 的子目录 */
+  subdir: string
   description: string
 }
 
@@ -69,6 +82,34 @@ function asRecord(value: unknown): Record<string, unknown> {
 }
 
 /** source 不得跑出仓库：`..` 会让安装指向源目录之外。 */
+function parseSource(raw: unknown): {
+  source: string
+  sourceKind: MarketplaceSourceKind
+  subdir: string
+} {
+  if (typeof raw === 'string') {
+    return { source: raw.trim(), sourceKind: 'local', subdir: '' }
+  }
+  const record = asRecord(raw)
+  const kind = typeof record.source === 'string' ? record.source : ''
+  if (kind === 'git-subdir') {
+    return {
+      source: typeof record.url === 'string' ? record.url.trim() : '',
+      sourceKind: 'git-subdir',
+      subdir: typeof record.path === 'string' ? record.path.trim() : ''
+    }
+  }
+  if (kind === 'url') {
+    return {
+      source: typeof record.url === 'string' ? record.url.trim() : '',
+      sourceKind: 'url',
+      subdir: ''
+    }
+  }
+  // 未知形态按本地处理，交由上层校验
+  return { source: '', sourceKind: 'local', subdir: '' }
+}
+
 function assertInsideRoot(source: string): void {
   if (!source) return
   const rel = relative('/', source.replace(/\\/g, '/'))
@@ -98,11 +139,14 @@ export function parseMarketplace(text: string): MarketplaceManifest {
     const entry = asRecord(item)
     const pluginName = typeof entry.name === 'string' ? entry.name.trim() : ''
     if (!pluginName) continue
-    const source = typeof entry.source === 'string' ? entry.source.trim() : ''
-    assertInsideRoot(source)
+    const parsed = parseSource(entry.source)
+    // 只有本地相对路径需要做越界检查；外部地址由安装阶段处理
+    if (parsed.sourceKind === 'local') assertInsideRoot(parsed.source)
     plugins.push({
       name: pluginName,
-      source,
+      source: parsed.source,
+      sourceKind: parsed.sourceKind,
+      subdir: parsed.subdir,
       description: typeof entry.description === 'string' ? entry.description.slice(0, 240) : ''
     })
   }

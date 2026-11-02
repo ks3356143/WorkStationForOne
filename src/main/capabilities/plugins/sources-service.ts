@@ -18,6 +18,16 @@ import {
 
 const CLI_TIMEOUT = 90_000
 
+/** 把 GitHub HTTPS / SSH 地址转成 `owner/repo`；非 GitHub 返回 null。 */
+export function githubSlug(url?: string): string | null {
+  if (!url) return null
+  const https = /^https?:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?\/?$/i.exec(url)
+  if (https) return `${https[1]}/${https[2]}`
+  const ssh = /^git@github\.com:([^/]+)\/([^/]+?)(?:\.git)?$/i.exec(url)
+  if (ssh) return `${ssh[1]}/${ssh[2]}`
+  return null
+}
+
 export interface PluginSourceServiceOptions {
   repository: CapabilityRepository
   /** 应用数据根目录；源目录落在 `<root>/agent/plugin-sources` */
@@ -91,7 +101,8 @@ export class PluginSourceService {
       }
       const manifest = readMarketplace(record.root)
       const saved = this.options.repository.createSource(record)
-      await this.register(manifest.name, record.root).catch(() => {
+      // 官方市场名被 Claude 保留，只能用 GitHub 源注册；Git 源一律优先传 owner/repo
+      await this.register(manifest.name, record.root, url).catch(() => {
         // 注册失败不影响源入库，刷新时还能再试
       })
       this.options.repository.markSourceSynced(saved.id, '', manifest.plugins.length)
@@ -137,12 +148,18 @@ export class PluginSourceService {
     return resolvePluginSource(source.root, plugin.source)
   }
 
-  /** 向 Claude 与 Codex 各自注册同一个本地市场目录。 */
-  async register(_marketName: string, root: string): Promise<void> {
+  /**
+   * 向两个 Agent 注册市场。
+   * Claude 对 `claude-plugins-official` 这类名字有保留限制，只接受 anthropics 组织的
+   * GitHub 源；因此 GitHub 源优先传 `owner/repo`，本地目录源才传绝对路径。
+   */
+  async register(marketName: string, root: string, url?: string): Promise<void> {
+    const source = githubSlug(url) ?? root
     await Promise.all([
-      this.runCli('claude', ['plugin', 'marketplace', 'add', root]).catch(() => undefined),
+      this.runCli('claude', ['plugin', 'marketplace', 'add', source]).catch(() => undefined),
       this.runCli('codex', ['plugin', 'marketplace', 'add', root]).catch(() => undefined)
     ])
+    void marketName
   }
 
   async unregister(marketName: string): Promise<void> {
