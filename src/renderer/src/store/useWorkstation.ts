@@ -33,6 +33,7 @@ import {
   readStoredSkin,
   readStoredTheme
 } from '../lib/theme'
+import { friendlyMessage } from '../lib/errors'
 import type {
   AgentId,
   ChatMessage,
@@ -719,7 +720,18 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
           ...state.threads,
           [sessionId]: (state.threads[sessionId] ?? []).map((entry) => {
             if (entry.id !== messageId) return entry
-            if (error) return { ...entry, text: entry.text || error, error: true }
+            // 原始报错对用户没有指导意义，先翻译成「发生了什么 + 怎么办」。
+            // 已有正文不能被吞掉：半截回复 + 失败原因才说得清发生了什么。
+            if (error) {
+              const friendly = friendlyMessage(error)
+              return {
+                ...entry,
+                text: entry.text ? `${entry.text}\n\n${friendly}` : friendly,
+                error: true
+              }
+            }
+            // 已经标过错误的条目不要被随后的 result 事件抹平
+            if (entry.error) return entry
             // 空回复也要留个痕迹，否则界面像「什么都没发生」
             return entry.text ? entry : { ...entry, text: '（本轮没有输出）' }
           })

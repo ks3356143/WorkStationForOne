@@ -4,16 +4,13 @@ import { m } from 'motion/react'
 import type { WorkspaceEntry } from '../../../../shared/ipc'
 import { DURATION, EASE_OUT } from '../../lib/motion'
 import { FolderIcon } from '../Glyphs'
+import { friendlyMessage } from '../../lib/errors'
 
 interface WorkspaceSheetProps {
   sessionId: string
   workspace: string
   artifacts: { path: string; name: string }[]
   onClose: () => void
-}
-
-function errorText(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback
 }
 
 export function WorkspaceSheet({ sessionId, workspace, artifacts, onClose }: WorkspaceSheetProps) {
@@ -50,7 +47,7 @@ export function WorkspaceSheet({ sessionId, workspace, artifacts, onClose }: Wor
         if (alive) setEntries(list)
       })
       .catch((error: unknown) => {
-        if (alive) setTreeError(errorText(error, '工作区读取失败'))
+        if (alive) setTreeError(friendlyMessage(error, '工作区读取失败'))
       })
     return () => {
       alive = false
@@ -66,14 +63,14 @@ export function WorkspaceSheet({ sessionId, workspace, artifacts, onClose }: Wor
     void api
       .readWorkspaceFile(sessionId, path)
       .then((file) => setPreview(file.text))
-      .catch((error: unknown) => setPreviewError(errorText(error, '文件读取失败')))
+      .catch((error: unknown) => setPreviewError(friendlyMessage(error, '文件读取失败')))
       .finally(() => setPreviewBusy(false))
   }
 
   const openFolder = () => {
     if (!api) return
     void api.openWorkspace(sessionId).catch((error: unknown) => {
-      setTreeError(errorText(error, '打开工作区失败'))
+      setTreeError(friendlyMessage(error, '打开工作区失败'))
     })
   }
 

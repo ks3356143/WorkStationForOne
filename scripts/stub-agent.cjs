@@ -24,6 +24,19 @@ function promptFromMessage(message) {
 }
 
 async function runFlow(prompt) {
+  // 冒烟用：验证失败时界面展示的是可读文案而不是原始报错
+  if (prompt.includes('触发登录失败')) {
+    emit({ type: 'system', subtype: 'init', model: 'stub-model', session_id: 'stub-fail' })
+    await wait(60)
+    emit({
+      type: 'result',
+      subtype: 'error_during_execution',
+      is_error: true,
+      num_turns: 1,
+      result: 'Not logged in · Please run /login'
+    })
+    return
+  }
   if (prompt.includes('MCP')) {
     emit({ type: 'system', subtype: 'init', model: 'stub-model', session_id: 'stub-mcp' })
     await wait(80)

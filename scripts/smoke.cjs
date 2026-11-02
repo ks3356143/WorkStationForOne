@@ -3203,6 +3203,32 @@ async function run() {
     await waitFor(() => !one('.w1-modal'), 2000)
     check('弹窗可关闭', !one('.w1-modal'))
 
+    // 会话失败时展示可读文案与办法，而不是把原始报错甩给用户
+    await navTo('Agent')
+    byText('.w1-sess', '测一下多会话回复')?.click()
+    await sleep(300)
+    const loginFailInput = one('#composer-input')
+    if (loginFailInput) {
+      setValue(loginFailInput, '触发登录失败')
+      await sleep(80)
+      loginFailInput.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+      )
+      const failShown = await waitFor(
+        () => (one('.w1-thread')?.textContent ?? '').includes('claude login'),
+        6000
+      )
+      const failText = one('.w1-thread')?.textContent ?? ''
+      check('会话失败时给出可读原因与办法', failShown, failText.slice(-120))
+      check(
+        '不把原始字段直接丢给用户',
+        !failText.includes('error_during_execution'),
+        failText.slice(-80)
+      )
+    } else {
+      check('会话失败时给出可读原因与办法', false, '找不到输入框')
+    }
+
     return { checks, title: document.title, size: [innerWidth, innerHeight], activeView: activeNav() }
   })()`)
   } catch (error) {

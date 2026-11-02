@@ -22,6 +22,7 @@ import { StatusBar } from './components/StatusBar'
 import { TasksView } from './components/tasks/TasksView'
 import { TodayDashboard } from './components/TodayDashboard'
 import { TopBar } from './components/TopBar'
+import { ViewErrorBoundary } from './components/ViewErrorBoundary'
 import { WorkspaceNav } from './components/WorkspaceNav'
 import { useWorkstation } from './store/useWorkstation'
 import { DURATION, EASE_OUT } from './lib/motion'
@@ -32,6 +33,15 @@ import { hydrateHabits } from './lib/habits-persistence'
 import { hydrateLearning } from './lib/learning-persistence'
 import { isTypingTarget } from './lib/shortcuts'
 import { useAgentRun } from './lib/useAgentRun'
+
+/** 视图中文名，错误边界用它说清「哪一块坏了」 */
+const VIEW_SCOPE: Record<string, string> = {
+  today: '今日',
+  tasks: '任务',
+  agent: 'Agent',
+  notes: '笔记',
+  learning: '学习'
+}
 
 export default function App() {
   const motionOn = useWorkstation((state) => state.motionOn)
@@ -228,16 +238,22 @@ export default function App() {
             />
             <main className="w1-stage">
               <div key={activeView} className="w1-view">
-                {activeView === 'today' ? <TodayDashboard /> : null}
-                {activeView === 'tasks' ? <TasksView notify={notify} /> : null}
-                {activeView === 'agent' ? (
-                  <section className="w1-workspace w1-agent" aria-label="Agent 工作区">
-                    <SessionRail />
-                    <AgentDock />
-                  </section>
-                ) : null}
-                {activeView === 'notes' ? <NotesView /> : null}
-                {activeView === 'learning' ? <LearningWorkspace /> : null}
+                <ViewErrorBoundary
+                  scope={VIEW_SCOPE[activeView] ?? activeView}
+                  resetKey={activeView}
+                  notify={notify}
+                >
+                  {activeView === 'today' ? <TodayDashboard /> : null}
+                  {activeView === 'tasks' ? <TasksView notify={notify} /> : null}
+                  {activeView === 'agent' ? (
+                    <section className="w1-workspace w1-agent" aria-label="Agent 工作区">
+                      <SessionRail />
+                      <AgentDock />
+                    </section>
+                  ) : null}
+                  {activeView === 'notes' ? <NotesView /> : null}
+                  {activeView === 'learning' ? <LearningWorkspace /> : null}
+                </ViewErrorBoundary>
               </div>
             </main>
           </div>

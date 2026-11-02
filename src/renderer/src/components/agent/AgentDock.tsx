@@ -13,6 +13,7 @@ import { MessageRow } from './MessageRow'
 import { PermissionCard } from './PermissionCard'
 import { ToolApprovalCard } from './ToolApprovalCard'
 import { WorkspaceSheet } from './WorkspaceSheet'
+import { friendlyMessage } from '../../lib/errors'
 
 const EMPTY_TASKS: Task[] = []
 
@@ -210,7 +211,7 @@ export function AgentDock() {
         if (path) setAgentWorkspace(activeSession.id, path)
       })
       .catch((error: unknown) => {
-        setWorkspaceError(error instanceof Error ? error.message : '选择工作区失败')
+        setWorkspaceError(friendlyMessage(error, '选择工作区失败'))
       })
       .finally(() => setWorkspaceBusy(false))
   }

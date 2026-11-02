@@ -2498,3 +2498,68 @@ button.w1-nlchip:hover {
   color: var(--mu);
   font-style: normal;
 }
+
+/* 视图级错误卡：占满工作区，说明哪一块坏了并给出恢复动作 */
+.w1-viewerror {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+  max-width: 560px;
+  margin: 48px auto;
+  padding: 24px 26px;
+  border: 1px solid rgb(var(--wn-rgb) / 0.4);
+  background: rgb(var(--wn-rgb) / 0.06);
+}
+
+.w1-viewerroricon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgb(var(--wn-rgb) / 0.5);
+  color: var(--wn-fg);
+  font: 700 16px / 1 var(--mono);
+}
+
+.w1-viewerror b {
+  font: 600 15px / 1.4 var(--sans);
+}
+
+.w1-viewerror p {
+  margin: 0;
+  color: var(--su);
+  font: 12.5px / 1.7 var(--sans);
+}
+
+.w1-viewerrorscope {
+  opacity: 0.8;
+}
+
+.w1-viewerroracts {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.w1-viewerrordetail {
+  width: 100%;
+  margin-top: 4px;
+  font: 11.5px / 1.6 var(--mono);
+  color: var(--su);
+}
+
+.w1-viewerrordetail summary {
+  cursor: pointer;
+  opacity: 0.75;
+}
+
+.w1-viewerrordetail pre {
+  margin: 6px 0 0;
+  padding: 10px;
+  max-height: 180px;
+  overflow: auto;
+  border: 1px solid rgb(var(--bd-rgb) / 0.3);
+  white-space: pre-wrap;
+  word-break: break-all;
+}

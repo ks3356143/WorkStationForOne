@@ -16,6 +16,7 @@ import type {
   SkillMarketSnapshot,
   SkillRecord
 } from '../../../../shared/ipc'
+import { friendlyMessage } from '../../lib/errors'
 import {
   filterMarket,
   formatCount,
@@ -64,10 +65,6 @@ const COMPONENT_LABELS: Record<string, string> = {
   agents: '子代理',
   hooks: 'hooks',
   mcp: 'MCP'
-}
-
-function errorText(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback
 }
 
 interface McpFormState {
@@ -187,7 +184,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         setTools(nextTools)
       })
       .catch((reason: unknown) => {
-        if (alive) setError(errorText(reason, '能力中心读取失败'))
+        if (alive) setError(friendlyMessage(reason, '能力中心读取失败'))
       })
     // 环境自检会 spawn 六次 --version，不能拖慢能力列表的首屏；单独加载
     void api
@@ -242,7 +239,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         setMarketLimit(48)
         if (snapshot.error) notify(`市场刷新失败：${snapshot.error}`)
       })
-      .catch((reason: unknown) => setError(errorText(reason, 'Claude 市场读取失败')))
+      .catch((reason: unknown) => setError(friendlyMessage(reason, 'Claude 市场读取失败')))
       .finally(() => setMarketBusy(false))
   }
 
@@ -252,7 +249,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
     void api
       .environment(force)
       .then(setEnvironment)
-      .catch((reason: unknown) => notify(errorText(reason, '环境检查失败')))
+      .catch((reason: unknown) => notify(friendlyMessage(reason, '环境检查失败')))
       .finally(() => setEnvBusy(false))
   }
 
@@ -275,7 +272,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
           `${toolName}：${approval === 'allow' ? '自动批准' : approval === 'deny' ? '禁止' : '每次询问'}`
         )
       })
-      .catch((reason: unknown) => notify(errorText(reason, '工具权限更新失败')))
+      .catch((reason: unknown) => notify(friendlyMessage(reason, '工具权限更新失败')))
       .finally(() => setMcpBusy(null))
   }
 
@@ -299,7 +296,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
       .then((text) => setJsonText(text))
       .catch((reason: unknown) => {
         setJsonMode(null)
-        notify(errorText(reason, '导出 MCP 配置失败'))
+        notify(friendlyMessage(reason, '导出 MCP 配置失败'))
       })
       .finally(() => setJsonBusy(false))
   }
@@ -325,7 +322,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         notify(parts.join(' · '))
         if (result.added.length > 0) setJsonMode(null)
       })
-      .catch((reason: unknown) => notify(errorText(reason, '导入 MCP 配置失败')))
+      .catch((reason: unknown) => notify(friendlyMessage(reason, '导入 MCP 配置失败')))
       .finally(() => setJsonBusy(false))
   }
 
@@ -351,7 +348,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         setSkills((list) => list.map((item) => (item.id === updated.id ? updated : item)))
         notify(enable ? `已启用 ${updated.name}` : `已停用 ${updated.name}`)
       })
-      .catch((reason: unknown) => notify(errorText(reason, '插件状态更新失败')))
+      .catch((reason: unknown) => notify(friendlyMessage(reason, '插件状态更新失败')))
       .finally(() => setSkillsBusy(null))
   }
 
@@ -374,7 +371,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         )
         notify(`已安装 ${installed.name} · 在已安装里启用后才会加载`)
       })
-      .catch((reason: unknown) => notify(errorText(reason, '插件安装失败')))
+      .catch((reason: unknown) => notify(friendlyMessage(reason, '插件安装失败')))
       .finally(() => setSkillsBusy(null))
   }
 
@@ -389,7 +386,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         setSkillTab('installed')
         notify(`已导入 ${plugin.name} · 启用后加载`)
       })
-      .catch((reason: unknown) => notify(errorText(reason, '本地导入失败')))
+      .catch((reason: unknown) => notify(friendlyMessage(reason, '本地导入失败')))
       .finally(() => setSkillsBusy(null))
   }
 
@@ -408,7 +405,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
       .then(setSkillInspection)
       .catch((reason: unknown) => {
         setSkillDetailId('')
-        notify(errorText(reason, '读取技能文件失败'))
+        notify(friendlyMessage(reason, '读取技能文件失败'))
       })
       .finally(() => setDetailBusy(false))
   }
@@ -417,7 +414,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
     if (!api) return
     void api.skills
       .openFolder(skill.id)
-      .catch((reason: unknown) => notify(errorText(reason, '打开目录失败')))
+      .catch((reason: unknown) => notify(friendlyMessage(reason, '打开目录失败')))
   }
 
   const updateSkill = (skill: SkillRecord) => {
@@ -429,7 +426,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         setSkills((list) => list.map((item) => (item.id === updated.id ? updated : item)))
         notify(`${updated.name} 已更新到 ${updated.version || '最新版本'}`)
       })
-      .catch((reason: unknown) => notify(errorText(reason, '插件更新失败')))
+      .catch((reason: unknown) => notify(friendlyMessage(reason, '插件更新失败')))
       .finally(() => setSkillsBusy(null))
   }
 
@@ -461,7 +458,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         )
         notify(`已移除 ${skill.name}`)
       })
-      .catch((reason: unknown) => notify(errorText(reason, '插件移除失败')))
+      .catch((reason: unknown) => notify(friendlyMessage(reason, '插件移除失败')))
       .finally(() => setSkillsBusy(null))
   }
 
@@ -482,7 +479,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         notify(`${plugin.name} 已${plugin.enabled ? '停用' : '启用'} · 下一次会话生效`)
         loadInstalledPlugins()
       })
-      .catch((reason: unknown) => notify(errorText(reason, '插件启停失败')))
+      .catch((reason: unknown) => notify(friendlyMessage(reason, '插件启停失败')))
       .finally(() => setPluginOpsBusy(null))
   }
 
@@ -500,7 +497,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         notify(`已卸载 ${plugin.name}`)
         loadInstalledPlugins()
       })
-      .catch((reason: unknown) => notify(errorText(reason, '卸载失败')))
+      .catch((reason: unknown) => notify(friendlyMessage(reason, '卸载失败')))
       .finally(() => setPluginOpsBusy(null))
   }
 
@@ -520,7 +517,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         setSourceForm(null)
         notify(`已添加源 ${saved.name} · ${saved.pluginCount} 个插件`)
       })
-      .catch((reason: unknown) => notify(errorText(reason, '添加源失败')))
+      .catch((reason: unknown) => notify(friendlyMessage(reason, '添加源失败')))
       .finally(() => setSourceBusy(null))
   }
 
@@ -533,7 +530,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         setSources((list) => list.map((item) => (item.id === saved.id ? saved : item)))
         notify(`${saved.name} 已刷新 · ${saved.pluginCount} 个插件`)
       })
-      .catch((reason: unknown) => notify(errorText(reason, '刷新源失败')))
+      .catch((reason: unknown) => notify(friendlyMessage(reason, '刷新源失败')))
       .finally(() => setSourceBusy(null))
   }
 
@@ -546,7 +543,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         setSources((list) => list.filter((item) => item.id !== source.id))
         notify(`已移除源 ${source.name}，已装插件保留`)
       })
-      .catch((reason: unknown) => notify(errorText(reason, '移除源失败')))
+      .catch((reason: unknown) => notify(friendlyMessage(reason, '移除源失败')))
       .finally(() => setSourceBusy(null))
   }
 
@@ -559,7 +556,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         setScan(result)
         setImportSel({ markets: [], plugins: [] })
       })
-      .catch((reason: unknown) => notify(errorText(reason, '本机扫描失败')))
+      .catch((reason: unknown) => notify(friendlyMessage(reason, '本机扫描失败')))
       .finally(() => setScanBusy(false))
   }
 
@@ -604,7 +601,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         setSources(nextSources)
         setInstalledCodex(nextInstalled.filter((item) => item.agent === 'codex'))
       })
-      .catch((reason: unknown) => notify(errorText(reason, '导入失败')))
+      .catch((reason: unknown) => notify(friendlyMessage(reason, '导入失败')))
       .finally(() => setScanBusy(false))
   }
 
@@ -617,7 +614,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         setTools(next)
         notify(`${tool.name} 已${tool.enabled ? '关闭' : '启用'} · 下一次会话生效`)
       })
-      .catch((reason: unknown) => notify(errorText(reason, '内置工具开关失败')))
+      .catch((reason: unknown) => notify(friendlyMessage(reason, '内置工具开关失败')))
       .finally(() => setBuiltinBusy(null))
   }
 
@@ -636,7 +633,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         setMcp((list) => list.map((item) => (item.id === updated.id ? updated : item)))
         notify(enable ? `已启用 ${updated.name}` : `已停用 ${updated.name}`)
       })
-      .catch((reason: unknown) => notify(errorText(reason, 'MCP 状态更新失败')))
+      .catch((reason: unknown) => notify(friendlyMessage(reason, 'MCP 状态更新失败')))
       .finally(() => setMcpBusy(null))
   }
 
@@ -650,7 +647,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         if (updated.lastError) notify(`${updated.name} 测试失败：${updated.lastError}`)
         else notify(`${updated.name} 连接正常 · ${updated.toolNames.length} 个工具`)
       })
-      .catch((reason: unknown) => notify(errorText(reason, 'MCP 测试失败')))
+      .catch((reason: unknown) => notify(friendlyMessage(reason, 'MCP 测试失败')))
       .finally(() => setMcpBusy(null))
   }
 
@@ -663,7 +660,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         setMcp((list) => [created, ...list])
         notify(`已添加 ${created.name} · 启用前需确认信任`)
       })
-      .catch((reason: unknown) => notify(errorText(reason, 'MCP 添加失败')))
+      .catch((reason: unknown) => notify(friendlyMessage(reason, 'MCP 添加失败')))
       .finally(() => setMcpBusy(null))
   }
 
@@ -695,7 +692,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         notify(`${saved.name} 已保存 · 启用前需确认信任`)
         setUpdates((list) => list.filter((item) => item.id !== saved.id))
       })
-      .catch((reason: unknown) => notify(errorText(reason, 'MCP 保存失败')))
+      .catch((reason: unknown) => notify(friendlyMessage(reason, 'MCP 保存失败')))
       .finally(() => setMcpBusy(null))
   }
 
@@ -714,7 +711,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         setUpdates((list) => list.filter((item) => item.id !== server.id))
         notify(`已移除 ${server.name}`)
       })
-      .catch((reason: unknown) => notify(errorText(reason, 'MCP 移除失败')))
+      .catch((reason: unknown) => notify(friendlyMessage(reason, 'MCP 移除失败')))
       .finally(() => setMcpBusy(null))
   }
 
@@ -728,7 +725,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         const count = list.filter((item) => item.hasUpdate).length
         notify(count > 0 ? `${count} 个 MCP 有更新` : '内置 MCP 都是最新版本')
       })
-      .catch((reason: unknown) => notify(errorText(reason, '检查更新失败')))
+      .catch((reason: unknown) => notify(friendlyMessage(reason, '检查更新失败')))
       .finally(() => setUpdatesBusy(false))
   }
 
@@ -748,7 +745,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         )
         notify(`${updated.name} 已更新到 ${updated.version}`)
       })
-      .catch((reason: unknown) => notify(errorText(reason, 'MCP 更新失败')))
+      .catch((reason: unknown) => notify(friendlyMessage(reason, 'MCP 更新失败')))
       .finally(() => setMcpBusy(null))
   }
 
