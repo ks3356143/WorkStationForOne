@@ -758,6 +758,26 @@ export interface CapabilityApi {
   environment: (force?: boolean) => Promise<EnvironmentCheckRecord[]>
   skills: SkillApi
   mcp: ExternalMcpApi
+  pluginSources: () => Promise<PluginSourceRecord[]>
+  addPluginSource: (input: {
+    name: string
+    url: string
+    ref?: string
+  }) => Promise<PluginSourceRecord>
+  refreshPluginSource: (id: string) => Promise<PluginSourceRecord>
+  removePluginSource: (id: string) => Promise<void>
+  scanLocalPlugins: () => Promise<LocalScanRecord[]>
+  importLocalPlugins: (input: {
+    agent: PluginAgent
+    markets: string[]
+    plugins: string[]
+  }) => Promise<{
+    importedMarkets: string[]
+    importedPlugins: string[]
+    skipped: Array<{ id: string; reason: string }>
+  }>
+  checkUpdates: () => Promise<UpdateCandidateRecord[]>
+  onUpdateAvailable: (listener: (list: UpdateCandidateRecord[]) => void) => () => void
 }
 
 export type AuditLogDomain = 'task' | 'note' | 'learning' | 'habit' | 'mcp' | 'system'

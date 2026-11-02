@@ -3,6 +3,15 @@ import type { CapabilityCenter } from '../capabilities'
 import type { AuditLog } from '../db/audit'
 import type { ExternalMcpSaveInput, McpToolApproval } from '../../shared/ipc'
 import { EXTERNAL_MCP_TARGETS, IPC_CHANNELS } from '../../shared/ipc'
+import type { PluginSourceService } from '../capabilities/plugins/sources-service'
+import type { UpdateChecker } from '../capabilities/plugins/update-checker'
+import {
+  copyPluginSnapshot,
+  detectComponents,
+  importLocal,
+  scanForImport
+} from '../capabilities/plugins/local-import'
+import { scanClaudeLocal, scanCodexLocal } from '../capabilities/plugins/local-scan'
 
 const IPC = IPC_CHANNELS
 const MAX_ID = 240
@@ -230,6 +239,122 @@ export function registerCapabilityHandlers(center: CapabilityCenter, audit?: Aud
     record('mcp.update', `${updated.name} · ${updated.version}`)
     return updated
   })
+}
+
+/**
+ * 插件源、本机扫描与更新检查的 IPC。
+ * 与能力中心分开注册，避免 registerCapabilityHandlers 的签名继续膨胀。
+ */
+export function registerPluginHandlers(
+  center: CapabilityCenter,
+  sources: PluginSourceService,
+  checker: UpdateChecker,
+  audit?: AuditLog
+): void {
+  const record = (title: string, detail: string) => {
+    audit?.record({
+      at: Date.now(),
+      domain: 'system',
+      action: 'settings',
+      title,
+      source: 'ui',
+      detail
+    })
+  }
+
+  ipcMain.handle(IPC.capabilityPluginSources, () => sources.list())
+
+  ipcMain.handle(IPC.capabilityPluginSourceAdd, async (_event, value: unknown) => {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      throw new TypeError('插件源参数无效')
+    }
+    const input = value as Record<string, unknown>
+    const name = typeof input.name === 'string' ? input.name : ''
+    const url = typeof input.url === 'string' ? input.url : ''
+    const ref = typeof input.ref === 'string' ? input.ref : ''
+    if (!name || name.length > 60) throw new TypeError('源名称无效')
+    if (!url || url.length > 2000) throw new TypeError('源地址无效')
+    const saved = await sources.add({ name, url, ref })
+    record('plugin-source.add', `${saved.name} · ${saved.url}`)
+    return saved
+  })
+
+  ipcMain.handle(IPC.capabilityPluginSourceRefresh, async (_event, id: unknown) => {
+    const target = assertId(id, '源 id')
+    const result = await sources.refresh(target)
+    record('plugin-source.refresh', `${result.source.name} · ${result.plugins.length} plugins`)
+    return result.source
+  })
+
+  ipcMain.handle(IPC.capabilityPluginSourceRemove, async (_event, id: unknown) => {
+    const target = assertId(id, '源 id')
+    await sources.remove(target)
+    record('plugin-source.remove', target)
+  })
+
+  ipcMain.handle(IPC.capabilityPluginScanLocal, () => scanForImport())
+
+  ipcMain.handle(IPC.capabilityPluginImport, async (_event, value: unknown) => {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      throw new TypeError('导入参数无效')
+    }
+    const input = value as Record<string, unknown>
+    const agent = input.agent === 'codex' ? 'codex' : input.agent === 'claude' ? 'claude' : null
+    if (!agent) throw new TypeError('Agent 无效')
+    const markets = Array.isArray(input.markets)
+      ? input.markets.filter((item): item is string => typeof item === 'string')
+      : []
+    const plugins = Array.isArray(input.plugins)
+      ? input.plugins.filter((item): item is string => typeof item === 'string')
+      : []
+    const scan = agent === 'claude' ? scanClaudeLocal() : scanCodexLocal()
+    const outcome = await importLocal({ agent, markets, plugins }, scan, {
+      repository: center.repository,
+      agentDir: center.agentDir,
+      codexHome: center.codexHome,
+      registerMarket: (market, root) => sources.register(market, root),
+      installFromDirectory: (target, source, meta) => {
+        const dir = copyPluginSnapshot(
+          target,
+          source,
+          {
+            agentDir: center.agentDir,
+            codexHome: center.codexHome
+          },
+          {
+            id: meta.id,
+            name: meta.name,
+            market: meta.market,
+            version: meta.version,
+            enabled: false,
+            installPath: source
+          }
+        )
+        const detected = detectComponents(dir)
+        center.repository.upsertPlugin({
+          id: meta.id,
+          name: meta.name,
+          description: '',
+          version: meta.version,
+          marketplace: meta.market,
+          installPath: dir,
+          components: detected.components,
+          hasHooks: detected.hasHooks,
+          hasMcp: detected.hasMcp,
+          enabled: false,
+          trusted: false,
+          agent: target
+        })
+      }
+    })
+    record(
+      'plugin.import',
+      `${agent} · ${outcome.importedMarkets.length} markets / ${outcome.importedPlugins.length} plugins`
+    )
+    return outcome
+  })
+
+  ipcMain.handle(IPC.capabilityUpdatesCheck, () => checker.check())
 }
 
 export const capabilityHandlerIPC = {

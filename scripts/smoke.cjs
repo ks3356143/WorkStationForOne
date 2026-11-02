@@ -56,6 +56,45 @@ const claudeScanDir = join(sessionScanRoot, '.claude', 'projects', '-smoke-works
 const codexScanDir = join(sessionScanRoot, '.codex', 'sessions', '2026', '10', '30')
 mkdirSync(claudeScanDir, { recursive: true })
 mkdirSync(codexScanDir, { recursive: true })
+// 插件导入扫描也读这个临时 home：给两个 Agent 各放一份最小配置
+const scanClaudePlugins = join(sessionScanRoot, '.claude', 'plugins')
+mkdirSync(join(scanClaudePlugins, 'cache', 'smoke-market', 'smoke-plugin', '1.0.0'), {
+  recursive: true
+})
+writeFileSync(
+  join(scanClaudePlugins, 'known_marketplaces.json'),
+  JSON.stringify({
+    'smoke-market': { source: { source: 'github', repo: 'smoke/plugins' } }
+  })
+)
+writeFileSync(
+  join(scanClaudePlugins, 'installed_plugins.json'),
+  JSON.stringify({
+    version: 2,
+    plugins: {
+      'smoke-plugin@smoke-market': [
+        {
+          scope: 'user',
+          installPath: join(scanClaudePlugins, 'cache', 'smoke-market', 'smoke-plugin', '1.0.0'),
+          version: '1.0.0'
+        }
+      ]
+    }
+  })
+)
+mkdirSync(join(sessionScanRoot, '.codex'), { recursive: true })
+writeFileSync(
+  join(sessionScanRoot, '.codex', 'config.toml'),
+  [
+    '[marketplaces.smoke-market]',
+    'source_type = "git"',
+    'source = "https://github.com/smoke/plugins.git"',
+    '',
+    '[plugins."smoke-plugin@smoke-market"]',
+    'enabled = true',
+    ''
+  ].join('\n')
+)
 writeFileSync(
   join(claudeScanDir, 'smoke-claude-import.jsonl'),
   [
@@ -128,6 +167,8 @@ process.env.WS_DISABLE_CAPTURE_SHORTCUT = '1'
 const reminderLog = join(dataDir, 'reminders.log')
 process.env.WS_REMINDER_TICK_MS = '400'
 process.env.WS_REMINDER_LOG = reminderLog
+// 插件导入扫描用临时 home，绝不读用户真实的 ~/.claude 或 ~/.codex
+process.env.WS_PLUGIN_SCAN_ROOT = sessionScanRoot
 
 // Provider 测试连接的本地探针：只验证请求路径、鉴权头与结果映射，不访问外网。
 const providerProbe = createServer((req, res) => {
@@ -2217,6 +2258,32 @@ async function run() {
 
     byText('.w1-capnav button', '内置工具')?.click()
     await sleep(250)
+    // 插件源与更新检查：走主进程真实服务，不联网
+    const pluginSourcesBefore = await window.ws.capability.pluginSources()
+    check(
+      '插件源接口可用',
+      Array.isArray(pluginSourcesBefore),
+      String(pluginSourcesBefore.length)
+    )
+    const localScan = await window.ws.capability.scanLocalPlugins()
+    const claudeScan = localScan.find((item) => item.agent === 'claude')
+    const codexScan = localScan.find((item) => item.agent === 'codex')
+    check(
+      '本机插件扫描读到两个 Agent 的市场与插件',
+      localScan.length === 2 &&
+        claudeScan?.detected === true &&
+        claudeScan.marketplaces.some((item) => item.name === 'smoke-market') &&
+        claudeScan.plugins.some((item) => item.id === 'smoke-plugin@smoke-market') &&
+        codexScan?.detected === true &&
+        codexScan.marketplaces.some((item) => item.name === 'smoke-market') &&
+        codexScan.plugins.some((item) => item.id === 'smoke-plugin@smoke-market'),
+      JSON.stringify({
+        claude: [claudeScan?.marketplaces.length, claudeScan?.plugins.length],
+        codex: [codexScan?.marketplaces.length, codexScan?.plugins.length]
+      })
+    )
+
+
     check(
       '内置工具目录展示 11 个数据工具',
       all('.w1-caprow.builtin').length === 11 &&

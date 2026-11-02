@@ -120,6 +120,19 @@ const api: WsApi = {
     builtinTools: () => ipcRenderer.invoke(IPC_CHANNELS.capabilityBuiltinTools),
     setBuiltinTool: (name, enabled) =>
       ipcRenderer.invoke(IPC_CHANNELS.capabilityBuiltinToolSet, name, enabled),
+    pluginSources: () => ipcRenderer.invoke(IPC_CHANNELS.capabilityPluginSources),
+    addPluginSource: (input) => ipcRenderer.invoke(IPC_CHANNELS.capabilityPluginSourceAdd, input),
+    refreshPluginSource: (id) => ipcRenderer.invoke(IPC_CHANNELS.capabilityPluginSourceRefresh, id),
+    removePluginSource: (id) => ipcRenderer.invoke(IPC_CHANNELS.capabilityPluginSourceRemove, id),
+    scanLocalPlugins: () => ipcRenderer.invoke(IPC_CHANNELS.capabilityPluginScanLocal),
+    importLocalPlugins: (input) => ipcRenderer.invoke(IPC_CHANNELS.capabilityPluginImport, input),
+    checkUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.capabilityUpdatesCheck),
+    onUpdateAvailable: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, list: Parameters<typeof listener>[0]) =>
+        listener(list)
+      ipcRenderer.on(IPC_CHANNELS.capabilityUpdateAvailable, handler)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.capabilityUpdateAvailable, handler)
+    },
     environment: (force) => ipcRenderer.invoke(IPC_CHANNELS.capabilityEnvironment, force),
     skills: {
       list: () => ipcRenderer.invoke(IPC_CHANNELS.capabilitySkillsList),

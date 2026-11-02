@@ -1,3 +1,4 @@
+import { join } from 'node:path'
 import type { AuditLog } from '../db/audit'
 import type { CapabilityRepository } from '../db/capabilities'
 import type { McpPolicyRepository } from '../db/mcp'
@@ -14,6 +15,9 @@ export interface CapabilityCenter {
   mcp: McpServerService
   /** 插件源与 Agent 归属的仓储；源服务与更新检查共用 */
   repository: CapabilityRepository
+  /** 应用数据根目录与 Codex 私有 home，导入时用来计算落点 */
+  agentDir: string
+  codexHome: string
   builtinTools: () => BuiltinToolRecord[]
   /** 切换内置工具开关，返回最新清单；未知工具名抛错 */
   setBuiltinTool: (name: string, enabled: boolean) => BuiltinToolRecord[]
@@ -52,6 +56,8 @@ export function createCapabilityCenter(options: {
     plugins,
     mcp,
     repository: options.repository,
+    agentDir: options.appDataDir,
+    codexHome: join(options.appDataDir, 'codex-home'),
     builtinTools: listBuiltin,
     setBuiltinTool: (name, enabled) => {
       if (!options.policy) throw new Error('内置工具开关不可用')
