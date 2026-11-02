@@ -714,3 +714,73 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* 插件源与本机导入：与插件列表同列，来源信息放在第二行 */
+.w1-capsrcblock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.3);
+  background: rgb(var(--ac-rgb) / 0.02);
+}
+
+.w1-capsrcblock .w1-caphead {
+  margin: 0;
+}
+
+.w1-capimportrow {
+  display: grid;
+  grid-template-columns: 18px 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid rgb(var(--bd-rgb) / 0.22);
+  font: 12px / 1.5 var(--sans);
+  cursor: pointer;
+}
+
+.w1-capimportrow:last-child {
+  border-bottom: 0;
+}
+
+.w1-capimportrow input {
+  accent-color: rgb(var(--ac-rgb));
+}
+
+.w1-capimportrow span {
+  color: var(--su);
+  font-size: 11px;
+}
+
+.w1-capimportrow b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 500 12px / 1.5 var(--mono);
+}
+
+.w1-capimportrow i {
+  color: var(--su);
+  font: 11px / 1.5 var(--mono);
+  font-style: normal;
+}
+
+/* 启动更新提示条：非阻断，只在有候选时出现 */
+.w1-capupdate {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  border: 1px solid rgb(var(--ac-rgb) / 0.4);
+  background: rgb(var(--ac-rgb) / 0.07);
+  font: 12px / 1.5 var(--sans);
+}
+
+.w1-capupdateacts {
+  display: flex;
+  gap: 6px;
+}

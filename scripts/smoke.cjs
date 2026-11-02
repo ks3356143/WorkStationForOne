@@ -1897,6 +1897,27 @@ async function run() {
         (one('.w1-capscope')?.textContent ?? '').includes('应用私有'),
       one('.w1-capnav')?.textContent ?? 'missing'
     )
+    check(
+      '插件页有源管理与本机导入入口',
+      (one('.w1-capsrcblock')?.textContent ?? '').includes('SOURCES') &&
+        (one('.w1-capsrcblock')?.textContent ?? '').includes('从本机导入') &&
+        (one('.w1-capsrcblock')?.textContent ?? '').includes('添加源'),
+      one('.w1-capsrcblock')?.textContent?.slice(0, 80) ?? 'missing'
+    )
+    // 按钮在源面板的 header 里；文本含 JSX 换行，用 includes 匹配
+    const scanButton = all('.w1-capsrcblock .w1-capmini').find((button) =>
+      (button.textContent ?? '').includes('从本机导入')
+    )
+    scanButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    // 导入面板是第二块 .w1-capsrcblock，必须查全部节点
+    const panelText = () => all('.w1-capsrcblock').map((el) => el.textContent ?? '').join(' | ')
+    const importPanel = await waitFor(() => panelText().includes('IMPORT FROM MACHINE'), 4000)
+    check(
+      '本机导入面板列出两个 Agent',
+      importPanel && panelText().includes('Claude') && panelText().includes('Codex'),
+      panelText().slice(-120)
+    )
+    byText('.w1-capsrcblock .w1-capmini', '关闭')?.click()
     byText('.w1-capseg button', '市场')?.click()
     const marketLoaded = await waitFor(
       () => (one('.w1-capcard')?.textContent ?? '').includes('demo-skill'),

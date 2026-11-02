@@ -7,6 +7,9 @@ import type {
   ExternalMcpServerRecord,
   ExternalMcpTargets,
   ExternalMcpUpdateInfo,
+  LocalScanRecord,
+  PluginSourceRecord,
+  UpdateCandidateRecord,
   McpToolApproval,
   SkillInspection,
   SkillMarketSnapshot,
@@ -150,6 +153,18 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
   const [jsonBusy, setJsonBusy] = useState(false)
   const [mcpBusy, setMcpBusy] = useState<string | null>(null)
   const [builtinBusy, setBuiltinBusy] = useState<string | null>(null)
+  const [sources, setSources] = useState<PluginSourceRecord[]>([])
+  const [sourceBusy, setSourceBusy] = useState<string | null>(null)
+  const [sourceForm, setSourceForm] = useState<{ name: string; url: string; ref: string } | null>(
+    null
+  )
+  const [scan, setScan] = useState<LocalScanRecord[] | null>(null)
+  const [scanBusy, setScanBusy] = useState(false)
+  const [importSel, setImportSel] = useState<{ markets: string[]; plugins: string[] }>({
+    markets: [],
+    plugins: []
+  })
+  const [pendingUpdates, setPendingUpdates] = useState<UpdateCandidateRecord[]>([])
   const [updates, setUpdates] = useState<ExternalMcpUpdateInfo[]>([])
   const [updatesBusy, setUpdatesBusy] = useState(false)
   const [form, setForm] = useState<McpFormState | null>(null)
@@ -179,8 +194,21 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
       .catch(() => {
         if (alive) setEnvironment([])
       })
+    // 插件源与启动更新结果：源列表独立加载，不阻塞首屏
+    void api
+      .pluginSources()
+      .then((list) => {
+        if (alive) setSources(list)
+      })
+      .catch(() => {
+        if (alive) setSources([])
+      })
+    const offUpdates = api.onUpdateAvailable?.((list) => {
+      if (alive) setPendingUpdates(list)
+    })
     return () => {
       alive = false
+      offUpdates?.()
     }
   }, [api])
 
@@ -425,6 +453,108 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
       .finally(() => setSkillsBusy(null))
   }
 
+  const addSource = () => {
+    if (!api || !sourceForm || sourceBusy) return
+    const name = sourceForm.name.trim()
+    const url = sourceForm.url.trim()
+    if (!name || !url) {
+      notify('填写名称与地址')
+      return
+    }
+    setSourceBusy('add')
+    void api
+      .addPluginSource({ name, url, ref: sourceForm.ref.trim() })
+      .then((saved) => {
+        setSources((list) => [...list, saved])
+        setSourceForm(null)
+        notify(`已添加源 ${saved.name} · ${saved.pluginCount} 个插件`)
+      })
+      .catch((reason: unknown) => notify(errorText(reason, '添加源失败')))
+      .finally(() => setSourceBusy(null))
+  }
+
+  const refreshSource = (source: PluginSourceRecord) => {
+    if (!api || sourceBusy) return
+    setSourceBusy(source.id)
+    void api
+      .refreshPluginSource(source.id)
+      .then((saved) => {
+        setSources((list) => list.map((item) => (item.id === saved.id ? saved : item)))
+        notify(`${saved.name} 已刷新 · ${saved.pluginCount} 个插件`)
+      })
+      .catch((reason: unknown) => notify(errorText(reason, '刷新源失败')))
+      .finally(() => setSourceBusy(null))
+  }
+
+  const removeSource = (source: PluginSourceRecord) => {
+    if (!api || sourceBusy) return
+    setSourceBusy(source.id)
+    void api
+      .removePluginSource(source.id)
+      .then(() => {
+        setSources((list) => list.filter((item) => item.id !== source.id))
+        notify(`已移除源 ${source.name}，已装插件保留`)
+      })
+      .catch((reason: unknown) => notify(errorText(reason, '移除源失败')))
+      .finally(() => setSourceBusy(null))
+  }
+
+  const runScan = () => {
+    if (!api || scanBusy) return
+    setScanBusy(true)
+    void api
+      .scanLocalPlugins()
+      .then((result) => {
+        setScan(result)
+        setImportSel({ markets: [], plugins: [] })
+      })
+      .catch((reason: unknown) => notify(errorText(reason, '本机扫描失败')))
+      .finally(() => setScanBusy(false))
+  }
+
+  const toggleImport = (kind: 'markets' | 'plugins', id: string) => {
+    setImportSel((current) => {
+      const list = current[kind]
+      return {
+        ...current,
+        [kind]: list.includes(id) ? list.filter((item) => item !== id) : [...list, id]
+      }
+    })
+  }
+
+  const runLocalImport = (agent: 'claude' | 'codex') => {
+    if (!api || scanBusy) return
+    const markets = importSel.markets.filter((id) =>
+      scan?.find((item) => item.agent === agent)?.marketplaces.some((m) => m.name === id)
+    )
+    const plugins = importSel.plugins.filter((id) =>
+      scan?.find((item) => item.agent === agent)?.plugins.some((p) => p.id === id)
+    )
+    if (markets.length === 0 && plugins.length === 0) {
+      notify('先勾选要导入的市场或插件')
+      return
+    }
+    setScanBusy(true)
+    void api
+      .importLocalPlugins({ agent, markets, plugins })
+      .then(async (outcome) => {
+        const skipped = outcome.skipped.length
+        notify(
+          `导入 ${outcome.importedMarkets.length} 个市场、${outcome.importedPlugins.length} 个插件${
+            skipped > 0 ? ` · ${skipped} 项跳过` : ''
+          }`
+        )
+        const [nextSkills, nextSources] = await Promise.all([
+          api.skills.list(),
+          api.pluginSources()
+        ])
+        setSkills(nextSkills)
+        setSources(nextSources)
+      })
+      .catch((reason: unknown) => notify(errorText(reason, '导入失败')))
+      .finally(() => setScanBusy(false))
+  }
+
   const toggleBuiltin = (tool: BuiltinToolRecord) => {
     if (!api?.setBuiltinTool || builtinBusy) return
     setBuiltinBusy(tool.name)
@@ -577,6 +707,29 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
 
   return (
     <div className="w1-cap">
+      {pendingUpdates.length > 0 ? (
+        <div className="w1-capupdate" role="status">
+          <span>
+            {pendingUpdates.filter((item) => item.kind === 'plugin').length} 个插件、
+            {pendingUpdates.filter((item) => item.kind === 'mcp').length} 个 MCP 可更新
+          </span>
+          <span className="w1-capupdateacts">
+            <button
+              type="button"
+              className="w1-capmini pri"
+              onClick={() => {
+                setTab(pendingUpdates.some((item) => item.kind === 'plugin') ? 'skills' : 'mcp')
+                setPendingUpdates([])
+              }}
+            >
+              查看
+            </button>
+            <button type="button" className="w1-capmini" onClick={() => setPendingUpdates([])}>
+              稍后
+            </button>
+          </span>
+        </div>
+      ) : null}
       <div className="w1-capnav" role="tablist" aria-label="能力中心">
         {(
           [
@@ -612,7 +765,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         <section className="w1-capsection" aria-label="Claude 插件与技能">
           <div className="w1-caphead">
             <span className="w1-capkicker">// CLAUDE PLUGINS</span>
-            <span className="w1-capnote">仅 Claude 会话生效；Codex 不支持插件</span>
+            <span className="w1-capnote">仅 Claude 会话生效；Codex 用下方「插件源」里的市场</span>
             <div className="w1-capactions">
               <div className="w1-capseg" role="group" aria-label="插件视图">
                 <button
@@ -645,6 +798,195 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
               </button>
             </div>
           </div>
+
+          {/* 插件源：官方与第三方 Git 源，两个 Agent 共用同一份清单格式 */}
+          <div className="w1-capsrcblock">
+            <div className="w1-caphead">
+              <span className="w1-capkicker">// SOURCES</span>
+              <span className="w1-capnote">Claude 与 Codex 共用；只写应用私有目录</span>
+              <div className="w1-capactions">
+                <button type="button" className="w1-capmini" disabled={scanBusy} onClick={runScan}>
+                  {scanBusy ? '扫描中…' : '从本机导入'}
+                </button>
+                <button
+                  type="button"
+                  className="w1-capmini pri"
+                  onClick={() => setSourceForm({ name: '', url: '', ref: '' })}
+                >
+                  添加源
+                </button>
+              </div>
+            </div>
+            {sources.length === 0 ? (
+              <p className="w1-capnote">还没有插件源。添加一个 Git 仓库或本地目录开始。</p>
+            ) : (
+              <div className="w1-caplist">
+                {sources.map((source) => (
+                  <div className="w1-caprow static" key={source.id}>
+                    <span className="w1-capglyph">SR</span>
+                    <span className="w1-capcopy">
+                      <b>
+                        {source.name}
+                        <i className="w1-capver">{source.kind}</i>
+                      </b>
+                      <p title={source.url}>{source.url || '本地目录'}</p>
+                      <span className="w1-captags">
+                        <i>{source.pluginCount} 个插件</i>
+                        {source.lastError ? (
+                          <i className="warn" title={source.lastError}>
+                            刷新失败
+                          </i>
+                        ) : null}
+                      </span>
+                    </span>
+                    <span className="w1-capactions">
+                      <button
+                        type="button"
+                        className="w1-capmini"
+                        disabled={sourceBusy === source.id}
+                        onClick={() => refreshSource(source)}
+                      >
+                        刷新
+                      </button>
+                      {source.kind === 'official' ? null : (
+                        <button
+                          type="button"
+                          className="w1-capmini danger"
+                          disabled={sourceBusy === source.id}
+                          onClick={() => removeSource(source)}
+                        >
+                          移除
+                        </button>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {sourceForm ? (
+              <div className="w1-capform">
+                <div className="w1-capformgrid">
+                  <label>
+                    <span>名称</span>
+                    <input
+                      value={sourceForm.name}
+                      aria-label="插件源名称"
+                      placeholder="community"
+                      onChange={(event) =>
+                        setSourceForm({ ...sourceForm, name: event.target.value })
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>分支（可选）</span>
+                    <input
+                      value={sourceForm.ref}
+                      aria-label="插件源分支"
+                      placeholder="main"
+                      onChange={(event) =>
+                        setSourceForm({ ...sourceForm, ref: event.target.value })
+                      }
+                    />
+                  </label>
+                  <label className="wide">
+                    <span>地址</span>
+                    <input
+                      value={sourceForm.url}
+                      aria-label="插件源地址"
+                      placeholder="owner/repo 或 https://github.com/owner/repo"
+                      onChange={(event) =>
+                        setSourceForm({ ...sourceForm, url: event.target.value })
+                      }
+                    />
+                  </label>
+                </div>
+                <div className="w1-capactions">
+                  <button type="button" className="w1-capmini" onClick={() => setSourceForm(null)}>
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    className="w1-capmini pri"
+                    disabled={sourceBusy === 'add'}
+                    onClick={addSource}
+                  >
+                    {sourceBusy === 'add' ? '添加中…' : '添加'}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          {/* 本机导入：只读扫描 ~/.claude 与 ~/.codex，复制进应用私有目录 */}
+          {scan ? (
+            <div className="w1-capsrcblock">
+              <div className="w1-caphead">
+                <span className="w1-capkicker">// IMPORT FROM MACHINE</span>
+                <span className="w1-capnote">
+                  只读扫描，不会修改 ~/.claude 或 ~/.codex；导入后默认停用
+                </span>
+                <div className="w1-capactions">
+                  <button type="button" className="w1-capmini" onClick={() => setScan(null)}>
+                    关闭
+                  </button>
+                </div>
+              </div>
+              {scan.map((result) => (
+                <div className="w1-capdomain" key={result.agent}>
+                  <h4>
+                    {result.agent === 'claude' ? 'Claude' : 'Codex'}
+                    {result.detected ? '' : '（未检测到本机配置）'}
+                  </h4>
+                  {result.errors.map((message) => (
+                    <p className="w1-capnote warn" key={message}>
+                      {message}
+                    </p>
+                  ))}
+                  {result.marketplaces.length === 0 && result.plugins.length === 0 ? (
+                    <p className="w1-capnote">没有可导入的内容。</p>
+                  ) : (
+                    <div className="w1-caplist">
+                      {result.marketplaces.map((market) => (
+                        <label className="w1-capimportrow" key={`m-${market.name}`}>
+                          <input
+                            type="checkbox"
+                            checked={importSel.markets.includes(market.name)}
+                            onChange={() => toggleImport('markets', market.name)}
+                          />
+                          <span>市场</span>
+                          <b>{market.name}</b>
+                          <i>{market.kind}</i>
+                        </label>
+                      ))}
+                      {result.plugins.map((plugin) => (
+                        <label className="w1-capimportrow" key={`p-${plugin.id}`}>
+                          <input
+                            type="checkbox"
+                            checked={importSel.plugins.includes(plugin.id)}
+                            onChange={() => toggleImport('plugins', plugin.id)}
+                          />
+                          <span>插件</span>
+                          <b>{plugin.id}</b>
+                          <i>{plugin.version || '未标注版本'}</i>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  <div className="w1-capactions">
+                    <button
+                      type="button"
+                      className="w1-capmini pri"
+                      disabled={scanBusy}
+                      onClick={() => runLocalImport(result.agent)}
+                    >
+                      导入到应用私有目录
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
 
           {skillTab === 'installed' ? (
             skills.length === 0 ? (

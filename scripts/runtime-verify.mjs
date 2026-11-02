@@ -1694,8 +1694,7 @@ async function main() {
       !security.dbAccess &&
       [...security.wsKeys].sort().join() ===
         'agent,app,audit,capability,capture,habits,learning,mcp,notes,provider,tasks' &&
-      security.appKeys.join() ===
-        'setTheme,backupNow,info,storage,pickStorage,cancelStorage',
+      security.appKeys.join() === 'setTheme,backupNow,info,storage,pickStorage,cancelStorage',
     security
   )
   phases[0].security = security
