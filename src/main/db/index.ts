@@ -1,7 +1,6 @@
 import { app } from 'electron'
 import type { DatabaseSync } from 'node:sqlite'
 import { mkdirSync } from 'node:fs'
-import { join } from 'node:path'
 import { AgentRepository } from './agent'
 import { ApprovalRuleRepository } from './approval-rules'
 import { AuditLog } from './audit'
@@ -13,10 +12,19 @@ import { NoteRepository } from './notes'
 import { ProviderRepository } from './providers'
 import { runInTransaction } from './transaction'
 import { TaskRepository } from './tasks'
+import {
+  defaultAppDir,
+  locationFileFor,
+  resolveAppRoot,
+  resolveLayout,
+  type StorageLayout
+} from '../storage/location'
 
 export interface DatabaseContext {
   /** 库文件路径与原始连接：备份模块要直接对连接做 VACUUM INTO */
   file: string
+  /** 本次启动解析出的存储布局；插件、备份、codex-home 都从它取路径 */
+  layout: StorageLayout
   db: DatabaseSync
   tasks: TaskRepository
   notes: NoteRepository
@@ -33,14 +41,22 @@ export interface DatabaseContext {
 }
 
 export function initDatabase(): DatabaseContext {
-  // 自动化测试通过 WS_DATA_DIR 指向临时目录，避免改写用户的真实数据。
-  const dir = process.env.WS_DATA_DIR || join(app.getPath('appData'), 'WorkStationForOne', 'data')
-  mkdirSync(dir, { recursive: true })
-  const db = openDatabase(join(dir, 'workstation.db'))
+  // 优先级：WS_DATA_DIR（测试缝）> 位置文件 > 默认根。
+  const appData = app.getPath('appData')
+  const resolved = resolveAppRoot({
+    locationFile: locationFileFor(appData),
+    ...(process.env.WS_DATA_DIR ? { envDataDir: process.env.WS_DATA_DIR } : {}),
+    fallbackRoot: defaultAppDir(appData)
+  })
+  if (resolved.location.error) console.error('[storage]', resolved.location.error)
+  const layout = resolveLayout(resolved.root)
+  mkdirSync(layout.dataDir, { recursive: true })
+  const db = openDatabase(layout.dbFile)
   migrate(db)
   const audit = new AuditLog(db)
   return {
-    file: join(dir, 'workstation.db'),
+    file: layout.dbFile,
+    layout,
     db,
     audit,
     tasks: new TaskRepository(db, audit),

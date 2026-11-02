@@ -1,4 +1,4 @@
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { app, BrowserWindow, session, shell } from 'electron'
 import { initDatabase, type DatabaseContext } from './db'
@@ -8,7 +8,7 @@ import { registerProviderHandlers } from './ipc/providers'
 import { registerAppHandlers, TITLE_BAR_HEIGHT, WINDOW_PALETTE } from './ipc/app'
 import { ProviderService } from './providers'
 import { ApprovalRuleService } from './agent/approval-rules'
-import { backupDirFor, ensureDailyBackup } from './db/backup'
+import { ensureDailyBackup } from './db/backup'
 import { startReminderLoop } from './reminders'
 import { registerHabitHandlers } from './ipc/habits'
 import { registerLearningHandlers } from './ipc/learning'
@@ -125,7 +125,7 @@ if (!gotTheLock) {
     const providers = new ProviderService(database.providers)
     const capabilities = createCapabilityCenter({
       repository: new CapabilityRepository(database.db),
-      appDataDir: dirname(database.file),
+      appDataDir: database.layout.root,
       audit: database.audit,
       version: app.getVersion(),
       policy: database.mcp
@@ -135,8 +135,8 @@ if (!gotTheLock) {
     registerCapabilityHandlers(capabilities, database.audit)
     registerAppHandlers({
       db: database.db,
-      dir: backupDirFor(database.file),
-      dataDir: dirname(database.file)
+      dir: database.layout.backupDir,
+      dataDir: database.layout.dataDir
     })
     registerTaskHandlers(database.tasks)
     registerNoteHandlers(database.notes)
@@ -205,7 +205,7 @@ if (!gotTheLock) {
       getProvider: (target) => providers.runtime(target),
       mcp: mcpBridge,
       cancelPermissions: (sessionId) => mcpPermissions?.cancelSession(sessionId),
-      codexHome: join(dirname(database.file), 'codex-home'),
+      codexHome: database.layout.codexHome,
       capabilities: agentCapabilityRuntime(capabilities),
       approvalRules
     })
@@ -219,7 +219,7 @@ if (!gotTheLock) {
 
     // 每天首次启动补一份快照：库只有一份，坏掉就全没了
     try {
-      const created = ensureDailyBackup(database.db, backupDirFor(database.file))
+      const created = ensureDailyBackup(database.db, database.layout.backupDir)
       if (created) console.log('[db] 已创建每日备份', created)
     } catch (error) {
       console.error('[db] 每日备份失败', error)
