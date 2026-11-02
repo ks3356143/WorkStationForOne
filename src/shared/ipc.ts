@@ -548,7 +548,28 @@ export interface SkillRecord {
   components: string[]
   hasHooks: boolean
   hasMcp: boolean
+  /** 属于哪个 Agent；同一插件可在两边各装一次 */
+  agent: PluginAgent
+  /** 来源源 id；空字符串表示来源未知（旧库或本机导入） */
+  sourceId: string
   installedAt: number
+  updatedAt: number
+}
+
+export type PluginAgent = 'claude' | 'codex'
+export type PluginSourceKind = 'official' | 'git'
+
+export interface PluginSourceRecord {
+  id: string
+  name: string
+  kind: PluginSourceKind
+  url: string
+  ref: string
+  root: string
+  lastSyncedAt: number | null
+  lastError: string
+  pluginCount: number
+  createdAt: number
   updatedAt: number
 }
 

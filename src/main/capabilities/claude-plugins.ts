@@ -163,6 +163,8 @@ function toRecord(plugin: StoredPlugin): SkillRecord {
     components: plugin.components,
     hasHooks: plugin.hasHooks,
     hasMcp: plugin.hasMcp,
+    agent: plugin.agent,
+    sourceId: plugin.sourceId,
     installedAt: plugin.installedAt,
     updatedAt: plugin.updatedAt
   }

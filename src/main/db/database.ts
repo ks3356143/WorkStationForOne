@@ -540,6 +540,57 @@ export const MIGRATIONS: Migration[] = [
         updated_at INTEGER NOT NULL
       );
     `
+  },
+  {
+    // 插件源与 Agent 归属：同一插件可在 Claude / Codex 各装一次。
+    // 旧库既有插件一律归 claude，source_id 留空表示来源未知。
+    // 主键从 id 改成 (agent, id)，SQLite 不能改主键，只能重建表并搬数据。
+    version: 30,
+    sql: `
+      CREATE TABLE plugin_sources (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        kind TEXT NOT NULL CHECK (kind IN ('official', 'git')),
+        url TEXT NOT NULL,
+        ref TEXT NOT NULL DEFAULT '',
+        root TEXT NOT NULL,
+        last_synced_at INTEGER,
+        last_error TEXT NOT NULL DEFAULT '',
+        plugin_count INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      ALTER TABLE agent_plugins RENAME TO agent_plugins_v29;
+
+      CREATE TABLE agent_plugins (
+        id TEXT NOT NULL,
+        agent TEXT NOT NULL DEFAULT 'claude' CHECK (agent IN ('claude', 'codex')),
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        version TEXT NOT NULL DEFAULT '',
+        marketplace TEXT NOT NULL DEFAULT '',
+        install_path TEXT NOT NULL,
+        components TEXT NOT NULL DEFAULT '[]',
+        has_hooks INTEGER NOT NULL DEFAULT 0 CHECK (has_hooks IN (0, 1)),
+        has_mcp INTEGER NOT NULL DEFAULT 0 CHECK (has_mcp IN (0, 1)),
+        enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+        trusted INTEGER NOT NULL DEFAULT 0 CHECK (trusted IN (0, 1)),
+        source_id TEXT NOT NULL DEFAULT '',
+        installed_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (agent, id)
+      );
+
+      INSERT INTO agent_plugins
+        (id, agent, name, description, version, marketplace, install_path, components,
+         has_hooks, has_mcp, enabled, trusted, source_id, installed_at, updated_at)
+      SELECT id, 'claude', name, description, version, marketplace, install_path, components,
+             has_hooks, has_mcp, enabled, trusted, '', installed_at, updated_at
+      FROM agent_plugins_v29;
+
+      DROP TABLE agent_plugins_v29;
+    `
   }
 ]
 

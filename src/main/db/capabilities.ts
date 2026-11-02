@@ -5,6 +5,9 @@ import type {
   ExternalMcpToolRecord,
   ExternalMcpTransport,
   McpToolApproval,
+  PluginAgent,
+  PluginSourceKind,
+  PluginSourceRecord,
   SkillRecord
 } from '../../shared/ipc'
 
@@ -20,7 +23,23 @@ interface PluginRow {
   has_mcp: number
   enabled: number
   trusted: number
+  agent: PluginAgent
+  source_id: string
   installed_at: number
+  updated_at: number
+}
+
+interface PluginSourceRow {
+  id: string
+  name: string
+  kind: PluginSourceKind
+  url: string
+  ref: string
+  root: string
+  last_synced_at: number | null
+  last_error: string
+  plugin_count: number
+  created_at: number
   updated_at: number
 }
 
@@ -81,6 +100,18 @@ export interface PluginUpsert {
   hasMcp: boolean
   enabled: boolean
   trusted: boolean
+  /** 省略按 claude 处理，兼容既有 Claude 插件调用点 */
+  agent?: PluginAgent
+  sourceId?: string
+}
+
+export interface PluginSourceInput {
+  id: string
+  name: string
+  kind: PluginSourceKind
+  url: string
+  ref: string
+  root: string
 }
 
 export interface McpServerInput {
@@ -140,7 +171,25 @@ function toPlugin(row: PluginRow): StoredPlugin {
     hasMcp: row.has_mcp === 1,
     enabled: row.enabled === 1,
     trusted: row.trusted === 1,
+    agent: row.agent ?? 'claude',
+    sourceId: row.source_id ?? '',
     installedAt: row.installed_at,
+    updatedAt: row.updated_at
+  }
+}
+
+function toSource(row: PluginSourceRow): PluginSourceRecord {
+  return {
+    id: row.id,
+    name: row.name,
+    kind: row.kind,
+    url: row.url,
+    ref: row.ref,
+    root: row.root,
+    lastSyncedAt: row.last_synced_at ?? null,
+    lastError: row.last_error ?? '',
+    pluginCount: row.plugin_count ?? 0,
+    createdAt: row.created_at,
     updatedAt: row.updated_at
   }
 }
@@ -175,41 +224,44 @@ function toServer(row: McpServerRow): ExternalMcpServerRecord {
 export class CapabilityRepository {
   constructor(private readonly db: DatabaseSync) {}
 
-  listPlugins(): StoredPlugin[] {
-    const rows = this.db
-      .prepare(
-        `SELECT id, name, description, version, marketplace, install_path, components,
-                has_hooks, has_mcp, enabled, trusted, installed_at, updated_at
-         FROM agent_plugins ORDER BY installed_at DESC`
-      )
-      .all() as unknown as PluginRow[]
+  listPlugins(agent?: PluginAgent): StoredPlugin[] {
+    const sql = `SELECT id, name, description, version, marketplace, install_path, components,
+                        has_hooks, has_mcp, enabled, trusted, agent, source_id,
+                        installed_at, updated_at
+                 FROM agent_plugins ${agent ? 'WHERE agent = ?' : ''}
+                 ORDER BY installed_at DESC`
+    const rows = (agent
+      ? this.db.prepare(sql).all(agent)
+      : this.db.prepare(sql).all()) as unknown as PluginRow[]
     return rows.map(toPlugin)
   }
 
-  findPlugin(id: string): StoredPlugin | undefined {
+  findPlugin(id: string, agent: PluginAgent = 'claude'): StoredPlugin | undefined {
     const row = this.db
       .prepare(
         `SELECT id, name, description, version, marketplace, install_path, components,
-                has_hooks, has_mcp, enabled, trusted, installed_at, updated_at
-         FROM agent_plugins WHERE id = ?`
+                has_hooks, has_mcp, enabled, trusted, agent, source_id,
+                installed_at, updated_at
+         FROM agent_plugins WHERE id = ? AND agent = ?`
       )
-      .get(id) as PluginRow | undefined
+      .get(id, agent) as PluginRow | undefined
     return row ? toPlugin(row) : undefined
   }
 
   upsertPlugin(input: PluginUpsert): StoredPlugin {
     const now = Date.now()
+    const agent: PluginAgent = input.agent ?? 'claude'
     const existing = this.db
-      .prepare('SELECT installed_at, trusted FROM agent_plugins WHERE id = ?')
-      .get(input.id) as { installed_at: number; trusted: number } | undefined
+      .prepare('SELECT installed_at, trusted FROM agent_plugins WHERE id = ? AND agent = ?')
+      .get(input.id, agent) as { installed_at: number; trusted: number } | undefined
     const installedAt = existing?.installed_at ?? now
     this.db
       .prepare(
         `INSERT INTO agent_plugins
           (id, name, description, version, marketplace, install_path, components,
-           has_hooks, has_mcp, enabled, trusted, installed_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET
+           has_hooks, has_mcp, enabled, trusted, agent, source_id, installed_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(agent, id) DO UPDATE SET
            name = excluded.name,
            description = excluded.description,
            version = excluded.version,
@@ -220,6 +272,7 @@ export class CapabilityRepository {
            has_mcp = excluded.has_mcp,
            enabled = excluded.enabled,
            trusted = excluded.trusted,
+           source_id = excluded.source_id,
            updated_at = excluded.updated_at`
       )
       .run(
@@ -234,30 +287,100 @@ export class CapabilityRepository {
         input.hasMcp ? 1 : 0,
         input.enabled ? 1 : 0,
         input.trusted ? 1 : 0,
+        agent,
+        input.sourceId ?? '',
         installedAt,
         now
       )
-    const saved = this.findPlugin(input.id)
+    const saved = this.findPlugin(input.id, agent)
     if (!saved) throw new Error('插件记录保存失败')
     return saved
   }
 
-  setPluginEnabled(id: string, enabled: boolean, trusted?: boolean): StoredPlugin | undefined {
+  setPluginEnabled(
+    id: string,
+    enabled: boolean,
+    trusted?: boolean,
+    agent: PluginAgent = 'claude'
+  ): StoredPlugin | undefined {
     const assignments = ['enabled = ?', 'updated_at = ?']
     const values: (string | number)[] = [enabled ? 1 : 0, Date.now()]
     if (trusted !== undefined) {
       assignments.push('trusted = ?')
       values.push(trusted ? 1 : 0)
     }
-    values.push(id)
+    values.push(id, agent)
     this.db
-      .prepare(`UPDATE agent_plugins SET ${assignments.join(', ')} WHERE id = ?`)
+      .prepare(`UPDATE agent_plugins SET ${assignments.join(', ')} WHERE id = ? AND agent = ?`)
       .run(...values)
-    return this.findPlugin(id)
+    return this.findPlugin(id, agent)
   }
 
-  removePlugin(id: string): void {
-    this.db.prepare('DELETE FROM agent_plugins WHERE id = ?').run(id)
+  removePlugin(id: string, agent: PluginAgent = 'claude'): void {
+    this.db.prepare('DELETE FROM agent_plugins WHERE id = ? AND agent = ?').run(id, agent)
+  }
+
+  listSources(): PluginSourceRecord[] {
+    const rows = this.db
+      .prepare(
+        `SELECT id, name, kind, url, ref, root, last_synced_at, last_error, plugin_count,
+                created_at, updated_at
+         FROM plugin_sources ORDER BY created_at ASC`
+      )
+      .all() as unknown as PluginSourceRow[]
+    return rows.map(toSource)
+  }
+
+  findSource(id: string): PluginSourceRecord | undefined {
+    const row = this.db
+      .prepare(
+        `SELECT id, name, kind, url, ref, root, last_synced_at, last_error, plugin_count,
+                created_at, updated_at
+         FROM plugin_sources WHERE id = ?`
+      )
+      .get(id) as PluginSourceRow | undefined
+    return row ? toSource(row) : undefined
+  }
+
+  findSourceByName(name: string): PluginSourceRecord | undefined {
+    const row = this.db
+      .prepare(
+        `SELECT id, name, kind, url, ref, root, last_synced_at, last_error, plugin_count,
+                created_at, updated_at
+         FROM plugin_sources WHERE name = ?`
+      )
+      .get(name) as PluginSourceRow | undefined
+    return row ? toSource(row) : undefined
+  }
+
+  createSource(input: PluginSourceInput): PluginSourceRecord {
+    if (this.findSourceByName(input.name)) throw new Error(`源「${input.name}」已存在`)
+    const now = Date.now()
+    this.db
+      .prepare(
+        `INSERT INTO plugin_sources
+          (id, name, kind, url, ref, root, last_synced_at, last_error, plugin_count,
+           created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, NULL, '', 0, ?, ?)`
+      )
+      .run(input.id, input.name, input.kind, input.url, input.ref, input.root, now, now)
+    const saved = this.findSource(input.id)
+    if (!saved) throw new Error('插件源保存失败')
+    return saved
+  }
+
+  /** 刷新结果：只更新同步时间、错误与插件数。 */
+  markSourceSynced(id: string, error: string, pluginCount: number): void {
+    this.db
+      .prepare(
+        `UPDATE plugin_sources SET last_synced_at = ?, last_error = ?, plugin_count = ?,
+           updated_at = ? WHERE id = ?`
+      )
+      .run(Date.now(), error.slice(0, 300), pluginCount, Date.now(), id)
+  }
+
+  removeSource(id: string): void {
+    this.db.prepare('DELETE FROM plugin_sources WHERE id = ?').run(id)
   }
 
   listMcpServers(): ExternalMcpServerRecord[] {
