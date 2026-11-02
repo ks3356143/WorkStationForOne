@@ -180,6 +180,9 @@ export class PluginSourceService {
         ? (this.options.claudeCli ?? resolvePluginCli())
         : (this.options.codexCli ?? resolveCodexCli())
     if (!cli) return Promise.reject(new Error(`未找到 ${agent} CLI`))
+    // Codex 直接拒绝不存在的 CODEX_HOME，Claude 的配置目录同理；注册前先建好
+    const configDir = agent === 'claude' ? this.options.claudeConfigDir : this.options.codexHome
+    mkdirSync(configDir, { recursive: true })
     const env: NodeJS.ProcessEnv = {
       ...process.env,
       NO_COLOR: '1',
