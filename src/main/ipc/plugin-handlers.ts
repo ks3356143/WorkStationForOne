@@ -265,7 +265,7 @@ export function registerPluginHandlers(
     if (!plugin) throw new Error('插件未安装')
     if (agent === 'codex') {
       const { name, market } = splitPluginId(id)
-      setCodexPluginEnabled(center.codexHome, name, market, enabled)
+      setCodexPluginEnabled(center.codexHome, name, market, enabled, center.agentDir)
       if (enabled) {
         syncPluginSkills({
           codexHome: center.codexHome,

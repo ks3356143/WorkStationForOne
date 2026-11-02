@@ -4,13 +4,18 @@ import { isAbsolute, join, relative, resolve } from 'node:path'
 /**
  * Codex 没有 `plugin enable` 子命令，启用状态只存在于私有 config.toml 的
  * `[plugins."name@market"] enabled`。这里只改目标行，其余表与注释原样保留。
+ *
+ * 写入前自己断言一次目标在应用私有 codex-home 内：这条是安全底线，
+ * 不能依赖调用方记得先调 `assertPrivateCodexHome`。
  */
 export function setCodexPluginEnabled(
   codexHome: string,
   pluginId: string,
   market: string,
-  enabled: boolean
+  enabled: boolean,
+  appDataDir: string
 ): void {
+  assertPrivateCodexHome(codexHome, appDataDir)
   const file = configPathFor(codexHome)
   const selector = `${pluginId}@${market}`
   const text = existsSync(file) ? readFileSync(file, 'utf8') : ''

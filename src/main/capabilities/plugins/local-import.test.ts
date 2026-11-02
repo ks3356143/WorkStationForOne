@@ -1,16 +1,10 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CapabilityRepository } from '../../db/capabilities'
 import { migrate, openDatabase } from '../../db/database'
-import {
-  applyImportedCodexState,
-  copyPluginSnapshot,
-  importLocal,
-  type ImportDeps
-} from './local-import'
-import { readCodexPluginEnabled } from './codex-config'
+import { copyPluginSnapshot, importLocal, type ImportDeps } from './local-import'
 
 const dirs: string[] = []
 
@@ -168,18 +162,5 @@ describe('copyPluginSnapshot', () => {
     )
     expect(existsSync(join(target, 'skills', 'demo', 'SKILL.md'))).toBe(true)
     expect(target).toContain('imported')
-  })
-})
-
-describe('applyImportedCodexState', () => {
-  it('按本机原状态写入私有 config.toml', () => {
-    const home = tempDir('wsfo-codex-import-')
-    mkdirSync(home, { recursive: true })
-    applyImportedCodexState(home, 'demo', 'community', false)
-    const text = readFileSync(join(home, 'config.toml'), 'utf8')
-    expect(readCodexPluginEnabled(text, 'demo@community')).toEqual({
-      present: true,
-      enabled: false
-    })
   })
 })

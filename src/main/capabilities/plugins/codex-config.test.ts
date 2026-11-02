@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   assertPrivateCodexHome,
@@ -79,25 +79,43 @@ describe('readCodexPluginEnabled', () => {
   })
 })
 
+/** 真实布局是 <appData>/codex-home；断言要求目录名以此结尾。 */
+function privateHome(): { appData: string; home: string } {
+  const appData = tempDir('wsfo-appdata-')
+  const home = join(appData, 'codex-home')
+  mkdirSync(home, { recursive: true })
+  return { appData, home }
+}
+
 describe('setCodexPluginEnabled', () => {
   it('写入私有 config.toml 并可读回', () => {
-    const home = tempDir('wsfo-codex-')
+    const { appData, home } = privateHome()
     writeFileSync(join(home, 'config.toml'), BASE)
-    setCodexPluginEnabled(home, 'demo', 'community', false)
+    setCodexPluginEnabled(home, 'demo', 'community', false, appData)
     const text = readFileSync(join(home, 'config.toml'), 'utf8')
     expect(readCodexPluginEnabled(text, 'demo@community').enabled).toBe(false)
     expect(text).toContain('[model_providers.workstation]')
   })
 
   it('config.toml 不存在时创建', () => {
-    const home = tempDir('wsfo-codex-')
-    mkdirSync(home, { recursive: true })
-    setCodexPluginEnabled(home, 'demo', 'community', true)
+    const { appData, home } = privateHome()
+    setCodexPluginEnabled(home, 'demo', 'community', true, appData)
     const text = readFileSync(join(home, 'config.toml'), 'utf8')
     expect(readCodexPluginEnabled(text, 'demo@community')).toEqual({
       present: true,
       enabled: true
     })
+  })
+
+  it('拒绝写入应用目录之外的用户配置', () => {
+    const outside = tempDir('wsfo-user-codex-')
+    mkdirSync(outside, { recursive: true })
+    writeFileSync(join(outside, 'config.toml'), BASE)
+    // 即使调用方忘了先断言，写入函数自己也要挡住
+    expect(() =>
+      setCodexPluginEnabled(outside, 'demo', 'community', true, dirname(outside))
+    ).toThrow(/codex-home/)
+    expect(readFileSync(join(outside, 'config.toml'), 'utf8')).toBe(BASE)
   })
 })
 

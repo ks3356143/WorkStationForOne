@@ -1,8 +1,7 @@
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import type { PluginAgent } from '../../../shared/ipc'
 import type { CapabilityRepository } from '../../db/capabilities'
-import { readCodexPluginEnabled, setCodexPluginEnabled } from './codex-config'
 import { scanLocal, type LocalPlugin, type LocalScanResult } from './local-scan'
 
 export interface ImportSelection {
@@ -118,20 +117,6 @@ export function copyPluginSnapshot(
   mkdirSync(dir, { recursive: true })
   cpSync(source, dir, { recursive: true, force: true })
   return dir
-}
-
-/** Codex 导入后按本机原状态写启停；缺省停用，与「新装默认停用」一致。 */
-export function applyImportedCodexState(
-  codexHome: string,
-  pluginId: string,
-  market: string,
-  enabled: boolean
-): void {
-  const file = join(codexHome, 'config.toml')
-  const text = existsSync(file) ? readFileSync(file, 'utf8') : ''
-  const current = readCodexPluginEnabled(text, `${pluginId}@${market}`)
-  if (current.present && current.enabled === enabled) return
-  setCodexPluginEnabled(codexHome, pluginId, market, enabled)
 }
 
 /** 列出目录下的子目录名，导入面板用来判断是否还有可导入内容。 */
