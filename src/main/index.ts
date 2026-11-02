@@ -18,6 +18,14 @@ import { registerTaskHandlers } from './ipc/tasks'
 import { McpBridge } from './mcp/server'
 import { McpPermissionBroker } from './mcp/permissions'
 import { CapabilityRepository } from './db/capabilities'
+import {
+  defaultAppDir,
+  locationFileFor,
+  readLocation,
+  resolveAppRoot,
+  type LocationState
+} from './storage/location'
+import { migrateRoot, type MigrateResult } from './storage/migrate'
 import { agentCapabilityRuntime, createCapabilityCenter } from './capabilities'
 import { registerCapabilityHandlers } from './ipc/capability'
 import { IPC_CHANNELS } from '../shared/ipc'
@@ -28,6 +36,51 @@ const rendererFileUrl = pathToFileURL(join(__dirname, '../renderer/index.html'))
 app.setName('WorkStationForOne')
 
 let database: DatabaseContext | null = null
+let lastMigration: { ok: boolean; error: string; oldRoot: string; removedOld: boolean } | null =
+  null
+
+/**
+ * 启动阶段处理待迁移：只在这里做，因为运行中移动数据库目录会让连接失效。
+ * 结果留在主进程，供设置页下次打开时显示。
+ */
+function runPendingMigration(): void {
+  if (process.env.WS_DATA_DIR) return
+  const appData = app.getPath('appData')
+  const locationFile = locationFileFor(appData)
+  const location: LocationState = readLocation(locationFile)
+  if (location.error) console.error('[storage]', location.error)
+  if (!location.pending) return
+
+  const resolved = resolveAppRoot({ locationFile, fallbackRoot: defaultAppDir(appData) })
+  const result: MigrateResult = migrateRoot({
+    currentRoot: resolved.root,
+    targetRoot: location.pending,
+    locationFile,
+    location
+  })
+  lastMigration = {
+    ok: result.ok,
+    error: result.ok
+      ? result.removedOld
+        ? ''
+        : `旧目录未能删除，可手动清理：${result.oldRoot}`
+      : result.error,
+    oldRoot: result.oldRoot,
+    removedOld: result.removedOld
+  }
+  if (result.ok) {
+    console.info(`[storage] 已迁移到 ${result.root}${result.removedOld ? '' : '（旧目录未删除）'}`)
+  } else {
+    console.error('[storage] 迁移失败，继续使用原目录', result.error)
+  }
+}
+
+/** 设置页读取迁移结果；读取即清除，避免反复提示同一次迁移。 */
+export function takeMigrationResult(): typeof lastMigration {
+  const value = lastMigration
+  lastMigration = null
+  return value
+}
 
 function isExternalUrl(url: string): boolean {
   try {
@@ -121,6 +174,9 @@ if (!gotTheLock) {
     )
     session.defaultSession.setPermissionCheckHandler(() => false)
 
+    // 迁移必须在开库之前：开库后移动目录会让连接指向已删除的文件。
+    runPendingMigration()
+
     database = initDatabase()
     const providers = new ProviderService(database.providers)
     const capabilities = createCapabilityCenter({
@@ -136,7 +192,9 @@ if (!gotTheLock) {
     registerAppHandlers({
       db: database.db,
       dir: database.layout.backupDir,
-      dataDir: database.layout.dataDir
+      dataDir: database.layout.dataDir,
+      root: database.layout.root,
+      takeMigration: takeMigrationResult
     })
     registerTaskHandlers(database.tasks)
     registerNoteHandlers(database.notes)

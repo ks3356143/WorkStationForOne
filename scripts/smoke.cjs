@@ -1689,6 +1689,16 @@ async function run() {
       settingsText.includes('份 ·'),
       one('.w1-setpath')?.textContent ?? ''
     )
+    const storageInfo = await window.ws.app.storage()
+    check(
+      '设置面板显示存储位置',
+      storageInfo.root.includes('ws-smoke-') &&
+        settingsText.includes('存储位置') &&
+        (one('.w1-setstoragerow')?.textContent ?? '').includes(
+          storageInfo.root.split(/[\\/]/).pop()
+        ),
+      storageInfo.root
+    )
     check('设置面板有 Provider 卡片', !!one('.w1-provcard'))
     check(
       'Provider 接线台有双目标端口',

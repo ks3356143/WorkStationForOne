@@ -10,7 +10,8 @@ import type {
   McpPolicyRecord,
   ProviderProfileRecord,
   ProviderTarget,
-  ProviderWireApi
+  ProviderWireApi,
+  StorageInfo
 } from '../../../shared/ipc'
 import { providerAuthScheme, providerEndpoint } from '../../../shared/provider-profile'
 import { DURATION, EASE_OUT } from '../lib/motion'
@@ -87,6 +88,8 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
   const boxRef = useRef<HTMLDivElement>(null)
   const restoreRef = useRef<HTMLElement | null>(null)
   const [info, setInfo] = useState<AppInfo | null>(null)
+  const [storage, setStorage] = useState<StorageInfo | null>(null)
+  const [storageBusy, setStorageBusy] = useState(false)
   const [busy, setBusy] = useState(false)
   const [settingsTab, setSettingsTab] = useState<'basic' | 'capability'>('basic')
   const providerApi = typeof window === 'undefined' ? undefined : window.ws?.provider
@@ -162,6 +165,10 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
       ?.info()
       .then(setInfo)
       .catch(() => setInfo(null))
+    void window.ws?.app
+      ?.storage()
+      .then(setStorage)
+      .catch(() => setStorage(null))
     void providerApi
       ?.list()
       .then((list) => {
@@ -429,6 +436,38 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
         notify(error instanceof Error ? `保存失败：${error.message}` : '保存失败')
       )
       .finally(() => setProviderBusy(false))
+  }
+
+  const pickStorage = () => {
+    const bridge = window.ws?.app
+    if (!bridge?.pickStorage || storageBusy) return
+    setStorageBusy(true)
+    void bridge
+      .pickStorage()
+      .then((next) => {
+        setStorage(next)
+        if (next.pending) notify(`重启后迁移到 ${next.pending}`)
+      })
+      .catch((error: unknown) => {
+        notify(error instanceof Error ? `无法更改存储位置：${error.message}` : '无法更改存储位置')
+      })
+      .finally(() => setStorageBusy(false))
+  }
+
+  const cancelStorage = () => {
+    const bridge = window.ws?.app
+    if (!bridge?.cancelStorage || storageBusy) return
+    setStorageBusy(true)
+    void bridge
+      .cancelStorage()
+      .then((next) => {
+        setStorage(next)
+        notify('已取消更换存储位置')
+      })
+      .catch((error: unknown) => {
+        notify(error instanceof Error ? `取消失败：${error.message}` : '取消失败')
+      })
+      .finally(() => setStorageBusy(false))
   }
 
   const backupNow = () => {
@@ -941,6 +980,52 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
                   {busy ? '备份中…' : '执行'}
                 </button>
               </div>
+              <div className="w1-setrow w1-setstoragerow">
+                <span>存储位置</span>
+                <span className="w1-setstoragecopy">
+                  <code className="w1-setpath" title={storage?.root ?? ''}>
+                    {storage?.root ?? '读取中…'}
+                  </code>
+                  {storage && storage.source !== 'default' ? (
+                    <i className="w1-setstoragesrc">
+                      {storage.source === 'env' ? '由 WS_DATA_DIR 指定' : '已自定义'}
+                    </i>
+                  ) : null}
+                </span>
+                <span className="w1-setstorageacts">
+                  <button
+                    type="button"
+                    className="w1-setbtn"
+                    disabled={storageBusy || !storage || storage.locked}
+                    onClick={pickStorage}
+                  >
+                    {storage?.pending ? '重新选择' : '更改'}
+                  </button>
+                  {storage?.pending ? (
+                    <button
+                      type="button"
+                      className="w1-setbtn"
+                      disabled={storageBusy}
+                      onClick={cancelStorage}
+                    >
+                      取消更换
+                    </button>
+                  ) : null}
+                </span>
+              </div>
+              {storage?.pending ? (
+                <p className="w1-setstoragenote">
+                  重启后迁移到 <code>{storage.pending}</code>
+                  ：先复制并校验，成功后才切换并删除原目录。
+                </p>
+              ) : (
+                <p className="w1-setstoragenote">
+                  数据、插件、备份与 Codex 隔离配置都在这个根目录下；便携版默认在程序同级目录。
+                </p>
+              )}
+              {storage?.lastError ? (
+                <p className="w1-setstoragenote warn">{storage.lastError}</p>
+              ) : null}
             </section>
           </>
         ) : (

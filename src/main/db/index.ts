@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import type { DatabaseSync } from 'node:sqlite'
 import { mkdirSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import { AgentRepository } from './agent'
 import { ApprovalRuleRepository } from './approval-rules'
 import { AuditLog } from './audit'
@@ -43,20 +44,28 @@ export interface DatabaseContext {
 export function initDatabase(): DatabaseContext {
   // 优先级：WS_DATA_DIR（测试缝）> 位置文件 > 默认根。
   const appData = app.getPath('appData')
+  const envDataDir = process.env.WS_DATA_DIR
   const resolved = resolveAppRoot({
     locationFile: locationFileFor(appData),
-    ...(process.env.WS_DATA_DIR ? { envDataDir: process.env.WS_DATA_DIR } : {}),
+    ...(envDataDir ? { envDataDir } : {}),
     fallbackRoot: defaultAppDir(appData)
   })
   if (resolved.location.error) console.error('[storage]', resolved.location.error)
   const layout = resolveLayout(resolved.root)
-  mkdirSync(layout.dataDir, { recursive: true })
-  const db = openDatabase(layout.dbFile)
+  // WS_DATA_DIR 历来直接指向 data 目录；只在该模式下沿用它的原值，
+  // 其余情况由根目录派生，避免把它多套一层 data/。
+  const dataDir = envDataDir ? resolve(envDataDir) : layout.dataDir
+  mkdirSync(dataDir, { recursive: true })
+  const dbFile = join(dataDir, 'workstation.db')
+  const db = openDatabase(dbFile)
   migrate(db)
   const audit = new AuditLog(db)
+  // 环境变量模式下 codex-home 跟着 data 目录走，与既有冒烟/校验的落点一致；
+  // 正常模式才放到根目录下，和插件目录同级。
+  const codexHome = envDataDir ? join(dataDir, 'codex-home') : layout.codexHome
   return {
-    file: layout.dbFile,
-    layout,
+    file: dbFile,
+    layout: { ...layout, dataDir, dbFile, backupDir: join(dataDir, 'backups'), codexHome },
     db,
     audit,
     tasks: new TaskRepository(db, audit),

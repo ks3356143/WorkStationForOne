@@ -7,7 +7,12 @@ const { handle, fromWebContents } = vi.hoisted(() => ({
 
 vi.mock('electron', () => ({
   ipcMain: { handle },
-  BrowserWindow: { fromWebContents }
+  BrowserWindow: { fromWebContents },
+  app: {
+    getPath: () => process.env.WS_TEST_APPDATA ?? 'C:\\Users\\test\\AppData\\Roaming',
+    getVersion: () => '0.0.0-test'
+  },
+  dialog: { showOpenDialog: vi.fn() }
 }))
 
 const { registerAppHandlers, registerAppHandlersIPC } = await import('./app')
@@ -22,7 +27,7 @@ function windowStub(destroyed = false) {
 
 function lastHandler() {
   // 备份连接在这些断言里用不到，给个空壳即可
-  registerAppHandlers({ db: {} as never, dir: '', dataDir: '' })
+  registerAppHandlers({ db: {} as never, dir: '', dataDir: '', root: '' })
   return handle.mock.calls.at(-1)![1] as (event: unknown, value: unknown) => void
 }
 

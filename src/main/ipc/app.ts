@@ -1,7 +1,16 @@
-import { BrowserWindow, ipcMain } from 'electron'
-import { IPC_CHANNELS, type Theme } from '../../shared/ipc'
-import { app } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { IPC_CHANNELS, type StorageInfo, type Theme } from '../../shared/ipc'
 import { backupSize, createBackup, listBackups } from '../db/backup'
+import {
+  defaultAppDir,
+  describeLayout,
+  locationFileFor,
+  readLocation,
+  resolveAppRoot,
+  resolveLayout,
+  validateTargetRoot,
+  writeLocation
+} from '../storage/location'
 
 export const WINDOW_PALETTE: Record<Theme, { background: string; symbol: string }> = {
   dark: { background: '#070812', symbol: '#B7C9DC' },
@@ -23,6 +32,10 @@ export interface BackupTarget {
   dir: string
   /** 数据库所在目录，设置面板要原样展示给用户 */
   dataDir: string
+  /** 当前生效的存储根目录 */
+  root: string
+  /** 上一次启动迁移的结果，读一次即清 */
+  takeMigration?: () => { ok: boolean; error: string; oldRoot: string; removedOld: boolean } | null
 }
 
 export function registerAppHandlers(backup: BackupTarget): void {
@@ -37,6 +50,72 @@ export function registerAppHandlers(backup: BackupTarget): void {
     backupDir: backup.dir,
     backupCount: listBackups(backup.dir).length
   }))
+
+  const locationFile = locationFileFor(app.getPath('appData'))
+
+  /** 只在设置页打开时读一次迁移结果，避免重复提示。 */
+  const storageInfo = (): StorageInfo => {
+    const envLocked = Boolean(process.env.WS_DATA_DIR)
+    const location = readLocation(locationFile)
+    const resolved = resolveAppRoot({
+      locationFile,
+      ...(process.env.WS_DATA_DIR ? { envDataDir: process.env.WS_DATA_DIR } : {}),
+      fallbackRoot: defaultAppDir(app.getPath('appData'))
+    })
+    const migration = backup.takeMigration?.() ?? null
+    const error = location.error || migration?.error || ''
+    return {
+      root: resolved.root,
+      source: resolved.source,
+      pending: location.pending,
+      lastError: error,
+      layout: describeLayout(resolveLayout(resolved.root)),
+      locked: envLocked
+    }
+  }
+
+  ipcMain.handle(IPC_CHANNELS.appStorage, () => storageInfo())
+
+  ipcMain.handle(IPC_CHANNELS.appStoragePick, async (event) => {
+    if (process.env.WS_DATA_DIR) throw new Error('当前由 WS_DATA_DIR 指定路径，无法在界面更改')
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const picked = process.env.WS_PICK_STORAGE?.trim()
+    let target = picked ?? ''
+    if (!target) {
+      const result = win
+        ? await dialog.showOpenDialog(win, {
+            title: '选择存储位置',
+            buttonLabel: '迁移到这里',
+            properties: ['openDirectory', 'createDirectory']
+          })
+        : await dialog.showOpenDialog({
+            title: '选择存储位置',
+            properties: ['openDirectory', 'createDirectory']
+          })
+      if (result.canceled || !result.filePaths[0]) return storageInfo()
+      target = result.filePaths[0]
+    }
+    const current = resolveAppRoot({
+      locationFile,
+      fallbackRoot: defaultAppDir(app.getPath('appData'))
+    }).root
+    // 目标已存在同名子目录说明用户选到了根目录本身内部，按拒绝处理
+    const invalid = validateTargetRoot(target, current)
+    if (invalid) throw new Error(invalid)
+    const location = readLocation(locationFile)
+    writeLocation(locationFile, {
+      root: location.root,
+      pending: target,
+      previous: location.previous
+    })
+    return storageInfo()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.appStorageCancel, () => {
+    const location = readLocation(locationFile)
+    writeLocation(locationFile, { root: location.root, pending: null, previous: location.previous })
+    return storageInfo()
+  })
 
   ipcMain.handle(IPC_CHANNELS.appSetTheme, (event, value: unknown) => {
     const theme = assertTheme(value)

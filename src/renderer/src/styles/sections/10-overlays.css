@@ -2276,6 +2276,46 @@ button.w1-nlchip:hover {
   text-align: left;
 }
 
+/* 存储位置行：路径、来源标签与按钮并排，窄屏时按钮换到下一行 */
+.w1-setstoragerow {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.w1-setstoragecopy {
+  display: flex;
+  flex: 1;
+  min-width: 180px;
+  align-items: center;
+  gap: 8px;
+}
+
+.w1-setstoragesrc {
+  flex: none;
+  padding: 1px 6px;
+  border: 1px solid rgb(var(--ac-rgb) / 0.34);
+  color: var(--ac-fg);
+  font: 10.5px / 1.5 var(--mono);
+  font-style: normal;
+}
+
+.w1-setstorageacts {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+.w1-setstoragenote {
+  margin: 2px 0 0;
+  color: var(--su);
+  font: 11.5px / 1.6 var(--sans);
+}
+
+.w1-setstoragenote.warn {
+  color: var(--wn-fg);
+}
+
 .w1-setrules {
   display: flex;
   flex-direction: column;
