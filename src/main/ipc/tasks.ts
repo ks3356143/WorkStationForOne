@@ -1,4 +1,5 @@
 import { ipcMain } from 'electron'
+import { assertNotEmpty, assertRecord, assertText } from '../validate'
 import { isDateKey } from '../../shared/date-key'
 import { isRepeatRule } from '../../shared/repeat'
 import type { TaskRepository } from '../db/tasks'
@@ -18,12 +19,6 @@ const TIME_LABEL = /^([01]?\d|2[0-3]):[0-5]\d$/
 const MAX_TITLE = 500
 const MAX_NOTES = 20_000
 const MAX_LABEL = 80
-
-function assertText(value: unknown, label: string, max: number): string {
-  if (typeof value !== 'string') throw new TypeError(`${label}无效`)
-  if (value.length > max) throw new TypeError(`${label}过长`)
-  return value
-}
 
 function assertTitle(value: unknown): string {
   const title = assertText(value, '任务标题', MAX_TITLE).trim()
@@ -69,8 +64,7 @@ export function assertTaskId(value: unknown): string {
 }
 
 export function assertTaskRecord(value: unknown): TaskRecord {
-  if (typeof value !== 'object' || value === null) throw new TypeError('任务必须是对象')
-  const record = value as Record<string, unknown>
+  const record = assertRecord(value, '任务')
   return {
     id: assertTaskId(record.id),
     title: assertText(record.title, '任务标题', MAX_TITLE),
@@ -101,8 +95,7 @@ export function assertTaskRecord(value: unknown): TaskRecord {
 }
 
 export function assertTaskDraft(value: unknown): TaskDraft {
-  if (typeof value !== 'object' || value === null) throw new TypeError('任务草稿必须是对象')
-  const draft = value as Record<string, unknown>
+  const draft = assertRecord(value, '任务草稿')
   const result: TaskDraft = { title: assertTitle(draft.title) }
 
   if (draft.time !== undefined) result.time = assertTime(draft.time)
@@ -125,8 +118,7 @@ export function assertTaskDraft(value: unknown): TaskDraft {
 }
 
 export function assertTaskPatch(value: unknown): TaskPatch {
-  if (typeof value !== 'object' || value === null) throw new TypeError('任务补丁必须是对象')
-  const patch = value as Record<string, unknown>
+  const patch = assertRecord(value, '任务补丁')
   const result: TaskPatch = {}
 
   if (patch.title !== undefined) result.title = assertTitle(patch.title)
@@ -152,8 +144,7 @@ export function assertTaskPatch(value: unknown): TaskPatch {
     result.repeat = patch.repeat as TaskPatch['repeat']
   }
 
-  if (Object.keys(result).length === 0) throw new TypeError('任务补丁没有可更新字段')
-  return result
+  return assertNotEmpty(result, '任务补丁')
 }
 
 function assertChanges(value: unknown): TaskScheduleChange[] {

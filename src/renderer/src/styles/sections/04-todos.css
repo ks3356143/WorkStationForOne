@@ -874,7 +874,7 @@
   margin: 2px 0 12px;
 }
 
-.w1-cap {
+.w1-capbar {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -915,19 +915,19 @@
   transition: transform var(--dur-ui) var(--ease-out);
 }
 
-.w1-cap.tight .w1-captrack i {
+.w1-capbar.tight .w1-captrack i {
   background: linear-gradient(90deg, rgb(var(--wn-rgb) / 0.5), rgb(var(--wn-rgb)));
 }
 
-.w1-cap.over .w1-captrack i {
+.w1-capbar.over .w1-captrack i {
   background: linear-gradient(90deg, rgb(var(--dg-rgb) / 0.5), rgb(var(--dg-rgb)));
 }
 
-.w1-cap.tight .w1-captext b {
+.w1-capbar.tight .w1-captext b {
   color: rgb(var(--wn-rgb));
 }
 
-.w1-cap.over .w1-captext b {
+.w1-capbar.over .w1-captext b {
   color: rgb(var(--dg-rgb));
 }
 

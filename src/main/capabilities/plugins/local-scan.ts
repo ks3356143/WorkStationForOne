@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { PluginAgent } from '../../../shared/ipc'
+import { splitPluginId } from './components'
 
 export interface LocalMarketplace {
   name: string
@@ -83,7 +84,7 @@ export function scanClaudeLocal(root = scanRoot()): LocalScanResult {
   const installed = readJson(join(base, 'installed_plugins.json'))
   const plugins = asRecord(installed?.plugins)
   for (const [id, raw] of Object.entries(plugins)) {
-    const [name, market = ''] = id.split('@')
+    const { name, market } = splitPluginId(id)
     if (!name) continue
     // 同一插件可能有多条 scope 记录，取最新一条的安装路径与版本
     const entries = Array.isArray(raw) ? raw : [raw]
@@ -121,7 +122,7 @@ export function scanCodexLocal(root = scanRoot()): LocalScanResult {
 
   result.marketplaces = parseMarketplaceTables(text)
   for (const entry of parsePluginTables(text)) {
-    const [name, market = ''] = entry.selector.split('@')
+    const { name, market } = splitPluginId(entry.selector)
     if (!name) continue
     result.plugins.push({
       id: entry.selector,

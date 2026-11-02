@@ -1,4 +1,5 @@
 import { ipcMain } from 'electron'
+import { assertNotEmpty, assertRecord } from '../validate'
 import type { NoteRepository } from '../db/notes'
 import type { NotePatch, NoteRecord } from '../../shared/ipc'
 import { IPC_CHANNELS } from '../../shared/ipc'
@@ -7,8 +8,7 @@ const MAX_NOTE_TEXT = 4000
 const MAX_NOTE_TAG = 40
 
 function assertNote(value: unknown): NoteRecord {
-  if (typeof value !== 'object' || value === null) throw new TypeError('笔记必须是对象')
-  const note = value as Record<string, unknown>
+  const note = assertRecord(value, '笔记')
   if (typeof note.id !== 'string' || note.id.length === 0) throw new TypeError('笔记 id 无效')
   if (typeof note.text !== 'string' || note.text.length === 0) throw new TypeError('笔记正文无效')
   if (typeof note.time !== 'string') throw new TypeError('笔记时间无效')
@@ -75,8 +75,7 @@ export function assertNotePatch(value: unknown): NotePatch {
     result.pinned = patch.pinned
   }
 
-  if (Object.keys(result).length === 0) throw new TypeError('笔记补丁没有可更新字段')
-  return result
+  return assertNotEmpty(result, '笔记补丁')
 }
 
 export const noteValidators = {

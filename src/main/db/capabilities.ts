@@ -7,85 +7,29 @@ import type {
   McpToolApproval,
   PluginAgent,
   PluginSourceKind,
-  PluginSourceRecord,
-  SkillRecord
+  PluginSourceRecord
 } from '../../shared/ipc'
+import {
+  MCP_SERVER_COLUMNS,
+  PLUGIN_COLUMNS,
+  SOURCE_COLUMNS,
+  toPlugin,
+  toServer,
+  toSource,
+  type McpServerRow,
+  type PluginRow,
+  type PluginSourceRow,
+  type SecretRow,
+  type StoredPlugin,
+  type ToolRow
+} from './capabilities-rows'
 
-interface PluginRow {
-  id: string
-  name: string
-  description: string
-  version: string
-  marketplace: string
-  install_path: string
-  components: string
-  has_hooks: number
-  has_mcp: number
-  enabled: number
-  trusted: number
-  agent: PluginAgent
-  source_id: string
-  installed_at: number
-  updated_at: number
-}
-
-interface PluginSourceRow {
-  id: string
-  name: string
-  kind: PluginSourceKind
-  url: string
-  ref: string
-  root: string
-  last_synced_at: number | null
-  last_error: string
-  plugin_count: number
-  created_at: number
-  updated_at: number
-}
-
-interface McpServerRow {
-  id: string
-  key: string
-  name: string
-  description: string
-  transport: ExternalMcpTransport
-  command: string
-  args_json: string
-  url: string
-  source: 'catalog' | 'manual'
-  catalog_id: string
-  version: string
-  enabled: number
-  trusted: number
-  tools_json: string
-  targets: ExternalMcpTargets
-  last_test_at: number | null
-  last_error: string
-  created_at: number
-  updated_at: number
-}
-
-interface SecretRow {
-  kind: 'env' | 'header'
-  key: string
-  value_encrypted: Uint8Array
-}
-
-interface ToolRow {
-  name: string
-  description: string
-  read_only: number
-  approval: McpToolApproval
-}
+export type { StoredPlugin }
 
 export interface McpToolInput {
   name: string
   description: string
   readOnly: boolean
-}
-
-export interface StoredPlugin extends SkillRecord {
-  installPath: string
 }
 
 export interface PluginUpsert {
@@ -136,98 +80,11 @@ export interface McpSecrets {
   headers: Map<string, Buffer>
 }
 
-function parseComponents(raw: string): string[] {
-  try {
-    const value: unknown = JSON.parse(raw)
-    return Array.isArray(value)
-      ? value.filter((item): item is string => typeof item === 'string')
-      : []
-  } catch {
-    return []
-  }
-}
-
-function parseArgs(raw: string): string[] {
-  try {
-    const value: unknown = JSON.parse(raw)
-    return Array.isArray(value)
-      ? value.filter((item): item is string => typeof item === 'string')
-      : []
-  } catch {
-    return []
-  }
-}
-
-function toPlugin(row: PluginRow): StoredPlugin {
-  return {
-    id: row.id,
-    name: row.name,
-    description: row.description,
-    version: row.version,
-    marketplace: row.marketplace,
-    installPath: row.install_path,
-    components: parseComponents(row.components),
-    hasHooks: row.has_hooks === 1,
-    hasMcp: row.has_mcp === 1,
-    enabled: row.enabled === 1,
-    trusted: row.trusted === 1,
-    agent: row.agent ?? 'claude',
-    sourceId: row.source_id ?? '',
-    installedAt: row.installed_at,
-    updatedAt: row.updated_at
-  }
-}
-
-function toSource(row: PluginSourceRow): PluginSourceRecord {
-  return {
-    id: row.id,
-    name: row.name,
-    kind: row.kind,
-    url: row.url,
-    ref: row.ref,
-    root: row.root,
-    lastSyncedAt: row.last_synced_at ?? null,
-    lastError: row.last_error ?? '',
-    pluginCount: row.plugin_count ?? 0,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at
-  }
-}
-
-function toServer(row: McpServerRow): ExternalMcpServerRecord {
-  return {
-    id: row.id,
-    key: row.key,
-    name: row.name,
-    description: row.description,
-    transport: row.transport,
-    command: row.command,
-    args: parseArgs(row.args_json),
-    url: row.url,
-    envKeys: [],
-    headerKeys: [],
-    source: row.source,
-    catalogId: row.catalog_id,
-    version: row.version,
-    enabled: row.enabled === 1,
-    trusted: row.trusted === 1,
-    toolNames: parseArgs(row.tools_json),
-    tools: [],
-    targets: row.targets ?? 'both',
-    lastTestAt: row.last_test_at ?? null,
-    lastError: row.last_error ?? '',
-    createdAt: row.created_at,
-    updatedAt: row.updated_at
-  }
-}
-
 export class CapabilityRepository {
   constructor(private readonly db: DatabaseSync) {}
 
   listPlugins(agent?: PluginAgent): StoredPlugin[] {
-    const sql = `SELECT id, name, description, version, marketplace, install_path, components,
-                        has_hooks, has_mcp, enabled, trusted, agent, source_id,
-                        installed_at, updated_at
+    const sql = `SELECT ${PLUGIN_COLUMNS}
                  FROM agent_plugins ${agent ? 'WHERE agent = ?' : ''}
                  ORDER BY installed_at DESC`
     const rows = (agent
@@ -238,12 +95,8 @@ export class CapabilityRepository {
 
   findPlugin(id: string, agent: PluginAgent = 'claude'): StoredPlugin | undefined {
     const row = this.db
-      .prepare(
-        `SELECT id, name, description, version, marketplace, install_path, components,
-                has_hooks, has_mcp, enabled, trusted, agent, source_id,
-                installed_at, updated_at
-         FROM agent_plugins WHERE id = ? AND agent = ?`
-      )
+      .prepare(`SELECT ${PLUGIN_COLUMNS}
+         FROM agent_plugins WHERE id = ? AND agent = ?`)
       .get(id, agent) as PluginRow | undefined
     return row ? toPlugin(row) : undefined
   }
@@ -322,33 +175,24 @@ export class CapabilityRepository {
 
   listSources(): PluginSourceRecord[] {
     const rows = this.db
-      .prepare(
-        `SELECT id, name, kind, url, ref, root, last_synced_at, last_error, plugin_count,
-                created_at, updated_at
-         FROM plugin_sources ORDER BY created_at ASC`
-      )
+      .prepare(`SELECT ${SOURCE_COLUMNS}
+         FROM plugin_sources ORDER BY created_at ASC`)
       .all() as unknown as PluginSourceRow[]
     return rows.map(toSource)
   }
 
   findSource(id: string): PluginSourceRecord | undefined {
     const row = this.db
-      .prepare(
-        `SELECT id, name, kind, url, ref, root, last_synced_at, last_error, plugin_count,
-                created_at, updated_at
-         FROM plugin_sources WHERE id = ?`
-      )
+      .prepare(`SELECT ${SOURCE_COLUMNS}
+         FROM plugin_sources WHERE id = ?`)
       .get(id) as PluginSourceRow | undefined
     return row ? toSource(row) : undefined
   }
 
   findSourceByName(name: string): PluginSourceRecord | undefined {
     const row = this.db
-      .prepare(
-        `SELECT id, name, kind, url, ref, root, last_synced_at, last_error, plugin_count,
-                created_at, updated_at
-         FROM plugin_sources WHERE name = ?`
-      )
+      .prepare(`SELECT ${SOURCE_COLUMNS}
+         FROM plugin_sources WHERE name = ?`)
       .get(name) as PluginSourceRow | undefined
     return row ? toSource(row) : undefined
   }
@@ -385,39 +229,27 @@ export class CapabilityRepository {
 
   listMcpServers(): ExternalMcpServerRecord[] {
     const rows = this.db
-      .prepare(
-        `SELECT id, key, name, description, transport, command, args_json, url, source,
-                catalog_id, version, enabled, trusted, tools_json, targets, last_test_at, last_error,
-                created_at, updated_at
-         FROM mcp_servers ORDER BY created_at DESC`
-      )
+      .prepare(`SELECT ${MCP_SERVER_COLUMNS}
+         FROM mcp_servers ORDER BY created_at DESC`)
       .all() as unknown as McpServerRow[]
-    return rows.map((row) => {
-      const server = toServer(row)
-      const keys = this.secretKeys(server.id)
-      server.envKeys = keys.env
-      server.headerKeys = keys.headers
-      server.tools = this.toolsFor(server.id)
-      return server
-    })
+    return rows.map((row) => this.hydrateServer(toServer(row)))
   }
 
-  findMcpServer(id: string): ExternalMcpServerRecord | undefined {
-    const row = this.db
-      .prepare(
-        `SELECT id, key, name, description, transport, command, args_json, url, source,
-                catalog_id, version, enabled, trusted, tools_json, targets, last_test_at, last_error,
-                created_at, updated_at
-         FROM mcp_servers WHERE id = ?`
-      )
-      .get(id) as McpServerRow | undefined
-    if (!row) return undefined
-    const server = toServer(row)
+  /** 密钥 key 与工具清单来自两张附表；列表与单条查询共用这一处补全。 */
+  private hydrateServer(server: ExternalMcpServerRecord): ExternalMcpServerRecord {
     const keys = this.secretKeys(server.id)
     server.envKeys = keys.env
     server.headerKeys = keys.headers
     server.tools = this.toolsFor(server.id)
     return server
+  }
+
+  findMcpServer(id: string): ExternalMcpServerRecord | undefined {
+    const row = this.db
+      .prepare(`SELECT ${MCP_SERVER_COLUMNS}
+         FROM mcp_servers WHERE id = ?`)
+      .get(id) as McpServerRow | undefined
+    return row ? this.hydrateServer(toServer(row)) : undefined
   }
 
   toolsFor(serverId: string): ExternalMcpToolRecord[] {
@@ -497,12 +329,8 @@ export class CapabilityRepository {
 
   findMcpServerByKey(key: string): ExternalMcpServerRecord | undefined {
     const row = this.db
-      .prepare(
-        `SELECT id, key, name, description, transport, command, args_json, url, source,
-                catalog_id, version, enabled, trusted, tools_json, targets, last_test_at, last_error,
-                created_at, updated_at
-         FROM mcp_servers WHERE key = ?`
-      )
+      .prepare(`SELECT ${MCP_SERVER_COLUMNS}
+         FROM mcp_servers WHERE key = ?`)
       .get(key) as McpServerRow | undefined
     return row ? toServer(row) : undefined
   }

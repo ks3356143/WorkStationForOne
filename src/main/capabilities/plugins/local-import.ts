@@ -120,24 +120,6 @@ export function copyPluginSnapshot(
   return dir
 }
 
-/** 探测插件目录里有哪些组件，导入时一并写入索引。 */
-export function detectComponents(dir: string): {
-  components: string[]
-  hasHooks: boolean
-  hasMcp: boolean
-} {
-  const has = (name: string): boolean => existsSync(join(dir, name))
-  const components: string[] = []
-  if (has('skills')) components.push('skills')
-  if (has('commands')) components.push('commands')
-  if (has('agents')) components.push('agents')
-  if (has('hooks')) components.push('hooks')
-  const hasHooks = has('hooks') || has(join('hooks', 'hooks.json'))
-  const hasMcp = existsSync(join(dir, '.mcp.json')) || existsSync(join(dir, 'mcp.json'))
-  if (hasMcp) components.push('mcp')
-  return { components, hasHooks, hasMcp }
-}
-
 /** Codex 导入后按本机原状态写启停；缺省停用，与「新装默认停用」一致。 */
 export function applyImportedCodexState(
   codexHome: string,

@@ -9,7 +9,7 @@ export function CapacityBar({ capacity, compact = false }: CapacityBarProps) {
   const ratio = Math.min(1, capacity.ratio)
 
   return (
-    <div className={`w1-cap ${capacity.state}${compact ? ' compact' : ''}`}>
+    <div className={`w1-capbar ${capacity.state}${compact ? ' compact' : ''}`}>
       <div className="w1-captext">
         <span>今日容量</span>
         <b>{formatMinutes(capacity.planned)}</b>

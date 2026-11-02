@@ -7,7 +7,6 @@ import { migrate, openDatabase } from '../../db/database'
 import {
   applyImportedCodexState,
   copyPluginSnapshot,
-  detectComponents,
   importLocal,
   type ImportDeps
 } from './local-import'
@@ -169,17 +168,6 @@ describe('copyPluginSnapshot', () => {
     )
     expect(existsSync(join(target, 'skills', 'demo', 'SKILL.md'))).toBe(true)
     expect(target).toContain('imported')
-  })
-})
-
-describe('detectComponents', () => {
-  it('识别 skills 与 mcp', () => {
-    const dir = seedPluginDir()
-    expect(detectComponents(dir)).toEqual({
-      components: ['skills', 'mcp'],
-      hasHooks: false,
-      hasMcp: true
-    })
   })
 })
 

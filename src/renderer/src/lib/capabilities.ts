@@ -61,3 +61,25 @@ export function marketLabel(value: string): string {
   if (value === 'local') return '本地'
   return value
 }
+
+/** 把 enabled + trusted 压成一句可读状态，避免用户猜「还差哪一步」。 */
+export function mcpStatus(server: ExternalMcpServerRecord): string {
+  if (!server.trusted) return '待信任'
+  if (!server.enabled) return '已停用'
+  if (server.lastError) return '连接失败'
+  if (server.tools.length === 0) return '待测试'
+  return `已连接 · ${server.tools.length} 工具`
+}
+
+/** 环境自检的版本号只留纯版本，去掉「claude-cli 1.2.3」这类前缀。 */
+export function envVersion(version: string, command: string): string {
+  if (!version) return ''
+  let text = version.trim()
+  for (const prefix of [`${command}-cli `, `${command} version `, `${command} `]) {
+    if (text.toLowerCase().startsWith(prefix.toLowerCase())) {
+      text = text.slice(prefix.length)
+      break
+    }
+  }
+  return text.split(/\s+/)[0]?.slice(0, 18) ?? ''
+}

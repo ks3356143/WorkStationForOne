@@ -14,6 +14,7 @@ import { catalogEntry, MCP_CATALOG } from './catalog'
 import { buildCodexMcpRuntime, type CodexMcpRuntime } from './codex-mcp'
 import { probeMcpServer } from './mcp-client'
 import { exportMcpConfig, parseMcpConfig } from './mcp-config'
+import { decryptSecrets } from './mcp-secrets'
 
 const MAX_NAME = 60
 const MAX_DESCRIPTION = 240
@@ -275,14 +276,8 @@ export class McpServerService {
     if (!server.trusted) throw new Error('先确认信任这个 MCP Server，再测试连接')
     try {
       const secrets = this.repository.secretsFor(id)
-      const env: Record<string, string> = {}
-      for (const [key, encrypted] of secrets.env) {
-        env[key] = safeStorage.decryptString(encrypted)
-      }
-      const headers: Record<string, string> = {}
-      for (const [key, encrypted] of secrets.headers) {
-        headers[key] = safeStorage.decryptString(encrypted)
-      }
+      const env = decryptSecrets(secrets.env)
+      const headers = decryptSecrets(secrets.headers)
       const result = await probeMcpServer({
         transport: server.transport,
         ...(server.transport === 'stdio'
@@ -469,11 +464,7 @@ export class McpServerService {
       .filter((server) => !agent || targetsAgent(server.targets, agent))
     return servers.map((server) => {
       if (server.transport === 'stdio') {
-        const secrets = this.repository.secretsFor(server.id)
-        const env: Record<string, string> = {}
-        for (const [key, encrypted] of secrets.env) {
-          env[key] = safeStorage.decryptString(encrypted)
-        }
+        const env = decryptSecrets(this.repository.secretsFor(server.id).env)
         return {
           name: server.key,
           type: 'stdio' as const,
@@ -482,11 +473,7 @@ export class McpServerService {
           ...(Object.keys(env).length > 0 ? { env } : {})
         }
       }
-      const secrets = this.repository.secretsFor(server.id)
-      const headers: Record<string, string> = {}
-      for (const [key, encrypted] of secrets.headers) {
-        headers[key] = safeStorage.decryptString(encrypted)
-      }
+      const headers = decryptSecrets(this.repository.secretsFor(server.id).headers)
       return {
         name: server.key,
         type: 'http' as const,

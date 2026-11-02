@@ -11,6 +11,28 @@ import type {
   TaskRecord
 } from '../../shared/ipc'
 import type { AuditEntry } from '../db/audit'
+import { assertNotEmpty } from '../validate'
+import {
+  MAX_QUERY,
+  TASK_SCOPES,
+  asRecord,
+  asString,
+  clip,
+  dueCards,
+  fail,
+  inScope,
+  isDueToday,
+  numberIn,
+  ok,
+  readableSnippet,
+  sortTasks,
+  taskView,
+  topLevelTasks,
+  type TaskScope
+} from './views'
+import type { McpToolResult } from './views'
+
+export type { McpToolResult }
 
 export interface McpData {
   /** 可嵌套事务；MCP 写入把业务写入与审计绑在一起 */
@@ -54,107 +76,15 @@ export interface McpToolDef {
   }
 }
 
-export interface McpToolResult {
-  text: string
-  isError?: boolean
-}
-
 /** 供 Codex app-server 识别可免二次审批的只读工具。 */
 export function isReadOnlyMcpTool(name: string): boolean {
   return MCP_TOOLS.some((tool) => tool.name === name && tool.write !== true)
 }
 
-const MAX_DETAIL = 300
-const MAX_QUERY = 200
-const SNIPPET_OPEN = String.fromCharCode(1)
-const SNIPPET_CLOSE = String.fromCharCode(2)
-
-const SCOPES = ['today', 'overdue', 'upcoming', 'all', 'done'] as const
-type TaskScope = (typeof SCOPES)[number]
-
-function clip(value: string, max = MAX_DETAIL): string {
-  const flat = value.replace(/\s+/g, ' ').trim()
-  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {}
-}
-
-function asString(value: unknown, max: number): string {
-  return typeof value === 'string' ? value.trim().slice(0, max) : ''
-}
-
-function numberIn(value: unknown, fallback: number, min: number, max: number): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
-  return Math.min(max, Math.max(min, Math.trunc(value)))
-}
-
-function pretty(value: unknown): string {
-  return JSON.stringify(value, null, 2)
-}
-
-function ok(value: unknown): McpToolResult {
-  return { text: pretty(value) }
-}
-
-function fail(message: string): McpToolResult {
-  return { text: message, isError: true }
-}
-
-function taskView(task: TaskRecord): Record<string, unknown> {
-  const view: Record<string, unknown> = {
-    id: task.id,
-    title: task.title,
-    done: task.done
-  }
-  if (task.list) view.list = task.list
-  if (task.tag) view.tag = task.tag
-  if (task.priority !== undefined) view.priority = task.priority
-  if (task.dueDate) view.dueDate = task.dueDate
-  if (task.plannedFor) view.plannedFor = task.plannedFor
-  if (task.time && task.time !== '—') view.time = task.time
-  if (task.estimateMinutes) view.estimateMinutes = task.estimateMinutes
-  if (task.repeat) view.repeat = task.repeat
-  if (task.completedAt) view.completedOn = dateKey(new Date(task.completedAt))
-  if (task.notes) view.notes = clip(task.notes)
-  return view
-}
-
-function sortTasks(a: TaskRecord, b: TaskRecord): number {
-  const due = (a.dueDate ?? '9999-99-99').localeCompare(b.dueDate ?? '9999-99-99')
-  if (due !== 0) return due
-  const priority = (b.priority ?? 0) - (a.priority ?? 0)
-  if (priority !== 0) return priority
-  return (a.createdAt ?? 0) - (b.createdAt ?? 0)
-}
-
-function topLevelTasks(data: McpData): TaskRecord[] {
-  return data.tasks.list().filter((task) => !task.parentId)
-}
-
-function inScope(task: TaskRecord, scope: TaskScope, today: string): boolean {
-  switch (scope) {
-    case 'today':
-      return (
-        !task.done &&
-        ((task.dueDate !== undefined && task.dueDate <= today) || task.plannedFor === today)
-      )
-    case 'overdue':
-      return !task.done && task.dueDate !== undefined && task.dueDate < today
-    case 'upcoming':
-      return !task.done && task.dueDate !== undefined && task.dueDate > today
-    case 'done':
-      return task.done
-    default:
-      return true
-  }
-}
-
 function tasksList(args: Record<string, unknown>, data: McpData, today: string): McpToolResult {
   const rawScope = asString(args.scope, 20) || 'today'
-  if (!SCOPES.includes(rawScope as TaskScope)) {
-    return fail(`scope 只支持 ${SCOPES.join(' / ')}`)
+  if (!TASK_SCOPES.includes(rawScope as TaskScope)) {
+    return fail(`scope 只支持 ${TASK_SCOPES.join(' / ')}`)
   }
   const scope = rawScope as TaskScope
   const limit = numberIn(args.limit, 30, 1, 100)
@@ -180,11 +110,7 @@ function notesSearch(args: Record<string, unknown>, data: McpData): McpToolResul
     libraryTotal: data.notes.count(),
     returned: hits.length,
     results: hits.map((hit) => {
-      const snippet = (hit.snippet || hit.text)
-        .split(SNIPPET_OPEN)
-        .join('[')
-        .split(SNIPPET_CLOSE)
-        .join(']')
+      const snippet = readableSnippet(hit)
       return {
         id: hit.id,
         snippet: clip(snippet, 280),
@@ -199,17 +125,7 @@ function notesSearch(args: Record<string, unknown>, data: McpData): McpToolResul
 function learningDue(args: Record<string, unknown>, data: McpData, today: string): McpToolResult {
   const subject = asString(args.subject, 40)
   const limit = numberIn(args.limit, 10, 1, 50)
-  const due = data.learning
-    .list()
-    .filter(
-      (card) => card.active && card.nextReviewOn <= today && (!subject || card.subject === subject)
-    )
-    .sort(
-      (a, b) =>
-        a.nextReviewOn.localeCompare(b.nextReviewOn) ||
-        a.subject.localeCompare(b.subject, 'zh-CN') ||
-        a.title.localeCompare(b.title, 'zh-CN')
-    )
+  const due = dueCards(data, today, subject)
   return ok({
     today,
     due: due.length,
@@ -245,16 +161,12 @@ function habitsSummary(data: McpData, today: string): McpToolResult {
 function todayOverview(data: McpData, today: string): McpToolResult {
   const tasks = topLevelTasks(data)
   const open = tasks.filter((task) => !task.done)
-  const dueToday = open.filter(
-    (task) => (task.dueDate && task.dueDate <= today) || task.plannedFor === today
-  )
+  const dueToday = open.filter((task) => isDueToday(task, today))
   const overdue = open.filter((task) => task.dueDate !== undefined && task.dueDate < today)
   const doneToday = tasks.filter(
     (task) => task.done && task.completedAt && dateKey(new Date(task.completedAt)) === today
   )
-  const learningDueCount = data.learning
-    .list()
-    .filter((card) => card.active && card.nextReviewOn <= today).length
+  const learningDueCount = dueCards(data, today).length
   const habits = data.habits.list()
   return ok({
     today,
@@ -381,8 +293,7 @@ function taskPatchFrom(raw: unknown): TaskPatch {
     const time = optionalTime(patch.time)
     if (time) result.time = time
   }
-  if (Object.keys(result).length === 0) throw new TypeError('patch 没有可更新字段')
-  return result
+  return assertNotEmpty(result, 'patch')
 }
 
 function tasksCreate(args: Record<string, unknown>, data: McpData): McpToolResult {
@@ -498,7 +409,7 @@ export const MCP_TOOLS: McpToolDef[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        scope: { type: 'string', enum: [...SCOPES] },
+        scope: { type: 'string', enum: [...TASK_SCOPES] },
         limit: { type: 'integer', minimum: 1, maximum: 100 }
       },
       additionalProperties: false

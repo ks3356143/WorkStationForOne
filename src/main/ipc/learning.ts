@@ -1,6 +1,7 @@
 import { writeFile } from 'node:fs/promises'
 import { dialog, ipcMain } from 'electron'
 import { clozeFrontText, validateCloze } from '../../shared/cloze'
+import { assertNotEmpty, assertRecord, assertText } from '../validate'
 import { dateKey, isDateKey } from '../../shared/date-key'
 import { LEARNING_LIMITS, serializeLearningCsv } from '../../shared/learning-csv'
 import type { LearningRepository } from '../db/learning'
@@ -19,12 +20,6 @@ const IPC = IPC_CHANNELS
 const MAX_SUBJECT = LEARNING_LIMITS.subject
 const MAX_TITLE = LEARNING_LIMITS.title
 const MAX_TEXT = LEARNING_LIMITS.text
-
-function assertText(value: unknown, label: string, max: number): string {
-  if (typeof value !== 'string') throw new TypeError(`${label}无效`)
-  if (value.length > max) throw new TypeError(`${label}过长`)
-  return value
-}
 
 function assertSubject(value: unknown): string {
   const subject = assertText(value, '科目', MAX_SUBJECT).trim()
@@ -70,8 +65,7 @@ function assertRating(value: unknown): LearningRating {
 }
 
 export function assertLearningRecord(value: unknown): LearningItemRecord {
-  if (typeof value !== 'object' || value === null) throw new TypeError('卡片必须是对象')
-  const record = value as Record<string, unknown>
+  const record = assertRecord(value, '卡片')
   if (typeof record.active !== 'boolean') throw new TypeError('卡片启用状态无效')
   if (typeof record.repetitions !== 'number' || record.repetitions < 0)
     throw new TypeError('卡片复习次数无效')
@@ -121,8 +115,7 @@ export function assertLearningRecord(value: unknown): LearningItemRecord {
 }
 
 export function assertLearningDraft(value: unknown): LearningDraft {
-  if (typeof value !== 'object' || value === null) throw new TypeError('卡片草稿必须是对象')
-  const draft = value as Record<string, unknown>
+  const draft = assertRecord(value, '卡片草稿')
   const kind = draft.kind === undefined ? 'basic' : assertKind(draft.kind)
   const result: LearningDraft = {
     subject: assertSubject(draft.subject),
@@ -143,8 +136,7 @@ export function assertLearningDraft(value: unknown): LearningDraft {
 }
 
 export function assertLearningPatch(value: unknown): LearningPatch {
-  if (typeof value !== 'object' || value === null) throw new TypeError('卡片补丁必须是对象')
-  const patch = value as Record<string, unknown>
+  const patch = assertRecord(value, '卡片补丁')
   const result: LearningPatch = {}
 
   if (patch.subject !== undefined) result.subject = assertSubject(patch.subject)
@@ -162,8 +154,7 @@ export function assertLearningPatch(value: unknown): LearningPatch {
     result.title = clozeFrontText(result.clozeSource).slice(0, MAX_TITLE)
   }
 
-  if (Object.keys(result).length === 0) throw new TypeError('卡片补丁没有可更新字段')
-  return result
+  return assertNotEmpty(result, '卡片补丁')
 }
 
 export function assertHistoryDays(value: unknown): number {

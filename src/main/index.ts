@@ -29,7 +29,8 @@ import {
 } from './storage/location'
 import { migrateRoot, type MigrateResult } from './storage/migrate'
 import { agentCapabilityRuntime, createCapabilityCenter } from './capabilities'
-import { registerCapabilityHandlers, registerPluginHandlers } from './ipc/capability'
+import { registerCapabilityHandlers } from './ipc/capability'
+import { registerPluginHandlers } from './ipc/plugin-handlers'
 import { IPC_CHANNELS } from '../shared/ipc'
 
 const devUrl = process.env.ELECTRON_RENDERER_URL

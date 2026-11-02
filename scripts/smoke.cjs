@@ -808,7 +808,7 @@ async function run() {
     check('任务区有计划今天入口', Boolean(planButton))
     planButton?.click()
     await waitFor(() => all('.w1-plancol')[0]?.querySelector('.w1-planrow') !== undefined, 2500)
-    check('计划面板与容量条', !!one('.w1-plan') && !!one('.w1-plan .w1-cap'))
+    check('计划面板与容量条', !!one('.w1-plan') && !!one('.w1-plan .w1-capbar'))
     const beforePlanned = all('.w1-plancol')[1]?.querySelectorAll('.w1-planrow').length ?? 0
     all('.w1-plancol')[0]?.querySelector('.w1-planrow')?.click()
     await waitFor(

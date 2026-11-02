@@ -15,7 +15,7 @@
 - `npm run check` — Biome 检查格式与 lint（Rust 单二进制，不依赖 Prettier / ESLint）。
 - `npm run check:fix` — 自动修复格式与可安全修复的 lint 问题。
 - `npm run fmt` — 只格式化，不跑 lint。
-- `npm run smoke` — 先构建，再跑 322 项 UI 交互冒烟。加载真实主进程与 preload，UI 操作直接写进临时 SQLite（`userData`、`sessionData`、数据库都隔离到 `%TEMP%`），并断言「preload 桥可用」与「操作已落库」；跨重启持久化仍由 `npm run verify` 覆盖。Codex 部分覆盖继承 CLI 的只读 exec、激活 Provider 后的 app-server 审批卡与 MCP 工具审批卡，二者都走 `scripts/stub-codex.cjs`，不调用模型；Provider 测试连接用本机 mock 端点覆盖成功与失败，模型列表拉取覆盖 `/models` 返回与选择回填，Provider 卡显示推断的鉴权方式与实际请求端点；Agent 工作区通过 `WS_PICK_WORKSPACE` 跳过原生对话框，但仍走目录校验；多会话并发用慢速 stub 让两个 Claude 会话同时运行，断言后发会话先完成时慢会话仍在等待，随后各自独立收尾；并发审批故意让两个 stub 复用同一个 `request_id`，验证允许甲后乙的卡仍在、拒绝乙后各自收尾。舰队控制台冒烟从状态栏打开，断言多会话分组、运行/审批汇总、状态筛选、预设保存/删除、用量统计、本机会话只读扫描与导入落库，再打开会话；导入后断言线程出现历史正文、工具卡与顶部历史说明条、`origin='import'` 与 `tools_json` 落库，已导入行可「补历史」；本机扫描用 `WS_SESSION_SCAN_ROOT` 指向临时 home，不得读取真实 `~/.claude` / `~/.codex`。能力中心冒烟用 `WS_CLAUDE_PLUGIN_CLI` 指向 `scripts/stub-plugin-cli.cjs`、`WS_PICK_SKILL` 指向临时技能目录，验证市场读取、安装、启用、本地 SKILL.md 导入/详情/移除、MCP 添加/信任/启用、工具级权限、Codex Provider 会话说明与环境自检；Codex app-server 跑完后读取临时 `codex-home/config.toml`，断言外部 `memory` 与本地桥都在、默认审批为 `prompt` 且不含 Provider 密钥值；工作区冒烟在临时 workspace 写 `smoke-note.txt`，从 Agent 顶栏打开文件树并预览；自定义 stdio Server 用 `scripts/stub-mcp-server.cjs` 验证连接测试与工具清单（echo / stub_status），再移除；HTTP Server 用冒烟内置的 Streamable HTTP 探针验证添加 / 信任 / 启用 / 测试、解密请求头透传、SSE 工具清单与临时 `--mcp-config` 的 `http-mcp=http`；最后断言 Claude 子进程实际收到应用私有 `--plugin-dir`、外部 MCP 与 `--strict-mcp-config`，以及外部 MCP 会话的 `--permission-prompt-tool mcp__workstationforone__approval_request`。审批规则冒烟覆盖敏感工具卡不出现「此工作区允许」、「本会话允许」后同轮自动放行、MCP 卡「此工作区允许」后不再弹卡、设置页显示并可撤销规则、撤销后恢复审批与审计留痕；到点提醒那条按分钟匹配，冒烟会检测是否跨过分钟边界并在跨界时重建重试。关键状态断言用条件等待，不再靠固定 sleep；View Transition 被打断产生的 AbortError 属于预期，必须被吞掉。
+- `npm run smoke` — 先构建，再跑 UI 交互冒烟（真实主进程 + preload + 临时 SQLite）。覆盖面与各测试缝见 `docs/development/smoke.md`。
 - `npm run verify` — 构建后启动真实主进程（临时 `WS_DATA_DIR` + 临时 Chromium profile），运行 252–254 项运行时断言（起始主题不同会差 2 项分支）：五视图互斥、双主题/双皮肤持久化、跨重启数据。验证期间自动补齐 dark/prism 基线、置顶聚焦并关闭后台节流，避免真实应用偏好和窗口遮挡干扰性能断言。
 - `npm run capture -- .screenshots/shell-1440.png 1440 900 .screenshots/audit-1440.json` — 构建、保存截图并写入布局审计。
 - `npm run capture -- .screenshots/shell-1180.png 1180 720 .screenshots/audit-1180.json dark` — 在最小窗口尺寸下做同样的检查；主题参数为 `dark|light`，视图参数为 `today|tasks|agent|notes|learning|settings`，均可省略审计路径后按任意顺序追加（如 `... 1440 900 light tasks`、`... 1440 900 dark settings`）。
@@ -39,6 +39,7 @@
 ## 架构与约定
 
 - `src/main` 是唯一允许持有数据库、子进程、MCP 服务器、权限与审计的进程。`src/preload` 暴露窄的类型化桥。`src/renderer` 只负责 UI。
+- `src/shared/ipc.ts` 只是统一导出入口，各域类型定义在 `src/shared/ipc/` 下（tasks / notes / learning / habits / agent / mcp / capability / audit / app / channels / ws-api）。新增类型加到对应域文件并在 `ipc.ts` 里再导出；调用方一律 import `shared/ipc`，不要走深路径。入参校验统一用 `src/main/validate.ts`，不要每个 handler 手写一遍。
 - 保持模块有深度：把纯规则放进小接口并测试（`lib/schedule.ts`、`lib/agent.ts`、`lib/todo.ts`、`lib/todo-parser.ts`、`shared/date-key.ts`）。组件只做编排，不重复业务规则。
 - 任务日期一律用本地日期键 `YYYY-MM-DD`（`shared/date-key.ts`），不要用 `Date` 对象或 UTC 字符串存库；今天/逾期/即将到来的口径集中在 `lib/todo.ts`，组件不要自行比较日期。
 - 任务快速添加语法解析在 `lib/todo-parser.ts`，只做确定性规则，不接模型。新增语法先写解析测试。解析走 `tokenizeTaskInput()`，命中片段用等长空白覆盖（不是删除），因此区间下标始终映射回原始输入；`parseTaskInput()` 是它剥掉 `spans` 的包装，对外签名保持不变。要加高亮种类只改 `TokenKind`。
@@ -74,7 +75,7 @@
 - 启动更新检查（v0.36.0）：启动 6 秒后检查插件与内置目录 MCP，只产出候选列表并推 `capability:update-available`，不自动安装。离线、超时、源不可达静默跳过只写日志；同一时刻只跑一次；退出时清理定时器。版本比较按数字段（1.10.0 > 1.9.0），版本缺失或来源未信任的候选跳过。
 - 自动化测试用 `WS_DISABLE_CAPTURE_SHORTCUT=1` 跳过全局捕获快捷键，避免和 Cherry Studio 抢 `Ctrl+Alt+Space`；不要为此关闭用户的应用。Agent 冒烟必须继续指向 `scripts/stub-agent.cjs` 与 `scripts/stub-codex.cjs`，绝不能调用真实 Claude/Codex。
 - 种子数据由 `data/mock.ts` 的 `createInitialData()` 从 `data/seed/*` 组合。测试用它重置 Zustand；必须返回全新对象，并保持这个门面是唯一入口。
-- CSS 入口是 `styles/index.css`，按顺序导入各分节。新规则加到对应分节并保持导入顺序；层叠顺序是有意设计的。类名按「域前缀」取：`w1-` 全局外壳、`w1-todo*` 任务、`w1-n*` 笔记、`w1-l*` 学习。**改前先在整个工作区 grep 一遍**——后导入的分节会静默覆盖同名规则，学习卡行曾与导航启动器共用 `.w1-lrow`，把「Qoder / DeepSeek Harness」压成 14px 只显示省略号；现在学习卡行是 `.w1-litemrow`，冒烟有「外部启动器名称有宽度」兜底。`.w1-caprow` 也踩过同样的坑：任务视图的今日容量行与能力中心列表行同名，能力中心的 3 列 grid 把容量条压成 30px、按钮竖排；现在能力中心规则限定在 `.w1-caplist` 内。
+- CSS 入口是 `styles/index.css`，按顺序导入各分节。新规则加到对应分节并保持导入顺序；层叠顺序是有意设计的。类名按「域前缀」取：`w1-` 全局外壳、`w1-todo*` 任务、`w1-n*` 笔记、`w1-l*` 学习。**改前先在整个工作区 grep 一遍**——后导入的分节会静默覆盖同名规则，学习卡行曾与导航启动器共用 `.w1-lrow`，把「Qoder / DeepSeek Harness」压成 14px 只显示省略号；现在学习卡行是 `.w1-litemrow`，冒烟有「外部启动器名称有宽度」兜底。`.w1-caprow` 也踩过同样的坑：任务视图的今日容量行与能力中心列表行同名，能力中心的 3 列 grid 把容量条压成 30px、按钮竖排；现在能力中心规则限定在 `.w1-caplist` 内。`.w1-cap` 同样撞过：容量条根节点与能力中心根节点同名，后导入的 `flex: none` 抹掉了容量条的 `flex: 1`；现在容量条是 `.w1-capbar`。`.w1-settings-sheet.wide` 也曾在 19-capability.css 里被写成 860px，静默覆盖 10-overlays 的 1040px——设置样式现在统一在 `22-settings.css`，不要再从其它分节覆盖它。
 - 格式与 lint 统一走 Biome（`biome.json`，Rust 单二进制）。不要引入 Prettier / ESLint。配置里关掉的规则都是与项目设计冲突的：`<i>//</i>` 是终端风格装饰而非注释、带 `role` 的 div 是虚拟列表容器、无障碍降级必须用 `!important` 压过后导入的分节、跨分节特异性倒置是导入顺序的结果。新增例外优先写 `// biome-ignore <rule>: 原因`，不要全局关规则。
 - main 与 preload 以 CJS 构建（没有 `"type": "module"`）。未验证 Electron preload 与 sandbox 行为前，不要切换模块格式。
 - Vitest 覆盖 `src/**/*.test.ts` 与 `scripts/**/*.test.mjs`，运行在 Node 环境。添加 `.tsx` 测试前，先有意识地配置 DOM/组件测试环境。
@@ -130,23 +131,7 @@
 
 ## 当前状态
 
-- 已实现：任务域与笔记域 SQLite 持久化（`src/main/db/`，Electron 内置 `node:sqlite`，WAL + `PRAGMA user_version` 前向迁移），类型化 preload 桥 `window.ws`，勾选与权限变更结果落库，启动时以数据库内容覆盖种子数据。
-- 已实现：任务工作区与完整任务字段。`tasks` 迁移到 v6：v3 新增 `notes / due_date / priority / list`，v4 新增 `deleted_at` 做软删（删除保留 30 天后清理，撤销只需清空该列），v6 新增 `planned_for / estimate_minutes` 区分「计划做」与「截止」；仓库支持 `create / update / remove / restore`；今日卡只含今天与逾期；快速添加、去向提示、清单派生、搜索（Esc 清空）、行内详情、快捷日期、焦点归位和 `Ctrl+Shift+N` 已接入。权限卡顺延会同步截止日期；笔记总数独立保存在 `noteTotal`，导航与上下文用量使用数据库总数而非预览条数。
-- 已实现：夜间/白天双主题（默认夜间），状态栏与命令面板可切换；主题写入 `localStorage`，启动首帧前应用，并通过 `app:set-theme` 窄 IPC 同步窗口背景与标题栏配色。
-- 已实现：全局快速捕获窗（`Ctrl+Alt+Space`）。独立 560×168 无边框窗口走同一 preload，用 `capture:create` 落库后广播 `tasks:changed`，主窗口调用 `refreshTasks()` 重新拉库；失焦或 Esc 自动隐藏。
-- 已实现：今日看板「完成记录」热力图。近 26 周 × 7 天（周一起始），四档色阶与「项完成 / 天有记录 / 最多一天」统计，规则在纯函数 `lib/heatmap.ts`；种子数据中今天已完成的两条任务带 `completedAt`，首次启动即可见当天格子。没有 `completedAt` 的旧数据不计入，也不要迁移伪造。
-- 已实现：外壳「左侧主导航 + 单个全宽工作区」。今日（模块流）、任务（清单栏 + 任务列表）、Agent（会话栏 + 聊天区）、笔记（全宽工作区）、学习（科目栏 + 卡片列表 / 复习态）互斥渲染；左侧导航同时承载舰队总览、外部启动器与设置；命令面板可直接跳转视图或新建任务。
-- 已实现：习惯域 SQLite 持久化（DB v8）。打卡按日期键存 `habit_checkins`，**不要再退回 `days: boolean[7]`**——七格布尔跨周就没有意义；本周视图由 `lib/habits.ts` 的 `weekFlags()` 从日期键推导，未来日期恒为空。空库时播种，播种后一律以数据库为准。
-- 已实现：学习域（间隔重复闪卡，FSRS-6）。`learning_items` / `learning_reviews` 迁移到 v7，DB v14 新增 `stability / difficulty / lapses / last_review_on`；调度在 `shared/srs.ts`（21 个默认参数、90% 保留率、间隔上限 365 天，1 重来 / 2 困难 / 3 良好 / 4 简单），主进程按本机当天计算，`review` 不接收日期。评分 1 留在今天，当天重复复习走短期公式；新卡用初始参数，旧 SM-2 数据首次评分沿用原间隔作为稳定度，不伪造复习历史。`lib/learning.ts` 负责到期队列、时长估算与科目分组；种子 24 张（英语二 16 个真题高频词 + 管综数学 / 逻辑 / 写作 8 张起步卡），仅空库写入。默认科目固定为 `shared/mem-starters.ts` 的 `MEM_SUBJECTS`（英语二 / 管综数学 / 管综逻辑 / 管综写作），但仍是软约束，历史「互联网」卡与自由科目继续保留。学习视图支持 CSV 导入导出（见上），导入前预览重复与错误行，不覆盖已有卡片；「统计」弹层展示未来 7 天负载、FSRS 保持率、掌握分布、最近 14 天复习量与评分占比（只读 `reviewHistory`，不改表）。
-- 笔记搜索：FTS5 `trigram` 分词（`unicode61` 无法检索中文）；**查询少于 3 字符时自动回退 `LIKE`**，写查询前请先看 `src/main/db/notes.ts` 的 `planSearch`。
-- 笔记双链（DB v13）：`note_links(source_id, target_id, title, created_at)`，主键 `(source_id, title)`，两个方向都 `ON DELETE CASCADE`；补全与反向链接走 `NoteRepository.links/titles`，不要另建数据源。
-- 全部笔记页用固定行高虚拟滚动（`ROW_HEIGHT` 与 CSS `.w1-nvrow` 高度必须一致），分页每页 60 条。
-- 数据库位置：`%APPDATA%\WorkStationForOne\data\workstation.db`；设置 `WS_DATA_DIR` 可覆盖，冒烟与运行时校验据此使用临时库，避免改写真实数据。
-- 备份：每天首次启动用 `VACUUM INTO` 生成一份快照到 `<库目录>/backups/`（`workstation-YYYYMMDD-HHmmss.db`），只保留最近 10 份；命令面板「立即备份数据」可手动触发并在提示条显示文件名与大小。VACUUM INTO 是一致性快照，不需要停写入，也不要把库文件直接 `copyFile`（会拷到 WAL 中间态）。
-- 迁移前会自动 `VACUUM INTO` 备份到库文件旁。迁移 SQL 不得替用户伪造语义（例如给历史任务填「今天到期」）。
-- 已实现：智能体会话与消息持久化（DB v16）、真实新建 Claude / Codex 会话、每会话工作区选择（DB v21，原生目录选择器 + 主进程目录校验）、多会话并发（0.21.0，同一会话串行、不同会话并行，事件与审批按 run / 会话隔离）、舰队控制台（0.24.0，所有应用内会话的状态/审批/切换/停止/新建）、本机会话只读扫描与导入（0.27.0 → 0.30.0，元数据 + 最近 200 条只读正文与工具卡，DB v26 `origin` 标记）、能力中心（0.22.0 → 0.28.0，DB v24 能力表，应用私有 Claude 插件市场、外部 MCP 管理/密钥加密/更新检查/连接测试/工具级权限/环境自检/JSON 导入导出、内置工具目录，Claude 会话通过 `--plugin-dir` / `--strict-mcp-config` 隔离加载，Codex Provider 会话通过应用 `codex-home` 下发外部 MCP 并用环境变量隔离密钥）、工作区文件树与产物、本地技能导入/详情、会话预设与近 7 天用量（DB v25：`agent_presets` / `agent_runs`）、resume id 跨重启续接、Claude 写工具经审批卡放行、Codex app-server 工作区审批（激活 Codex Provider 时）、Codex MCP 读写（0.20.1，只读自动放行、写入工具审批）、继承 CLI 的 Codex 只读 exec、Provider 配置双端口接线台与测试连接、Provider 模型列表拉取（0.32.0）、MCP 读写数据桥（11 个工具、按回合 Token、DB v19 三档域权限与写入审批卡、同端口自动重启、写入与审计同事务）、审计查看入口、Provider 配置（DB v17，Key 加密存本机）、审批规则（0.31.0，DB v27：MCP 与本地只读工具按 Agent + 工作区持久放行，敏感工具只能单次或本会话，会话规则退出即失效）；Agent 页首次进入为空态，不再显示演示会话或演示权限卡。
-- 未实现：审批规则只有工作区级精确匹配（无通配符、无持久拒绝），Bash / Write / Edit 等敏感工具不进入工作区规则，只能单次或本会话允许（不落库）。Codex app-server 与 MCP 已用 DeepSeek `deepseek-flash` + Responses 在桌面临时工作区验证过读取、写入与审计；HTTP 外部 MCP 已用本机 Streamable HTTP 探针验证连接、请求头透传与 SSE 工具清单，并用真实 Claude + DeepSeek 验证外部 MCP 写入工具与原生 Write 经审批卡「允许一次」后执行；公网无鉴权 Server（DeepWiki，SSE + 真实远程工具调用）与无凭据 401（Semgrep）已实测，需要密钥的成功鉴权公网 Server、其他 Codex Provider 与 OAuth 类远程 MCP 仍未实测。
-- 渲染进程不直接访问数据库；新增数据能力必须走 `src/shared/ipc.ts` 的类型契约 + `src/main/ipc/` 的 handler，并在主进程校验入参。preload 桥目前暴露 `provider / tasks / notes / capture / learning / habits / agent / mcp / capability / audit / app` 十一组接口，`runtime-verify.mjs` 会断言这个集合，扩面时同步更新。
+已实现 / 未实现清单与最近验证结论见 `docs/status.md`；它是一份快照，改动功能后同步更新。
 
 ## 知识库取用规则
 

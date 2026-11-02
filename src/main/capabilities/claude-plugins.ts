@@ -15,6 +15,7 @@ import { basename, join, relative, resolve } from 'node:path'
 import type { AgentCli } from '../agent/cli'
 import { resolveCommand, resolvePluginCli } from '../agent/cli'
 import type { CapabilityRepository, StoredPlugin } from '../db/capabilities'
+import { detectComponents as inspectPlugin, splitPluginId } from './plugins/components'
 import type {
   SkillInspection,
   SkillMarketEntry,
@@ -112,44 +113,8 @@ export function parsePluginJson(stdout: string): unknown {
   return null
 }
 
-function marketplaceFromId(id: string): string {
-  const at = id.lastIndexOf('@')
-  return at >= 0 ? id.slice(at + 1) : ''
-}
-
-function pluginNameFromId(id: string): string {
-  const at = id.lastIndexOf('@')
-  return at >= 0 ? id.slice(0, at) : id
-}
-
-function inspectPlugin(installPath: string): {
-  components: string[]
-  hasHooks: boolean
-  hasMcp: boolean
-} {
-  const components: string[] = []
-  const hasDir = (name: string) => {
-    try {
-      return existsSync(join(installPath, name))
-    } catch {
-      return false
-    }
-  }
-  if (hasDir('skills')) components.push('skills')
-  if (hasDir('commands')) components.push('commands')
-  if (hasDir('agents')) components.push('agents')
-  if (hasDir('hooks')) components.push('hooks')
-  const hasHooks =
-    hasDir('hooks') ||
-    existsSync(join(installPath, 'hooks', 'hooks.json')) ||
-    existsSync(join(installPath, 'hooks.json'))
-  const hasMcp =
-    existsSync(join(installPath, '.mcp.json')) ||
-    existsSync(join(installPath, 'mcp.json')) ||
-    existsSync(join(installPath, '.mcp.jsonc'))
-  if (hasMcp) components.push('mcp')
-  return { components, hasHooks, hasMcp }
-}
+const marketplaceFromId = (id: string) => splitPluginId(id).market
+const pluginNameFromId = (id: string) => splitPluginId(id).name
 
 function toRecord(plugin: StoredPlugin): SkillRecord {
   return {
@@ -176,6 +141,8 @@ function toRecord(plugin: StoredPlugin): SkillRecord {
  * 只加载到本应用启动的 Claude 会话。绝不写 ~/.claude。
  */
 export class ClaudePluginService {
+  /** 应用私有插件根：市场缓存、本地导入与市场快照都在它下面。 */
+  private readonly root: string
   private readonly configDir: string
   private readonly cachePath: string
   private readonly marketSourceDir: string
@@ -187,11 +154,17 @@ export class ClaudePluginService {
     appDataDir: string,
     private readonly cliOverride?: AgentCli | null
   ) {
-    const root = join(appDataDir, 'agent', 'claude-plugins')
-    this.configDir = join(root, 'config')
-    this.cachePath = join(root, 'market.json')
-    this.marketSourceDir = join(root, 'market-src')
+    this.root = join(appDataDir, 'agent', 'claude-plugins')
+    this.configDir = join(this.root, 'config')
+    this.cachePath = join(this.root, 'market.json')
+    this.marketSourceDir = join(this.root, 'market-src')
     mkdirSync(this.configDir, { recursive: true })
+  }
+
+  /** 路径必须落在私有根内；市场缓存与本地导入共用同一判定。 */
+  private contains(target: string): boolean {
+    const rel = relative(this.root, resolve(target))
+    return rel === '' || (!rel.startsWith('..') && !rel.includes('..'))
   }
 
   list(): SkillRecord[] {
@@ -215,7 +188,7 @@ export class ClaudePluginService {
         .replace(/^-+|-+$/g, '')
         .slice(0, 32) || 'local-skill'
     const id = `local:${slug}-${randomUUID().slice(0, 8)}`
-    const targetRoot = join(this.configDir, '..', 'local')
+    const targetRoot = join(this.root, 'local')
     const target = join(targetRoot, id.replace(/[^A-Za-z0-9_-]/g, '-'))
     mkdirSync(targetRoot, { recursive: true })
 
@@ -306,10 +279,8 @@ export class ClaudePluginService {
   folderFor(pluginId: string): string {
     const plugin = this.repository.findPlugin(pluginId)
     if (!plugin) throw new Error('插件未安装')
-    const root = resolve(this.configDir, '..')
     const target = resolve(plugin.installPath)
-    const rel = relative(root, target)
-    if (rel.startsWith('..') || rel.includes('..')) throw new Error('插件目录不在应用私有目录内')
+    if (!this.contains(target)) throw new Error('插件目录不在应用私有目录内')
     if (!existsSync(target) || !statSync(target).isDirectory()) throw new Error('插件目录不存在')
     return target
   }
@@ -412,14 +383,12 @@ export class ClaudePluginService {
   /** 启动 Claude 前取启用插件的安装目录；只返回应用私有目录内的路径。 */
   pluginDirs(): string[] {
     // 市场插件在 config/plugins/cache 下，本地导入在 claude-plugins/local 下
-    const root = resolve(this.configDir, '..')
     return this.repository
       .listPlugins()
       .filter((plugin) => plugin.enabled)
       .map((plugin) => resolve(plugin.installPath))
       .filter((path) => {
-        const rel = relative(root, path)
-        if (rel !== '' && (rel.startsWith('..') || rel.includes('..'))) return false
+        if (!this.contains(path)) return false
         try {
           return statSync(path).isDirectory()
         } catch {
@@ -608,10 +577,8 @@ export class ClaudePluginService {
     if (!entry) return null
     const installPath = text(entry.installPath)
     if (!installPath) return null
-    const root = resolve(this.configDir)
     const target = resolve(installPath)
-    const rel = relative(root, target)
-    if (rel.startsWith('..') || rel.includes('..')) {
+    if (!this.contains(target)) {
       throw new Error('插件目录不在应用私有目录内，已拒绝加载')
     }
     const name = text(entry.name) || pluginNameFromId(pluginId)
@@ -710,19 +677,5 @@ export class ClaudePluginService {
         finish(new Error(detail || `Claude 插件命令退出码 ${code}`))
       })
     })
-  }
-}
-
-/** 测试与诊断用：应用私有插件目录。 */
-export function pluginConfigDir(appDataDir: string): string {
-  return join(appDataDir, 'agent', 'claude-plugins', 'config')
-}
-
-/** 读取目录名（主要给测试造数据用）。 */
-export function listPluginDirs(root: string): string[] {
-  try {
-    return readdirSync(root)
-  } catch {
-    return []
   }
 }

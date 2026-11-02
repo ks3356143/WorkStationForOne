@@ -1,8 +1,7 @@
 /* ---------- capability center ---------- */
 
-.w1-settings-sheet.wide {
-  width: min(860px, calc(100vw - 80px));
-}
+/* 设置面板宽度由 10-overlays.css 定义；这里不要再写 .w1-settings-sheet.wide，
+   后导入会静默覆盖 1040px。 */
 
 .w1-settabs {
   flex: none;
@@ -470,10 +469,7 @@
 }
 
 @media (max-width: 900px) {
-  .w1-settings-sheet.wide {
-    width: calc(100vw - 48px);
-  }
-
+  /* 设置面板的窄屏宽度在 22-settings.css；这里只管能力中心自己的网格 */
   .w1-capformgrid {
     grid-template-columns: minmax(0, 1fr);
   }

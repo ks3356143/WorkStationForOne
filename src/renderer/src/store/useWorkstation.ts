@@ -138,7 +138,6 @@ interface WorkstationActions {
   removeTask: (taskId: string) => void
   renameTaskList: (from: string, to: string) => void
   undoRemoveTask: () => void
-  clearRemovedTask: () => void
   composeTask: () => void
   clearLastAddedTask: () => void
   toggleHabitToday: (habitId: string) => void
@@ -413,8 +412,6 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     })
     persistQuietly(() => persistence?.restore(task.id) ?? Promise.resolve())
   },
-
-  clearRemovedTask: () => set({ lastRemovedTask: null }),
 
   toggleHabitToday: (habitId) => {
     const today = dateKey()
