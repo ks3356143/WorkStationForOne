@@ -54,6 +54,12 @@ export interface UpdateCandidateRecord {
   sourceName?: string
 }
 
+/** 批量更新的结果：失败项带原因，方便逐条重试。 */
+export interface ApplyUpdatesResultRecord {
+  updated: Array<{ kind: 'plugin' | 'mcp'; id: string; name: string; version: string }>
+  failed: Array<{ kind: 'plugin' | 'mcp'; id: string; name: string; reason: string }>
+}
+
 export interface LocalMarketplaceRecord {
   name: string
   source: string
@@ -275,5 +281,7 @@ export interface CapabilityApi {
   }) => Promise<SkillRecord | undefined>
   removePlugin: (input: { id: string; agent: PluginAgent }) => Promise<void>
   checkUpdates: () => Promise<UpdateCandidateRecord[]>
+  /** 逐条应用候选更新；返回成功与失败明细，不整体失败 */
+  applyUpdates: (candidates: UpdateCandidateRecord[]) => Promise<ApplyUpdatesResultRecord>
   onUpdateAvailable: (listener: (list: UpdateCandidateRecord[]) => void) => () => void
 }

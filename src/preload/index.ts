@@ -130,6 +130,8 @@ const api: WsApi = {
     setPluginEnabled: (input) => ipcRenderer.invoke(IPC_CHANNELS.capabilityPluginSetEnabled, input),
     removePlugin: (input) => ipcRenderer.invoke(IPC_CHANNELS.capabilityPluginRemove, input),
     checkUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.capabilityUpdatesCheck),
+    applyUpdates: (candidates) =>
+      ipcRenderer.invoke(IPC_CHANNELS.capabilityUpdatesApply, candidates),
     onUpdateAvailable: (listener) => {
       const handler = (_event: Electron.IpcRendererEvent, list: Parameters<typeof listener>[0]) =>
         listener(list)

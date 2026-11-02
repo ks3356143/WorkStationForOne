@@ -51,6 +51,25 @@ writeFileSync(
 )
 process.env.WS_PICK_SKILL = localSkillDir
 
+// 更新横幅用：一个本地插件源，清单里 demo-skill 的版本高于已装版本，
+// 这样启动检查能产出真实候选，横幅的「全部更新」才可点。
+const updateSourceDir = join(dataDir, 'update-source')
+mkdirSync(join(updateSourceDir, '.claude-plugin'), { recursive: true })
+mkdirSync(join(updateSourceDir, 'plugins', 'demo-skill', '.claude-plugin'), { recursive: true })
+writeFileSync(
+  join(updateSourceDir, '.claude-plugin', 'marketplace.json'),
+  JSON.stringify({
+    name: 'wsfo-official',
+    owner: { name: 'smoke' },
+    plugins: [{ name: 'demo-skill', source: './plugins/demo-skill', description: 'Demo skill' }]
+  })
+)
+writeFileSync(
+  join(updateSourceDir, 'plugins', 'demo-skill', '.claude-plugin', 'plugin.json'),
+  JSON.stringify({ name: 'demo-skill', version: '1.2.0', description: 'Demo skill' })
+)
+process.env.WS_SMOKE_UPDATE_SOURCE = updateSourceDir
+
 // 本机会话扫描只读指向临时 home，绝不读取真实的 ~/.claude 或 ~/.codex
 const claudeScanDir = join(sessionScanRoot, '.claude', 'projects', '-smoke-workspace')
 const codexScanDir = join(sessionScanRoot, '.codex', 'sessions', '2026', '10', '30')
@@ -318,7 +337,7 @@ async function run() {
   await sleep(1800)
 
   await win.webContents.executeJavaScript(
-    `window.__WS_MCP_STUB__ = ${JSON.stringify(stubMcpServer)}; window.__WS_AGENT_WORKSPACE__ = ${JSON.stringify(agentWorkspace)}`
+    `window.__WS_MCP_STUB__ = ${JSON.stringify(stubMcpServer)}; window.__WS_AGENT_WORKSPACE__ = ${JSON.stringify(agentWorkspace)}; window.__WS_UPDATE_SOURCE__ = ${JSON.stringify(updateSourceDir)}`
   )
   // Injected as a template literal: regex backslashes need double escaping.
   let results
@@ -2320,6 +2339,70 @@ async function run() {
       })
     )
 
+
+    // 更新横幅：注册一个版本更高的本地源，让真实候选出现并走完整 UI
+    await window.ws.capability.addPluginSource({
+      name: 'smoke-update',
+      url: window.__WS_UPDATE_SOURCE__
+    })
+    const detected = await window.ws.capability.checkUpdates()
+    check(
+      '启动更新检查产出真实候选',
+      detected.some((item) => item.name === 'demo-skill' && item.latest === '1.2.0'),
+      JSON.stringify(detected)
+    )
+
+    byText('.w1-capnav button', '技能 / 插件')?.click()
+    await sleep(200)
+    const banner = await waitFor(() => Boolean(one('.w1-capupdate')), 3000)
+    const applyButton = byText('.w1-capupdate .w1-capmini', '全部更新')
+    check(
+      '更新横幅出现「全部更新」按钮',
+      banner && Boolean(applyButton),
+      one('.w1-capupdate')?.textContent?.slice(0, 120) ?? 'missing'
+    )
+
+    // 批量更新：成功与失败要各自独立，失败项带原因且不拖垮其它条目
+    const updateSkill = (await window.ws.capability.skills.list()).find(
+      (item) => item.name === 'demo-skill'
+    )
+    const updateOutcome = await window.ws.capability.applyUpdates([
+      {
+        kind: 'plugin',
+        id: updateSkill?.id ?? 'demo-skill@wsfo-official',
+        name: 'demo-skill',
+        agent: 'claude',
+        current: '1.0.0',
+        latest: '1.1.0'
+      },
+      {
+        kind: 'mcp',
+        id: 'missing-server',
+        name: 'Missing',
+        current: '0.0.1',
+        latest: '0.0.2'
+      }
+    ])
+    const updatedSkill = (await window.ws.capability.skills.list()).find(
+      (item) => item.name === 'demo-skill'
+    )
+    check(
+      '批量更新分发到插件并写入新版本',
+      updateOutcome.updated.some((item) => item.name === 'demo-skill') &&
+        updatedSkill?.version === '1.1.0',
+      JSON.stringify({ updated: updateOutcome.updated, version: updatedSkill?.version })
+    )
+    check(
+      '单条更新失败不影响其它条目',
+      updateOutcome.failed.length === 1 &&
+        updateOutcome.failed[0].id === 'missing-server' &&
+        Boolean(updateOutcome.failed[0].reason),
+      JSON.stringify(updateOutcome.failed)
+    )
+
+    // 上面的更新横幅断言切到了「技能 / 插件」页，这里切回来
+    byText('.w1-capnav button', '内置工具')?.click()
+    await waitFor(() => all('.w1-caprow.builtin').length === 11, 3000)
 
     check(
       '内置工具目录展示 11 个数据工具',

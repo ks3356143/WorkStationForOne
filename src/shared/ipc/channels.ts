@@ -91,6 +91,7 @@ export const IPC_CHANNELS = {
   capabilityPluginSetEnabled: 'capability:plugin-set-enabled',
   capabilityPluginRemove: 'capability:plugin-remove',
   capabilityUpdatesCheck: 'capability:updates-check',
+  capabilityUpdatesApply: 'capability:updates-apply',
   capabilityUpdateAvailable: 'capability:update-available',
   auditRecent: 'audit:recent',
   providerList: 'provider:list',

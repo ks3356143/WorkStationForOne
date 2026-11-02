@@ -5,6 +5,8 @@ import type { InstalledPluginRecord } from '../../shared/ipc'
 import { IPC_CHANNELS } from '../../shared/ipc'
 import type { PluginSourceService } from '../capabilities/plugins/sources-service'
 import type { UpdateChecker } from '../capabilities/plugins/update-checker'
+import { applyUpdates } from '../capabilities/plugins/apply-updates'
+import type { UpdateCandidate } from '../capabilities/updates'
 import {
   copyPluginSnapshot,
   importLocal,
@@ -26,6 +28,31 @@ const IPC = IPC_CHANNELS
 /** 插件与 MCP 的 id 含 `name@market` 形式，比通用上限宽。 */
 const MAX_ID = 240
 const assertLongId = (value: unknown, label: string) => assertId(value, label, MAX_ID)
+const MAX_CANDIDATES = 200
+
+/**
+ * 更新候选来自渲染层，必须重新校验：id 会拼进 CLI 参数，
+ * kind / agent 决定走哪条更新路径，任何一项不合法就整批拒绝。
+ */
+function assertCandidates(value: unknown): UpdateCandidate[] {
+  if (!Array.isArray(value)) throw new TypeError('更新列表必须是数组')
+  if (value.length > MAX_CANDIDATES) throw new TypeError('更新条目过多')
+  return value.map((entry) => {
+    const item = assertRecord(entry, '更新条目')
+    const kind = item.kind === 'plugin' || item.kind === 'mcp' ? item.kind : null
+    if (!kind) throw new TypeError('更新类型无效')
+    const agent = item.agent === 'codex' ? 'codex' : item.agent === 'claude' ? 'claude' : undefined
+    if (kind === 'plugin' && !agent) throw new TypeError('插件更新缺少 Agent 归属')
+    return {
+      kind,
+      id: assertLongId(item.id, '更新 id'),
+      name: typeof item.name === 'string' ? item.name.slice(0, 80) : '',
+      current: typeof item.current === 'string' ? item.current.slice(0, 40) : '',
+      latest: typeof item.latest === 'string' ? item.latest.slice(0, 40) : '',
+      ...(agent ? { agent } : {})
+    }
+  })
+}
 
 /**
  * 插件源、本机扫描与更新检查的 IPC。
@@ -203,6 +230,27 @@ export function registerPluginHandlers(
   })
 
   ipcMain.handle(IPC.capabilityUpdatesCheck, () => checker.check())
+
+  /**
+   * 逐条应用更新。渲染层把候选原样传回来，主进程据此分发到
+   * Claude 插件 / Codex 重装 / 内置 MCP；单条失败不影响其它条目。
+   */
+  ipcMain.handle(IPC.capabilityUpdatesApply, async (_event, value: unknown) => {
+    const candidates = assertCandidates(value)
+    const outcome = await applyUpdates(candidates, {
+      repository: center.repository,
+      plugins: { update: (id) => center.plugins.update(id) },
+      sources,
+      mcp: { applyUpdate: (id) => center.mcp.applyUpdate(id) },
+      codexHome: center.codexHome,
+      audit
+    })
+    record(
+      'capability.apply-updates',
+      `${outcome.updated.length} updated / ${outcome.failed.length} failed`
+    )
+    return outcome
+  })
 
   /**
    * Codex 插件启停：改写私有 config.toml 的 enabled，并同步 skills 副本。

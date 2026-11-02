@@ -780,3 +780,10 @@
   display: flex;
   gap: 6px;
 }
+
+.w1-capupdatenote {
+  margin-left: 8px;
+  color: var(--su);
+  font-style: normal;
+  font-size: 11.5px;
+}

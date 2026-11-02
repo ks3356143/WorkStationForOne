@@ -6,6 +6,21 @@
 
 暂无。
 
+## [0.36.3] - 2026-11-02
+
+### 新增
+
+- **更新真的可以执行**：能力中心的更新横幅新增「全部更新」。主进程新增 `capabilities/plugins/apply-updates.ts`，按候选类型分发——Claude 插件走 `plugin update`，内置 MCP 走 `applyUpdate`，Codex 插件先 `plugin marketplace upgrade` 刷新快照再重装（Codex 没有 `plugin update` 子命令），启用中的 Codex 插件重装后重新复制 skill。
+- 逐条独立执行：单条失败不回滚其它条目，失败项带原因保留在横幅里供重试；整批结果写一条 `capability.apply-updates` 审计。更新完成后横幅显示「已更新 N 个」，而不是直接消失。
+
+### 修复
+
+- 横幅文案过期：市场页仍写「Codex 不加载 Claude 插件」，双 Agent 支持后已不成立，改为说明 Codex 从同一市场安装并同步 skill 到私有 `codex-home`。
+
+### 验证
+
+- 908 项单元测试；冒烟 338 项全通过（新增 4 条：真实候选产出、横幅「全部更新」按钮、插件更新到新版本、单条失败不影响其它条目），0 控制台错误。
+
 ## [0.36.2] - 2026-11-02
 
 ### 变更

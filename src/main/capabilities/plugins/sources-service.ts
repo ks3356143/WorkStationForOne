@@ -174,6 +174,20 @@ export class PluginSourceService {
     await this.runCli('codex', ['plugin', 'remove', `${plugin}@${market}`])
   }
 
+  /** 刷新所有 Codex 市场快照：插件新版本要先进快照才能被重装。 */
+  async upgradeCodexMarketplaces(): Promise<void> {
+    await this.runCli('codex', ['plugin', 'marketplace', 'upgrade'])
+  }
+
+  /**
+   * Codex 没有 `plugin update`，更新等同于「刷新快照后重装」。
+   * 先删再装，避免旧版本目录残留两份缓存。
+   */
+  async reinstallCodexPlugin(plugin: string, market: string): Promise<void> {
+    await this.removeCodexPlugin(plugin, market).catch(() => undefined)
+    await this.runCli('codex', ['plugin', 'add', `${plugin}@${market}`])
+  }
+
   private runCli(agent: PluginAgent, args: string[]): Promise<string> {
     const cli =
       agent === 'claude'

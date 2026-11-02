@@ -65,6 +65,8 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
   const [pluginOpsBusy, setPluginOpsBusy] = useState<string | null>(null)
   const [confirmKey, setConfirmKey] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [updateBusy, setUpdateBusy] = useState(false)
+  const [updateReport, setUpdateReport] = useState('')
 
   useEffect(() => {
     if (!api) return
@@ -412,6 +414,39 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
       .finally(() => setBuiltinBusy(null))
   }
 
+  /** 全部更新：成功后从候选里剔除，失败的留在横幅里并显示原因。 */
+  const applyAllUpdates = () => {
+    if (!api?.applyUpdates || updateBusy || pendingUpdates.length === 0) return
+    const batch = pendingUpdates
+    setUpdateBusy(true)
+    setUpdateReport('')
+    void api
+      .applyUpdates(batch)
+      .then(async (outcome) => {
+        const doneIds = new Set(outcome.updated.map((item) => item.id))
+        setPendingUpdates((list) => list.filter((item) => !doneIds.has(item.id)))
+        // 刷新两侧列表，让版本号与启用状态跟数据库一致
+        const [nextSkills, nextCodex] = await Promise.all([
+          api.skills.list(),
+          api.installedPlugins()
+        ])
+        setSkills(nextSkills)
+        setInstalledCodex(nextCodex.filter((item) => item.agent === 'codex'))
+        if (outcome.failed.length === 0) {
+          setUpdateReport(`已更新 ${outcome.updated.length} 个`)
+          notify(`已更新 ${outcome.updated.length} 个`)
+          return
+        }
+        const first = outcome.failed[0]
+        setUpdateReport(
+          `${outcome.updated.length} 个已更新 · ${outcome.failed.length} 个失败：${first.name} ${first.reason}`
+        )
+        notify(`${outcome.failed.length} 个更新失败：${first.name} — ${first.reason}`)
+      })
+      .catch((reason: unknown) => notify(friendlyMessage(reason, '应用更新失败')))
+      .finally(() => setUpdateBusy(false))
+  }
+
   if (!api) {
     return (
       <div className="w1-capempty">当前环境没有 preload 桥，能力中心不可用。请从桌面应用打开。</div>
@@ -420,26 +455,53 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
 
   return (
     <div className="w1-cap">
-      {pendingUpdates.length > 0 ? (
+      {pendingUpdates.length > 0 || updateReport ? (
         <div className="w1-capupdate" role="status">
           <span>
-            {pendingUpdates.filter((item) => item.kind === 'plugin').length} 个插件、
-            {pendingUpdates.filter((item) => item.kind === 'mcp').length} 个 MCP 可更新
+            {updateBusy
+              ? '正在更新…'
+              : pendingUpdates.length > 0
+                ? `${pendingUpdates.filter((item) => item.kind === 'plugin').length} 个插件、${
+                    pendingUpdates.filter((item) => item.kind === 'mcp').length
+                  } 个 MCP 可更新`
+                : '更新完成'}
+            {updateReport ? <em className="w1-capupdatenote">{updateReport}</em> : null}
           </span>
           <span className="w1-capupdateacts">
+            {pendingUpdates.length > 0 ? (
+              <button
+                type="button"
+                className="w1-capmini pri"
+                disabled={updateBusy}
+                onClick={applyAllUpdates}
+              >
+                {updateBusy ? '更新中…' : '全部更新'}
+              </button>
+            ) : null}
             <button
               type="button"
-              className="w1-capmini pri"
+              className="w1-capmini"
+              disabled={updateBusy}
               onClick={() => {
-                setTab(pendingUpdates.some((item) => item.kind === 'plugin') ? 'skills' : 'mcp')
+                if (pendingUpdates.length > 0) {
+                  setTab(pendingUpdates.some((item) => item.kind === 'plugin') ? 'skills' : 'mcp')
+                }
                 setPendingUpdates([])
+                setUpdateReport('')
               }}
             >
-              查看
+              {pendingUpdates.length > 0 ? '查看' : '知道了'}
             </button>
-            <button type="button" className="w1-capmini" onClick={() => setPendingUpdates([])}>
-              稍后
-            </button>
+            {pendingUpdates.length > 0 ? (
+              <button
+                type="button"
+                className="w1-capmini"
+                disabled={updateBusy}
+                onClick={() => setPendingUpdates([])}
+              >
+                稍后
+              </button>
+            ) : null}
           </span>
         </div>
       ) : null}

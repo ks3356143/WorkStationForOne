@@ -21,7 +21,7 @@
 | `capabilities/claude-plugins.ts` | 应用私有 Claude 插件库（市场、安装、本地导入） |
 | `capabilities/mcp-secrets.ts` | `safeStorage` 解密出口，连测试与运行时共用 |
 | `capabilities/plugins/components.ts` | 插件组件探测与 id 拆分，市场安装与本机导入共用 |
-| `capabilities/plugins/*` | 源服务、Codex 配置改写、skill 同步、本机扫描与导入、更新检查 |
+| `capabilities/plugins/*` | 源服务、Codex 配置改写、skill 同步、本机扫描与导入、更新检查、批量更新分发（`apply-updates.ts`） |
 | `mcp/server.ts` | 内嵌 Streamable HTTP 桥：鉴权、工具分发、审批中继 |
 | `mcp/tools.ts` | 11 个数据工具的定义与写入实现 |
 | `mcp/views.ts` | MCP 返回值投影与筛选口径（今天到期、子任务过滤等） |
