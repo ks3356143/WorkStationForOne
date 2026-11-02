@@ -18,6 +18,8 @@ import { registerTaskHandlers } from './ipc/tasks'
 import { McpBridge } from './mcp/server'
 import { McpPermissionBroker } from './mcp/permissions'
 import { CapabilityRepository } from './db/capabilities'
+import { PluginSourceService } from './capabilities/plugins/sources-service'
+import { UpdateChecker } from './capabilities/plugins/update-checker'
 import {
   defaultAppDir,
   locationFileFor,
@@ -36,6 +38,7 @@ const rendererFileUrl = pathToFileURL(join(__dirname, '../renderer/index.html'))
 app.setName('WorkStationForOne')
 
 let database: DatabaseContext | null = null
+let updateChecker: UpdateChecker | null = null
 let lastMigration: { ok: boolean; error: string; oldRoot: string; removedOld: boolean } | null =
   null
 
@@ -186,6 +189,27 @@ if (!gotTheLock) {
       version: app.getVersion(),
       policy: database.mcp
     })
+    // 插件源与更新检查：只操作应用私有目录，用私有 CODEX_HOME / CLAUDE_CONFIG_DIR
+    const pluginSources = new PluginSourceService({
+      repository: capabilities.repository,
+      appDataDir: database.layout.root,
+      claudeConfigDir: database.layout.claudeConfigDir,
+      codexHome: database.layout.codexHome
+    })
+    updateChecker = new UpdateChecker({
+      repository: capabilities.repository,
+      sources: pluginSources,
+      mcp: capabilities.mcp,
+      codexHome: database.layout.codexHome,
+      claudeInstallRoot: () => null,
+      onAvailable: (candidates) => {
+        const win = mainWindow
+        if (!win || win.isDestroyed()) return
+        win.webContents.send(IPC_CHANNELS.capabilityUpdateAvailable, candidates)
+      },
+      log: (message) => console.info(message)
+    })
+    updateChecker.scheduleStartup()
     // 软删任务保留 30 天后清掉，避免已删行无限堆积。
     database.tasks.purgeDeleted(Date.now() - 30 * 24 * 60 * 60 * 1000)
     registerCapabilityHandlers(capabilities, database.audit)
@@ -294,6 +318,8 @@ if (!gotTheLock) {
 
 app.on('before-quit', () => {
   // 先停轮询/桥再关库：反过来的话 tick 或 MCP 请求会读到已关闭的连接
+  updateChecker?.stop()
+  updateChecker = null
   stopReminders?.()
   stopReminders = null
   mcpPermissions?.close()

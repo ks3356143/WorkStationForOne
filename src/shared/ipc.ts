@@ -573,6 +573,39 @@ export interface PluginSourceRecord {
   updatedAt: number
 }
 
+export interface UpdateCandidateRecord {
+  kind: 'plugin' | 'mcp'
+  id: string
+  name: string
+  agent?: PluginAgent
+  current: string
+  latest: string
+  sourceName?: string
+}
+
+export interface LocalMarketplaceRecord {
+  name: string
+  source: string
+  kind: 'git' | 'local' | 'unknown'
+}
+
+export interface LocalPluginRecord {
+  id: string
+  name: string
+  market: string
+  version: string
+  enabled: boolean
+  installPath: string
+}
+
+export interface LocalScanRecord {
+  agent: PluginAgent
+  detected: boolean
+  marketplaces: LocalMarketplaceRecord[]
+  plugins: LocalPluginRecord[]
+  errors: string[]
+}
+
 export interface SkillMarketEntry {
   pluginId: string
   name: string
@@ -879,6 +912,14 @@ export const IPC_CHANNELS = {
   capabilityEnvironment: 'capability:environment',
   capabilityMcpCheckUpdates: 'capability:mcp-check-updates',
   capabilityMcpApplyUpdate: 'capability:mcp-apply-update',
+  capabilityPluginSources: 'capability:plugin-sources',
+  capabilityPluginSourceAdd: 'capability:plugin-source-add',
+  capabilityPluginSourceRefresh: 'capability:plugin-source-refresh',
+  capabilityPluginSourceRemove: 'capability:plugin-source-remove',
+  capabilityPluginScanLocal: 'capability:plugin-scan-local',
+  capabilityPluginImport: 'capability:plugin-import',
+  capabilityUpdatesCheck: 'capability:updates-check',
+  capabilityUpdateAvailable: 'capability:update-available',
   auditRecent: 'audit:recent',
   providerList: 'provider:list',
   providerSave: 'provider:save',

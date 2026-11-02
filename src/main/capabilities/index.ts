@@ -12,6 +12,8 @@ import { checkEnvironment } from './environment'
 export interface CapabilityCenter {
   plugins: ClaudePluginService
   mcp: McpServerService
+  /** 插件源与 Agent 归属的仓储；源服务与更新检查共用 */
+  repository: CapabilityRepository
   builtinTools: () => BuiltinToolRecord[]
   /** 切换内置工具开关，返回最新清单；未知工具名抛错 */
   setBuiltinTool: (name: string, enabled: boolean) => BuiltinToolRecord[]
@@ -49,6 +51,7 @@ export function createCapabilityCenter(options: {
   return {
     plugins,
     mcp,
+    repository: options.repository,
     builtinTools: listBuiltin,
     setBuiltinTool: (name, enabled) => {
       if (!options.policy) throw new Error('内置工具开关不可用')
