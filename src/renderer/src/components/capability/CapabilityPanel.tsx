@@ -7,6 +7,7 @@ import type {
   ExternalMcpServerRecord,
   ExternalMcpTargets,
   ExternalMcpUpdateInfo,
+  InstalledPluginRecord,
   LocalScanRecord,
   PluginSourceRecord,
   UpdateCandidateRecord,
@@ -165,6 +166,9 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
     plugins: []
   })
   const [pendingUpdates, setPendingUpdates] = useState<UpdateCandidateRecord[]>([])
+  const [installedCodex, setInstalledCodex] = useState<InstalledPluginRecord[]>([])
+  const [installedAgent, setInstalledAgent] = useState<'all' | 'claude' | 'codex'>('all')
+  const [pluginOpsBusy, setPluginOpsBusy] = useState<string | null>(null)
   const [updates, setUpdates] = useState<ExternalMcpUpdateInfo[]>([])
   const [updatesBusy, setUpdatesBusy] = useState(false)
   const [form, setForm] = useState<McpFormState | null>(null)
@@ -202,6 +206,14 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
       })
       .catch(() => {
         if (alive) setSources([])
+      })
+    void api
+      .installedPlugins()
+      .then((list) => {
+        if (alive) setInstalledCodex(list.filter((item) => item.agent === 'codex'))
+      })
+      .catch(() => {
+        if (alive) setInstalledCodex([])
       })
     const offUpdates = api.onUpdateAvailable?.((list) => {
       if (alive) setPendingUpdates(list)
@@ -453,6 +465,45 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
       .finally(() => setSkillsBusy(null))
   }
 
+  const loadInstalledPlugins = () => {
+    if (!api) return
+    void api
+      .installedPlugins()
+      .then((list) => setInstalledCodex(list.filter((item) => item.agent === 'codex')))
+      .catch(() => setInstalledCodex([]))
+  }
+
+  const toggleCodexPlugin = (plugin: InstalledPluginRecord) => {
+    if (!api || pluginOpsBusy) return
+    setPluginOpsBusy(plugin.id)
+    void api
+      .setPluginEnabled({ id: plugin.id, agent: 'codex', enabled: !plugin.enabled })
+      .then(() => {
+        notify(`${plugin.name} 已${plugin.enabled ? '停用' : '启用'} · 下一次会话生效`)
+        loadInstalledPlugins()
+      })
+      .catch((reason: unknown) => notify(errorText(reason, '插件启停失败')))
+      .finally(() => setPluginOpsBusy(null))
+  }
+
+  const removeCodexPlugin = (plugin: InstalledPluginRecord) => {
+    if (!api || pluginOpsBusy) return
+    if (confirmKey !== `plug:${plugin.id}`) {
+      setConfirmKey(`plug:${plugin.id}`)
+      return
+    }
+    setConfirmKey('')
+    setPluginOpsBusy(plugin.id)
+    void api
+      .removePlugin({ id: plugin.id, agent: 'codex' })
+      .then(() => {
+        notify(`已卸载 ${plugin.name}`)
+        loadInstalledPlugins()
+      })
+      .catch((reason: unknown) => notify(errorText(reason, '卸载失败')))
+      .finally(() => setPluginOpsBusy(null))
+  }
+
   const addSource = () => {
     if (!api || !sourceForm || sourceBusy) return
     const name = sourceForm.name.trim()
@@ -544,12 +595,14 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
             skipped > 0 ? ` · ${skipped} 项跳过` : ''
           }`
         )
-        const [nextSkills, nextSources] = await Promise.all([
+        const [nextSkills, nextSources, nextInstalled] = await Promise.all([
           api.skills.list(),
-          api.pluginSources()
+          api.pluginSources(),
+          api.installedPlugins()
         ])
         setSkills(nextSkills)
         setSources(nextSources)
+        setInstalledCodex(nextInstalled.filter((item) => item.agent === 'codex'))
       })
       .catch((reason: unknown) => notify(errorText(reason, '导入失败')))
       .finally(() => setScanBusy(false))
@@ -989,132 +1042,206 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
           ) : null}
 
           {skillTab === 'installed' ? (
-            skills.length === 0 ? (
-              <div className="w1-capemptycard">
-                <b>还没有应用私有插件。</b>
-                <p>从 Claude 市场安装后，只装进 WorkStationForOne 的目录；不会写 ~/.claude。</p>
-                <button
-                  className="w1-pb pri"
-                  type="button"
-                  onClick={() => {
-                    setSkillTab('market')
-                    if (!market) loadMarket(false)
-                  }}
-                >
-                  浏览市场
-                </button>
-              </div>
-            ) : (
-              <div className="w1-caplist">
-                {skills.map((skill) => (
-                  <Fragment key={skill.id}>
-                    <div className="w1-caprow">
-                      <span className="w1-capglyph">SK</span>
-                      <span className="w1-capcopy">
-                        <b>
-                          {skill.name}
-                          <i className="w1-capver">{skill.version || '—'}</i>
-                        </b>
-                        <p>
-                          {skill.description || marketLabel(skill.marketplace)}
-                          {skill.marketplace ? ` · ${marketLabel(skill.marketplace)}` : ''}
-                        </p>
-                        <span className="w1-captags">
-                          {skill.components.map((component) => (
-                            <i key={component}>{COMPONENT_LABELS[component] ?? component}</i>
-                          ))}
-                          {skill.hasHooks || skill.hasMcp ? (
-                            <i className="warn">含执行组件 · 需信任</i>
-                          ) : null}
-                        </span>
-                      </span>
-                      <span className="w1-capactions">
-                        <button
-                          type="button"
-                          className={`w1-setbtn${skill.enabled ? ' on' : ''}`}
-                          disabled={skillsBusy === skill.id}
-                          onClick={() => toggleSkill(skill, !skill.enabled)}
-                        >
-                          {skill.enabled
-                            ? '已启用'
-                            : confirmKey === `trust:skill:${skill.id}`
-                              ? '确认信任并启用'
-                              : '启用'}
-                        </button>
-                        <button
-                          type="button"
-                          className="w1-capmini"
-                          disabled={detailBusy}
-                          onClick={() => toggleSkillDetail(skill)}
-                        >
-                          {skillDetailId === skill.id ? '收起' : '详情'}
-                        </button>
-                        {skill.marketplace === 'local' ? null : (
-                          <button
-                            type="button"
-                            className="w1-capmini"
-                            disabled={skillsBusy === skill.id}
-                            onClick={() => updateSkill(skill)}
-                          >
-                            更新
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          className={`w1-capmini${confirmKey === `skill:${skill.id}` ? ' danger' : ''}`}
-                          disabled={skillsBusy === skill.id}
-                          onClick={() => removeSkill(skill)}
-                        >
-                          {confirmKey === `skill:${skill.id}` ? '确认移除' : '移除'}
-                        </button>
-                      </span>
-                    </div>
-                    {skillDetailId === skill.id ? (
-                      <div className="w1-captoolpanel w1-skilldetail">
-                        <div className="w1-captoolh">
-                          <span>源文件</span>
-                          <button
-                            type="button"
-                            className="w1-capmini"
-                            onClick={() => openSkillFolder(skill)}
-                          >
-                            打开目录
-                          </button>
-                        </div>
-                        {detailBusy ? (
-                          <p className="w1-capnote">正在读取插件目录…</p>
-                        ) : skillInspection ? (
-                          <>
-                            <div className="w1-skillfiles">
-                              {skillInspection.files.slice(0, 40).map((file) => (
-                                <span key={file}>{file}</span>
-                              ))}
-                              {skillInspection.files.length > 40 ? (
-                                <span>+{skillInspection.files.length - 40} 个文件</span>
-                              ) : null}
-                            </div>
-                            {skillInspection.docs.length === 0 ? (
-                              <p className="w1-capnote">
-                                没有 SKILL.md；这个插件可能只包含 commands / agents。
-                              </p>
-                            ) : (
-                              skillInspection.docs.map((doc) => (
-                                <div className="w1-skilldoc" key={doc.path}>
-                                  <b>{doc.path}</b>
-                                  <pre>{doc.content}</pre>
-                                </div>
-                              ))
-                            )}
-                          </>
-                        ) : (
-                          <p className="w1-capnote">没有可读取的文件。</p>
-                        )}
-                      </div>
-                    ) : null}
-                  </Fragment>
+            <>
+              <div className="w1-capseg" role="group" aria-label="已安装插件按 Agent 过滤">
+                {(
+                  [
+                    ['all', '全部'],
+                    ['claude', 'Claude'],
+                    ['codex', 'Codex']
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={installedAgent === value ? 'on' : ''}
+                    aria-pressed={installedAgent === value}
+                    onClick={() => setInstalledAgent(value)}
+                  >
+                    {label}
+                  </button>
                 ))}
               </div>
-            )
+              {installedCodex.length > 0 && installedAgent !== 'claude' ? (
+                <div className="w1-capdomain">
+                  <h4>Codex 插件</h4>
+                  <div className="w1-caplist">
+                    {installedCodex.map((plugin) => (
+                      <Fragment key={plugin.id}>
+                        <div className="w1-caprow static">
+                          <span className="w1-capglyph">CX</span>
+                          <span className="w1-capcopy">
+                            <b>
+                              {plugin.name}
+                              <i className="w1-capver">{plugin.market || 'codex'}</i>
+                            </b>
+                            <p>
+                              {plugin.version || '未标注版本'}
+                              {plugin.syncedSkills.length > 0
+                                ? ` · 已同步 ${plugin.syncedSkills.length} 个 skill`
+                                : ''}
+                            </p>
+                            <span className="w1-captags">
+                              <i>{plugin.enabled ? '已启用' : '已停用'}</i>
+                              {plugin.adopted ? <i>从磁盘补录</i> : null}
+                              {plugin.missingOnDisk ? <i className="warn">磁盘上已消失</i> : null}
+                            </span>
+                          </span>
+                          <span className="w1-capactions">
+                            <button
+                              type="button"
+                              className={`w1-setbtn${plugin.enabled ? ' on' : ''}`}
+                              disabled={pluginOpsBusy === plugin.id}
+                              onClick={() => toggleCodexPlugin(plugin)}
+                            >
+                              {plugin.enabled ? '已启用' : '启用'}
+                            </button>
+                            <button
+                              type="button"
+                              className={`w1-capmini${confirmKey === `plug:${plugin.id}` ? ' danger' : ''}`}
+                              disabled={pluginOpsBusy === plugin.id}
+                              onClick={() => removeCodexPlugin(plugin)}
+                            >
+                              {confirmKey === `plug:${plugin.id}` ? '确认卸载' : '卸载'}
+                            </button>
+                          </span>
+                        </div>
+                      </Fragment>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {skills.length === 0 && installedCodex.length === 0 ? (
+                <div className="w1-capemptycard">
+                  <b>还没有应用私有插件。</b>
+                  <p>
+                    从市场安装或从本机导入后，只装进 WorkStationForOne 的目录；不会写 ~/.claude 或
+                    ~/.codex。
+                  </p>
+                  <button
+                    className="w1-pb pri"
+                    type="button"
+                    onClick={() => {
+                      setSkillTab('market')
+                      if (!market) loadMarket(false)
+                    }}
+                  >
+                    浏览市场
+                  </button>
+                </div>
+              ) : null}
+              {skills.length === 0 || installedAgent === 'codex' ? null : (
+                <div className="w1-caplist">
+                  {skills.map((skill) => (
+                    <Fragment key={skill.id}>
+                      <div className="w1-caprow">
+                        <span className="w1-capglyph">SK</span>
+                        <span className="w1-capcopy">
+                          <b>
+                            {skill.name}
+                            <i className="w1-capver">{skill.version || '—'}</i>
+                          </b>
+                          <p>
+                            {skill.description || marketLabel(skill.marketplace)}
+                            {skill.marketplace ? ` · ${marketLabel(skill.marketplace)}` : ''}
+                          </p>
+                          <span className="w1-captags">
+                            {skill.components.map((component) => (
+                              <i key={component}>{COMPONENT_LABELS[component] ?? component}</i>
+                            ))}
+                            {skill.hasHooks || skill.hasMcp ? (
+                              <i className="warn">含执行组件 · 需信任</i>
+                            ) : null}
+                          </span>
+                        </span>
+                        <span className="w1-capactions">
+                          <button
+                            type="button"
+                            className={`w1-setbtn${skill.enabled ? ' on' : ''}`}
+                            disabled={skillsBusy === skill.id}
+                            onClick={() => toggleSkill(skill, !skill.enabled)}
+                          >
+                            {skill.enabled
+                              ? '已启用'
+                              : confirmKey === `trust:skill:${skill.id}`
+                                ? '确认信任并启用'
+                                : '启用'}
+                          </button>
+                          <button
+                            type="button"
+                            className="w1-capmini"
+                            disabled={detailBusy}
+                            onClick={() => toggleSkillDetail(skill)}
+                          >
+                            {skillDetailId === skill.id ? '收起' : '详情'}
+                          </button>
+                          {skill.marketplace === 'local' ? null : (
+                            <button
+                              type="button"
+                              className="w1-capmini"
+                              disabled={skillsBusy === skill.id}
+                              onClick={() => updateSkill(skill)}
+                            >
+                              更新
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className={`w1-capmini${confirmKey === `skill:${skill.id}` ? ' danger' : ''}`}
+                            disabled={skillsBusy === skill.id}
+                            onClick={() => removeSkill(skill)}
+                          >
+                            {confirmKey === `skill:${skill.id}` ? '确认移除' : '移除'}
+                          </button>
+                        </span>
+                      </div>
+                      {skillDetailId === skill.id ? (
+                        <div className="w1-captoolpanel w1-skilldetail">
+                          <div className="w1-captoolh">
+                            <span>源文件</span>
+                            <button
+                              type="button"
+                              className="w1-capmini"
+                              onClick={() => openSkillFolder(skill)}
+                            >
+                              打开目录
+                            </button>
+                          </div>
+                          {detailBusy ? (
+                            <p className="w1-capnote">正在读取插件目录…</p>
+                          ) : skillInspection ? (
+                            <>
+                              <div className="w1-skillfiles">
+                                {skillInspection.files.slice(0, 40).map((file) => (
+                                  <span key={file}>{file}</span>
+                                ))}
+                                {skillInspection.files.length > 40 ? (
+                                  <span>+{skillInspection.files.length - 40} 个文件</span>
+                                ) : null}
+                              </div>
+                              {skillInspection.docs.length === 0 ? (
+                                <p className="w1-capnote">
+                                  没有 SKILL.md；这个插件可能只包含 commands / agents。
+                                </p>
+                              ) : (
+                                skillInspection.docs.map((doc) => (
+                                  <div className="w1-skilldoc" key={doc.path}>
+                                    <b>{doc.path}</b>
+                                    <pre>{doc.content}</pre>
+                                  </div>
+                                ))
+                              )}
+                            </>
+                          ) : (
+                            <p className="w1-capnote">没有可读取的文件。</p>
+                          )}
+                        </div>
+                      ) : null}
+                    </Fragment>
+                  ))}
+                </div>
+              )}
+            </>
           ) : (
             <div className="w1-capmarket">
               <div className="w1-capmarketbar">

@@ -598,6 +598,26 @@ export interface LocalPluginRecord {
   installPath: string
 }
 
+export interface InstalledPluginRecord {
+  id: string
+  name: string
+  market: string
+  version: string
+  agent: PluginAgent
+  enabled: boolean
+  trusted: boolean
+  /** 库里有记录但磁盘上找不到 */
+  missingOnDisk: boolean
+  /** 磁盘上有但库里没有，自动补录 */
+  adopted: boolean
+  components: string[]
+  hasHooks: boolean
+  hasMcp: boolean
+  installPath: string
+  /** Codex 侧同步到 skills 目录的 skill 名 */
+  syncedSkills: string[]
+}
+
 export interface LocalScanRecord {
   agent: PluginAgent
   detected: boolean
@@ -767,6 +787,7 @@ export interface CapabilityApi {
   refreshPluginSource: (id: string) => Promise<PluginSourceRecord>
   removePluginSource: (id: string) => Promise<void>
   scanLocalPlugins: () => Promise<LocalScanRecord[]>
+  installedPlugins: () => Promise<InstalledPluginRecord[]>
   importLocalPlugins: (input: {
     agent: PluginAgent
     markets: string[]
@@ -942,6 +963,7 @@ export const IPC_CHANNELS = {
   capabilityPluginSourceAdd: 'capability:plugin-source-add',
   capabilityPluginSourceRefresh: 'capability:plugin-source-refresh',
   capabilityPluginSourceRemove: 'capability:plugin-source-remove',
+  capabilityPluginInstalled: 'capability:plugin-installed',
   capabilityPluginScanLocal: 'capability:plugin-scan-local',
   capabilityPluginImport: 'capability:plugin-import',
   capabilityPluginSetEnabled: 'capability:plugin-set-enabled',

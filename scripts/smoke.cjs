@@ -1918,6 +1918,22 @@ async function run() {
       panelText().slice(-120)
     )
     byText('.w1-capsrcblock .w1-capmini', '关闭')?.click()
+    // 已安装区按 Agent 分段，Codex 半区读私有 codex-home
+    const installed = await window.ws.capability.installedPlugins()
+    check(
+      '已安装列表接口按 Agent 返回插件',
+      Array.isArray(installed) &&
+        installed.every((item) => item.agent === 'claude' || item.agent === 'codex'),
+      'count=' + installed.length + ' ' + installed.map((item) => item.agent + ':' + item.id).join(', ')
+    )
+    byText('.w1-capseg button', 'Codex')?.click()
+    await sleep(200)
+    check(
+      '已安装区可切到 Codex 分段',
+      (one('.w1-cap')?.textContent ?? '').includes('Codex'),
+      one('.w1-cap')?.textContent?.slice(0, 60) ?? 'missing'
+    )
+    byText('.w1-capseg button', '全部')?.click()
     byText('.w1-capseg button', '市场')?.click()
     const marketLoaded = await waitFor(
       () => (one('.w1-capcard')?.textContent ?? '').includes('demo-skill'),

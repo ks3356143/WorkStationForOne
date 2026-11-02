@@ -125,6 +125,7 @@ const api: WsApi = {
     refreshPluginSource: (id) => ipcRenderer.invoke(IPC_CHANNELS.capabilityPluginSourceRefresh, id),
     removePluginSource: (id) => ipcRenderer.invoke(IPC_CHANNELS.capabilityPluginSourceRemove, id),
     scanLocalPlugins: () => ipcRenderer.invoke(IPC_CHANNELS.capabilityPluginScanLocal),
+    installedPlugins: () => ipcRenderer.invoke(IPC_CHANNELS.capabilityPluginInstalled),
     importLocalPlugins: (input) => ipcRenderer.invoke(IPC_CHANNELS.capabilityPluginImport, input),
     setPluginEnabled: (input) => ipcRenderer.invoke(IPC_CHANNELS.capabilityPluginSetEnabled, input),
     removePlugin: (input) => ipcRenderer.invoke(IPC_CHANNELS.capabilityPluginRemove, input),

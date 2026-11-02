@@ -1,7 +1,7 @@
 import { dialog, ipcMain, shell } from 'electron'
 import type { CapabilityCenter } from '../capabilities'
 import type { AuditLog } from '../db/audit'
-import type { ExternalMcpSaveInput, McpToolApproval } from '../../shared/ipc'
+import type { ExternalMcpSaveInput, InstalledPluginRecord, McpToolApproval } from '../../shared/ipc'
 import { EXTERNAL_MCP_TARGETS, IPC_CHANNELS } from '../../shared/ipc'
 import type { PluginSourceService } from '../capabilities/plugins/sources-service'
 import type { UpdateChecker } from '../capabilities/plugins/update-checker'
@@ -13,7 +13,12 @@ import {
 } from '../capabilities/plugins/local-import'
 import { scanClaudeLocal, scanCodexLocal } from '../capabilities/plugins/local-scan'
 import { setCodexPluginEnabled } from '../capabilities/plugins/codex-config'
-import { removeSyncedSkills, syncPluginSkills } from '../capabilities/plugins/codex-skills'
+import {
+  removeSyncedSkills,
+  syncedSkillsOf,
+  syncPluginSkills
+} from '../capabilities/plugins/codex-skills'
+import { listCodexInstalled, reconcile } from '../capabilities/plugins/adapters'
 
 const IPC = IPC_CHANNELS
 const MAX_ID = 240
@@ -295,6 +300,75 @@ export function registerPluginHandlers(
   })
 
   ipcMain.handle(IPC.capabilityPluginScanLocal, () => scanForImport())
+
+  /**
+   * 已安装插件统一列表：Claude 以数据库为准，Codex 合并磁盘现状。
+   * 磁盘上有但库里没有的顺手补录（adopted），库里有没有磁盘的标 missingOnDisk。
+   */
+  ipcMain.handle(IPC.capabilityPluginInstalled, () => {
+    const result: InstalledPluginRecord[] = []
+    for (const plugin of center.repository.listPlugins('claude')) {
+      result.push({
+        id: plugin.id,
+        name: plugin.name,
+        market: plugin.marketplace,
+        version: plugin.version,
+        agent: 'claude',
+        enabled: plugin.enabled,
+        trusted: plugin.trusted,
+        missingOnDisk: false,
+        adopted: false,
+        components: plugin.components,
+        hasHooks: plugin.hasHooks,
+        hasMcp: plugin.hasMcp,
+        installPath: plugin.installPath,
+        syncedSkills: []
+      })
+    }
+
+    const merged = reconcile(
+      center.repository.listPlugins('codex'),
+      listCodexInstalled(center.codexHome),
+      'codex'
+    )
+    for (const plugin of merged) {
+      const [name, market = ''] = plugin.id.split('@')
+      // 磁盘有、库里没有时补录，供启停与卸载使用
+      if (!plugin.inDb) {
+        center.repository.upsertPlugin({
+          id: plugin.id,
+          name,
+          description: '',
+          version: plugin.version,
+          marketplace: market,
+          installPath: plugin.installPath ?? '',
+          components: [],
+          hasHooks: false,
+          hasMcp: false,
+          enabled: plugin.enabled,
+          trusted: false,
+          agent: 'codex'
+        })
+      }
+      result.push({
+        id: plugin.id,
+        name: plugin.name,
+        market: plugin.market,
+        version: plugin.version,
+        agent: 'codex',
+        enabled: plugin.enabled,
+        trusted: plugin.trusted,
+        missingOnDisk: plugin.missingOnDisk,
+        adopted: !plugin.inDb,
+        components: [],
+        hasHooks: false,
+        hasMcp: false,
+        installPath: plugin.installPath ?? '',
+        syncedSkills: syncedSkillsOf(center.codexHome, plugin.id)
+      })
+    }
+    return result
+  })
 
   ipcMain.handle(IPC.capabilityPluginImport, async (_event, value: unknown) => {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) {
