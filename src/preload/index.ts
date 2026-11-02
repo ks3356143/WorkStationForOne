@@ -126,6 +126,8 @@ const api: WsApi = {
     removePluginSource: (id) => ipcRenderer.invoke(IPC_CHANNELS.capabilityPluginSourceRemove, id),
     scanLocalPlugins: () => ipcRenderer.invoke(IPC_CHANNELS.capabilityPluginScanLocal),
     importLocalPlugins: (input) => ipcRenderer.invoke(IPC_CHANNELS.capabilityPluginImport, input),
+    setPluginEnabled: (input) => ipcRenderer.invoke(IPC_CHANNELS.capabilityPluginSetEnabled, input),
+    removePlugin: (input) => ipcRenderer.invoke(IPC_CHANNELS.capabilityPluginRemove, input),
     checkUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.capabilityUpdatesCheck),
     onUpdateAvailable: (listener) => {
       const handler = (_event: Electron.IpcRendererEvent, list: Parameters<typeof listener>[0]) =>

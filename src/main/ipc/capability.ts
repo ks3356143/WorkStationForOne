@@ -12,6 +12,8 @@ import {
   scanForImport
 } from '../capabilities/plugins/local-import'
 import { scanClaudeLocal, scanCodexLocal } from '../capabilities/plugins/local-scan'
+import { setCodexPluginEnabled } from '../capabilities/plugins/codex-config'
+import { removeSyncedSkills, syncPluginSkills } from '../capabilities/plugins/codex-skills'
 
 const IPC = IPC_CHANNELS
 const MAX_ID = 240
@@ -345,6 +347,14 @@ export function registerPluginHandlers(
           trusted: false,
           agent: target
         })
+        // Codex 只扫描 <CODEX_HOME>/skills，软链不生效，必须复制一份
+        if (target === 'codex') {
+          syncPluginSkills({
+            codexHome: center.codexHome,
+            pluginRoot: dir,
+            pluginId: meta.id
+          })
+        }
       }
     })
     record(
@@ -355,6 +365,54 @@ export function registerPluginHandlers(
   })
 
   ipcMain.handle(IPC.capabilityUpdatesCheck, () => checker.check())
+
+  /**
+   * Codex 插件启停：改写私有 config.toml 的 enabled，并同步 skills 副本。
+   * 停用后必须删掉 CODEX_HOME/skills 下的副本，否则「停用」形同虚设。
+   */
+  ipcMain.handle(IPC.capabilityPluginSetEnabled, (_event, value: unknown) => {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      throw new TypeError('插件启停参数无效')
+    }
+    const input = value as Record<string, unknown>
+    const id = assertId(input.id, '插件 id')
+    const agent = input.agent === 'codex' ? 'codex' : 'claude'
+    const enabled = input.enabled === true
+    const plugin = center.repository.findPlugin(id, agent)
+    if (!plugin) throw new Error('插件未安装')
+    if (agent === 'codex') {
+      const [name, market = ''] = id.split('@')
+      setCodexPluginEnabled(center.codexHome, name, market, enabled)
+      if (enabled) {
+        syncPluginSkills({
+          codexHome: center.codexHome,
+          pluginRoot: plugin.installPath,
+          pluginId: id
+        })
+      } else {
+        removeSyncedSkills(center.codexHome, id)
+      }
+    }
+    const updated = center.repository.setPluginEnabled(id, enabled, undefined, agent)
+    record(enabled ? 'plugin.enable' : 'plugin.disable', id)
+    return updated
+  })
+
+  ipcMain.handle(IPC.capabilityPluginRemove, async (_event, value: unknown) => {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      throw new TypeError('插件卸载参数无效')
+    }
+    const input = value as Record<string, unknown>
+    const id = assertId(input.id, '插件 id')
+    const agent = input.agent === 'codex' ? 'codex' : 'claude'
+    if (agent === 'codex') {
+      const [name, market = ''] = id.split('@')
+      await sources.removeCodexPlugin(name, market).catch(() => undefined)
+      removeSyncedSkills(center.codexHome, id)
+    }
+    center.repository.removePlugin(id, agent)
+    record('plugin.remove', `${agent} · ${id}`)
+  })
 }
 
 export const capabilityHandlerIPC = {

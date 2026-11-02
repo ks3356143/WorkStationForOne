@@ -152,6 +152,11 @@ export class PluginSourceService {
     ])
   }
 
+  /** 卸载 Codex 插件；插件不在时静默忽略。 */
+  async removeCodexPlugin(plugin: string, market: string): Promise<void> {
+    await this.runCli('codex', ['plugin', 'remove', `${plugin}@${market}`])
+  }
+
   private runCli(agent: PluginAgent, args: string[]): Promise<string> {
     const cli =
       agent === 'claude'

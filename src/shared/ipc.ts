@@ -776,6 +776,12 @@ export interface CapabilityApi {
     importedPlugins: string[]
     skipped: Array<{ id: string; reason: string }>
   }>
+  setPluginEnabled: (input: {
+    id: string
+    agent: PluginAgent
+    enabled: boolean
+  }) => Promise<SkillRecord | undefined>
+  removePlugin: (input: { id: string; agent: PluginAgent }) => Promise<void>
   checkUpdates: () => Promise<UpdateCandidateRecord[]>
   onUpdateAvailable: (listener: (list: UpdateCandidateRecord[]) => void) => () => void
 }
@@ -938,6 +944,8 @@ export const IPC_CHANNELS = {
   capabilityPluginSourceRemove: 'capability:plugin-source-remove',
   capabilityPluginScanLocal: 'capability:plugin-scan-local',
   capabilityPluginImport: 'capability:plugin-import',
+  capabilityPluginSetEnabled: 'capability:plugin-set-enabled',
+  capabilityPluginRemove: 'capability:plugin-remove',
   capabilityUpdatesCheck: 'capability:updates-check',
   capabilityUpdateAvailable: 'capability:update-available',
   auditRecent: 'audit:recent',
