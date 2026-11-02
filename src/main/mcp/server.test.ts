@@ -533,4 +533,60 @@ describe('MCP HTTP 桥', () => {
     const body = (await response.json()) as { result: { tools: { name: string }[] } }
     expect(body.result.tools).toHaveLength(11)
   })
+
+  it('关闭的内置工具不出现在 tools/list，调用时返回已关闭', async () => {
+    const source = data()
+    bridge = new McpBridge(source, 'test', {
+      isToolEnabled: (name) => name !== 'tasks_create'
+    })
+    await bridge.start()
+    const endpoint = bridge.issue('s-tool-off')
+    if (!endpoint) throw new Error('没有 issue token')
+
+    const list = await rpc(endpoint.url, endpoint.token, {
+      jsonrpc: '2.0',
+      id: 61,
+      method: 'tools/list'
+    })
+    const listBody = (await list.json()) as { result: { tools: { name: string }[] } }
+    const names = listBody.result.tools.map((tool) => tool.name)
+    expect(names).not.toContain('tasks_create')
+    expect(names).toContain('tasks_list')
+    expect(names).toHaveLength(10)
+
+    const call = await rpc(endpoint.url, endpoint.token, {
+      jsonrpc: '2.0',
+      id: 62,
+      method: 'tools/call',
+      params: {
+        name: 'tasks_create',
+        arguments: { title: '不该创建', idempotency_key: 'off-1' }
+      }
+    })
+    const callBody = (await call.json()) as {
+      result: { content: { text: string }[]; isError?: boolean }
+    }
+    expect(callBody.result.isError).toBe(true)
+    expect(callBody.result.content[0].text).toContain('工具已关闭')
+    expect(source.tasks.list().some((task) => task.title === '不该创建')).toBe(false)
+  })
+
+  it('开关查询抛错时按启用处理，工具表不消失', async () => {
+    const source = data()
+    bridge = new McpBridge(source, 'test', {
+      isToolEnabled: () => {
+        throw new Error('db closed')
+      }
+    })
+    await bridge.start()
+    const endpoint = bridge.issue('s-tool-error')
+    if (!endpoint) throw new Error('没有 issue token')
+    const list = await rpc(endpoint.url, endpoint.token, {
+      jsonrpc: '2.0',
+      id: 63,
+      method: 'tools/list'
+    })
+    const body = (await list.json()) as { result: { tools: { name: string }[] } }
+    expect(body.result.tools).toHaveLength(11)
+  })
 })

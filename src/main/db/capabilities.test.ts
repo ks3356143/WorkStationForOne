@@ -51,6 +51,53 @@ const server = {
   trusted: false
 }
 
+describe('外部 MCP 的 Agent 归属（DB v28）', () => {
+  it('默认 both，可保存为 claude / codex 并原样读回', () => {
+    const { db, repo } = seed()
+    const created = repo.createMcpServer(server)
+    expect(created.targets).toBe('both')
+
+    const updated = repo.updateMcpServer(created.id, {
+      name: created.name,
+      description: created.description,
+      transport: created.transport,
+      command: created.command,
+      args: [...created.args],
+      url: created.url,
+      source: created.source,
+      catalogId: created.catalogId,
+      version: created.version,
+      enabled: created.enabled,
+      trusted: created.trusted,
+      targets: 'codex'
+    })
+    expect(updated?.targets).toBe('codex')
+    expect(repo.findMcpServer(created.id)?.targets).toBe('codex')
+    expect(repo.listMcpServers()[0].targets).toBe('codex')
+    db.close()
+  })
+
+  it('v27 旧库升级后既有 Server 视为 both', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wsfo-cap-v27-'))
+    dirs.push(dir)
+    const db = openDatabase(join(dir, 'workstation.db'))
+    migrate(
+      db,
+      MIGRATIONS.filter((migration) => migration.version <= 27)
+    )
+    db.prepare(
+      `INSERT INTO mcp_servers
+        (id, key, name, description, transport, command, args_json, url, source,
+         catalog_id, version, enabled, trusted, created_at, updated_at)
+       VALUES ('old', 'memory', 'Memory', '', 'stdio', 'npx', '[]', '', 'catalog',
+         'memory', '1', 0, 0, 1, 1)`
+    ).run()
+    migrate(db)
+    expect(new CapabilityRepository(db).findMcpServer('old')?.targets).toBe('both')
+    db.close()
+  })
+})
+
 describe('能力中心 DB v22 / v23 / v24', () => {
   it('建立能力表并推进到最新版本', () => {
     const { db } = seed()

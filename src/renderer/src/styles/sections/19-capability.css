@@ -211,6 +211,16 @@
   background: rgb(var(--ac-rgb) / 0.035);
 }
 
+/* 内置工具行多一个开关按钮；关闭的行整体压暗，值仍可读 */
+.w1-caplist .w1-caprow.with-toggle {
+  grid-template-columns: 30px minmax(0, 1fr) auto auto;
+}
+
+.w1-caplist .w1-caprow.off .w1-capcopy,
+.w1-caplist .w1-caprow.off .w1-capglyph {
+  opacity: 0.52;
+}
+
 .w1-capglyph {
   display: grid;
   place-items: center;

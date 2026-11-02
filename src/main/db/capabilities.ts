@@ -1,6 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import type {
   ExternalMcpServerRecord,
+  ExternalMcpTargets,
   ExternalMcpToolRecord,
   ExternalMcpTransport,
   McpToolApproval,
@@ -38,6 +39,7 @@ interface McpServerRow {
   enabled: number
   trusted: number
   tools_json: string
+  targets: ExternalMcpTargets
   last_test_at: number | null
   last_error: string
   created_at: number
@@ -95,6 +97,7 @@ export interface McpServerInput {
   version: string
   enabled: boolean
   trusted: boolean
+  targets?: ExternalMcpTargets
 }
 
 export interface McpSecrets {
@@ -161,6 +164,7 @@ function toServer(row: McpServerRow): ExternalMcpServerRecord {
     trusted: row.trusted === 1,
     toolNames: parseArgs(row.tools_json),
     tools: [],
+    targets: row.targets ?? 'both',
     lastTestAt: row.last_test_at ?? null,
     lastError: row.last_error ?? '',
     createdAt: row.created_at,
@@ -260,7 +264,7 @@ export class CapabilityRepository {
     const rows = this.db
       .prepare(
         `SELECT id, key, name, description, transport, command, args_json, url, source,
-                catalog_id, version, enabled, trusted, tools_json, last_test_at, last_error,
+                catalog_id, version, enabled, trusted, tools_json, targets, last_test_at, last_error,
                 created_at, updated_at
          FROM mcp_servers ORDER BY created_at DESC`
       )
@@ -279,7 +283,7 @@ export class CapabilityRepository {
     const row = this.db
       .prepare(
         `SELECT id, key, name, description, transport, command, args_json, url, source,
-                catalog_id, version, enabled, trusted, tools_json, last_test_at, last_error,
+                catalog_id, version, enabled, trusted, tools_json, targets, last_test_at, last_error,
                 created_at, updated_at
          FROM mcp_servers WHERE id = ?`
       )
@@ -372,7 +376,7 @@ export class CapabilityRepository {
     const row = this.db
       .prepare(
         `SELECT id, key, name, description, transport, command, args_json, url, source,
-                catalog_id, version, enabled, trusted, tools_json, last_test_at, last_error,
+                catalog_id, version, enabled, trusted, tools_json, targets, last_test_at, last_error,
                 created_at, updated_at
          FROM mcp_servers WHERE key = ?`
       )
@@ -386,8 +390,8 @@ export class CapabilityRepository {
       .prepare(
         `INSERT INTO mcp_servers
           (id, key, name, description, transport, command, args_json, url, source,
-           catalog_id, version, enabled, trusted, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           catalog_id, version, enabled, trusted, targets, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         input.id,
@@ -403,6 +407,7 @@ export class CapabilityRepository {
         input.version,
         input.enabled ? 1 : 0,
         input.trusted ? 1 : 0,
+        input.targets ?? 'both',
         now,
         now
       )
@@ -419,7 +424,7 @@ export class CapabilityRepository {
       .prepare(
         `UPDATE mcp_servers SET
            name = ?, description = ?, transport = ?, command = ?, args_json = ?, url = ?,
-           source = ?, catalog_id = ?, version = ?, enabled = ?, trusted = ?,
+           source = ?, catalog_id = ?, version = ?, enabled = ?, trusted = ?, targets = ?,
            tools_json = '[]', last_test_at = NULL, last_error = '', updated_at = ?
          WHERE id = ?`
       )
@@ -435,6 +440,7 @@ export class CapabilityRepository {
         input.version,
         input.enabled ? 1 : 0,
         input.trusted ? 1 : 0,
+        input.targets ?? 'both',
         Date.now(),
         id
       )

@@ -52,6 +52,8 @@ export interface McpHooks {
   ) => Promise<McpExternalApprovalDecision>
   /** 只有存在外部 MCP 的 Claude 会话才暴露 approval_request */
   hasApprovalRelay?: (sessionId: string) => boolean
+  /** 内置工具开关；缺省视为全部启用 */
+  isToolEnabled?: (name: string) => boolean
 }
 
 export interface McpBridgeOptions {
@@ -335,6 +337,15 @@ export class McpBridge {
     }
   }
 
+  /** 开关注解失败时按「启用」处理，避免查询异常让整个工具表消失。 */
+  private enabledTools(): typeof MCP_TOOLS {
+    try {
+      return MCP_TOOLS.filter((tool) => this.hooks.isToolEnabled?.(tool.name) !== false)
+    } catch {
+      return MCP_TOOLS
+    }
+  }
+
   /** CLI 的 --permission-prompt-tool 会带 {tool_name,input,tool_use_id} 调用这里。 */
   private async handleApprovalRequest(sessionId: string, raw: unknown): Promise<unknown> {
     const args = asRecord(raw)
@@ -403,8 +414,10 @@ export class McpBridge {
     }
     if (method === 'ping') return rpcResult(id, {})
     if (method === 'tools/list') {
+      // 被关闭的内置工具既不列出也不执行：只隐藏列表挡不住模型按旧名调用。
+      const tools = this.enabledTools()
       return rpcResult(id, {
-        tools: this.relayEnabled(sessionId) ? [...MCP_TOOLS, APPROVAL_TOOL] : MCP_TOOLS
+        tools: this.relayEnabled(sessionId) ? [...tools, APPROVAL_TOOL] : tools
       })
     }
     if (method === 'tools/call') {
@@ -420,6 +433,9 @@ export class McpBridge {
       const def = MCP_TOOLS.find((tool) => tool.name === name)
       if (!def) {
         return rpcResult(id, toolResponse({ text: `未知工具：${name}`, isError: true }))
+      }
+      if (this.hooks.isToolEnabled?.(name) === false) {
+        return rpcResult(id, toolResponse({ text: `工具已关闭：${name}`, isError: true }))
       }
       const args = asRecord(params.arguments)
       let cacheKey = ''

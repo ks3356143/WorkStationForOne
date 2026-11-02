@@ -534,6 +534,7 @@ export interface BuiltinToolRecord {
   description: string
   domain: McpDomain
   write: boolean
+  enabled: boolean
 }
 
 export interface SkillRecord {
@@ -587,6 +588,9 @@ export interface SkillApi {
 
 export type ExternalMcpTransport = 'stdio' | 'http'
 export type McpToolApproval = 'allow' | 'ask' | 'deny'
+/** 外部 MCP 下发到哪些 Agent：both 为 Claude 与 Codex 都可用。 */
+export type ExternalMcpTargets = 'both' | 'claude' | 'codex'
+export const EXTERNAL_MCP_TARGETS = ['both', 'claude', 'codex'] as const
 
 export interface ExternalMcpToolRecord {
   name: string
@@ -606,6 +610,7 @@ export interface ExternalMcpServerRecord {
   url: string
   envKeys: string[]
   headerKeys: string[]
+  targets: ExternalMcpTargets
   source: 'catalog' | 'manual'
   catalogId: string
   version: string
@@ -636,6 +641,8 @@ export interface ExternalMcpSaveInput {
   headers?: Record<string, string>
   removeEnvKeys?: string[]
   removeHeaderKeys?: string[]
+  /** 省略时按 both 处理；改归属不影响启用与信任状态 */
+  targets?: ExternalMcpTargets
   catalogId?: string
   version?: string
 }
@@ -692,6 +699,8 @@ export interface EnvironmentCheckRecord {
 
 export interface CapabilityApi {
   builtinTools: () => Promise<BuiltinToolRecord[]>
+  /** 切换单个内置工具；关闭后桥不再列出也不执行它 */
+  setBuiltinTool: (name: string, enabled: boolean) => Promise<BuiltinToolRecord[]>
   environment: (force?: boolean) => Promise<EnvironmentCheckRecord[]>
   skills: SkillApi
   mcp: ExternalMcpApi
@@ -808,6 +817,7 @@ export const IPC_CHANNELS = {
   mcpPermission: 'mcp:permission',
   mcpPermissionResponse: 'mcp:permission-response',
   capabilityBuiltinTools: 'capability:builtin-tools',
+  capabilityBuiltinToolSet: 'capability:builtin-tool-set',
   capabilitySkillsList: 'capability:skills-list',
   capabilitySkillsMarket: 'capability:skills-market',
   capabilitySkillsInstall: 'capability:skills-install',

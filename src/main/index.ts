@@ -127,7 +127,8 @@ if (!gotTheLock) {
       repository: new CapabilityRepository(database.db),
       appDataDir: dirname(database.file),
       audit: database.audit,
-      version: app.getVersion()
+      version: app.getVersion(),
+      policy: database.mcp
     })
     // 软删任务保留 30 天后清掉，避免已删行无限堆积。
     database.tasks.purgeDeleted(Date.now() - 30 * 24 * 60 * 60 * 1000)
@@ -184,7 +185,8 @@ if (!gotTheLock) {
         requestExternalApproval: (input) =>
           agentHandlers?.requestBridgeApproval(input) ??
           Promise.resolve({ behavior: 'deny', message: '审批服务未就绪' }),
-        hasApprovalRelay: (sessionId) => agentHandlers?.hasApprovalRelay(sessionId) ?? false
+        hasApprovalRelay: (sessionId) => agentHandlers?.hasApprovalRelay(sessionId) ?? false,
+        isToolEnabled: (name) => database?.mcp.isToolEnabled(name) ?? true
       }
     )
     try {

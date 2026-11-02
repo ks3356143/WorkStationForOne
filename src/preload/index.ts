@@ -118,6 +118,8 @@ const api: WsApi = {
   },
   capability: {
     builtinTools: () => ipcRenderer.invoke(IPC_CHANNELS.capabilityBuiltinTools),
+    setBuiltinTool: (name, enabled) =>
+      ipcRenderer.invoke(IPC_CHANNELS.capabilityBuiltinToolSet, name, enabled),
     environment: (force) => ipcRenderer.invoke(IPC_CHANNELS.capabilityEnvironment, force),
     skills: {
       list: () => ipcRenderer.invoke(IPC_CHANNELS.capabilitySkillsList),

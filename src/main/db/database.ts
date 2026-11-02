@@ -520,6 +520,26 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX idx_approval_rules_used
         ON approval_rules(last_used_at DESC, created_at DESC);
     `
+  },
+  {
+    // 外部 MCP 的 Agent 归属：both 表示 Claude 与 Codex 都下发。
+    // 旧库里的 Server 一律视为 both，不改变既有会话行为。
+    version: 28,
+    sql: `
+      ALTER TABLE mcp_servers ADD COLUMN targets TEXT NOT NULL DEFAULT 'both'
+        CHECK (targets IN ('both', 'claude', 'codex'));
+    `
+  },
+  {
+    // 内置数据工具的单独开关：只记录被关闭的工具，缺行即视为启用。
+    version: 29,
+    sql: `
+      CREATE TABLE builtin_tool_settings (
+        name TEXT PRIMARY KEY,
+        enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
+        updated_at INTEGER NOT NULL
+      );
+    `
   }
 ]
 

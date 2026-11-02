@@ -48,7 +48,13 @@ describe('迁移 v27', () => {
 
     migrate(db)
 
-    expect(userVersion(db)).toBe(27)
+    // 只断言「v27 的迁移生效且数据保留」；后续版本的断言不写在这里
+    expect(userVersion(db)).toBeGreaterThanOrEqual(27)
+    expect(
+      db
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'approval_rules'")
+        .get()
+    ).toEqual({ name: 'approval_rules' })
     expect(db.prepare('SELECT title FROM agent_sessions WHERE id = ?').get('s1')).toEqual({
       title: '旧会话'
     })

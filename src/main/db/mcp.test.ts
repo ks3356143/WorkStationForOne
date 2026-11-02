@@ -64,3 +64,52 @@ describe('McpPolicyRepository', () => {
     db.close()
   })
 })
+
+describe('内置工具开关（DB v29）', () => {
+  const KNOWN = ['tasks_list', 'tasks_create', 'notes_search']
+
+  it('没有记录时视为全部启用', () => {
+    const { db, repo } = seedDb()
+    expect(repo.disabledTools(KNOWN)).toEqual([])
+    expect(repo.isToolEnabled('tasks_list')).toBe(true)
+    db.close()
+  })
+
+  it('关闭后进入禁用集合，重新开启后移除', () => {
+    const { db, repo } = seedDb()
+    repo.setToolEnabled('tasks_create', false)
+    expect(repo.isToolEnabled('tasks_create')).toBe(false)
+    expect(repo.disabledTools(KNOWN)).toEqual(['tasks_create'])
+
+    repo.setToolEnabled('tasks_create', true)
+    expect(repo.isToolEnabled('tasks_create')).toBe(true)
+    expect(repo.disabledTools(KNOWN)).toEqual([])
+    db.close()
+  })
+
+  it('开关切换写审计，且不改动域权限', () => {
+    const { db, audit, repo } = seedDb()
+    repo.setToolEnabled('notes_search', false)
+    expect(audit.recent(5, 'system')).toContainEqual(
+      expect.objectContaining({
+        domain: 'system',
+        action: 'settings',
+        targetId: 'notes_search',
+        detail: 'builtin-tool → disabled'
+      })
+    )
+    expect(repo.list()).toEqual([
+      { domain: 'task', mode: 'write' },
+      { domain: 'habit', mode: 'read' },
+      { domain: 'learning', mode: 'read' },
+      { domain: 'note', mode: 'read' }
+    ])
+    db.close()
+  })
+
+  it('未知工具名拒绝写入', () => {
+    const { db, repo } = seedDb()
+    expect(() => repo.setToolEnabled('not_a_tool', false)).toThrow(/未知的内置工具/)
+    db.close()
+  })
+})

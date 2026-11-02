@@ -2168,14 +2168,77 @@ async function run() {
       JSON.stringify(remainingMcp.map((server) => [server.name, server.transport]))
     )
 
+    byText('.w1-caphead .w1-capmini.pri', '自定义 Server')?.click()
+    await waitFor(() => !!one('.w1-capform'), 2000)
+    setValue(one('input[aria-label="MCP 名称"]'), 'Codex Only')
+    setValue(one('select[aria-label="MCP 归属的 Agent"]'), 'codex')
+    await sleep(120)
+    setValue(one('input[aria-label="MCP 命令"]'), 'node')
+    setValue(one('textarea[aria-label="MCP 参数"]'), window.__WS_MCP_STUB__)
+    byText('.w1-capform .w1-capmini.pri', '添加 Server')?.click()
+    const codexOnlyAdded = await waitFor(() => Boolean(byText('.w1-caprow', 'Codex Only')), 4000)
+    const codexOnlyState = await window.ws.capability.mcp.list()
+    const codexOnly = codexOnlyState.find((server) => server.name === 'Codex Only')
+    check(
+      '外部 MCP 可限定为单一 Agent',
+      codexOnlyAdded &&
+        codexOnly?.targets === 'codex' &&
+        (byText('.w1-caprow', 'Codex Only')?.textContent ?? '').includes('仅 Codex'),
+      JSON.stringify(codexOnly?.targets ?? 'missing')
+    )
+
+    const codexOnlyRemove = [
+      ...(byText('.w1-caprow', 'Codex Only')?.querySelectorAll('.w1-capmini') ?? [])
+    ].find((button) => button.textContent === '移除')
+    codexOnlyRemove?.click()
+    await waitFor(
+      () =>
+        [...(byText('.w1-caprow', 'Codex Only')?.querySelectorAll('.w1-capmini') ?? [])].some(
+          (button) => button.textContent === '确认移除'
+        ),
+      2000
+    )
+    ;[
+      ...(byText('.w1-caprow', 'Codex Only')?.querySelectorAll('.w1-capmini') ?? [])
+    ]
+      .find((button) => button.textContent === '确认移除')
+      ?.click()
+    await waitFor(() => !byText('.w1-caprow', 'Codex Only'), 3000)
+
     byText('.w1-capnav button', '内置工具')?.click()
     await sleep(250)
     check(
       '内置工具目录展示 11 个数据工具',
-      all('.w1-caprow.static').length === 11 &&
+      all('.w1-caprow.builtin').length === 11 &&
         (one('.w1-cap')?.textContent ?? '').includes('tasks_list') &&
-        (one('.w1-cap')?.textContent ?? '').includes('notes_create'),
-      String(all('.w1-caprow.static').length)
+        (one('.w1-cap')?.textContent ?? '').includes('notes_create') &&
+        (one('.w1-cap')?.textContent ?? '').includes('CLI 原生工具'),
+      String(all('.w1-caprow.builtin').length)
+    )
+
+    // 内置工具开关：关闭后桥不再列出该工具，重新打开恢复
+    byText('.w1-caprow', 'notes_create')?.querySelector('.w1-setbtn')?.click()
+    const toolOff = await waitFor(async () => {
+      const list = await window.ws.capability.builtinTools()
+      if (list.find((tool) => tool.name === 'notes_create')?.enabled !== false) return false
+      // IPC 返回与 React 重渲染是两条路径，等行本身也变成关闭态再判定
+      return (byText('.w1-caprow', 'notes_create')?.className ?? '').includes('off')
+    }, 3000)
+    check(
+      '内置工具可单独关闭',
+      toolOff,
+      byText('.w1-caprow', 'notes_create')?.className ?? 'missing'
+    )
+    byText('.w1-caprow', 'notes_create')?.querySelector('.w1-setbtn')?.click()
+    const toolOn = await waitFor(async () => {
+      const list = await window.ws.capability.builtinTools()
+      if (list.find((tool) => tool.name === 'notes_create')?.enabled !== true) return false
+      return !(byText('.w1-caprow', 'notes_create')?.className ?? '').includes('off')
+    }, 3000)
+    check(
+      '内置工具可重新启用',
+      toolOn,
+      byText('.w1-caprow', 'notes_create')?.className ?? 'missing'
     )
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
@@ -3266,13 +3329,23 @@ async function run() {
       : '无数据'
   })
   // 审计：UI 操作必须留下记录（这里读库，不依赖渲染层）
+  // 按动作查而不是只取最近 N 条：后续新增审计类型会把早期记录挤出窗口，
+  // 那样失败反映的是窗口大小，不是功能回归。
   let auditRows = []
   try {
     const { DatabaseSync } = require('node:sqlite')
     const auditDb = new DatabaseSync(dbFile, { readOnly: true })
     auditRows = auditDb
-      .prepare('SELECT domain, action, title FROM audit_log ORDER BY id DESC LIMIT 40')
+      .prepare(
+        `SELECT domain, action, title FROM audit_log
+         WHERE (domain = 'task' AND action IN ('create', 'complete'))
+            OR (domain = 'note' AND action = 'create')
+            OR (domain = 'habit' AND action = 'checkin')
+         ORDER BY id DESC`
+      )
       .all()
+    const total = auditDb.prepare('SELECT COUNT(*) AS n FROM audit_log').get()
+    auditRows.total = total?.n ?? 0
     auditDb.close()
   } catch (error) {
     console.error(`[smoke] 读取审计失败：${error}`)
@@ -3282,7 +3355,7 @@ async function run() {
   results.checks.push({
     name: '审计记录任务新增与完成',
     ok: auditHas('task', 'create') && auditHas('task', 'complete'),
-    detail: `${auditRows.length} 条`
+    detail: `匹配 ${auditRows.length} 条 / 全库 ${auditRows.total ?? 0} 条`
   })
   results.checks.push({
     name: '审计记录笔记与习惯写入',

@@ -6,6 +6,17 @@
 
 暂无。
 
+## [0.35.0] - 2026-11-02
+
+### 新增
+
+- **外部 MCP 按 Agent 归属**（DB v28）：`mcp_servers.targets` 取 `both | claude | codex`，默认 `both`。`runtimeServers('claude')` 与 `codexRuntime()` 各自只下发对应归属的 Server，`claudeToolPolicy()` 同步过滤，避免某个 MCP 只在一边稳定时两边都拿到工具。改归属不重置启用与信任；v27 旧库升级后既有 Server 一律视为 `both`。
+- 能力中心外部 MCP 卡显示归属标签（仅非 `both` 时显示），表单增加「用于」选择，审计摘要带 `for=claude|codex`。
+
+### 测试
+
+- 798 项单元测试通过；新增 4 项覆盖归属持久化、v27 升级默认值、运行时与工具策略过滤、改归属不重置状态。
+
 ## [0.34.3] - 2026-11-01
 
 ### 验证

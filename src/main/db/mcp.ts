@@ -6,12 +6,15 @@ import {
   type McpMode,
   type McpPolicyRecord
 } from '../../shared/ipc'
+import { MCP_TOOLS } from '../mcp/tools'
 import type { AuditLog } from './audit'
 
 interface PolicyRow {
   domain: McpDomain
   mode: McpMode
 }
+
+const BUILTIN_NAMES = new Set(MCP_TOOLS.map((tool) => tool.name))
 
 export class McpPolicyRepository {
   constructor(
@@ -55,5 +58,41 @@ export class McpPolicyRepository {
       detail: `${domain} → ${mode}`
     })
     return { domain, mode }
+  }
+
+  /** 被关闭的内置工具名；缺行即启用，因此只查 disabled=0 的行。 */
+  disabledTools(known: readonly string[] = [...BUILTIN_NAMES]): string[] {
+    const rows = this.db
+      .prepare('SELECT name FROM builtin_tool_settings WHERE enabled = 0')
+      .all() as { name: string }[]
+    const knownSet = new Set(known)
+    return rows.map((row) => row.name).filter((name) => knownSet.has(name))
+  }
+
+  isToolEnabled(name: string): boolean {
+    const row = this.db
+      .prepare('SELECT enabled FROM builtin_tool_settings WHERE name = ?')
+      .get(name) as { enabled?: number } | undefined
+    return row?.enabled !== 0
+  }
+
+  setToolEnabled(name: string, enabled: boolean): void {
+    if (!BUILTIN_NAMES.has(name)) throw new Error('未知的内置工具')
+    const at = Date.now()
+    this.db
+      .prepare(
+        `INSERT INTO builtin_tool_settings (name, enabled, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(name) DO UPDATE SET enabled = excluded.enabled, updated_at = excluded.updated_at`
+      )
+      .run(name, enabled ? 1 : 0, at)
+    this.audit?.record({
+      at,
+      domain: 'system',
+      action: 'settings',
+      targetId: name,
+      title: '内置工具开关',
+      source: 'system',
+      detail: `builtin-tool → ${enabled ? 'enabled' : 'disabled'}`
+    })
   }
 }

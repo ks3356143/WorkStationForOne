@@ -5,6 +5,7 @@ import type {
   ExternalMcpCatalogEntry,
   ExternalMcpSaveInput,
   ExternalMcpServerRecord,
+  ExternalMcpTargets,
   ExternalMcpUpdateInfo,
   McpToolApproval,
   SkillInspection,
@@ -36,6 +37,23 @@ const DOMAIN_LABELS = {
   note: '笔记'
 } as const
 
+/** CLI 自带工具：应用无法关闭，只能经审批卡与审批规则约束。 */
+const NATIVE_TOOLS = [
+  { name: 'Read / Grep / Glob / LS', description: '读取工作区文件', kind: '只读' },
+  { name: 'Write / Edit / NotebookEdit', description: '修改工作区文件', kind: '写入' },
+  { name: 'Bash / Shell', description: '执行命令', kind: '敏感' },
+  { name: 'WebFetch / WebSearch', description: '访问外部网络', kind: '敏感' }
+] as const
+
+/** 把 enabled + trusted 压成一句可读状态，避免用户猜「还差哪一步」。 */
+function mcpStatus(server: ExternalMcpServerRecord): string {
+  if (!server.trusted) return '待信任'
+  if (!server.enabled) return '已停用'
+  if (server.lastError) return '连接失败'
+  if (server.tools.length === 0) return '待测试'
+  return `已连接 · ${server.tools.length} 工具`
+}
+
 const COMPONENT_LABELS: Record<string, string> = {
   skills: '技能',
   commands: '命令',
@@ -58,6 +76,13 @@ interface McpFormState {
   url: string
   env: string
   headers: string
+  targets: ExternalMcpTargets
+}
+
+const TARGET_LABELS: Record<ExternalMcpTargets, string> = {
+  both: 'Claude + Codex',
+  claude: '仅 Claude',
+  codex: '仅 Codex'
 }
 
 function envVersion(version: string, command: string): string {
@@ -80,7 +105,8 @@ const EMPTY_FORM: McpFormState = {
   args: '',
   url: '',
   env: '',
-  headers: ''
+  headers: '',
+  targets: 'both'
 }
 
 function formFromServer(server: ExternalMcpServerRecord): McpFormState {
@@ -93,7 +119,8 @@ function formFromServer(server: ExternalMcpServerRecord): McpFormState {
     args: server.args.join('\n'),
     url: server.url,
     env: keyPlaceholders(server.envKeys),
-    headers: keyPlaceholders(server.headerKeys)
+    headers: keyPlaceholders(server.headerKeys),
+    targets: server.targets
   }
 }
 
@@ -122,6 +149,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
   const [jsonMessage, setJsonMessage] = useState<string | null>(null)
   const [jsonBusy, setJsonBusy] = useState(false)
   const [mcpBusy, setMcpBusy] = useState<string | null>(null)
+  const [builtinBusy, setBuiltinBusy] = useState<string | null>(null)
   const [updates, setUpdates] = useState<ExternalMcpUpdateInfo[]>([])
   const [updatesBusy, setUpdatesBusy] = useState(false)
   const [form, setForm] = useState<McpFormState | null>(null)
@@ -397,6 +425,19 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
       .finally(() => setSkillsBusy(null))
   }
 
+  const toggleBuiltin = (tool: BuiltinToolRecord) => {
+    if (!api?.setBuiltinTool || builtinBusy) return
+    setBuiltinBusy(tool.name)
+    void api
+      .setBuiltinTool(tool.name, !tool.enabled)
+      .then((next) => {
+        setTools(next)
+        notify(`${tool.name} 已${tool.enabled ? '关闭' : '启用'} · 下一次会话生效`)
+      })
+      .catch((reason: unknown) => notify(errorText(reason, '内置工具开关失败')))
+      .finally(() => setBuiltinBusy(null))
+  }
+
   const toggleMcp = (server: ExternalMcpServerRecord, enable: boolean) => {
     if (!api || mcpBusy) return
     if (enable && !server.trusted && confirmKey !== `trust:mcp:${server.id}`) {
@@ -449,6 +490,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
       name: form.name,
       description: form.description,
       transport: form.transport,
+      targets: form.targets,
       ...(form.transport === 'stdio'
         ? {
             command: form.command,
@@ -570,6 +612,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         <section className="w1-capsection" aria-label="Claude 插件与技能">
           <div className="w1-caphead">
             <span className="w1-capkicker">// CLAUDE PLUGINS</span>
+            <span className="w1-capnote">仅 Claude 会话生效；Codex 不支持插件</span>
             <div className="w1-capactions">
               <div className="w1-capseg" role="group" aria-label="插件视图">
                 <button
@@ -966,6 +1009,20 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
                     <option value="http">HTTP</option>
                   </select>
                 </label>
+                <label>
+                  <span>用于</span>
+                  <select
+                    value={form.targets}
+                    aria-label="MCP 归属的 Agent"
+                    onChange={(event) =>
+                      setForm({ ...form, targets: event.target.value as ExternalMcpTargets })
+                    }
+                  >
+                    <option value="both">Claude + Codex</option>
+                    <option value="claude">仅 Claude</option>
+                    <option value="codex">仅 Codex</option>
+                  </select>
+                </label>
                 {form.transport === 'stdio' ? (
                   <>
                     <label>
@@ -1067,17 +1124,20 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
                           <p>{mcpTarget(server) || server.description}</p>
                           <span className="w1-captags">
                             <i>{server.source === 'catalog' ? '内置目录' : '自定义'}</i>
+                            {server.targets !== 'both' ? (
+                              <i className="w1-captarget">{TARGET_LABELS[server.targets]}</i>
+                            ) : null}
                             {server.envKeys.length > 0 ? <i>env {server.envKeys.length}</i> : null}
                             {server.headerKeys.length > 0 ? (
                               <i>header {server.headerKeys.length}</i>
                             ) : null}
                             {server.lastError ? (
                               <i className="warn" title={server.lastError}>
-                                连接失败
+                                {mcpStatus(server)}
                               </i>
-                            ) : server.lastTestAt ? (
-                              <i>已连接 · {server.toolNames.length} 工具</i>
-                            ) : null}
+                            ) : (
+                              <i>{mcpStatus(server)}</i>
+                            )}
                             {update?.hasUpdate ? (
                               <i className="warn">可更新 {update.latestVersion}</i>
                             ) : null}
@@ -1242,10 +1302,12 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
       ) : null}
 
       {tab === 'tools' ? (
-        <section className="w1-capsection" aria-label="内置工具">
+        <section className="w1-capsection" aria-label="工具总览">
           <div className="w1-caphead">
-            <span className="w1-capkicker">// BUILT-IN TOOLS</span>
-            <span className="w1-capnote">由本地 MCP 桥提供，始终可用</span>
+            <span className="w1-capkicker">// TOOL OVERVIEW</span>
+            <span className="w1-capnote">
+              内置 {tools.filter((tool) => tool.enabled).length}/{tools.length} 启用
+            </span>
           </div>
           {(Object.keys(DOMAIN_LABELS) as (keyof typeof DOMAIN_LABELS)[]).map((domain) => {
             const list = tools.filter((tool) => tool.domain === domain)
@@ -1255,7 +1317,10 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
                 <h4>{DOMAIN_LABELS[domain]}</h4>
                 <div className="w1-caplist">
                   {list.map((tool) => (
-                    <div className="w1-caprow static" key={tool.name}>
+                    <div
+                      className={`w1-caprow static builtin with-toggle${tool.enabled ? '' : ' off'}`}
+                      key={tool.name}
+                    >
                       <span className={`w1-capglyph${tool.write ? ' write' : ''}`}>
                         {tool.write ? 'W' : 'R'}
                       </span>
@@ -1266,15 +1331,62 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
                       <span className={`w1-capbadge${tool.write ? ' write' : ''}`}>
                         {tool.write ? '写入' : '只读'}
                       </span>
+                      <button
+                        type="button"
+                        className={`w1-setbtn${tool.enabled ? ' on' : ''}`}
+                        disabled={builtinBusy === tool.name}
+                        aria-pressed={tool.enabled}
+                        aria-label={`${tool.name} ${tool.enabled ? '已启用，点击关闭' : '已关闭，点击启用'}`}
+                        onClick={() => toggleBuiltin(tool)}
+                      >
+                        {builtinBusy === tool.name ? '…' : tool.enabled ? '已启用' : '已关闭'}
+                      </button>
                     </div>
                   ))}
                 </div>
               </div>
             )
           })}
+          <div className="w1-capdomain">
+            <h4>外部 MCP</h4>
+            <div className="w1-caplist">
+              {mcp.length === 0 ? (
+                <p className="w1-capnote">还没有外部 Server，在「外部 MCP」里添加。</p>
+              ) : (
+                mcp.map((server) => (
+                  <div className="w1-caprow static" key={server.id}>
+                    <span className="w1-capglyph">MC</span>
+                    <span className="w1-capcopy">
+                      <b>
+                        {server.name}
+                        <i className="w1-capver">{server.transport}</i>
+                      </b>
+                      <p>{mcpTarget(server) || server.description}</p>
+                    </span>
+                    <span className="w1-capbadge">{mcpStatus(server)}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+          <div className="w1-capdomain">
+            <h4>CLI 原生工具</h4>
+            <div className="w1-caplist">
+              {NATIVE_TOOLS.map((tool) => (
+                <div className="w1-caprow static" key={tool.name}>
+                  <span className="w1-capglyph">CL</span>
+                  <span className="w1-capcopy">
+                    <b>{tool.name}</b>
+                    <p>{tool.description}</p>
+                  </span>
+                  <span className="w1-capbadge">{tool.kind}</span>
+                </div>
+              ))}
+            </div>
+          </div>
           <p className="w1-capnote">
-            写入工具仍受「MCP 域权限」拦截；外部 MCP 工具不在这里，启用后按 Server
-            下发，工具按「自动 / 询问 / 禁止」审批。
+            内置工具关闭后桥不再列出也不执行它；写入工具仍受「MCP 域权限」拦截。CLI 原生工具由
+            Claude / Codex 自己提供，不能在这里关闭，只能经审批卡与审批规则约束。
           </p>
         </section>
       ) : null}

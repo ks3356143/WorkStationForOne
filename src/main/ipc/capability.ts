@@ -2,7 +2,7 @@ import { dialog, ipcMain, shell } from 'electron'
 import type { CapabilityCenter } from '../capabilities'
 import type { AuditLog } from '../db/audit'
 import type { ExternalMcpSaveInput, McpToolApproval } from '../../shared/ipc'
-import { IPC_CHANNELS } from '../../shared/ipc'
+import { EXTERNAL_MCP_TARGETS, IPC_CHANNELS } from '../../shared/ipc'
 
 const IPC = IPC_CHANNELS
 const MAX_ID = 240
@@ -42,12 +42,20 @@ function assertSaveInput(value: unknown): ExternalMcpSaveInput {
       }
     }
   }
+  if (
+    input.targets !== undefined &&
+    !EXTERNAL_MCP_TARGETS.includes(input.targets as (typeof EXTERNAL_MCP_TARGETS)[number])
+  ) {
+    throw new TypeError('Agent 归属无效')
+  }
   return input as unknown as ExternalMcpSaveInput
 }
 
 function describe(input: ExternalMcpSaveInput): string {
   if (input.catalogId) return `catalog:${input.catalogId}`
-  return input.transport === 'http' ? `http:${input.url ?? ''}` : `stdio:${input.command ?? ''}`
+  const base =
+    input.transport === 'http' ? `http:${input.url ?? ''}` : `stdio:${input.command ?? ''}`
+  return input.targets && input.targets !== 'both' ? `${base} for=${input.targets}` : base
 }
 
 /**
@@ -67,6 +75,14 @@ export function registerCapabilityHandlers(center: CapabilityCenter, audit?: Aud
   }
 
   ipcMain.handle(IPC.capabilityBuiltinTools, () => center.builtinTools())
+
+  ipcMain.handle(IPC.capabilityBuiltinToolSet, (_event, name: unknown, enabled: unknown) => {
+    const tool = assertId(name, '工具名')
+    const next = assertBoolean(enabled, '工具状态')
+    const tools = center.setBuiltinTool(tool, next)
+    record('builtin-tool', `${tool} → ${next ? 'enabled' : 'disabled'}`)
+    return tools
+  })
 
   ipcMain.handle(IPC.capabilityEnvironment, (_event, force: unknown) =>
     center.environment(force === true)

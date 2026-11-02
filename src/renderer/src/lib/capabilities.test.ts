@@ -37,6 +37,7 @@ const server = (over: Partial<ExternalMcpServerRecord>): ExternalMcpServerRecord
   url: '',
   envKeys: [],
   headerKeys: [],
+  targets: 'both',
   source: 'catalog',
   catalogId: 'memory',
   version: '',

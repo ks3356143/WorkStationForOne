@@ -4,6 +4,7 @@ import type {
   ExternalMcpCatalogEntry,
   ExternalMcpSaveInput,
   ExternalMcpServerRecord,
+  ExternalMcpTargets,
   ExternalMcpUpdateInfo,
   McpImportResult,
   McpToolApproval
@@ -113,6 +114,11 @@ function uniqueKey(repository: CapabilityRepository, base: string, id: string): 
   }
 }
 
+/** both 表示两个 Agent 都下发；其余只给指定的一方。 */
+function targetsAgent(targets: ExternalMcpTargets | undefined, agent: 'claude' | 'codex'): boolean {
+  return !targets || targets === 'both' || targets === agent
+}
+
 function latestArgs(entry: ExternalMcpCatalogEntry, version: string): string[] {
   if (!entry.packageName) return entry.args
   if (!version) return entry.args
@@ -190,7 +196,8 @@ export class McpServerService {
       catalogId: catalog?.id ?? '',
       version: catalog ? (input.version ?? catalog.version ?? '') : '',
       enabled: false,
-      trusted: false
+      trusted: false,
+      targets: input.targets ?? 'both'
     })
     this.repository.replaceSecrets(
       id,
@@ -233,7 +240,8 @@ export class McpServerService {
       catalogId: existing.catalogId,
       version: input.version ?? existing.version,
       enabled: endpointChanged ? false : existing.enabled,
-      trusted: endpointChanged ? false : existing.trusted
+      trusted: endpointChanged ? false : existing.trusted,
+      targets: input.targets ?? existing.targets
     })
     this.repository.replaceSecrets(
       id,
@@ -348,11 +356,12 @@ export class McpServerService {
    * 值与工具策略留给调用方注入子进程 / 审批。
    */
   codexRuntime(): CodexMcpRuntime {
-    const live = new Map(this.runtimeServers().map((server) => [server.name, server]))
+    const live = new Map(this.runtimeServers('codex').map((server) => [server.name, server]))
     return buildCodexMcpRuntime(
       this.repository
         .listMcpServers()
         .filter((server) => server.enabled && server.trusted)
+        .filter((server) => targetsAgent(server.targets, 'codex'))
         .map((server) => {
           const runtime = live.get(server.key)
           return {
@@ -378,6 +387,7 @@ export class McpServerService {
     const denied: string[] = []
     for (const server of this.repository.listMcpServers()) {
       if (!server.enabled || !server.trusted) continue
+      if (!targetsAgent(server.targets, 'claude')) continue
       for (const tool of server.tools) {
         if (tool.approval === 'ask') continue
         const name = `mcp__${server.key}__${tool.name}`
@@ -444,17 +454,19 @@ export class McpServerService {
       catalogId: server.catalogId,
       version: latest,
       enabled: server.enabled,
-      trusted: server.trusted
+      trusted: server.trusted,
+      targets: server.targets
     })
     if (!updated) throw new Error('MCP Server 更新失败')
     return updated
   }
 
   /** 启动 Claude 前取启用的 Server；密钥只在主进程解密，进临时配置。 */
-  runtimeServers(): McpServerRuntime[] {
+  runtimeServers(agent?: 'claude' | 'codex'): McpServerRuntime[] {
     const servers = this.repository
       .listMcpServers()
       .filter((server) => server.enabled && server.trusted)
+      .filter((server) => !agent || targetsAgent(server.targets, agent))
     return servers.map((server) => {
       if (server.transport === 'stdio') {
         const secrets = this.repository.secretsFor(server.id)

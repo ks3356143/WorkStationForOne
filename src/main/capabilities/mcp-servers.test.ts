@@ -237,6 +237,68 @@ describe('McpServerService', () => {
     db.close()
   })
 
+  it('按 Agent 归属过滤运行时 Server 与 Claude 工具策略', () => {
+    const { db, service } = setup()
+    const both = service.add({ name: 'Both', transport: 'stdio', command: 'node', args: ['a.js'] })
+    const onlyCodex = service.add({
+      name: 'Codex Only',
+      transport: 'stdio',
+      command: 'node',
+      args: ['b.js'],
+      targets: 'codex'
+    })
+    const onlyClaude = service.add({
+      name: 'Claude Only',
+      transport: 'stdio',
+      command: 'node',
+      args: ['c.js'],
+      targets: 'claude'
+    })
+    for (const server of [both, onlyCodex, onlyClaude]) service.setEnabled(server.id, true, true)
+
+    expect(new Set(service.runtimeServers('claude').map((s) => s.name))).toEqual(
+      new Set([both.key, onlyClaude.key])
+    )
+    expect(new Set(service.runtimeServers('codex').map((s) => s.name))).toEqual(
+      new Set([both.key, onlyCodex.key])
+    )
+    expect(service.runtimeServers().map((s) => s.name)).toHaveLength(3)
+
+    expect(new Set(service.codexRuntime().servers.map((s) => s.key))).toEqual(
+      new Set([both.key, onlyCodex.key])
+    )
+    db.close()
+  })
+
+  it('改归属不重置启用与信任，工具策略只覆盖该 Agent 的 Server', () => {
+    const { db, service } = setup()
+    const created = service.add({
+      name: 'Flaky',
+      transport: 'stdio',
+      command: 'node',
+      args: ['a.js']
+    })
+    service.setEnabled(created.id, true, true)
+    const updated = service.update(created.id, {
+      name: 'Flaky',
+      transport: 'stdio',
+      command: 'node',
+      args: ['a.js'],
+      targets: 'codex'
+    })
+    expect(updated.enabled).toBe(true)
+    expect(updated.trusted).toBe(true)
+    expect(updated.targets).toBe('codex')
+
+    new CapabilityRepository(db).syncTools(created.id, [
+      { name: 'echo', description: '', readOnly: true }
+    ])
+    new CapabilityRepository(db).setToolApproval(created.id, 'echo', 'allow')
+    expect(service.claudeToolPolicy().allowed).toEqual([])
+    expect(service.codexRuntime().servers[0].allowedTools).toEqual(['echo'])
+    db.close()
+  })
+
   it('检查更新并应用内置目录的新版本命令', async () => {
     const { db, service } = setup()
     const created = service.add({ name: 'Memory', transport: 'stdio', catalogId: 'memory' })

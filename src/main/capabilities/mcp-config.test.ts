@@ -13,6 +13,7 @@ const server = (over: Partial<ExternalMcpServerRecord>): ExternalMcpServerRecord
   url: 'https://example.com/mcp',
   envKeys: [],
   headerKeys: [],
+  targets: 'both',
   source: 'manual',
   catalogId: '',
   version: '',
