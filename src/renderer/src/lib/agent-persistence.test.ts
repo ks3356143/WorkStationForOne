@@ -80,4 +80,30 @@ describe('hydrateAgent', () => {
     expect(state.activeSessionId).toBe('')
     expect(state.permission).toBeNull()
   })
+
+  it('恢复置顶标记', async () => {
+    await hydrateAgent(
+      deps({
+        sessions: [{ ...bundle.sessions[0], pinned: true }],
+        messages: []
+      })
+    )
+    expect(useWorkstation.getState().sessions[0]?.pinned).toBe(true)
+  })
+
+  it('恢复归档标记，且不把归档会话选为当前', async () => {
+    const base = bundle.sessions[0]
+    await hydrateAgent(
+      deps({
+        sessions: [
+          { ...base, id: 's-archived', archived: true },
+          { ...base, id: 's-live' }
+        ],
+        messages: []
+      })
+    )
+    const state = useWorkstation.getState()
+    expect(state.sessions[0]?.archived).toBe(true)
+    expect(state.activeSessionId).toBe('s-live')
+  })
 })

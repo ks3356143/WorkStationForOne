@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import type {
   AgentCreateInput,
+  AgentForkResult,
+  AgentSessionSearchHit,
   AgentMessageRecord,
   AgentPresetInput,
   AgentPresetRecord,
@@ -19,6 +21,8 @@ interface SessionRow {
   status: 'run' | 'wait' | 'idle'
   resume_id: string | null
   workspace: string
+  pinned: number
+  archived: number
   created_at: number
   updated_at: number
 }
@@ -75,6 +79,8 @@ function toSession(row: SessionRow): AgentSessionRecord {
   }
   if (row.resume_id) session.resumeId = row.resume_id
   if (row.workspace) session.workspace = row.workspace
+  if (row.pinned === 1) session.pinned = true
+  if (row.archived === 1) session.archived = true
   return session
 }
 
@@ -107,11 +113,45 @@ function toMessage(row: MessageRow): AgentMessageRecord {
 export class AgentRepository {
   constructor(private readonly db: DatabaseSync) {}
 
+  /** 标题与消息正文一起搜；LIKE 转义 % _ \，CJK 直接子串匹配即可。 */
+  searchSessions(query: string, limit = 40): AgentSessionSearchHit[] {
+    const escaped = query.slice(0, 80).replace(/[\\%_]/g, (char) => `\\${char}`)
+    const pattern = `%${escaped}%`
+    const rows = this.db
+      .prepare(
+        `SELECT s.id, s.agent, s.title, s.status, s.resume_id, s.workspace, s.pinned, s.archived,
+           s.created_at, s.updated_at,
+           (SELECT m.id FROM agent_messages m
+            WHERE m.session_id = s.id AND m.text LIKE ? ESCAPE '\\'
+            ORDER BY m.created_at DESC, m.rowid DESC LIMIT 1) AS message_id,
+           (SELECT m.text FROM agent_messages m
+            WHERE m.session_id = s.id AND m.text LIKE ? ESCAPE '\\'
+            ORDER BY m.created_at DESC, m.rowid DESC LIMIT 1) AS snippet,
+           CASE WHEN s.title LIKE ? ESCAPE '\\' THEN 'title' ELSE 'message' END AS matched_in
+         FROM agent_sessions s
+         WHERE s.title LIKE ? ESCAPE '\\'
+            OR EXISTS (SELECT 1 FROM agent_messages m WHERE m.session_id = s.id AND m.text LIKE ? ESCAPE '\\')
+         ORDER BY s.pinned DESC, s.updated_at DESC, s.created_at DESC
+         LIMIT ?`
+      )
+      .all(pattern, pattern, pattern, pattern, pattern, limit) as unknown as (SessionRow & {
+      message_id: string | null
+      snippet: string | null
+      matched_in: 'title' | 'message'
+    })[]
+    return rows.map((row) => ({
+      session: toSession(row),
+      snippet: (row.snippet ?? '').replace(/\s+/g, ' ').trim().slice(0, 160),
+      messageId: row.matched_in === 'title' ? null : (row.message_id ?? null),
+      matchedIn: row.matched_in === 'title' ? 'title' : 'message'
+    }))
+  }
+
   listSessions(): AgentSessionRecord[] {
     const rows = this.db
       .prepare(
-        `SELECT id, agent, title, status, resume_id, workspace, created_at, updated_at
-         FROM agent_sessions ORDER BY updated_at DESC, created_at DESC`
+        `SELECT id, agent, title, status, resume_id, workspace, pinned, archived, created_at, updated_at
+         FROM agent_sessions ORDER BY pinned DESC, updated_at DESC, created_at DESC`
       )
       .all() as unknown as SessionRow[]
     return rows.map(toSession)
@@ -120,7 +160,7 @@ export class AgentRepository {
   findSession(id: string): AgentSessionRecord | undefined {
     const row = this.db
       .prepare(
-        `SELECT id, agent, title, status, resume_id, workspace, created_at, updated_at
+        `SELECT id, agent, title, status, resume_id, workspace, pinned, archived, created_at, updated_at
          FROM agent_sessions WHERE id = ?`
       )
       .get(id) as SessionRow | undefined
@@ -186,6 +226,14 @@ export class AgentRepository {
       assignments.push('workspace = ?')
       values.push(patch.workspace)
     }
+    if (patch.pinned !== undefined) {
+      assignments.push('pinned = ?')
+      values.push(patch.pinned ? 1 : 0)
+    }
+    if (patch.archived !== undefined) {
+      assignments.push('archived = ?')
+      values.push(patch.archived ? 1 : 0)
+    }
     if (assignments.length === 0) return this.findSession(id)
 
     assignments.push('updated_at = ?')
@@ -194,6 +242,57 @@ export class AgentRepository {
       .prepare(`UPDATE agent_sessions SET ${assignments.join(', ')} WHERE id = ?`)
       .run(...values)
     return this.findSession(id)
+  }
+
+  /** 消息由外键 ON DELETE CASCADE 一并清理；agent_runs 保留为用量历史。 */
+  removeSession(id: string): boolean {
+    const result = this.db.prepare('DELETE FROM agent_sessions WHERE id = ?').run(id)
+    return Number(result.changes) > 0
+  }
+
+  /** 从消息处分叉：复制到此消息为止的对话，新会话不继承 resume_id。 */
+  forkSession(input: {
+    sourceId: string
+    messageId: string
+    id: string
+    title: string
+  }): AgentForkResult | null {
+    const source = this.findSession(input.sourceId)
+    if (!source) return null
+    const messages = this.listMessagesForSession(input.sourceId)
+    const index = messages.findIndex((message) => message.id === input.messageId)
+    if (index < 0) return null
+    const now = Date.now()
+    runInTransaction(this.db, () => {
+      this.db
+        .prepare(
+          `INSERT INTO agent_sessions (id, agent, title, status, workspace, created_at, updated_at)
+           VALUES (?, ?, ?, 'idle', ?, ?, ?)`
+        )
+        .run(input.id, source.agent, input.title, source.workspace ?? '', now, now)
+      const insert = this.db.prepare(
+        `INSERT INTO agent_messages
+          (id, session_id, role, text, time_label, error, tools_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      for (let cursor = 0; cursor <= index; cursor += 1) {
+        const message = messages[cursor]
+        if (!message) continue
+        insert.run(
+          `${input.id}-m${cursor + 1}`,
+          input.id,
+          message.role,
+          message.text,
+          message.timeLabel,
+          message.error ? 1 : 0,
+          message.tools ? JSON.stringify(message.tools) : null,
+          message.createdAt
+        )
+      }
+    })
+    const session = this.findSession(input.id)
+    if (!session) return null
+    return { session, messages: this.listMessagesForSession(input.id) }
   }
 
   /** 用户消息与助手最终消息都走 upsert：流式结束时同 id 覆盖中间态。 */

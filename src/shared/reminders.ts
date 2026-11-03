@@ -8,9 +8,9 @@ export interface ReminderTask {
   list?: string
 }
 
-/** 提醒只对「今天到期」且带具体时间的任务生效。 */
-export function reminderKey(taskId: string, day: string): string {
-  return `${taskId}@${day}`
+/** 提醒只对「今天到期」且带具体时间的任务生效；时间变了要允许在新时间再提醒。 */
+export function reminderKey(taskId: string, day: string, time: string): string {
+  return `${taskId}@${day}@${time}`
 }
 
 export function minutesOf(time: string): number | null {
@@ -37,7 +37,7 @@ export function dueReminders(
     if (task.done || task.dueDate !== today) return false
     const at = minutesOf(task.time)
     if (at === null || at !== nowMinutes) return false
-    return !fired.has(reminderKey(task.id, today))
+    return !fired.has(reminderKey(task.id, today, task.time))
   })
 }
 

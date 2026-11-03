@@ -6,6 +6,7 @@ import { AgentRepository } from './agent'
 import { ApprovalRuleRepository } from './approval-rules'
 import { AuditLog } from './audit'
 import { migrate, openDatabase } from './database'
+import { applyPendingRestore } from './restore'
 import { HabitRepository } from './habits'
 import { LearningRepository } from './learning'
 import { McpPolicyRepository } from './mcp'
@@ -57,6 +58,11 @@ export function initDatabase(): DatabaseContext {
   const dataDir = envDataDir ? resolve(envDataDir) : layout.dataDir
   mkdirSync(dataDir, { recursive: true })
   const dbFile = join(dataDir, 'workstation.db')
+  const backupDir = join(dataDir, 'backups')
+  // 恢复必须在开库之前完成；失败会回滚到恢复前的数据库，不阻断启动。
+  const restore = applyPendingRestore({ dbFile, dataDir, backupDir })
+  if (restore.applied) console.info(`[restore] 已从 ${restore.backup} 恢复`)
+  else if (restore.error) console.error('[restore]', restore.error)
   const db = openDatabase(dbFile)
   migrate(db)
   const audit = new AuditLog(db)
@@ -65,7 +71,7 @@ export function initDatabase(): DatabaseContext {
   const codexHome = envDataDir ? join(dataDir, 'codex-home') : layout.codexHome
   return {
     file: dbFile,
-    layout: { ...layout, dataDir, dbFile, backupDir: join(dataDir, 'backups'), codexHome },
+    layout: { ...layout, dataDir, dbFile, backupDir, codexHome },
     db,
     audit,
     tasks: new TaskRepository(db, audit),

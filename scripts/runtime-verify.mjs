@@ -1758,12 +1758,13 @@ async function main() {
   record('渲染进程无 Node require', security.require === 'undefined', security.require)
   record('渲染进程无 process', security.process === 'undefined', security.process)
   record(
-    'preload 桥仅暴露窄接口（tasks/notes/capture/learning/habits/agent/mcp/capability/provider/audit/app.setTheme+backupNow+info+storage）',
+    'preload 桥仅暴露窄接口（tasks/notes/capture/learning/habits/agent/mcp/capability/provider/audit/app.setTheme+backupRestore+info+storage）',
     security.invoke === 'function' &&
       !security.dbAccess &&
       [...security.wsKeys].sort().join() ===
         'agent,app,audit,capability,capture,habits,learning,mcp,notes,provider,tasks' &&
-      security.appKeys.join() === 'setTheme,backupNow,info,storage,pickStorage,cancelStorage',
+      security.appKeys.join() ===
+        'setTheme,backupNow,listBackups,restoreBackup,restoreStatus,relaunch,info,storage,pickStorage,cancelStorage',
     security
   )
   phases[0].security = security

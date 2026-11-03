@@ -84,6 +84,11 @@ export function workspaceName(path?: string): string {
   return parts.at(-1) ?? path
 }
 
+/** 置顶优先；同置顶状态保持传入顺序（数据库已按更新时间倒序）。 */
+export function sortPinnedFirst<T extends { pinned?: boolean }>(list: T[]): T[] {
+  return [...list].sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)))
+}
+
 export function demoReply(agent: AgentId): { text: string; tools: ToolCall[] } {
   if (agent === 'codex') {
     return {

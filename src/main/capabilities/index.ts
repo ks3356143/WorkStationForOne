@@ -7,7 +7,7 @@ import type { BuiltinToolRecord, EnvironmentCheckRecord } from '../../shared/ipc
 import { MCP_TOOLS } from '../mcp/tools'
 import { ClaudePluginService } from './claude-plugins'
 import type { CodexMcpRuntime } from './codex-mcp'
-import { McpServerService, type McpServerRuntime } from './mcp-servers'
+import { McpServerService, type McpOAuthDeps, type McpServerRuntime } from './mcp-servers'
 import { checkEnvironment } from './environment'
 
 export interface CapabilityCenter {
@@ -26,9 +26,9 @@ export interface CapabilityCenter {
 
 export interface AgentCapabilityRuntime {
   pluginDirs: () => string[]
-  mcpServers: () => McpServerRuntime[]
+  mcpServers: () => Promise<McpServerRuntime[]>
   toolPolicy: () => { allowed: string[]; denied: string[] }
-  codexMcp: () => CodexMcpRuntime
+  codexMcp: () => Promise<CodexMcpRuntime>
 }
 
 export function createCapabilityCenter(options: {
@@ -37,11 +37,12 @@ export function createCapabilityCenter(options: {
   audit?: AuditLog
   pluginCli?: AgentCli | null
   version?: string
+  oauth?: McpOAuthDeps
   /** 内置工具开关的仓储；省略时全部视为启用 */
   policy?: McpPolicyRepository
 }): CapabilityCenter {
   const plugins = new ClaudePluginService(options.repository, options.appDataDir, options.pluginCli)
-  const mcp = new McpServerService(options.repository, options.version)
+  const mcp = new McpServerService(options.repository, options.version, options.oauth)
   const listBuiltin = (): BuiltinToolRecord[] => {
     const disabled = new Set(options.policy?.disabledTools() ?? [])
     return MCP_TOOLS.map((tool) => ({

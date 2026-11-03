@@ -175,6 +175,7 @@ app.setPath('sessionData', sessionDir)
 process.env.WS_DATA_DIR = join(dataDir, 'db')
 // 原生目录选择器在自动化里跳过，但仍由主进程走同一套目录校验。
 process.env.WS_PICK_WORKSPACE = agentWorkspace
+process.env.WS_EXPORT_PATH = join(dataDir, 'session-export.md')
 // Agent 走 stub CLI：验证真实 IPC → 子进程 → 渲染整条链路，但不调用模型、不消耗额度
 process.env.WS_AGENT_CLI = join(__dirname, 'stub-agent.cjs')
 process.env.WS_CODEX_CLI = join(__dirname, 'stub-codex.cjs')
@@ -328,6 +329,9 @@ async function waitForWindow(timeout = 20_000) {
 
 async function run() {
   await waitForWindow()
+  const backupDir = join(process.env.WS_DATA_DIR, 'backups')
+  mkdirSync(backupDir, { recursive: true })
+  writeFileSync(join(backupDir, 'workstation-99999999-999999.db'), 'not a database')
   if (win.webContents.isLoading()) {
     await new Promise((resolve) => win.webContents.once('did-finish-load', resolve))
   }
@@ -1026,6 +1030,148 @@ async function run() {
       : { ok: false, detail: '等不到看板任务行' }
     check('看板任务行 hover 高亮线不压住时间', cardGeometry.ok, cardGeometry.detail)
 
+    one('.w1-st-reminders')?.click()
+    await waitFor(() => Boolean(one('.w1-remindersheet')), 2000)
+    const reminderRows = all('.w1-reminderrow')
+    check(
+      '提醒中心列出今天的时间点',
+      Boolean(one('.w1-remindersheet')) && reminderRows.length > 0,
+      String(reminderRows.length)
+    )
+    reminderRows[0]?.querySelector('.w1-reminderopen')?.click()
+    const reminderJumped = await waitFor(
+      () => Boolean(one('.w1-todos') && one('.w1-todoedit')),
+      3000
+    )
+    check(
+      '提醒行可跳到任务详情',
+      reminderJumped,
+      one('.w1-todoedit')?.textContent?.slice(0, 60) ?? 'missing'
+    )
+
+    one('.w1-st-reminders')?.click()
+    await waitFor(() => Boolean(one('.w1-remindersheet')), 2000)
+    const snoozeRow = all('.w1-reminderrow')[0]
+    const snoozeTitle = snoozeRow?.querySelector('.w1-reminderrowmain b')?.textContent ?? ''
+    const oldTime = snoozeRow?.querySelector('.w1-reminderopen time')?.textContent ?? ''
+    snoozeRow?.querySelectorAll('.w1-reminderact')[1]?.click()
+    const reminderSnoozed = await waitFor(async () => {
+      const tasks = await window.ws.tasks.list()
+      return tasks.some((task) => task.title === snoozeTitle && task.time !== oldTime)
+    }, 3000)
+    check('提醒中心可延后 10 分钟', reminderSnoozed, snoozeTitle + ' ' + oldTime)
+    one('.w1-reminderclose')?.click()
+    await waitFor(() => !one('.w1-remindersheet'), 2000)
+
+    await openPalette()
+    const globalInput = one('.w1-paletteinput')
+    setValue(globalInput, '跑步 5 km')
+    const taskSearchHit = await waitFor(
+      () => all('.w1-paletteitem').some((item) => item.textContent?.includes('跑步 5 km')),
+      3000
+    )
+    check(
+      '命令面板可全局搜索任务',
+      taskSearchHit,
+      all('.w1-paletteitem').length + ' 项'
+    )
+    globalInput.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    const globalJumped = await waitFor(
+      () =>
+        activeNav() === '任务' &&
+        (one('.w1-todoedit input')?.value ?? '').includes('跑步 5 km'),
+      3000
+    )
+    check(
+      '全局搜索命中后跳到任务详情',
+      globalJumped,
+      one('.w1-todoedit input')?.value ?? 'missing'
+    )
+
+    await openPalette()
+    const noteInput = one('.w1-paletteinput')
+    setValue(noteInput, '特征值')
+    const noteHit = await waitFor(
+      () => all('.w1-paletteitem').some((item) => item.textContent?.includes('特征值')),
+      3000
+    )
+    noteInput.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    const noteJumped = await waitFor(
+      () =>
+        Boolean(one('.w1-notedetail')) &&
+        (one('.w1-notedetail-text')?.value ?? '').includes('特征值'),
+      3000
+    )
+    check('全局搜索笔记直接打开详情', noteHit && noteJumped, one('.w1-notedetail-text')?.value ?? 'missing')
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true })
+    )
+    one('.w1-notedetail')?.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true })
+    )
+    await waitFor(() => !one('.w1-notedetail'), 2000)
+
+    await openPalette()
+    const learningInput = one('.w1-paletteinput')
+    setValue(learningInput, '甲单独 10 天完成')
+    const learningHit = await waitFor(
+      () =>
+        all('.w1-paletteitem').some((item) => item.textContent?.includes('甲单独 10 天完成')),
+      3000
+    )
+    learningInput.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    const learningJumped = await waitFor(
+      () => Boolean(one('.w1-litem.jump.open')),
+      2500
+    )
+    check(
+      '全局搜索学习卡定位并高亮',
+      learningHit && learningJumped,
+      one('.w1-litem.jump')?.textContent?.slice(0, 60) ?? 'missing'
+    )
+
+    await navTo('任务')
+    byText('.w1-todorow', '收集箱')?.click()
+    await sleep(300)
+    const inboxInput = one('.w1-todoinput')
+    setValue(inboxInput, '未排期验证')
+    await sleep(100)
+    inboxInput.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    await sleep(400)
+    byText('.w1-planbtn', '周视图')?.click()
+    const weekReady = await waitFor(() => all('.w1-wkday').length === 7, 3000)
+    check(
+      '任务周视图显示七天',
+      weekReady,
+      String(all('.w1-wkday').length) + ' 列 · ' + String(all('.w1-wktask').length) + ' 项'
+    )
+    check(
+      '周视图显示未排期任务',
+      Boolean(one('.w1-weekbacklog')),
+      one('.w1-weekbacklog')?.textContent?.slice(0, 50) ?? 'missing'
+    )
+    const rangeBefore = one('.w1-weekrange')?.textContent ?? ''
+    one('[aria-label="下一周"]')?.click()
+    await sleep(250)
+    const rangeAfter = one('.w1-weekrange')?.textContent ?? ''
+    check(
+      '周视图可切换周',
+      weekReady && rangeAfter !== rangeBefore && all('.w1-wkday').length === 7,
+      rangeBefore + ' → ' + rangeAfter
+    )
+    byText('.w1-wkbtn', '今天')?.click()
+    await sleep(200)
+    byText('.w1-planbtn', '列表视图')?.click()
+    await sleep(200)
+
     await navTo('Agent')
     check('导航切换到 Agent', activeNav() === 'Agent', activeNav())
     check('Agent 工作区出现', !!one('.w1-agent') && !!one('.w1-dock') && !!one('.w1-rail'))
@@ -1101,6 +1247,16 @@ async function run() {
     )
     check('真实回复不是演示文案', !streamedText.includes('我先读取今天的看板'), streamedText)
 
+    const copyButton = all('.w1-amsg .w1-copy:not(.w1-fork)').at(-1)
+    check('助手消息有复制按钮', Boolean(copyButton))
+    copyButton?.click()
+    await sleep(250)
+    check(
+      '复制后给出已复制反馈',
+      (copyButton?.textContent ?? '') === '已复制',
+      copyButton?.textContent ?? 'missing'
+    )
+
     const failInput = one('#composer-input')
     setValue(failInput, '这次注定失败')
     await sleep(80)
@@ -1113,6 +1269,16 @@ async function run() {
       failedText?.textContent ?? 'missing'
     )
     check('失败后不残留等待动画', !one('.w1-typing'))
+
+    const errorsBefore = all('.w1-atext.error').length
+    const userMessagesBefore = all('.w1-umsg').length
+    all('.w1-amsg .w1-retry').at(-1)?.click()
+    const retried = await waitFor(() => all('.w1-atext.error').length === errorsBefore + 1, 5000)
+    check(
+      '失败回合可手动重试且不重复用户消息',
+      retried && all('.w1-umsg').length === userMessagesBefore,
+      (errorsBefore + 1) + ' errors · ' + all('.w1-umsg').length + '/' + userMessagesBefore
+    )
 
     const askInput = one('#composer-input')
     setValue(askInput, '需要审批')
@@ -1389,6 +1555,160 @@ async function run() {
       one('.w1-term')?.textContent ?? ''
     )
 
+    const sessionSearch = one('.w1-railsearch input')
+    setValue(sessionSearch, 'Codex 只读回复')
+    const contentHit = await waitFor(
+      () =>
+        Boolean(one('.w1-sess.search')) &&
+        (one('.w1-sess.search .w1-sm')?.textContent ?? '').includes('Codex 只读回复'),
+      4000
+    )
+    check(
+      '会话搜索命中正文',
+      contentHit && (one('.w1-sess.search .w1-srhit')?.textContent ?? '') === '正文',
+      one('.w1-sess.search')?.textContent?.slice(0, 100) ?? 'missing'
+    )
+    one('.w1-sess.search')?.click()
+    const jumped = await waitFor(() => Boolean(one('.w1-msg-jump')), 3000)
+    check(
+      '搜索跳转到命中消息',
+      jumped && (one('.w1-msg-jump')?.textContent ?? '').includes('Codex 只读回复'),
+      one('.w1-msg-jump')?.textContent?.slice(0, 80) ?? 'missing'
+    )
+    setValue(sessionSearch, '测一下多会话回复')
+    const titleHit = await waitFor(
+      () => (one('.w1-sess.search .w1-st')?.textContent ?? '').includes('测一下多会话回复'),
+      4000
+    )
+    check(
+      '会话搜索命中标题',
+      titleHit,
+      one('.w1-sess.search')?.textContent?.slice(0, 80) ?? 'missing'
+    )
+    sessionSearch.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true })
+    )
+    const searchCleared = await waitFor(
+      () => !one('.w1-railsearch input')?.value && !one('.w1-sess.search'),
+      3000
+    )
+    check(
+      'Esc 清空会话搜索',
+      searchCleared && all('.w1-sess').length >= 2,
+      String(all('.w1-sess').length)
+    )
+
+    const renameTarget = [...document.querySelectorAll('.w1-sessrow')].find((row) =>
+      row.textContent?.includes('测一下多会话回复')
+    )
+    renameTarget?.querySelector('.w1-sessrenameicon')?.click()
+    await waitFor(() => Boolean(one('.w1-sessrename')), 2000)
+    const sessionRenameInput = one('.w1-sessrename')
+    setValue(sessionRenameInput, '重命名验证')
+    sessionRenameInput.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    const renamed = await waitFor(async () => {
+      const bundle = await window.ws.agent.threads()
+      return bundle.sessions.some((session) => session.title === '重命名验证')
+    }, 3000)
+    check(
+      '会话重命名写入数据库',
+      renamed && Boolean(byText('.w1-sess', '重命名验证')),
+      one('.w1-sess')?.textContent?.slice(0, 80) ?? 'missing'
+    )
+
+    const revertTarget = [...document.querySelectorAll('.w1-sessrow')].find((row) =>
+      row.textContent?.includes('重命名验证')
+    )
+    revertTarget?.querySelector('.w1-sessrenameicon')?.click()
+    await waitFor(() => Boolean(one('.w1-sessrename')), 2000)
+    const sessionRevertInput = one('.w1-sessrename')
+    setValue(sessionRevertInput, '测一下多会话回复')
+    sessionRevertInput.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    const reverted = await waitFor(
+      () => Boolean(byText('.w1-sess', '测一下多会话回复')),
+      3000
+    )
+    check(
+      '会话重命名可改回原标题',
+      reverted,
+      one('.w1-sess')?.textContent?.slice(0, 80) ?? 'missing'
+    )
+
+    const exportButton = byText('.w1-aworkspacefiles', '导出')
+    exportButton?.click()
+    const exported = await waitFor(
+      () => Boolean(byText('.w1-aworkspacefiles', '已导出')),
+      3000
+    )
+    check(
+      '会话可导出 Markdown',
+      exported,
+      one('.w1-term')?.textContent?.slice(-40) ?? 'missing'
+    )
+
+    const pinRow = [...document.querySelectorAll('.w1-sessrow')].find((row) =>
+      row.textContent?.includes('测一下多会话回复')
+    )
+    pinRow?.querySelector('.w1-sesspinicon')?.click()
+    const pinned = await waitFor(async () => {
+      const bundle = await window.ws.agent.threads()
+      return bundle.sessions.some(
+        (session) => session.title === '测一下多会话回复' && session.pinned === true
+      )
+    }, 3000)
+    const pinnedRow = [...document.querySelectorAll('.w1-sessrow')].find((row) =>
+      row.textContent?.includes('测一下多会话回复')
+    )
+    check(
+      '会话置顶写入数据库并显示标记',
+      pinned &&
+        pinnedRow?.classList.contains('pinned') === true &&
+        (pinnedRow?.querySelector('.w1-spinmark')?.textContent ?? '') === '置顶' &&
+        pinnedRow?.querySelector('.w1-sesspinicon')?.getAttribute('aria-pressed') === 'true',
+      pinnedRow?.textContent?.slice(0, 80) ?? 'missing'
+    )
+
+    pinnedRow?.querySelector('.w1-sesspinicon')?.click()
+    const unpinned = await waitFor(async () => {
+      const bundle = await window.ws.agent.threads()
+      return bundle.sessions.some(
+        (session) => session.title === '测一下多会话回复' && !session.pinned
+      )
+    }, 3000)
+    check('会话可取消置顶', unpinned && !document.querySelector('.w1-spinmark'), String(unpinned))
+
+    const beforeDelete = await window.ws.agent.threads()
+    const beforeIds = new Set(beforeDelete.sessions.map((session) => session.id))
+    document.querySelector('[aria-label="新建 Claude 会话"]')?.click()
+    const createdNew = await waitFor(async () => {
+      const bundle = await window.ws.agent.threads()
+      return bundle.sessions.some((session) => !beforeIds.has(session.id))
+    }, 3000)
+    const createdBundle = await window.ws.agent.threads()
+    const doomed = createdBundle.sessions.find((session) => !beforeIds.has(session.id))
+    one('.w1-adelete')?.click()
+    const armed = await waitFor(
+      () => (one('.w1-adelete')?.textContent ?? '') === '确认删除',
+      2000
+    )
+    one('.w1-adelete')?.click()
+    const deleted = await waitFor(async () => {
+      const bundle = await window.ws.agent.threads()
+      return (
+        !bundle.sessions.some((session) => session.id === doomed?.id) &&
+        all('.w1-sess').length === beforeIds.size
+      )
+    }, 3000)
+    check(
+      '会话删除二次确认并写库',
+      createdNew && armed && deleted && Boolean(one('.w1-sess.on')),
+      createdNew + ' / ' + armed + ' / ' + deleted + ' / ' + (doomed?.id ?? 'missing')
+    )
+
     document.querySelector('[aria-label="新建 Claude 会话"]')?.click()
     await sleep(500)
     one('.w1-aworkspacegate .w1-pb')?.click()
@@ -1402,6 +1722,11 @@ async function run() {
     slowInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }))
     await sleep(200)
     check('慢会话开始运行', !!one('.w1-typing'))
+    check(
+      '运行中的会话禁用删除',
+      one('.w1-adelete')?.disabled === true,
+      String(one('.w1-adelete')?.disabled)
+    )
 
     document.querySelector('[aria-label="新建 Claude 会话"]')?.click()
     await sleep(500)
@@ -1584,6 +1909,49 @@ async function run() {
     )
     byText('.w1-fleetfilters button', '全部')?.click()
     await sleep(250)
+
+    const archiveTarget = all('.w1-fleetrow').find((row) =>
+      row.textContent?.includes('测一下多会话回复')
+    )
+    const archiveId = archiveTarget?.getAttribute('data-session-id')
+    archiveTarget?.querySelector('.w1-fleetarchive')?.click()
+    const archived = await waitFor(async () => {
+      const bundle = await window.ws.agent.threads()
+      return bundle.sessions.some(
+        (session) => session.id === archiveId && session.archived === true
+      )
+    }, 3000)
+    const hiddenFromRail = !all('.w1-sess').some((el) =>
+      el.textContent?.includes('测一下多会话回复')
+    )
+    check(
+      '会话可归档并从会话栏隐藏',
+      archived &&
+        hiddenFromRail &&
+        !all('.w1-fleetrow').some((row) => row.getAttribute('data-session-id') === archiveId),
+      archiveId ?? 'missing'
+    )
+
+    byText('.w1-fleetfilters button', '已归档')?.click()
+    await sleep(250)
+    const archivedRow = all('.w1-fleetrow').find(
+      (row) => row.getAttribute('data-session-id') === archiveId
+    )
+    archivedRow?.querySelector('.w1-fleetopen')?.click()
+    const restored = await waitFor(async () => {
+      const bundle = await window.ws.agent.threads()
+      return bundle.sessions.some((session) => session.id === archiveId && !session.archived)
+    }, 3000)
+    byText('.w1-fleetfilters button', '全部')?.click()
+    await sleep(250)
+    check(
+      '已归档会话可取消归档',
+      restored &&
+        all('.w1-sess').some((el) => el.textContent?.includes('测一下多会话回复')) &&
+        all('.w1-fleetrow').some((row) => row.getAttribute('data-session-id') === archiveId),
+      String(restored)
+    )
+
     byText('.w1-fleetheadmeta .w1-capmini', '用量')?.click()
     await sleep(150)
     byText('.w1-fleetheadmeta .w1-capmini', '导入本机')?.click()
@@ -1641,6 +2009,22 @@ async function run() {
       '导入会话显示只读历史与工具卡',
       importHistoryReady,
       one('.w1-thread')?.textContent?.slice(0, 160) ?? 'missing'
+    )
+
+    all('.w1-amsg .w1-fork').at(-1)?.click()
+    const forked = await waitFor(async () => {
+      const bundle = await window.ws.agent.threads()
+      return bundle.sessions.some(
+        (session) =>
+          session.title.includes('分叉') &&
+          session.resumeId === undefined &&
+          bundle.messages.some((message) => message.sessionId === session.id)
+      )
+    }, 3000)
+    check(
+      '会话可从消息分叉',
+      forked && (one('.w1-sess.on .w1-st')?.textContent ?? '').includes('分叉'),
+      one('.w1-sess.on .w1-st')?.textContent ?? 'missing'
     )
 
     await navTo('今日')
@@ -1706,6 +2090,21 @@ async function run() {
         all('.w1-task.done').length === 3,
       String(all('.w1-task').length)
     )
+
+    // 完成动作放在今日卡计数断言之后，避免改变看板基线
+    one('.w1-st-reminders')?.click()
+    await waitFor(() => Boolean(one('.w1-remindersheet')), 2000)
+    const reminderDoneRow = all('.w1-reminderrow')[0]
+    const reminderDoneTitle =
+      reminderDoneRow?.querySelector('.w1-reminderrowmain b')?.textContent ?? ''
+    reminderDoneRow?.querySelector('.w1-reminderact')?.click()
+    const reminderDone = await waitFor(async () => {
+      const tasks = await window.ws.tasks.list()
+      return tasks.some((task) => task.title === reminderDoneTitle && task.done)
+    }, 3000)
+    check('提醒中心可直接完成任务', reminderDone, reminderDoneTitle)
+    one('.w1-reminderclose')?.click()
+    await waitFor(() => !one('.w1-remindersheet'), 2000)
 
     // 子任务：父任务行显示进度，勾选后更新，删父任务连带清理
     await navTo('任务')
@@ -1783,8 +2182,8 @@ async function run() {
     )
     check(
       '设置面板读到备份份数',
-      settingsText.includes('份 ·'),
-      one('.w1-setpath')?.textContent ?? ''
+      (one('.w1-setbackupcount')?.textContent ?? '').includes('份'),
+      one('.w1-setbackupcount')?.textContent ?? 'missing'
     )
     const storageInfo = await window.ws.app.storage()
     check(
@@ -1796,6 +2195,49 @@ async function run() {
         ),
       storageInfo.root
     )
+
+    const backupLoaded = await waitFor(() => all('.w1-backuprow').length >= 2, 3000)
+    check(
+      '备份列表显示可恢复快照',
+      backupLoaded && all('.w1-backuprow').some((row) => row.textContent?.includes('99999999')),
+      all('.w1-backuprow')
+        .map((row) => row.querySelector('.w1-backupmain span')?.textContent ?? '')
+        .join(',')
+    )
+
+    const corruptRow = all('.w1-backuprow').find((row) => row.textContent?.includes('99999999'))
+    corruptRow?.querySelector('.w1-backupbtn')?.click()
+    await waitFor(() => Boolean(one('.w1-backupconfirm')), 2000)
+    corruptRow?.querySelector('.w1-backupconfirm .w1-backupbtn.danger')?.click()
+    const restoreError = await waitFor(
+      () => (one('.w1-backuperror')?.textContent ?? '').includes('数据库'),
+      3000
+    )
+    check(
+      '损坏备份给出可读错误',
+      restoreError,
+      one('.w1-backuperror')?.textContent?.slice(0, 80) ?? 'missing'
+    )
+
+    const validRow = all('.w1-backuprow').find((row) => !row.textContent?.includes('99999999'))
+    validRow?.querySelector('.w1-backupbtn')?.click()
+    await waitFor(() => Boolean(one('.w1-backupconfirm')), 2000)
+    validRow?.querySelector('.w1-backupconfirm .w1-backupbtn.danger')?.click()
+    const pendingReady = await waitFor(
+      () => (one('.w1-backupstate.pending')?.textContent ?? '').includes('恢复已排好'),
+      3000
+    )
+    const pendingState = await window.ws.app.restoreStatus()
+    const safetyVisible = await waitFor(
+      () => all('.w1-backuprow').some((row) => row.textContent?.includes('恢复前快照')),
+      3000
+    )
+    check(
+      '恢复进入待重启并留下安全快照',
+      pendingReady && pendingState.status === 'pending' && safetyVisible,
+      JSON.stringify(pendingState)
+    )
+
     check('设置面板有 Provider 卡片', !!one('.w1-provcard'))
     check(
       'Provider 接线台有双目标端口',
@@ -2166,6 +2608,35 @@ async function run() {
     byText('.w1-capform .w1-capmini.pri', '添加 Server')?.click()
     const stubAdded = await waitFor(() => Boolean(byText('.w1-caprow', 'Stub MCP')), 4000)
     check('自定义 MCP 可添加', stubAdded, one('.w1-caplist')?.textContent?.slice(-80) ?? 'missing')
+
+    byText('.w1-caphead .w1-capmini.pri', '自定义 Server')?.click()
+    await waitFor(() => !!one('.w1-capform'), 2000)
+    setValue(one('input[aria-label="MCP 名称"]'), 'OAuth UI')
+    setValue(one('select[aria-label="MCP 传输方式"]'), 'http')
+    await sleep(150)
+    setValue(one('input[aria-label="MCP URL"]'), 'https://example.com/mcp')
+    setValue(one('select[aria-label="MCP 认证方式"]'), 'oauth')
+    await sleep(150)
+    check('选择 OAuth 后隐藏请求头输入', !one('textarea[aria-label="MCP 请求头"]'))
+    byText('.w1-capform .w1-capmini.pri', '添加 Server')?.click()
+    await waitFor(() => Boolean(byText('.w1-caprow', 'OAuth UI')), 4000)
+    const oauthRow = byText('.w1-caprow', 'OAuth UI')
+    const oauthButtons = [...(oauthRow?.querySelectorAll('.w1-capmini') ?? [])].map(
+      (button) => button.textContent
+    )
+    check(
+      'OAuth Server 显示未登录与登录入口',
+      (oauthRow?.textContent ?? '').includes('OAuth · 未登录') && oauthButtons.includes('登录'),
+      oauthRow?.textContent?.slice(0, 100) ?? 'missing'
+    )
+    for (let index = 0; index < 2; index += 1) {
+      const remove = [...(byText('.w1-caprow', 'OAuth UI')?.querySelectorAll('.w1-capmini') ?? [])].find(
+        (button) => button.textContent === '移除' || button.textContent === '确认移除'
+      )
+      remove?.click()
+      await sleep(150)
+    }
+    await waitFor(() => !byText('.w1-caprow', 'OAuth UI'), 3000)
 
     byText('.w1-caprow', 'Stub MCP')?.querySelector('.w1-setbtn')?.click()
     await waitFor(
@@ -3127,13 +3598,18 @@ async function run() {
 
     one('.w1-lcard')?.click()
     await waitFor(
-      () => one('.w1-lfront')?.style.opacity === '0' && !!one('.w1-lcardnotes'),
+      () => one('.w1-lcard')?.classList.contains('flipped') && !!one('.w1-lcardnotes'),
       2000
     )
+    const flippedTransform = one('.w1-lcardinner')
+      ? getComputedStyle(one('.w1-lcardinner')).transform
+      : 'none'
     check(
       '点击翻面显示背面',
-      one('.w1-lfront')?.style.opacity === '0' && !!one('.w1-lcardnotes'),
-      one('.w1-lfront')?.style.opacity ?? ''
+      one('.w1-lcard')?.classList.contains('flipped') &&
+        !!one('.w1-lcardnotes') &&
+        flippedTransform !== 'none',
+      flippedTransform
     )
     check(
       '翻面后评分可用并显示间隔',

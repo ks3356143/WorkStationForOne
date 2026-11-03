@@ -77,8 +77,11 @@ const api: WsApi = {
       return () => ipcRenderer.removeListener(IPC_CHANNELS.agentEvent, handler)
     },
     threads: () => ipcRenderer.invoke(IPC_CHANNELS.agentThreads),
+    searchSessions: (query) => ipcRenderer.invoke(IPC_CHANNELS.agentSearchSessions, query),
+    exportSession: (id) => ipcRenderer.invoke(IPC_CHANNELS.agentExportSession, id),
     createSession: (input) => ipcRenderer.invoke(IPC_CHANNELS.agentCreateSession, input),
     updateSession: (id, patch) => ipcRenderer.invoke(IPC_CHANNELS.agentUpdateSession, id, patch),
+    deleteSession: (id) => ipcRenderer.invoke(IPC_CHANNELS.agentDeleteSession, id),
     saveMessage: (message) => ipcRenderer.invoke(IPC_CHANNELS.agentSaveMessage, message),
     pickWorkspace: (current) => ipcRenderer.invoke(IPC_CHANNELS.agentPickWorkspace, current),
     workspaceTree: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.agentWorkspaceTree, sessionId),
@@ -91,6 +94,7 @@ const api: WsApi = {
     usage: (days) => ipcRenderer.invoke(IPC_CHANNELS.agentUsage, days),
     discoverSessions: () => ipcRenderer.invoke(IPC_CHANNELS.agentDiscoverSessions),
     importSession: (input) => ipcRenderer.invoke(IPC_CHANNELS.agentImportSession, input),
+    forkSession: (input) => ipcRenderer.invoke(IPC_CHANNELS.agentForkSession, input),
     approvalRules: () => ipcRenderer.invoke(IPC_CHANNELS.agentApprovalRules),
     removeApprovalRule: (id) => ipcRenderer.invoke(IPC_CHANNELS.agentRemoveApprovalRule, id)
   },
@@ -161,6 +165,8 @@ const api: WsApi = {
       setEnabled: (id, enabled, trust) =>
         ipcRenderer.invoke(IPC_CHANNELS.capabilityMcpSetEnabled, id, enabled, trust),
       test: (id) => ipcRenderer.invoke(IPC_CHANNELS.capabilityMcpTest, id),
+      login: (id) => ipcRenderer.invoke(IPC_CHANNELS.capabilityMcpOAuthLogin, id),
+      logout: (id) => ipcRenderer.invoke(IPC_CHANNELS.capabilityMcpOAuthLogout, id),
       setToolPolicy: (id, toolName, approval) =>
         ipcRenderer.invoke(IPC_CHANNELS.capabilityMcpSetToolPolicy, id, toolName, approval),
       importConfig: (text) => ipcRenderer.invoke(IPC_CHANNELS.capabilityMcpImport, text),
@@ -175,6 +181,10 @@ const api: WsApi = {
   app: {
     setTheme: (theme) => ipcRenderer.invoke(IPC_CHANNELS.appSetTheme, theme),
     backupNow: () => ipcRenderer.invoke(IPC_CHANNELS.appBackupNow),
+    listBackups: () => ipcRenderer.invoke(IPC_CHANNELS.appBackupList),
+    restoreBackup: (name) => ipcRenderer.invoke(IPC_CHANNELS.appRestoreBackup, name),
+    restoreStatus: () => ipcRenderer.invoke(IPC_CHANNELS.appRestoreStatus),
+    relaunch: () => ipcRenderer.invoke(IPC_CHANNELS.appRelaunch),
     info: () => ipcRenderer.invoke(IPC_CHANNELS.appInfo),
     storage: () => ipcRenderer.invoke(IPC_CHANNELS.appStorage),
     pickStorage: () => ipcRenderer.invoke(IPC_CHANNELS.appStoragePick),

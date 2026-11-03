@@ -1,15 +1,17 @@
 import { selectActiveSession, useWorkstation } from '../store/useWorkstation'
 import { useNow } from '../lib/useNow'
 import { formatHM } from '../lib/date'
+import { reminderBuckets } from '../lib/reminder-center'
 import { skinLabel, themeLabel } from '../lib/theme'
 
 interface StatusBarProps {
   notify: (text: string) => void
   onShortcuts: () => void
   onFleet: () => void
+  onReminders: () => void
 }
 
-export function StatusBar({ notify, onShortcuts, onFleet }: StatusBarProps) {
+export function StatusBar({ notify, onShortcuts, onFleet, onReminders }: StatusBarProps) {
   const sessionCount = useWorkstation((state) => state.sessions.length)
   const session = useWorkstation(selectActiveSession)
   // 审批卡按会话分开保存；状态栏汇总，点击跳到第一个有卡的会话
@@ -38,7 +40,9 @@ export function StatusBar({ notify, onShortcuts, onFleet }: StatusBarProps) {
   const toggleTheme = useWorkstation((state) => state.toggleTheme)
   const toggleSkin = useWorkstation((state) => state.toggleSkin)
   const openAgentSession = useWorkstation((state) => state.openAgentSession)
+  const tasks = useWorkstation((state) => state.tasks)
   const now = useNow(30_000)
+  const reminders = reminderBuckets(tasks, now)
 
   const agentName = session ? (session.agent === 'claude' ? 'Claude Code' : 'Codex') : null
   const stateLabel = session
@@ -72,6 +76,14 @@ export function StatusBar({ notify, onShortcuts, onFleet }: StatusBarProps) {
         onClick={onFleet}
       >
         舰队 {sessionCount}
+      </button>
+      <button
+        className={`w1-sbtn w1-st-reminders${reminders.missed.length > 0 ? ' pending' : ''}`}
+        type="button"
+        title="提醒中心：今天已错过与稍后"
+        onClick={onReminders}
+      >
+        提醒 {reminders.missed.length > 0 ? reminders.missed.length : ''}
       </button>
       {approvalCount > 0 ? (
         <button

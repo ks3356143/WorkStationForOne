@@ -48,6 +48,8 @@ export type {
   AgentSessionRecord,
   AgentMessageRecord,
   AgentThreadBundle,
+  AgentSessionSearchHit,
+  AgentExportResult,
   AgentCreateInput,
   AgentSessionPatch,
   AgentSendInput,
@@ -67,6 +69,8 @@ export type {
   DiscoveredAgentSession,
   AgentImportInput,
   AgentImportResult,
+  AgentForkInput,
+  AgentForkResult,
   AgentPresetRecord,
   AgentPresetInput,
   AgentRunRecord,
@@ -103,6 +107,9 @@ export type {
   ExternalMcpTransport,
   McpToolApproval,
   ExternalMcpTargets,
+  ExternalMcpAuthMode,
+  ExternalMcpOAuthState,
+  ExternalMcpOAuthInfo,
   ExternalMcpToolRecord,
   ExternalMcpServerRecord,
   McpImportResult,
@@ -114,7 +121,17 @@ export type {
   CapabilityApi
 } from './ipc/capability'
 export type { AuditLogDomain, AuditLogRecord, AuditApi } from './ipc/audit'
-export type { BackupResult, AppInfo, StorageInfo, AppApi } from './ipc/app'
+export type {
+  BackupResult,
+  BackupEntry,
+  BackupList,
+  RestoreStatus,
+  RestoreStateInfo,
+  RestoreRequestResult,
+  AppInfo,
+  StorageInfo,
+  AppApi
+} from './ipc/app'
 export type { WsApi } from './ipc/ws-api'
 export { IPC_CHANNELS } from './ipc/channels'
 

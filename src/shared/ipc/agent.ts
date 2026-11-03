@@ -20,6 +20,10 @@ export interface AgentSessionRecord {
   resumeId?: string
   /** 会话自己的工作目录；空表示尚未选择 */
   workspace?: string
+  /** 置顶会话在列表里排在同 Agent 分组前面 */
+  pinned?: boolean
+  /** 归档会话从会话栏隐藏，可在舰队控制台恢复 */
+  archived?: boolean
   createdAt: number
   updatedAt: number
 }
@@ -42,6 +46,21 @@ export interface AgentThreadBundle {
   messages: AgentMessageRecord[]
 }
 
+export interface AgentExportResult {
+  canceled: boolean
+  path?: string
+  count?: number
+}
+
+export interface AgentSessionSearchHit {
+  session: AgentSessionRecord
+  /** 命中的消息片段；标题命中时为空 */
+  snippet: string
+  /** 最新一条命中消息的 id，供跳转定位；标题命中时为 null */
+  messageId: string | null
+  matchedIn: 'title' | 'message'
+}
+
 export interface AgentCreateInput {
   id: string
   agent: AgentKind
@@ -53,6 +72,8 @@ export interface AgentSessionPatch {
   status?: AgentSessionStatus
   resumeId?: string
   workspace?: string
+  pinned?: boolean
+  archived?: boolean
 }
 
 export interface AgentSendInput {
@@ -187,6 +208,17 @@ export interface AgentImportResult {
   messages: AgentMessageRecord[]
 }
 
+export interface AgentForkInput {
+  sessionId: string
+  messageId: string
+}
+
+export interface AgentForkResult {
+  session: AgentSessionRecord
+  /** 到此消息为止的对话副本；新会话没有 resumeId，模型上下文从新回合开始 */
+  messages: AgentMessageRecord[]
+}
+
 export interface AgentPresetRecord {
   id: string
   name: string
@@ -231,9 +263,13 @@ export interface AgentApi {
   respondPermission: (response: AgentPermissionResponse) => Promise<boolean>
   onEvent: (listener: (payload: AgentEventEnvelope) => void) => () => void
   threads: () => Promise<AgentThreadBundle>
+  searchSessions: (query: string) => Promise<AgentSessionSearchHit[]>
   createSession: (input: AgentCreateInput) => Promise<AgentSessionRecord>
   updateSession: (id: string, patch: AgentSessionPatch) => Promise<void>
+  /** 只删应用内会话与消息；不触碰外部 CLI 的 JSONL。运行中拒绝。 */
+  deleteSession: (id: string) => Promise<boolean>
   saveMessage: (message: AgentMessageRecord) => Promise<void>
+  exportSession: (id: string) => Promise<AgentExportResult>
   /** 打开原生目录选择器；取消返回 null */
   pickWorkspace: (current?: string) => Promise<string | null>
   workspaceTree: (sessionId: string) => Promise<WorkspaceEntry[]>
@@ -245,6 +281,7 @@ export interface AgentApi {
   usage: (days: number) => Promise<AgentRunRecord[]>
   discoverSessions: () => Promise<DiscoveredAgentSession[]>
   importSession: (input: AgentImportInput) => Promise<AgentImportResult>
+  forkSession: (input: AgentForkInput) => Promise<AgentForkResult>
   approvalRules: () => Promise<ApprovalRuleRecord[]>
   removeApprovalRule: (id: string) => Promise<void>
 }

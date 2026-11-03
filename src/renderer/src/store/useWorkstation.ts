@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type {
   AgentCreateInput,
+  AgentForkResult,
   AgentImportResult,
   AgentMessageRecord,
   AgentSessionPatch,
@@ -41,6 +42,7 @@ import type {
   LearningItem,
   LearningScope,
   Note,
+  NoteJump,
   ResolutionRecord,
   Session,
   Task,
@@ -131,6 +133,12 @@ interface WorkstationActions {
   setView: (view: View) => void
   setFilter: (filter: TaskFilter) => void
   setTaskScope: (scope: TaskScope) => void
+  openTask: (taskId: string) => void
+  clearTaskJump: () => void
+  openNote: (note: NoteJump) => void
+  clearNoteJump: () => void
+  openLearningItem: (id: string) => void
+  clearLearningJump: () => void
   toggleTask: (taskId: string) => void
   addTask: (draft: TaskDraft) => void
   addSubtask: (parentId: string, title: string) => void
@@ -143,15 +151,23 @@ interface WorkstationActions {
   toggleHabitToday: (habitId: string) => void
   setActiveSession: (sessionId: string) => void
   openAgentSession: (sessionId: string) => void
+  openAgentMessage: (sessionId: string, messageId: string | null) => void
+  clearAgentJump: () => void
   createAgentSession: (agent?: AgentId) => void
   setAgentResume: (sessionId: string, resumeId: string) => void
+  renameAgentSession: (sessionId: string, title: string) => void
+  toggleAgentSessionPin: (sessionId: string) => void
+  toggleAgentSessionArchive: (sessionId: string) => void
+  removeAgentSession: (sessionId: string) => void
   setAgentWorkspace: (sessionId: string, workspace: string) => void
   importAgentSession: (result: AgentImportResult) => void
+  addForkedSession: (result: AgentForkResult) => void
   setToolPermission: (sessionId: string, request: AgentPermissionRequest) => void
   clearToolPermission: (sessionId: string) => void
   setMcpPermission: (request: McpPermissionRequest) => void
   clearMcpPermission: (sessionId: string) => void
   sendMessage: (text: string) => void
+  retryMessage: (text: string) => void
   takePendingPrompt: (sessionId?: string) => { sessionId: string; prompt: string } | null
   beginAgentReply: (sessionId: string, runId: string | null) => void
   bindAgentRun: (sessionId: string, runId: string) => void
@@ -260,6 +276,34 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
   setFilter: (taskFilter) => set({ taskFilter }),
 
   setTaskScope: (taskScope) => set({ taskScope }),
+
+  openTask: (taskId) => {
+    if (!get().tasks.some((task) => task.id === taskId)) return
+    set({
+      activeView: 'tasks',
+      taskFilter: 'all',
+      taskScope: 'all',
+      taskJumpId: taskId
+    })
+  },
+
+  clearTaskJump: () => set({ taskJumpId: null }),
+
+  openNote: (note) => set({ activeView: 'notes', noteJump: note }),
+
+  clearNoteJump: () => set({ noteJump: null }),
+
+  openLearningItem: (id) => {
+    if (!get().learningItems.some((item) => item.id === id)) return
+    set({
+      activeView: 'learning',
+      learningReviewOpen: false,
+      learningScope: { kind: 'all' },
+      learningJumpId: id
+    })
+  },
+
+  clearLearningJump: () => set({ learningJumpId: null }),
 
   composeTask: () =>
     set((state) => ({ activeView: 'tasks', taskComposerRequest: state.taskComposerRequest + 1 })),
@@ -439,6 +483,15 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     browserStorage()?.setItem(ACTIVE_AGENT_KEY, sessionId)
   },
 
+  openAgentMessage: (sessionId, messageId) => {
+    const exists = get().sessions.some((session) => session.id === sessionId)
+    if (!exists) return
+    set({ activeSessionId: sessionId, activeView: 'agent', agentJumpMessageId: messageId })
+    browserStorage()?.setItem(ACTIVE_AGENT_KEY, sessionId)
+  },
+
+  clearAgentJump: () => set({ agentJumpMessageId: null }),
+
   createAgentSession: (agent = 'claude') => {
     const now = Date.now()
     const id = `s-${crypto.randomUUID()}`
@@ -463,6 +516,119 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     if (!persistence) return
     persistQuietly(async () => {
       await persistence.createSession({ id, agent, title: '新会话' })
+    })
+  },
+
+  renameAgentSession: (sessionId, title) => {
+    const trimmed = title.trim().slice(0, 80)
+    const session = get().sessions.find((item) => item.id === sessionId)
+    if (!session || !trimmed || trimmed === session.title) return
+    set((state) => ({
+      sessions: state.sessions.map((item) =>
+        item.id === sessionId ? { ...item, title: trimmed } : item
+      )
+    }))
+    persistAgentSession(sessionId, { title: trimmed })
+  },
+
+  toggleAgentSessionPin: (sessionId) => {
+    const session = get().sessions.find((item) => item.id === sessionId)
+    if (!session) return
+    const pinned = !session.pinned
+    set((state) => ({
+      sessions: state.sessions.map((item) => {
+        if (item.id !== sessionId) return item
+        const next = { ...item }
+        if (pinned) next.pinned = true
+        else delete next.pinned
+        return next
+      })
+    }))
+    persistAgentSession(sessionId, { pinned })
+  },
+
+  toggleAgentSessionArchive: (sessionId) => {
+    const state = get()
+    const session = state.sessions.find((item) => item.id === sessionId)
+    if (!session) return
+    const archived = !session.archived
+    if (
+      archived &&
+      (state.streams[sessionId] ||
+        state.pendingPrompts.some((prompt) => prompt.sessionId === sessionId))
+    ) {
+      return
+    }
+    let activeSessionId = state.activeSessionId
+    if (archived && activeSessionId === sessionId) {
+      const next = state.sessions.find((item) => item.id !== sessionId && !item.archived)
+      activeSessionId = next?.id ?? ''
+      const storage = browserStorage()
+      if (activeSessionId) storage?.setItem(ACTIVE_AGENT_KEY, activeSessionId)
+      else storage?.removeItem(ACTIVE_AGENT_KEY)
+    }
+    const toolPermissions = { ...state.toolPermissions }
+    const mcpPermissions = { ...state.mcpPermissions }
+    if (archived) {
+      delete toolPermissions[sessionId]
+      delete mcpPermissions[sessionId]
+    }
+    set({
+      sessions: state.sessions.map((item) => {
+        if (item.id !== sessionId) return item
+        const next = { ...item }
+        if (archived) next.archived = true
+        else delete next.archived
+        return next
+      }),
+      activeSessionId,
+      toolPermissions,
+      mcpPermissions,
+      permission: archived && state.permission?.sessionId === sessionId ? null : state.permission,
+      resolution: archived && state.resolution?.sessionId === sessionId ? null : state.resolution,
+      pendingReplyTo: archived && state.pendingReplyTo === sessionId ? null : state.pendingReplyTo,
+      agentJumpMessageId:
+        archived && state.activeSessionId === sessionId ? null : state.agentJumpMessageId
+    })
+    persistAgentSession(sessionId, { archived })
+  },
+
+  removeAgentSession: (sessionId) => {
+    const state = get()
+    const index = state.sessions.findIndex((session) => session.id === sessionId)
+    if (index < 0) return
+    const sessions = state.sessions.filter((session) => session.id !== sessionId)
+    const threads = { ...state.threads }
+    delete threads[sessionId]
+    const streams = { ...state.streams }
+    delete streams[sessionId]
+    const toolPermissions = { ...state.toolPermissions }
+    delete toolPermissions[sessionId]
+    const mcpPermissions = { ...state.mcpPermissions }
+    delete mcpPermissions[sessionId]
+    const pendingPrompts = state.pendingPrompts.filter((prompt) => prompt.sessionId !== sessionId)
+    const removedActive = state.activeSessionId === sessionId
+    const nextActive = removedActive
+      ? (sessions[Math.min(index, sessions.length - 1)]?.id ?? '')
+      : state.activeSessionId
+    if (removedActive) {
+      const storage = browserStorage()
+      if (nextActive) storage?.setItem(ACTIVE_AGENT_KEY, nextActive)
+      else storage?.removeItem(ACTIVE_AGENT_KEY)
+    }
+    set({
+      sessions,
+      threads,
+      streams,
+      toolPermissions,
+      mcpPermissions,
+      pendingPrompts,
+      activeSessionId: nextActive,
+      permission: state.permission?.sessionId === sessionId ? null : state.permission,
+      resolution: state.resolution?.sessionId === sessionId ? null : state.resolution,
+      pendingReplyTo: state.pendingReplyTo === sessionId ? null : state.pendingReplyTo,
+      typing: Object.keys(streams).length > 0 || pendingPrompts.length > 0,
+      agentJumpMessageId: removedActive ? null : state.agentJumpMessageId
     })
   },
 
@@ -495,6 +661,28 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       threadDate: agentSessionDate(record.updatedAt, now),
       ...(record.workspace ? { workspace: record.workspace } : {}),
       ...(record.resumeId ? { resumeId: record.resumeId } : {})
+    }
+    set((state) => ({
+      sessions: [session, ...state.sessions.filter((item) => item.id !== record.id)],
+      threads: { ...state.threads, [record.id]: messages.map(toChatMessage) },
+      activeSessionId: record.id,
+      activeView: 'agent',
+      permission: null,
+      resolution: null
+    }))
+    browserStorage()?.setItem(ACTIVE_AGENT_KEY, record.id)
+  },
+
+  addForkedSession: ({ session: record, messages }) => {
+    const now = Date.now()
+    const session: Session = {
+      id: record.id,
+      agent: record.agent,
+      title: record.title,
+      status: record.status,
+      meta: agentSessionMeta(record.updatedAt, messages.length, now),
+      threadDate: agentSessionDate(record.updatedAt, now),
+      ...(record.workspace ? { workspace: record.workspace } : {})
     }
     set((state) => ({
       sessions: [session, ...state.sessions.filter((item) => item.id !== record.id)],
@@ -587,6 +775,25 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     }))
     persistAgentMessage(sessionId, message)
     persistAgentSession(sessionId, { status: 'run', ...(title !== session.title ? { title } : {}) })
+  },
+
+  retryMessage: (text) => {
+    const trimmed = text.trim()
+    if (!trimmed) return
+    const state = get()
+    const session = state.sessions.find((item) => item.id === state.activeSessionId)
+    if (!session) return
+    if (state.streams[session.id]) return
+    if (state.pendingPrompts.some((prompt) => prompt.sessionId === session.id)) return
+    set((current) => ({
+      sessions: current.sessions.map((item) =>
+        item.id === session.id ? { ...item, status: 'run' as const } : item
+      ),
+      pendingPrompts: [...current.pendingPrompts, { sessionId: session.id, prompt: trimmed }],
+      typing: true,
+      pendingReplyTo: session.id
+    }))
+    persistAgentSession(session.id, { status: 'run' })
   },
 
   takePendingPrompt: (sessionId) => {

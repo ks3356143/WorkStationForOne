@@ -15,6 +15,7 @@ import { FocusOverlay } from './components/FocusOverlay'
 import { LearningWorkspace } from './components/learning/LearningWorkspace'
 import { NotesView } from './components/NotesView'
 import { QuickNoteModal } from './components/QuickNoteModal'
+import { ReminderSheet } from './components/ReminderSheet'
 import { SessionRail } from './components/SessionRail'
 import { SettingsSheet } from './components/SettingsSheet'
 import { ShortcutSheet } from './components/ShortcutSheet'
@@ -52,6 +53,7 @@ export default function App() {
   const closeQuickNote = useWorkstation((state) => state.closeQuickNote)
   const closeFocus = useWorkstation((state) => state.closeFocus)
   const composeTask = useWorkstation((state) => state.composeTask)
+  const openTask = useWorkstation((state) => state.openTask)
 
   const [booting, setBooting] = useState(true)
   const [commandOpen, setCommandOpen] = useState(false)
@@ -59,8 +61,10 @@ export default function App() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [fleetOpen, setFleetOpen] = useState(false)
+  const [remindersOpen, setRemindersOpen] = useState(false)
   const shortcutsTriggerRef = useRef<HTMLElement | null>(null)
   const fleetTriggerRef = useRef<HTMLElement | null>(null)
+  const remindersTriggerRef = useRef<HTMLElement | null>(null)
   const [notice, setNotice] = useState<{
     id: number
     text: string
@@ -157,6 +161,19 @@ export default function App() {
     trigger?.focus()
   }, [])
 
+  const openReminders = useCallback(() => {
+    remindersTriggerRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
+    setRemindersOpen(true)
+  }, [])
+
+  const closeReminders = useCallback(() => {
+    setRemindersOpen(false)
+    const trigger = remindersTriggerRef.current
+    remindersTriggerRef.current = null
+    trigger?.focus()
+  }, [])
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (booting) {
@@ -193,6 +210,7 @@ export default function App() {
       if (event.key === 'Escape') {
         if (event.isComposing || event.keyCode === 229) return
         if (fleetOpen) closeFleet()
+        else if (remindersOpen) closeReminders()
         else if (settingsOpen) setSettingsOpen(false)
         else if (shortcutsOpen) setShortcutsOpen(false)
         else if (commandOpen) closePalette()
@@ -208,6 +226,7 @@ export default function App() {
     closeFocus,
     closePalette,
     closeQuickNote,
+    closeReminders,
     commandOpen,
     composeTask,
     fleetOpen,
@@ -215,6 +234,7 @@ export default function App() {
     openPalette,
     openQuickNote,
     quickNoteOpen,
+    remindersOpen,
     shortcutsOpen,
     settingsOpen
   ])
@@ -261,6 +281,7 @@ export default function App() {
             notify={notify}
             onShortcuts={() => setShortcutsOpen(true)}
             onFleet={openFleet}
+            onReminders={openReminders}
           />
 
           <AnimatePresence>
@@ -281,6 +302,18 @@ export default function App() {
 
           <AnimatePresence>
             {fleetOpen ? <FleetSheet onClose={closeFleet} notify={notify} /> : null}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {remindersOpen ? (
+              <ReminderSheet
+                onClose={closeReminders}
+                onOpenTask={(taskId) => {
+                  closeReminders()
+                  openTask(taskId)
+                }}
+              />
+            ) : null}
           </AnimatePresence>
 
           <AnimatePresence>
@@ -312,6 +345,10 @@ export default function App() {
                 onFleet={() => {
                   closePalette()
                   openFleet()
+                }}
+                onReminders={() => {
+                  closePalette()
+                  openReminders()
                 }}
               />
             ) : null}

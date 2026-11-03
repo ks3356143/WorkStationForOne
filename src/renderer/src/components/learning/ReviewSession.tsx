@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { m } from 'motion/react'
+import { AnimatePresence, m } from 'motion/react'
 import { clozePlainText } from '../../../../shared/cloze'
 import { dateKey } from '../../../../shared/date-key'
 import { scheduleReview, type SrsRating } from '../../../../shared/srs'
@@ -114,43 +114,39 @@ export function ReviewSession({ onExit }: ReviewSessionProps) {
           </button>
         </header>
 
-        <button
-          className={`w1-lcard${flipped ? ' flipped' : ''}`}
-          type="button"
-          onClick={() => setFlipped(true)}
-          aria-label={flipped ? '卡片背面' : '点击翻面显示答案'}
-        >
-          <m.div
-            className="w1-lface w1-lfront"
-            animate={{ opacity: flipped ? 0 : 1 }}
-            transition={{ duration: DURATION.reveal, ease: EASE_OUT }}
-            aria-hidden={flipped}
+        <div className="w1-lcardslot" key={current?.id ?? 'empty'}>
+          <button
+            className={`w1-lcard${flipped ? ' flipped' : ''}`}
+            type="button"
+            onClick={() => setFlipped(true)}
+            aria-label={flipped ? '卡片背面' : '点击翻面显示答案'}
           >
-            <span className="w1-lcardtag">正面</span>
-            <strong className="w1-lcardtitle">{current?.title}</strong>
-            {current?.clozeSource ? (
-              <span className="w1-lcardhint">挖空卡 · 回忆被标记的部分</span>
-            ) : (
-              <span className="w1-lcardhint">按 Space 或点击翻面</span>
-            )}
-          </m.div>
+            <div className="w1-lcardinner">
+              <div className="w1-lface w1-lfront" aria-hidden={flipped}>
+                <span className="w1-lcardtag">正面</span>
+                <strong className="w1-lcardtitle">{current?.title}</strong>
+                {current?.clozeSource ? (
+                  <span className="w1-lcardhint">挖空卡 · 回忆被标记的部分</span>
+                ) : (
+                  <span className="w1-lcardhint">按 Space 或点击翻面</span>
+                )}
+              </div>
 
-          <m.div
-            className="w1-lface w1-lback"
-            initial={false}
-            animate={{ opacity: flipped ? 1 : 0 }}
-            transition={{ duration: DURATION.reveal, ease: EASE_OUT }}
-            aria-hidden={!flipped}
-          >
-            <span className="w1-lcardtag">背面</span>
-            {current?.source ? <span className="w1-lcardsource">{current.source}</span> : null}
-            {current?.clozeSource ? (
-              <p className="w1-lcardnotes w1-lcardcloze">{clozePlainText(current.clozeSource)}</p>
-            ) : (
-              <p className="w1-lcardnotes">{current?.notes || '这张卡还没有背面。'}</p>
-            )}
-          </m.div>
-        </button>
+              <div className="w1-lface w1-lback" aria-hidden={!flipped}>
+                <span className="w1-lcardtag">背面</span>
+                {current?.source ? <span className="w1-lcardsource">{current.source}</span> : null}
+                {current?.clozeSource ? (
+                  <p className="w1-lcardnotes w1-lcardcloze">
+                    {clozePlainText(current.clozeSource)}
+                  </p>
+                ) : (
+                  <p className="w1-lcardnotes">{current?.notes || '这张卡还没有背面。'}</p>
+                )}
+              </div>
+              <span className="w1-lsheen" aria-hidden="true" />
+            </div>
+          </button>
+        </div>
 
         <div className="w1-lratings" role="group" aria-label="评分">
           {RATINGS.map((rating) => {
@@ -172,11 +168,21 @@ export function ReviewSession({ onExit }: ReviewSessionProps) {
           })}
         </div>
 
-        {flipped ? null : (
-          <button className="w1-lflip" type="button" onClick={() => setFlipped(true)}>
-            显示答案 <kbd>Space</kbd>
-          </button>
-        )}
+        <AnimatePresence initial={false}>
+          {flipped ? null : (
+            <m.button
+              className="w1-lflip"
+              type="button"
+              onClick={() => setFlipped(true)}
+              initial={{ opacity: 0, transform: 'translateY(6px)' }}
+              animate={{ opacity: 1, transform: 'translateY(0px)' }}
+              exit={{ opacity: 0, transform: 'translateY(6px)' }}
+              transition={{ duration: DURATION.fast, ease: EASE_OUT }}
+            >
+              显示答案 <kbd>Space</kbd>
+            </m.button>
+          )}
+        </AnimatePresence>
       </div>
     </section>
   )

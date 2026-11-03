@@ -359,7 +359,7 @@
   }
 
   .w1-todoedit {
-    grid-template-columns: minmax(0, 1fr) 150px;
+    grid-template-columns: minmax(0, 1fr) 174px;
     gap: 10px 14px;
   }
 }

@@ -116,6 +116,172 @@ describe('AgentRepository · 会话', () => {
     db.close()
   })
 
+  it('v31 升级到 v32 会话默认不置顶', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wsfo-agent-pin-'))
+    dirs.push(dir)
+    const db = openDatabase(join(dir, 'workstation.db'))
+    migrate(
+      db,
+      MIGRATIONS.filter((migration) => migration.version <= 31)
+    )
+    db.prepare(
+      `INSERT INTO agent_sessions (id, agent, title, status, created_at, updated_at)
+       VALUES ('s1', 'claude', '旧会话', 'idle', 1, 1)`
+    ).run()
+
+    migrate(
+      db,
+      MIGRATIONS.filter((migration) => migration.version <= 32)
+    )
+
+    expect(userVersion(db)).toBe(32)
+    const row = db.prepare('SELECT pinned FROM agent_sessions WHERE id = ?').get('s1') as {
+      pinned: number
+    }
+    expect(row.pinned).toBe(0)
+    db.close()
+  })
+
+  it('v32 升级到 v33 会话默认不归档', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wsfo-agent-archive-'))
+    dirs.push(dir)
+    const db = openDatabase(join(dir, 'workstation.db'))
+    migrate(
+      db,
+      MIGRATIONS.filter((migration) => migration.version <= 32)
+    )
+    db.prepare(
+      `INSERT INTO agent_sessions (id, agent, title, status, created_at, updated_at)
+       VALUES ('s1', 'claude', '旧会话', 'idle', 1, 1)`
+    ).run()
+
+    migrate(
+      db,
+      MIGRATIONS.filter((migration) => migration.version <= 33)
+    )
+
+    expect(userVersion(db)).toBe(33)
+    const repo = new AgentRepository(db)
+    expect(repo.findSession('s1')?.archived).toBeUndefined()
+    expect(repo.listSessions()).toHaveLength(1)
+    db.close()
+  })
+
+  it('删除会话时连带清理消息，其他会话不受影响', () => {
+    const { db, repo } = seedDb()
+    repo.createSession({ id: 's1', agent: 'claude', title: '要删除' })
+    repo.createSession({ id: 's2', agent: 'claude', title: '保留' })
+    repo.saveMessage({
+      id: 'm1',
+      sessionId: 's1',
+      role: 'user',
+      text: '一',
+      timeLabel: '刚刚',
+      createdAt: 1
+    })
+    repo.saveMessage({
+      id: 'm2',
+      sessionId: 's2',
+      role: 'user',
+      text: '二',
+      timeLabel: '刚刚',
+      createdAt: 2
+    })
+
+    expect(repo.removeSession('s1')).toBe(true)
+    expect(repo.findSession('s1')).toBeUndefined()
+    expect(repo.listMessagesForSession('s1')).toEqual([])
+    expect(repo.listSessions().map((session) => session.id)).toEqual(['s2'])
+    expect(repo.listMessagesForSession('s2')).toHaveLength(1)
+    expect(repo.removeSession('s1')).toBe(false)
+    db.close()
+  })
+
+  it('置顶会话排在同组前面并可取消', () => {
+    const { db, repo } = seedDb()
+    repo.createSession({ id: 's1', agent: 'claude', title: '一' })
+    repo.createSession({ id: 's2', agent: 'claude', title: '二' })
+    repo.createSession({ id: 's3', agent: 'claude', title: '三' })
+    db.prepare('UPDATE agent_sessions SET updated_at = ? WHERE id = ?').run(100, 's1')
+    db.prepare('UPDATE agent_sessions SET updated_at = ? WHERE id = ?').run(200, 's2')
+    db.prepare('UPDATE agent_sessions SET updated_at = ? WHERE id = ?').run(300, 's3')
+
+    expect(repo.updateSession('s2', { pinned: true })).toMatchObject({ pinned: true })
+    expect(repo.findSession('s2')?.pinned).toBe(true)
+    expect(repo.listSessions().map((session) => session.id)).toEqual(['s2', 's3', 's1'])
+    expect(repo.searchSessions('二')[0]?.session.id).toBe('s2')
+
+    repo.updateSession('s2', { pinned: false })
+    expect(repo.findSession('s2')?.pinned).toBeUndefined()
+    expect(repo.listSessions()).toHaveLength(3)
+    db.close()
+  })
+
+  it('归档标记可写入且不影响消息', () => {
+    const { db, repo } = seedDb()
+    repo.createSession({ id: 's1', agent: 'claude', title: '归档会话' })
+    repo.saveMessage({
+      id: 'm1',
+      sessionId: 's1',
+      role: 'user',
+      text: '保留我',
+      timeLabel: '刚刚',
+      createdAt: 1
+    })
+
+    expect(repo.updateSession('s1', { archived: true })).toMatchObject({ archived: true })
+    expect(repo.findSession('s1')?.archived).toBe(true)
+    expect(repo.listMessagesForSession('s1')).toHaveLength(1)
+    expect(repo.listSessions()).toHaveLength(1)
+
+    repo.updateSession('s1', { archived: false })
+    expect(repo.findSession('s1')?.archived).toBeUndefined()
+    expect(repo.listMessagesForSession('s1')).toHaveLength(1)
+    db.close()
+  })
+
+  it('从消息分叉只复制到此为止的对话', () => {
+    const { db, repo } = seedDb()
+    repo.createSession({ id: 's1', agent: 'claude', title: '原会话' })
+    repo.updateSession('s1', { workspace: 'C:\\work', resumeId: 'cli-1' })
+    for (const [id, text] of [
+      ['m1', '一'],
+      ['m2', '二'],
+      ['m3', '三']
+    ]) {
+      repo.saveMessage({
+        id,
+        sessionId: 's1',
+        role: 'user',
+        text,
+        timeLabel: '刚刚',
+        createdAt: Number(id.slice(1))
+      })
+    }
+
+    const result = repo.forkSession({
+      sourceId: 's1',
+      messageId: 'm2',
+      id: 's2',
+      title: '原会话 · 分叉'
+    })
+    expect(result?.session).toMatchObject({
+      id: 's2',
+      title: '原会话 · 分叉',
+      workspace: 'C:\\work',
+      status: 'idle'
+    })
+    expect(result?.session.resumeId).toBeUndefined()
+    expect(result?.messages.map((message) => message.text)).toEqual(['一', '二'])
+    expect(result?.messages[0]?.id).not.toBe('m1')
+    expect(repo.listMessagesForSession('s1')).toHaveLength(3)
+    expect(repo.listMessagesForSession('s2')).toHaveLength(2)
+    expect(
+      repo.forkSession({ sourceId: 's1', messageId: 'missing', id: 's3', title: 'x' })
+    ).toBeNull()
+    db.close()
+  })
+
   it('启动时把残留的 run/wait 状态改回 idle', () => {
     const { db, repo } = seedDb()
     repo.createSession({ id: 's1', agent: 'claude', title: '运行中' })
@@ -126,6 +292,67 @@ describe('AgentRepository · 会话', () => {
 
     expect(repo.resetTransientStatuses()).toBe(2)
     expect(repo.listSessions().map((session) => session.status)).toEqual(['idle', 'idle', 'idle'])
+    db.close()
+  })
+})
+
+describe('AgentRepository · 搜索', () => {
+  const message = (id: string, sessionId: string, text: string) => ({
+    id,
+    sessionId,
+    role: 'user' as const,
+    text,
+    timeLabel: '10:00',
+    createdAt: Date.now()
+  })
+
+  it('同搜标题与正文，标题命中标记 title', () => {
+    const { db, repo } = seedDb()
+    repo.createSession({ id: 's1', agent: 'claude', title: '重构 auth 模块' })
+    repo.createSession({ id: 's2', agent: 'claude', title: '会议记录' })
+    repo.saveMessage(message('m1', 's1', '先看 auth 入口'))
+    repo.saveMessage(message('m2', 's1', '再改 auth 中间件'))
+    repo.saveMessage(message('m3', 's2', '今天没有关键词'))
+
+    const hits = repo.searchSessions('auth')
+    expect(hits.map((hit) => hit.session.id)).toEqual(['s1'])
+    expect(hits[0]?.matchedIn).toBe('title')
+    expect(hits[0]?.snippet).toContain('中间件')
+    expect(hits[0]?.messageId).toBeNull()
+    db.close()
+  })
+
+  it('正文命中标记 message 并返回片段', () => {
+    const { db, repo } = seedDb()
+    repo.createSession({ id: 's1', agent: 'claude', title: '重构 auth 模块' })
+    repo.saveMessage(message('m1', 's1', '  再改\n auth 中间件  '))
+
+    const hits = repo.searchSessions('中间件')
+    expect(hits).toHaveLength(1)
+    expect(hits[0]?.matchedIn).toBe('message')
+    expect(hits[0]?.messageId).toBe('m1')
+    expect(hits[0]?.snippet).toBe('再改 auth 中间件')
+    db.close()
+  })
+
+  it('LIKE 通配符被转义，不会搜出所有会话', () => {
+    const { db, repo } = seedDb()
+    repo.createSession({ id: 's1', agent: 'claude', title: '完成度 100%' })
+    repo.createSession({ id: 's2', agent: 'claude', title: 'a_b 命名' })
+    repo.createSession({ id: 's3', agent: 'claude', title: '普通会话' })
+
+    expect(repo.searchSessions('%').map((hit) => hit.session.id)).toEqual(['s1'])
+    expect(repo.searchSessions('_').map((hit) => hit.session.id)).toEqual(['s2'])
+    db.close()
+  })
+
+  it('限制返回数量并优先最近更新', () => {
+    const { db, repo } = seedDb()
+    for (const id of ['s1', 's2', 's3']) {
+      repo.createSession({ id, agent: 'claude', title: `项目 ${id}` })
+    }
+    const hits = repo.searchSessions('项目', 2)
+    expect(hits).toHaveLength(2)
     db.close()
   })
 })

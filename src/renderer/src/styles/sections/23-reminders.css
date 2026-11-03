@@ -1,0 +1,224 @@
+.w1-remindersheet {
+  position: relative;
+  width: min(640px, calc(100vw - 80px));
+  max-height: min(680px, calc(100vh - 96px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px 14px;
+  border: 1px solid transparent;
+  background-image:
+    var(--glass-spec),
+    linear-gradient(155deg, rgb(var(--glass-tint-rgb) / 0.86), rgb(var(--glass-deep-rgb) / 0.95));
+  background-origin: padding-box;
+  background-clip: padding-box, padding-box;
+  border-image: var(--glass-rim) 1;
+  backdrop-filter: blur(30px) saturate(170%);
+  box-shadow:
+    var(--neu-in),
+    0 38px 84px rgb(var(--shadow-rgb) / 0.58),
+    0 0 62px rgb(var(--prism-2-rgb) / 0.15);
+  outline: none;
+}
+
+.w1-reminderhead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgb(var(--bd-rgb) / 0.4);
+}
+
+.w1-reminderhead > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.w1-reminderhead b {
+  color: var(--fg-strong);
+  font: 600 16px / 1.2 var(--sans);
+}
+
+.w1-remindercount {
+  margin-left: auto;
+  color: var(--mu);
+  font: 11px / 1 var(--mono);
+}
+
+.w1-reminderclose {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.55);
+  background: transparent;
+  color: var(--mu);
+  font: 10.5px / 1 var(--mono);
+  cursor: pointer;
+}
+
+.w1-reminderclose:hover {
+  border-color: rgb(var(--ac2-rgb) / 0.45);
+  color: var(--ac2-fg);
+}
+
+.w1-reminderclose kbd {
+  margin-right: 4px;
+  color: var(--ac2-fg);
+}
+
+.w1-reminderbody {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 2px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.w1-remindergroup {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.w1-remindergrouph {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 1px;
+}
+
+.w1-remindergrouph b {
+  color: var(--mu);
+  font: 10.5px / 1 var(--mono);
+}
+
+.w1-reminderrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 6px 4px 9px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.35);
+  background: rgb(var(--field-rgb) / 0.18);
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui);
+}
+
+.w1-reminderrow:hover {
+  border-color: rgb(var(--ac2-rgb) / 0.3);
+  background: rgb(var(--ac2-rgb) / 0.04);
+}
+
+.w1-reminderopen {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--fs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.w1-reminderopen time {
+  flex: none;
+  width: 42px;
+  color: var(--ac2-fg);
+  font: 11px / 1 var(--mono);
+}
+
+.w1-reminderrow.missed .w1-reminderopen time {
+  color: var(--dg-fg);
+}
+
+.w1-reminderrowmain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.w1-reminderrowmain b {
+  overflow: hidden;
+  color: var(--fg);
+  font: 500 13px / 1.3 var(--sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.w1-reminderrowmain span {
+  color: var(--su);
+  font: 10.5px / 1.4 var(--mono);
+}
+
+.w1-reminderopen > i {
+  flex: none;
+  padding: 2px 5px;
+  border: 1px solid rgb(var(--wn-rgb) / 0.35);
+  color: var(--wn-fg);
+  font: 9.5px / 1.2 var(--mono);
+  font-style: normal;
+}
+
+.w1-reminderrow.missed .w1-reminderopen > i {
+  border-color: rgb(var(--dg-rgb) / 0.36);
+  color: var(--dg-fg);
+}
+
+.w1-reminderacts {
+  flex: none;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity var(--dur-ui);
+}
+
+.w1-reminderrow:hover .w1-reminderacts,
+.w1-reminderrow:focus-within .w1-reminderacts {
+  opacity: 1;
+}
+
+.w1-reminderact {
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.5);
+  background: rgb(var(--field-rgb) / 0.2);
+  color: var(--mu);
+  font: 10px / 1 var(--mono);
+  cursor: pointer;
+}
+
+.w1-reminderact:hover {
+  border-color: rgb(var(--ac2-rgb) / 0.45);
+  color: var(--ac2-fg);
+}
+
+.w1-reminderhint,
+.w1-reminderempty {
+  margin: 0;
+  padding: 7px 1px;
+  color: var(--su);
+  font: 12px / 1.6 var(--sans);
+}
+
+.w1-reminderempty {
+  padding: 20px;
+  border: 1px dashed rgb(var(--bd-rgb) / 0.5);
+  text-align: center;
+}
+
+.w1-remindernote {
+  margin: 0;
+  padding-top: 8px;
+  border-top: 1px solid rgb(var(--bd-rgb) / 0.35);
+  color: var(--su);
+  font: 11.5px / 1.5 var(--sans);
+}

@@ -15,11 +15,11 @@
 
 .w1-settabs button {
   flex: none;
-  padding: 6px 12px;
+  padding: 7px 14px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--mu);
-  font: 11px / 1 var(--mono);
+  font: 12px / 1 var(--mono);
   letter-spacing: 0.06em;
   cursor: pointer;
   transition:
@@ -250,12 +250,12 @@
   align-items: baseline;
   gap: 6px;
   color: var(--fg-strong);
-  font: 600 12.5px / 1.25 var(--sans);
+  font: 600 13.5px / 1.25 var(--sans);
 }
 
 .w1-capver {
   color: var(--su);
-  font: 10.5px / 1 var(--mono);
+  font: 11px / 1 var(--mono);
   font-style: normal;
   letter-spacing: 0.03em;
 }
@@ -264,7 +264,7 @@
   margin: 0;
   overflow: hidden;
   color: var(--su);
-  font: 12px / 1.45 var(--sans);
+  font: 12.5px / 1.45 var(--sans);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -280,13 +280,19 @@
   padding: 1px 4px;
   border: 1px solid rgb(var(--bd-rgb) / 0.5);
   color: var(--su);
-  font: 10px / 1.2 var(--mono);
+  font: 10.5px / 1.2 var(--mono);
   font-style: normal;
 }
 
 .w1-captags i.warn {
   border-color: rgb(var(--wn-rgb) / 0.34);
   color: var(--wn-fg);
+}
+
+.w1-captags i.oauth-ok {
+  border-color: rgb(var(--ok-rgb) / 0.34);
+  background: rgb(var(--ok-rgb) / 0.06);
+  color: var(--ok-fg);
 }
 
 .w1-capactions {
@@ -302,7 +308,7 @@
   border: 1px solid rgb(var(--bd-rgb) / 0.6);
   background: rgb(var(--field-rgb) / 0.16);
   color: var(--mu);
-  font: 10px / 1 var(--mono);
+  font: 11px / 1 var(--mono);
   cursor: pointer;
   transition:
     border-color var(--dur-ui),
@@ -335,7 +341,7 @@
   padding: 3px 6px;
   border: 1px solid rgb(var(--ok-rgb) / 0.3);
   color: var(--ok-fg);
-  font: 9px / 1 var(--mono);
+  font: 10px / 1 var(--mono);
   letter-spacing: 0.04em;
 }
 
@@ -391,14 +397,14 @@
 
 .w1-capcard b {
   color: var(--fg-strong);
-  font: 600 12.5px / 1.25 var(--sans);
+  font: 600 13.5px / 1.25 var(--sans);
 }
 
 .w1-capcard p {
   flex: 1;
   margin: 0;
   color: var(--mu);
-  font: 11px / 1.4 var(--sans);
+  font: 12px / 1.4 var(--sans);
 }
 
 .w1-capform {
@@ -427,9 +433,14 @@
   grid-column: 1 / -1;
 }
 
+.w1-capformgrid .w1-capnote {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
 .w1-capformgrid span {
   color: var(--mu);
-  font: 9.5px / 1 var(--mono);
+  font: 10.5px / 1 var(--mono);
   letter-spacing: 0.04em;
 }
 
@@ -442,7 +453,7 @@
   border: 1px solid rgb(var(--bd-rgb) / 0.58);
   background: rgb(var(--field-rgb) / 0.22);
   color: var(--fg);
-  font: 11px / 1.35 var(--mono);
+  font: 12px / 1.35 var(--mono);
   outline: none;
   resize: vertical;
 }
@@ -483,7 +494,7 @@
   padding: 7px 8px;
   border: 1px solid rgb(var(--bd-rgb) / 0.42);
   background: rgb(var(--field-rgb) / 0.12);
-  font: 9.5px / 1 var(--mono);
+  font: 10.5px / 1 var(--mono);
 }
 
 .w1-capenvlabel {
@@ -520,7 +531,7 @@
   border: 1px solid rgb(var(--bd-rgb) / 0.58);
   background: rgb(var(--field-rgb) / 0.22);
   color: var(--fg);
-  font: 10.5px / 1.5 var(--mono);
+  font: 11.5px / 1.5 var(--mono);
   outline: none;
   resize: vertical;
 }
@@ -541,7 +552,7 @@
   gap: 10px;
   margin-bottom: 6px;
   color: var(--su);
-  font: 9px / 1.3 var(--mono);
+  font: 10px / 1.3 var(--mono);
 }
 
 .w1-captoolh span:first-child {
@@ -572,7 +583,7 @@
 .w1-captoolname b {
   overflow: hidden;
   color: var(--fg);
-  font: 10.5px / 1.2 var(--mono);
+  font: 11.5px / 1.2 var(--mono);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -582,7 +593,7 @@
   padding: 1px 4px;
   border: 1px solid rgb(var(--ok-rgb) / 0.28);
   color: var(--ok-fg);
-  font: 8.5px / 1.15 var(--mono);
+  font: 9.5px / 1.15 var(--mono);
   font-style: normal;
 }
 
@@ -594,7 +605,7 @@
 .w1-captooldesc {
   overflow: hidden;
   color: var(--su);
-  font: 9.5px / 1.3 var(--mono);
+  font: 11px / 1.3 var(--mono);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -609,7 +620,7 @@
   border: 1px solid rgb(var(--bd-rgb) / 0.5);
   background: transparent;
   color: var(--mu);
-  font: 9px / 1 var(--mono);
+  font: 10px / 1 var(--mono);
   cursor: pointer;
 }
 
@@ -664,7 +675,7 @@
   border: 1px solid rgb(var(--ac2-rgb) / 0.3);
   background: rgb(var(--ac2-rgb) / 0.05);
   color: var(--ac2-fg);
-  font: 10px / 1 var(--mono);
+  font: 11px / 1 var(--mono);
   cursor: pointer;
 }
 
@@ -683,7 +694,7 @@
   padding: 2px 5px;
   border: 1px solid rgb(var(--bd-rgb) / 0.45);
   color: var(--mu);
-  font: 9px / 1.2 var(--mono);
+  font: 10px / 1.2 var(--mono);
 }
 
 .w1-skilldoc {
@@ -695,7 +706,7 @@
 
 .w1-skilldoc b {
   color: var(--ac2-fg);
-  font: 9.5px / 1 var(--mono);
+  font: 10.5px / 1 var(--mono);
 }
 
 .w1-skilldoc pre {
@@ -706,7 +717,7 @@
   border: 1px solid rgb(var(--bd-rgb) / 0.4);
   background: rgb(var(--field-rgb) / 0.25);
   color: var(--fs);
-  font: 10px / 1.5 var(--mono);
+  font: 11px / 1.5 var(--mono);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -732,7 +743,7 @@
   gap: 8px;
   padding: 6px 8px;
   border-bottom: 1px solid rgb(var(--bd-rgb) / 0.22);
-  font: 12px / 1.5 var(--sans);
+  font: 12.5px / 1.5 var(--sans);
   cursor: pointer;
 }
 
@@ -746,19 +757,19 @@
 
 .w1-capimportrow span {
   color: var(--su);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .w1-capimportrow b {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font: 500 12px / 1.5 var(--mono);
+  font: 500 12.5px / 1.5 var(--mono);
 }
 
 .w1-capimportrow i {
   color: var(--su);
-  font: 11px / 1.5 var(--mono);
+  font: 12px / 1.5 var(--mono);
   font-style: normal;
 }
 

@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { IPC_CHANNELS, type StorageInfo, type Theme } from '../../shared/ipc'
-import { backupSize, createBackup, listBackups } from '../db/backup'
+import { backupEntries, backupSize, createBackup, listBackups } from '../db/backup'
+import { readRestoreInfo, requestRestore } from '../db/restore'
 import {
   defaultAppDir,
   describeLayout,
@@ -28,6 +29,8 @@ export const registerAppHandlersIPC = { assertTheme } as const
 
 export interface BackupTarget {
   db: import('node:sqlite').DatabaseSync
+  /** 当前库文件，恢复时用它做替换与回滚 */
+  dbFile: string
   /** 备份目录 */
   dir: string
   /** 数据库所在目录，设置面板要原样展示给用户 */
@@ -42,6 +45,29 @@ export function registerAppHandlers(backup: BackupTarget): void {
   ipcMain.handle(IPC_CHANNELS.appBackupNow, () => {
     const file = createBackup(backup.db, backup.dir)
     return { file, dir: backup.dir, bytes: backupSize(file), at: Date.now() }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.appBackupList, () => ({
+    dir: backup.dir,
+    entries: backupEntries(backup.dir)
+  }))
+
+  ipcMain.handle(IPC_CHANNELS.appRestoreBackup, (_event, name: unknown) => {
+    if (typeof name !== 'string') throw new TypeError('备份文件名无效')
+    const result = requestRestore({
+      db: backup.db,
+      backupDir: backup.dir,
+      dataDir: backup.dataDir,
+      name
+    })
+    return { ...result, restartRequired: true as const }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.appRestoreStatus, () => readRestoreInfo(backup.dataDir))
+
+  ipcMain.handle(IPC_CHANNELS.appRelaunch, () => {
+    app.relaunch()
+    app.quit()
   })
 
   ipcMain.handle(IPC_CHANNELS.appInfo, () => ({

@@ -9,6 +9,35 @@ export interface BackupResult {
   at: number
 }
 
+export interface BackupEntry {
+  name: string
+  bytes: number
+  at: number
+  /** 恢复前自动留下的快照，文件名带 -pre */
+  safety: boolean
+}
+
+export interface BackupList {
+  dir: string
+  entries: BackupEntry[]
+}
+
+export type RestoreStatus = 'none' | 'pending' | 'applying' | 'applied' | 'failed'
+
+export interface RestoreStateInfo {
+  status: RestoreStatus
+  backup: string
+  at: number
+  error: string
+  safety: string
+}
+
+export interface RestoreRequestResult {
+  backup: string
+  safety: string
+  restartRequired: true
+}
+
 export interface AppInfo {
   version: string
   dataDir: string
@@ -34,6 +63,11 @@ export interface StorageInfo {
 export interface AppApi {
   setTheme: (theme: Theme) => Promise<void>
   backupNow: () => Promise<BackupResult>
+  listBackups: () => Promise<BackupList>
+  restoreBackup: (name: string) => Promise<RestoreRequestResult>
+  restoreStatus: () => Promise<RestoreStateInfo>
+  /** 重启应用；待恢复在下次启动开库前执行 */
+  relaunch: () => Promise<void>
   info: () => Promise<AppInfo>
   storage: () => Promise<StorageInfo>
   pickStorage: () => Promise<StorageInfo>

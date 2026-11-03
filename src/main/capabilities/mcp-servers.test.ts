@@ -54,7 +54,7 @@ describe('McpServerService', () => {
     db.close()
   })
 
-  it('启用必须显式信任，信任后 runtime 生成 stdio 配置并解密 env', () => {
+  it('启用必须显式信任，信任后 runtime 生成 stdio 配置并解密 env', async () => {
     const { db, service } = setup()
     const created = service.add({
       name: 'Custom',
@@ -68,7 +68,7 @@ describe('McpServerService', () => {
     expect(enabled.enabled).toBe(true)
     expect(enabled.trusted).toBe(true)
 
-    const runtime = service.runtimeServers()
+    const runtime = await service.runtimeServers()
     expect(runtime).toHaveLength(1)
     expect(runtime[0]).toMatchObject({
       name: created.key,
@@ -124,7 +124,7 @@ describe('McpServerService', () => {
     service.setToolPolicy(tested.id, 'stub_status', 'deny')
     service.add({ name: 'Off', transport: 'stdio', command: 'node' })
 
-    const runtime = service.codexRuntime()
+    const runtime = await service.codexRuntime()
     expect(runtime.servers).toHaveLength(1)
     expect(runtime.servers[0]).toMatchObject({
       key: tested.key,
@@ -198,7 +198,7 @@ describe('McpServerService', () => {
     db.close()
   })
 
-  it('HTTP Server 保存 header 加密值，列表不回传值', () => {
+  it('HTTP Server 保存 header 加密值，列表不回传值', async () => {
     const { db, service } = setup()
     const created = service.add({
       name: 'Remote',
@@ -209,7 +209,7 @@ describe('McpServerService', () => {
     expect(created.headerKeys).toEqual(['Authorization'])
     expect(JSON.stringify(service.list())).not.toContain('Bearer secret')
     service.setEnabled(created.id, true, true)
-    expect(service.runtimeServers()[0]).toMatchObject({
+    expect((await service.runtimeServers())[0]).toMatchObject({
       type: 'http',
       url: 'https://example.com/mcp',
       headers: { Authorization: 'Bearer secret' }
@@ -237,7 +237,7 @@ describe('McpServerService', () => {
     db.close()
   })
 
-  it('按 Agent 归属过滤运行时 Server 与 Claude 工具策略', () => {
+  it('按 Agent 归属过滤运行时 Server 与 Claude 工具策略', async () => {
     const { db, service } = setup()
     const both = service.add({ name: 'Both', transport: 'stdio', command: 'node', args: ['a.js'] })
     const onlyCodex = service.add({
@@ -256,21 +256,21 @@ describe('McpServerService', () => {
     })
     for (const server of [both, onlyCodex, onlyClaude]) service.setEnabled(server.id, true, true)
 
-    expect(new Set(service.runtimeServers('claude').map((s) => s.name))).toEqual(
+    expect(new Set((await service.runtimeServers('claude')).map((s) => s.name))).toEqual(
       new Set([both.key, onlyClaude.key])
     )
-    expect(new Set(service.runtimeServers('codex').map((s) => s.name))).toEqual(
+    expect(new Set((await service.runtimeServers('codex')).map((s) => s.name))).toEqual(
       new Set([both.key, onlyCodex.key])
     )
-    expect(service.runtimeServers().map((s) => s.name)).toHaveLength(3)
+    expect((await service.runtimeServers()).map((s) => s.name)).toHaveLength(3)
 
-    expect(new Set(service.codexRuntime().servers.map((s) => s.key))).toEqual(
+    expect(new Set((await service.codexRuntime()).servers.map((s) => s.key))).toEqual(
       new Set([both.key, onlyCodex.key])
     )
     db.close()
   })
 
-  it('改归属不重置启用与信任，工具策略只覆盖该 Agent 的 Server', () => {
+  it('改归属不重置启用与信任，工具策略只覆盖该 Agent 的 Server', async () => {
     const { db, service } = setup()
     const created = service.add({
       name: 'Flaky',
@@ -295,7 +295,7 @@ describe('McpServerService', () => {
     ])
     new CapabilityRepository(db).setToolApproval(created.id, 'echo', 'allow')
     expect(service.claudeToolPolicy().allowed).toEqual([])
-    expect(service.codexRuntime().servers[0].allowedTools).toEqual(['echo'])
+    expect((await service.codexRuntime()).servers[0].allowedTools).toEqual(['echo'])
     db.close()
   })
 
@@ -324,6 +324,143 @@ describe('McpServerService', () => {
     const { db, service } = setup()
     expect(() => service.add({ name: 'Bad', transport: 'http', url: 'file:///x' })).toThrow()
     expect(() => service.add({ name: 'Bad', transport: 'stdio', command: '' })).toThrow()
+    db.close()
+  })
+})
+
+describe('McpServerService OAuth', () => {
+  const RESOURCE = 'https://example.com/mcp'
+
+  const json = (body: unknown, status = 200): Response =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { 'content-type': 'application/json' }
+    })
+
+  function oauthSetup(refresh?: () => Response) {
+    const dir = mkdtempSync(join(tmpdir(), 'wsfo-mcp-oauth-'))
+    dirs.push(dir)
+    const db = openDatabase(join(dir, 'workstation.db'))
+    migrate(db)
+    let now = Date.now()
+    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url === RESOURCE) {
+        return new Response('{}', {
+          status: 401,
+          headers: {
+            'www-authenticate':
+              'Bearer resource_metadata="https://example.com/.well-known/oauth-protected-resource"'
+          }
+        })
+      }
+      if (url.endsWith('/.well-known/oauth-protected-resource')) {
+        return json({
+          resource: RESOURCE,
+          authorization_servers: ['https://auth.example.com'],
+          scopes_supported: ['read']
+        })
+      }
+      if (url.endsWith('/.well-known/oauth-authorization-server')) {
+        return json({
+          issuer: 'https://auth.example.com',
+          authorization_endpoint: 'https://auth.example.com/authorize',
+          token_endpoint: 'https://auth.example.com/token',
+          registration_endpoint: 'https://auth.example.com/register',
+          code_challenge_methods_supported: ['S256'],
+          scopes_supported: ['read']
+        })
+      }
+      if (url === 'https://auth.example.com/register') {
+        return json({ client_id: 'client-1', token_endpoint_auth_method: 'none' }, 201)
+      }
+      if (url === 'https://auth.example.com/token') {
+        const form = new URLSearchParams(String(init?.body ?? ''))
+        if (form.get('grant_type') === 'refresh_token') {
+          return refresh ? refresh() : json({ access_token: 'access-2', expires_in: 3600 })
+        }
+        return json({
+          access_token: 'access-1',
+          refresh_token: 'refresh-1',
+          expires_in: 3600,
+          scope: 'read'
+        })
+      }
+      throw new Error(`unexpected fetch ${url}`)
+    })
+    const service = new McpServerService(new CapabilityRepository(db), '0.0.0', {
+      fetch: fetchImpl as never,
+      openExternal: async (url) => {
+        const authorize = new URL(url)
+        const state = authorize.searchParams.get('state') ?? ''
+        const redirect = authorize.searchParams.get('redirect_uri') ?? ''
+        await fetch(`${redirect}?code=code-1&state=${encodeURIComponent(state)}`)
+      },
+      now: () => now,
+      ports: [0]
+    })
+    const server = service.add({
+      name: 'Notion',
+      transport: 'http',
+      url: RESOURCE,
+      auth: 'oauth'
+    })
+    service.setEnabled(server.id, true, true)
+    return {
+      db,
+      service,
+      server,
+      advance: (ms: number) => {
+        now += ms
+      }
+    }
+  }
+
+  it('登录后运行时注入 Bearer，列表不泄露 Token', async () => {
+    const { db, service, server } = oauthSetup()
+    const result = await service.login(server.id)
+    expect(result.ok).toBe(true)
+    const saved = service.list().find((item) => item.id === server.id)
+    expect(saved?.auth).toBe('oauth')
+    expect(saved?.oauth?.state).toBe('connected')
+    expect(saved?.oauth?.issuer).toBe('https://auth.example.com')
+    expect(JSON.stringify(service.list())).not.toContain('access-1')
+
+    expect((await service.runtimeServers())[0]).toMatchObject({
+      type: 'http',
+      url: RESOURCE,
+      headers: { Authorization: 'Bearer access-1' }
+    })
+    db.close()
+  })
+
+  it('Token 过期时自动刷新', async () => {
+    const { db, service, server, advance } = oauthSetup()
+    await service.login(server.id)
+    advance(3_600_000)
+    expect((await service.runtimeServers())[0]).toMatchObject({
+      headers: { Authorization: 'Bearer access-2' }
+    })
+    db.close()
+  })
+
+  it('刷新失败时跳过该 Server 并标记错误', async () => {
+    const { db, service, server, advance } = oauthSetup(() => json({ error: 'invalid_grant' }, 400))
+    await service.login(server.id)
+    advance(3_600_000)
+    expect(await service.runtimeServers()).toHaveLength(0)
+    const saved = service.list().find((item) => item.id === server.id)
+    expect(saved?.oauth?.state).toBe('error')
+    expect(saved?.oauth?.lastError).toContain('重新登录')
+    db.close()
+  })
+
+  it('退出登录清空 OAuth 记录', async () => {
+    const { db, service, server } = oauthSetup()
+    await service.login(server.id)
+    service.logout(server.id)
+    expect(service.list().find((item) => item.id === server.id)?.oauth).toBeNull()
+    expect(await service.runtimeServers()).toHaveLength(0)
     db.close()
   })
 })

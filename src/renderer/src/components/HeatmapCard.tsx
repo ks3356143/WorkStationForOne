@@ -39,7 +39,11 @@ export function HeatmapCard() {
           aria-label={`近 ${WEEKS} 周完成 ${heatmap.total} 项任务，${heatmap.activeDays} 天有记录，最多一天 ${heatmap.max} 项`}
         >
           {heatmap.weeks.map((week, weekIndex) => (
-            <div className="w1-heatcol" key={week.days[0]?.key ?? `week-${weekIndex}`}>
+            <div
+              className="w1-heatcol"
+              key={week.days[0]?.key ?? `week-${weekIndex}`}
+              style={{ animationDelay: `${weekIndex * 12}ms` }}
+            >
               {week.days.map((day, dayIndex) =>
                 day ? (
                   <i

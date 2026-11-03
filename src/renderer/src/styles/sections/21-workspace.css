@@ -23,6 +23,22 @@
   cursor: default;
 }
 
+.w1-adelete {
+  border-color: rgb(var(--dg-rgb) / 0.26);
+  color: var(--dg-fg);
+}
+
+.w1-adelete:hover:not(:disabled) {
+  border-color: rgb(var(--dg-rgb) / 0.55);
+  color: var(--dg-fg);
+}
+
+.w1-adelete.armed {
+  border-color: rgb(var(--dg-rgb) / 0.62);
+  background: rgb(var(--dg-rgb) / 0.14);
+  color: var(--dg-fg);
+}
+
 .w1-wssheet {
   position: relative;
   width: min(900px, calc(100vw - 80px));

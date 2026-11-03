@@ -18,6 +18,7 @@ export type PaletteAction =
   | { kind: 'backup' }
   | { kind: 'settings' }
   | { kind: 'fleet' }
+  | { kind: 'reminders' }
   | { kind: 'send'; text: string }
 
 export interface PaletteCommand {
@@ -102,6 +103,14 @@ export function buildPaletteCommands(input: PaletteInput): PaletteCommand[] {
       hint: '全部会话 · 审批 · 停止',
       value: '舰队 控制台 会话 审批 运行 停止 fleet console',
       action: { kind: 'fleet' }
+    },
+    {
+      id: 'action:reminders',
+      group: '操作',
+      label: '打开提醒中心',
+      hint: '今天 · 已错过 / 稍后',
+      value: '提醒 中心 通知 错过 稍后 reminder reminders notifications',
+      action: { kind: 'reminders' }
     },
     {
       id: 'view:notes',

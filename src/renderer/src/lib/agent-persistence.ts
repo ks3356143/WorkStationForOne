@@ -23,7 +23,9 @@ function toSession(record: AgentSessionRecord, messageCount: number, now: number
     meta: agentSessionMeta(record.updatedAt, messageCount, now),
     threadDate: agentSessionDate(record.updatedAt, now),
     ...(record.workspace ? { workspace: record.workspace } : {}),
-    ...(record.resumeId ? { resumeId: record.resumeId } : {})
+    ...(record.resumeId ? { resumeId: record.resumeId } : {}),
+    ...(record.pinned ? { pinned: true } : {}),
+    ...(record.archived ? { archived: true } : {})
   }
 }
 
@@ -60,7 +62,9 @@ export async function hydrateAgent(deps = bridgeAgent()): Promise<void> {
     )
     const stored = browserStorage()?.getItem(ACTIVE_AGENT_KEY)
     const activeSessionId =
-      sessions.find((session) => session.id === stored)?.id ?? sessions[0]?.id ?? ''
+      sessions.find((session) => session.id === stored && !session.archived)?.id ??
+      sessions.find((session) => !session.archived)?.id ??
+      ''
 
     useWorkstation.setState({
       sessions,

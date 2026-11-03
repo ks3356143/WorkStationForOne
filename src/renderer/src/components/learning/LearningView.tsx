@@ -35,6 +35,7 @@ interface LearningItemRowProps {
   today: string
   subjects: string[]
   expanded: boolean
+  jump?: boolean
   onExpand: () => void
   onSave: (patch: LearningPatch) => void
   onCollapse: () => void
@@ -45,6 +46,7 @@ function LearningItemRow({
   today,
   subjects,
   expanded,
+  jump = false,
   onExpand,
   onSave,
   onCollapse
@@ -69,7 +71,10 @@ function LearningItemRow({
   }
 
   return (
-    <div className={`w1-litem${item.active ? '' : ' off'}${expanded ? ' open' : ''}`}>
+    <div
+      id={`learn-item-${item.id}`}
+      className={`w1-litem${item.active ? '' : ' off'}${expanded ? ' open' : ''}${jump ? ' jump' : ''}`}
+    >
       <div className="w1-litemrow">
         <span className={`w1-ldot${due ? ' due' : ''}`} aria-hidden="true" />
         <button
@@ -381,6 +386,10 @@ export function LearningLibrary({ onStartReview }: LearningLibraryProps) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [jumpId, setJumpId] = useState<string | null>(null)
+  const jumpBusy = useRef(false)
+  const learningJumpId = useWorkstation((state) => state.learningJumpId)
+  const clearLearningJump = useWorkstation((state) => state.clearLearningJump)
   const [creating, setCreating] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [statsOpen, setStatsOpen] = useState(false)
@@ -405,8 +414,30 @@ export function LearningLibrary({ onStartReview }: LearningLibraryProps) {
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scope/query 变化时收起展开项
   useEffect(() => {
+    if (jumpBusy.current) return
     setExpandedId(null)
   }, [scope, query])
+
+  // 全局搜索命中学习卡：清空筛选、展开卡片、滚到视野并高亮 1.8 秒
+  useEffect(() => {
+    if (!learningJumpId) return
+    jumpBusy.current = true
+    setQuery('')
+    setExpandedId(learningJumpId)
+    setJumpId(learningJumpId)
+    clearLearningJump()
+    const frame = requestAnimationFrame(() => {
+      document.getElementById(`learn-item-${learningJumpId}`)?.scrollIntoView({ block: 'center' })
+    })
+    const timer = window.setTimeout(() => {
+      jumpBusy.current = false
+      setJumpId(null)
+    }, 1800)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.clearTimeout(timer)
+    }
+  }, [learningJumpId, clearLearningJump])
 
   useEffect(() => {
     if (!notice) return
@@ -708,6 +739,7 @@ export function LearningLibrary({ onStartReview }: LearningLibraryProps) {
                 today={today}
                 subjects={subjectOptions}
                 expanded={expandedId === item.id}
+                jump={jumpId === item.id}
                 onExpand={() => setExpandedId((current) => (current === item.id ? null : item.id))}
                 onSave={(patch) => {
                   updateItem(item.id, patch)

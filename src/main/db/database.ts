@@ -591,6 +591,49 @@ export const MIGRATIONS: Migration[] = [
 
       DROP TABLE agent_plugins_v29;
     `
+  },
+  {
+    // 远程 MCP 的 OAuth：认证方式与授权状态分表存，Token 仍是 safeStorage 加密 BLOB。
+    // 旧 Server 一律 headers，行为不变；OAuth 记录随 Server 删除。
+    version: 31,
+    sql: `
+      ALTER TABLE mcp_servers ADD COLUMN auth TEXT NOT NULL DEFAULT 'headers'
+        CHECK (auth IN ('headers', 'oauth'));
+
+      CREATE TABLE mcp_oauth (
+        server_id TEXT PRIMARY KEY REFERENCES mcp_servers(id) ON DELETE CASCADE,
+        issuer TEXT NOT NULL DEFAULT '',
+        resource TEXT NOT NULL DEFAULT '',
+        client_id TEXT NOT NULL DEFAULT '',
+        client_secret_encrypted BLOB,
+        authorization_endpoint TEXT NOT NULL DEFAULT '',
+        token_endpoint TEXT NOT NULL DEFAULT '',
+        registration_endpoint TEXT NOT NULL DEFAULT '',
+        scopes TEXT NOT NULL DEFAULT '',
+        token_endpoint_auth_method TEXT NOT NULL DEFAULT 'none',
+        access_token_encrypted BLOB,
+        refresh_token_encrypted BLOB,
+        expires_at INTEGER,
+        last_error TEXT NOT NULL DEFAULT '',
+        updated_at INTEGER NOT NULL
+      );
+    `
+  },
+  {
+    // 会话置顶只影响列表排序，不改变状态、消息或运行。
+    version: 32,
+    sql: `
+      ALTER TABLE agent_sessions ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0
+        CHECK (pinned IN (0, 1));
+    `
+  },
+  {
+    // 归档只影响列表可见性；消息、运行历史与工作区都不动，可随时取消。
+    version: 33,
+    sql: `
+      ALTER TABLE agent_sessions ADD COLUMN archived INTEGER NOT NULL DEFAULT 0
+        CHECK (archived IN (0, 1));
+    `
   }
 ]
 

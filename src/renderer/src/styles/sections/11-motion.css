@@ -240,3 +240,129 @@
     animation: none !important;
   }
 }
+
+/* 会话搜索跳转：命中消息闪一下，不改变布局 */
+.w1-amsg.w1-msg-jump,
+.w1-umsg.w1-msg-jump {
+  animation: w1-msg-jump 1.8s var(--ease-out);
+}
+
+@keyframes w1-msg-jump {
+  0% {
+    background-color: rgb(var(--ac2-rgb) / 0.22);
+    box-shadow: inset 2px 0 var(--ac2);
+  }
+  70% {
+    background-color: rgb(var(--ac2-rgb) / 0.06);
+    box-shadow: inset 2px 0 rgb(var(--ac2-rgb) / 0.4);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: inset 2px 0 transparent;
+  }
+}
+
+/* 热力图列扫入：26 列一次性错峰，只做透明度和位移 */
+.w1-heatcol {
+  animation: w1-heat-in 360ms var(--ease-out) both;
+}
+
+@keyframes w1-heat-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 空态是低频画面，允许一次稍明显的入场 */
+.w1-todoempty,
+.w1-agentempty,
+.w1-capemptycard,
+.w1-ldone {
+  animation: w1-empty-in 320ms var(--ease-out) both;
+}
+
+@keyframes w1-empty-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 主操作按钮的扫光：只在悬停时跑一次 */
+@media (hover: hover) {
+  .w1-pb.pri,
+  .w1-btn.pri,
+  .w1-todosave,
+  .w1-send {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .w1-pb.pri::after,
+  .w1-btn.pri::after,
+  .w1-todosave::after,
+  .w1-send::after {
+    content: "";
+    position: absolute;
+    inset: -40% -60%;
+    pointer-events: none;
+    background: linear-gradient(
+      105deg,
+      transparent 38%,
+      rgb(var(--glass-hi-rgb) / 0.3) 50%,
+      transparent 62%
+    );
+    transform: translateX(-120%);
+    opacity: 0;
+  }
+
+  .w1-pb.pri:hover::after,
+  .w1-btn.pri:hover::after,
+  .w1-todosave:hover::after,
+  .w1-send:hover:not(:disabled)::after {
+    animation: w1-btn-sheen 520ms var(--ease-out);
+  }
+}
+
+@keyframes w1-btn-sheen {
+  0% {
+    transform: translateX(-120%);
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+}
+
+/* 列表与卡片的轻量入场：只做一次性淡入上移，不阻塞交互 */
+@keyframes w1-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.w1-litemrow,
+.w1-caplist .w1-caprow,
+.w1-capcard,
+.w1-captool,
+.w1-fleetrow {
+  animation: w1-item-in 240ms var(--ease-out) both;
+}

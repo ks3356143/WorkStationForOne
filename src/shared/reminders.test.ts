@@ -32,12 +32,15 @@ describe('dueReminders', () => {
 
   it('已经提醒过的不会重复', () => {
     const tasks = [task({ id: 'now', time: '10:30', dueDate: TODAY })]
-    const fired = new Set([reminderKey('now', TODAY)])
+    const fired = new Set([reminderKey('now', TODAY, '10:30')])
     expect(dueReminders(tasks, TODAY, 630, fired)).toEqual([])
   })
 
-  it('换一天后同一个任务的 key 不同，可以再次提醒', () => {
-    expect(reminderKey('t1', '2026-10-28')).not.toBe(reminderKey('t1', '2026-10-29'))
+  it('换一天或改时间后 key 不同，可以再次提醒', () => {
+    expect(reminderKey('t1', '2026-10-28', '10:30')).not.toBe(
+      reminderKey('t1', '2026-10-29', '10:30')
+    )
+    expect(reminderKey('t1', TODAY, '10:30')).not.toBe(reminderKey('t1', TODAY, '10:40'))
   })
 
   it('错过的时间点不补发', () => {

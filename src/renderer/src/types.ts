@@ -49,6 +49,10 @@ export interface Session {
   workspace?: string
   /** Claude CLI 自己的会话 id；重启后用于 --resume */
   resumeId?: string
+  /** 置顶会话在同 Agent 分组内排在前面 */
+  pinned?: boolean
+  /** 归档会话从会话栏隐藏，可在舰队控制台恢复 */
+  archived?: boolean
 }
 
 export interface AgentStream {
@@ -119,6 +123,14 @@ export interface ReviewTallyData {
   startedAt: number
 }
 
+export interface NoteJump {
+  id: string
+  text: string
+  time: string
+  tag?: string
+  pinned?: boolean
+}
+
 export interface WorkstationData {
   activeView: View
   tasks: Task[]
@@ -138,6 +150,12 @@ export interface WorkstationData {
   learningReviewTally: ReviewTallyData
   taskFilter: TaskFilter
   taskScope: TaskScope
+  /** 全局搜索/提醒中心要求打开的任务详情；消费后清空 */
+  taskJumpId: string | null
+  /** 全局搜索命中笔记时要直接打开的详情 */
+  noteJump: NoteJump | null
+  /** 全局搜索命中学习卡时要定位并高亮的卡片 */
+  learningJumpId: string | null
   taskComposerRequest: number
   lastAddedTaskId: string | null
   lastRemovedTask: { task: Task; index: number } | null
@@ -147,6 +165,8 @@ export interface WorkstationData {
   noteRevision: number
   sessions: Session[]
   activeSessionId: string
+  /** 会话搜索点进去后要定位的消息；滚动完成后清空 */
+  agentJumpMessageId: string | null
   threads: Record<string, ChatMessage[]>
   /** 每个会话各自的流；同一会话串行，不同会话可并行 */
   streams: Record<string, AgentStream>

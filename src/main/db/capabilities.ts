@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import type {
+  ExternalMcpAuthMode,
   ExternalMcpServerRecord,
   ExternalMcpTargets,
   ExternalMcpToolRecord,
@@ -10,16 +11,21 @@ import type {
   PluginSourceRecord
 } from '../../shared/ipc'
 import {
+  MCP_OAUTH_COLUMNS,
   MCP_SERVER_COLUMNS,
   PLUGIN_COLUMNS,
   SOURCE_COLUMNS,
+  toOAuth,
+  toOAuthInfo,
   toPlugin,
   toServer,
   toSource,
+  type McpOAuthRow,
   type McpServerRow,
   type PluginRow,
   type PluginSourceRow,
   type SecretRow,
+  type StoredOAuth,
   type StoredPlugin,
   type ToolRow
 } from './capabilities-rows'
@@ -60,6 +66,7 @@ export interface PluginSourceInput {
 
 export interface McpServerInput {
   id: string
+  auth?: ExternalMcpAuthMode
   key: string
   name: string
   description: string
@@ -241,6 +248,8 @@ export class CapabilityRepository {
     server.envKeys = keys.env
     server.headerKeys = keys.headers
     server.tools = this.toolsFor(server.id)
+    const oauth = this.oauthFor(server.id)
+    server.oauth = oauth ? toOAuthInfo(oauth, Date.now()) : null
     return server
   }
 
@@ -341,8 +350,8 @@ export class CapabilityRepository {
       .prepare(
         `INSERT INTO mcp_servers
           (id, key, name, description, transport, command, args_json, url, source,
-           catalog_id, version, enabled, trusted, targets, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           catalog_id, version, enabled, trusted, targets, auth, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         input.id,
@@ -359,6 +368,7 @@ export class CapabilityRepository {
         input.enabled ? 1 : 0,
         input.trusted ? 1 : 0,
         input.targets ?? 'both',
+        input.auth ?? 'headers',
         now,
         now
       )
@@ -376,7 +386,7 @@ export class CapabilityRepository {
         `UPDATE mcp_servers SET
            name = ?, description = ?, transport = ?, command = ?, args_json = ?, url = ?,
            source = ?, catalog_id = ?, version = ?, enabled = ?, trusted = ?, targets = ?,
-           tools_json = '[]', last_test_at = NULL, last_error = '', updated_at = ?
+           auth = ?, tools_json = '[]', last_test_at = NULL, last_error = '', updated_at = ?
          WHERE id = ?`
       )
       .run(
@@ -392,6 +402,7 @@ export class CapabilityRepository {
         input.enabled ? 1 : 0,
         input.trusted ? 1 : 0,
         input.targets ?? 'both',
+        input.auth ?? 'headers',
         Date.now(),
         id
       )
@@ -426,6 +437,89 @@ export class CapabilityRepository {
       )
       .run(JSON.stringify(tools), Date.now(), error.slice(0, 300), id)
     return this.findMcpServer(id)
+  }
+
+  oauthFor(serverId: string): StoredOAuth | undefined {
+    const row = this.db
+      .prepare(`SELECT ${MCP_OAUTH_COLUMNS} FROM mcp_oauth WHERE server_id = ?`)
+      .get(serverId) as unknown as McpOAuthRow | undefined
+    return row ? toOAuth(row) : undefined
+  }
+
+  /** 新注册会清掉旧 Token：客户端身份变了，旧凭据不再可信。 */
+  saveOAuthRegistration(
+    serverId: string,
+    input: {
+      issuer: string
+      resource: string
+      clientId: string
+      clientSecret: Buffer | null
+      authorizationEndpoint: string
+      tokenEndpoint: string
+      registrationEndpoint: string
+      scopes: string
+      authMethod: string
+    }
+  ): void {
+    this.db
+      .prepare(
+        `INSERT INTO mcp_oauth
+          (server_id, issuer, resource, client_id, client_secret_encrypted,
+           authorization_endpoint, token_endpoint, registration_endpoint, scopes,
+           token_endpoint_auth_method, access_token_encrypted, refresh_token_encrypted,
+           expires_at, last_error, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, '', ?)
+         ON CONFLICT(server_id) DO UPDATE SET
+           issuer = excluded.issuer,
+           resource = excluded.resource,
+           client_id = excluded.client_id,
+           client_secret_encrypted = excluded.client_secret_encrypted,
+           authorization_endpoint = excluded.authorization_endpoint,
+           token_endpoint = excluded.token_endpoint,
+           registration_endpoint = excluded.registration_endpoint,
+           scopes = excluded.scopes,
+           token_endpoint_auth_method = excluded.token_endpoint_auth_method,
+           access_token_encrypted = NULL,
+           refresh_token_encrypted = NULL,
+           expires_at = NULL,
+           last_error = '',
+           updated_at = excluded.updated_at`
+      )
+      .run(
+        serverId,
+        input.issuer,
+        input.resource,
+        input.clientId,
+        input.clientSecret,
+        input.authorizationEndpoint,
+        input.tokenEndpoint,
+        input.registrationEndpoint,
+        input.scopes,
+        input.authMethod,
+        Date.now()
+      )
+  }
+
+  saveOAuthTokens(
+    serverId: string,
+    tokens: { accessToken: Buffer; refreshToken: Buffer | null; expiresAt: number | null }
+  ): void {
+    this.db
+      .prepare(
+        `UPDATE mcp_oauth SET access_token_encrypted = ?, refresh_token_encrypted = ?,
+           expires_at = ?, last_error = '', updated_at = ? WHERE server_id = ?`
+      )
+      .run(tokens.accessToken, tokens.refreshToken, tokens.expiresAt, Date.now(), serverId)
+  }
+
+  setOAuthError(serverId: string, message: string): void {
+    this.db
+      .prepare('UPDATE mcp_oauth SET last_error = ?, updated_at = ? WHERE server_id = ?')
+      .run(message.slice(0, 300), Date.now(), serverId)
+  }
+
+  clearOAuth(serverId: string): void {
+    this.db.prepare('DELETE FROM mcp_oauth WHERE server_id = ?').run(serverId)
   }
 
   secretKeys(serverId: string): { env: string[]; headers: string[] } {

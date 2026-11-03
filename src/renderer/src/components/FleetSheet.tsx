@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { m } from 'motion/react'
 import type { AgentPresetRecord, AgentRunRecord, DiscoveredAgentSession } from '../../../shared/ipc'
-import { AGENT_META, workspaceName } from '../lib/agent'
+import { AGENT_META, sortPinnedFirst, workspaceName } from '../lib/agent'
 import { summarizeFleet } from '../lib/fleet'
 import { DURATION, EASE_OUT } from '../lib/motion'
 import { formatCost, formatDuration, summarizeUsage, usageByDay } from '../lib/usage'
@@ -14,13 +14,14 @@ interface FleetSheetProps {
   notify: (text: string) => void
 }
 
-type FleetFilter = 'all' | 'run' | 'wait' | 'idle'
+type FleetFilter = 'all' | 'run' | 'wait' | 'idle' | 'archived'
 
 const FILTERS: { id: FleetFilter; label: string }[] = [
   { id: 'all', label: '全部' },
   { id: 'run', label: '运行中' },
   { id: 'wait', label: '待审批' },
-  { id: 'idle', label: '空闲' }
+  { id: 'idle', label: '空闲' },
+  { id: 'archived', label: '已归档' }
 ]
 
 const STATUS_LABEL = {
@@ -50,6 +51,7 @@ export function FleetSheet({ onClose, notify }: FleetSheetProps) {
   const mcpPermissions = useWorkstation((state) => state.mcpPermissions)
   const permission = useWorkstation((state) => state.permission)
   const openAgentSession = useWorkstation((state) => state.openAgentSession)
+  const toggleAgentSessionArchive = useWorkstation((state) => state.toggleAgentSessionArchive)
   const createAgentSession = useWorkstation((state) => state.createAgentSession)
   const setAgentWorkspace = useWorkstation((state) => state.setAgentWorkspace)
   const importAgentSession = useWorkstation((state) => state.importAgentSession)
@@ -67,7 +69,8 @@ export function FleetSheet({ onClose, notify }: FleetSheetProps) {
   const [discoverBusy, setDiscoverBusy] = useState(false)
   const [discoverError, setDiscoverError] = useState<string | null>(null)
   const [importingId, setImportingId] = useState<string | null>(null)
-  const summary = useMemo(() => summarizeFleet(sessions), [sessions])
+  const activeSessions = useMemo(() => sessions.filter((session) => !session.archived), [sessions])
+  const summary = useMemo(() => summarizeFleet(activeSessions), [activeSessions])
   const usageSummary = useMemo(() => summarizeUsage(usage ?? []), [usage])
   const usageDays = useMemo(() => usageByDay(usage ?? [], 7), [usage])
   const usageMax = Math.max(1, ...usageDays.map((day) => day.runs))
@@ -105,12 +108,17 @@ export function FleetSheet({ onClose, notify }: FleetSheetProps) {
     (mcpPermissions[session.id] ? 1 : 0) +
     (permission?.sessionId === session.id ? 1 : 0)
 
-  const filtered = sessions.filter((session) => filter === 'all' || session.status === filter)
+  const ordered = sortPinnedFirst(activeSessions)
+  const filtered =
+    filter === 'archived'
+      ? sortPinnedFirst(sessions.filter((session) => session.archived))
+      : ordered.filter((session) => filter === 'all' || session.status === filter)
   const counts: Record<FleetFilter, number> = {
-    all: sessions.length,
-    run: sessions.filter((session) => session.status === 'run').length,
-    wait: sessions.filter((session) => session.status === 'wait').length,
-    idle: sessions.filter((session) => session.status === 'idle').length
+    all: activeSessions.length,
+    run: activeSessions.filter((session) => session.status === 'run').length,
+    wait: activeSessions.filter((session) => session.status === 'wait').length,
+    idle: activeSessions.filter((session) => session.status === 'idle').length,
+    archived: sessions.length - activeSessions.length
   }
 
   const open = (session: Session) => {
@@ -468,7 +476,7 @@ export function FleetSheet({ onClose, notify }: FleetSheetProps) {
           ) : filtered.length === 0 ? (
             <div className="w1-fleetempty">
               <b>当前筛选没有会话。</b>
-              <p>切回「全部」查看 {sessions.length} 个会话。</p>
+              <p>切回「全部」查看 {activeSessions.length} 个会话。</p>
             </div>
           ) : (
             AGENT_GROUPS.map((group) => {
@@ -510,6 +518,8 @@ export function FleetSheet({ onClose, notify }: FleetSheetProps) {
                           <button
                             className="w1-fleetmain"
                             type="button"
+                            disabled={session.archived}
+                            title={session.archived ? '已归档，取消归档后可打开' : undefined}
                             onClick={() => open(session)}
                           >
                             <span className="w1-fleettitle">
@@ -525,23 +535,57 @@ export function FleetSheet({ onClose, notify }: FleetSheetProps) {
                             <span className="w1-fleetpending">{pending} 项待审批</span>
                           ) : null}
                           <span className="w1-fleetactions">
-                            <button
-                              type="button"
-                              className="w1-fleetopen"
-                              onClick={() => open(session)}
-                            >
-                              打开
-                            </button>
-                            {runId || session.status === 'run' ? (
+                            {session.archived ? (
                               <button
                                 type="button"
-                                className="w1-fleetstop"
-                                disabled={!runId || stopping === session.id}
-                                onClick={() => stop(session)}
+                                className="w1-fleetopen"
+                                onClick={() => toggleAgentSessionArchive(session.id)}
                               >
-                                {stopping === session.id ? '停止中…' : '停止'}
+                                取消归档
                               </button>
-                            ) : null}
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  className="w1-fleetopen"
+                                  onClick={() => open(session)}
+                                >
+                                  打开
+                                </button>
+                                <button
+                                  type="button"
+                                  className="w1-fleetarchive"
+                                  disabled={
+                                    Boolean(runId) ||
+                                    session.status === 'run' ||
+                                    queued ||
+                                    pending > 0
+                                  }
+                                  title={
+                                    runId || session.status === 'run'
+                                      ? '会话运行中，先停止再归档'
+                                      : queued
+                                        ? '有排队消息，先处理再归档'
+                                        : pending > 0
+                                          ? '有待审批项，先处理再归档'
+                                          : '归档后从会话栏隐藏，可在舰队控制台恢复'
+                                  }
+                                  onClick={() => toggleAgentSessionArchive(session.id)}
+                                >
+                                  归档
+                                </button>
+                                {runId || session.status === 'run' ? (
+                                  <button
+                                    type="button"
+                                    className="w1-fleetstop"
+                                    disabled={!runId || stopping === session.id}
+                                    onClick={() => stop(session)}
+                                  >
+                                    {stopping === session.id ? '停止中…' : '停止'}
+                                  </button>
+                                ) : null}
+                              </>
+                            )}
                           </span>
                         </div>
                       )

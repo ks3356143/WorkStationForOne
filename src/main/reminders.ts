@@ -55,7 +55,7 @@ export function startReminderLoop(
       return
     }
     for (const task of hits) {
-      fired.add(reminderKey(task.id, today))
+      fired.add(reminderKey(task.id, today, task.time))
       const body = reminderBody(task)
       try {
         deliver(task.title, body)

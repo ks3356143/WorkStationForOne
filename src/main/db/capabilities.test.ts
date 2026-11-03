@@ -96,6 +96,55 @@ describe('外部 MCP 的 Agent 归属（DB v28）', () => {
     expect(new CapabilityRepository(db).findMcpServer('old')?.targets).toBe('both')
     db.close()
   })
+
+  it('v31 旧库 Server 默认 headers，OAuth 记录随 Server 删除', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wsfo-cap-v31-'))
+    dirs.push(dir)
+    const db = openDatabase(join(dir, 'workstation.db'))
+    migrate(
+      db,
+      MIGRATIONS.filter((migration) => migration.version <= 30)
+    )
+    db.prepare(
+      `INSERT INTO mcp_servers
+        (id, key, name, description, transport, command, args_json, url, source,
+         catalog_id, version, enabled, trusted, created_at, updated_at)
+       VALUES ('old', 'remote', 'Remote', '', 'http', '', '[]', 'https://example.com/mcp',
+         'manual', '', '', 1, 1, 1, 1)`
+    ).run()
+    migrate(db)
+    const repo = new CapabilityRepository(db)
+    expect(repo.findMcpServer('old')?.auth).toBe('headers')
+    expect(repo.findMcpServer('old')?.oauth).toBeNull()
+
+    repo.saveOAuthRegistration('old', {
+      issuer: 'https://auth.example.com',
+      resource: 'https://example.com/mcp',
+      clientId: 'client-1',
+      clientSecret: Buffer.from('secret'),
+      authorizationEndpoint: 'https://auth.example.com/authorize',
+      tokenEndpoint: 'https://auth.example.com/token',
+      registrationEndpoint: 'https://auth.example.com/register',
+      scopes: 'mcp.read',
+      authMethod: 'none'
+    })
+    expect(repo.findMcpServer('old')?.oauth).toBeNull()
+    repo.saveOAuthTokens('old', {
+      accessToken: Buffer.from('encrypted-access'),
+      refreshToken: Buffer.from('encrypted-refresh'),
+      expiresAt: Date.now() + 60_000
+    })
+    expect(repo.findMcpServer('old')?.oauth).toMatchObject({
+      state: 'connected',
+      issuer: 'https://auth.example.com'
+    })
+    expect(JSON.stringify(repo.findMcpServer('old')?.oauth)).not.toContain('encrypted')
+
+    repo.removeMcpServer('old')
+    const row = db.prepare('SELECT COUNT(*) AS n FROM mcp_oauth').get() as { n: number }
+    expect(row.n).toBe(0)
+    db.close()
+  })
 })
 
 describe('能力中心 DB v22 / v23 / v24', () => {

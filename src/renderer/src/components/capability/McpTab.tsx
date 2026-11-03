@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import type {
   EnvironmentCheckRecord,
+  ExternalMcpAuthMode,
   ExternalMcpCatalogEntry,
   ExternalMcpSaveInput,
   ExternalMcpServerRecord,
@@ -24,6 +25,7 @@ interface McpFormState {
   name: string
   description: string
   transport: 'stdio' | 'http'
+  auth: ExternalMcpAuthMode
   command: string
   args: string
   url: string
@@ -42,6 +44,7 @@ const EMPTY_FORM: McpFormState = {
   name: '',
   description: '',
   transport: 'stdio',
+  auth: 'headers',
   command: '',
   args: '',
   url: '',
@@ -56,6 +59,7 @@ function formFromServer(server: ExternalMcpServerRecord): McpFormState {
     name: server.name,
     description: server.description,
     transport: server.transport,
+    auth: server.auth,
     command: server.command,
     args: server.args.join('\n'),
     url: server.url,
@@ -223,6 +227,34 @@ export function McpTab({ notify }: McpTabProps) {
       .finally(() => setMcpBusy(null))
   }
 
+  const loginMcp = (server: ExternalMcpServerRecord) => {
+    if (!api || mcpBusy) return
+    setMcpBusy(server.id)
+    void api.mcp
+      .login(server.id)
+      .then((result) => {
+        notify(result.message)
+        return api.mcp.list()
+      })
+      .then((list) => setMcp(list))
+      .catch((reason: unknown) => notify(friendlyMessage(reason, 'OAuth 登录失败')))
+      .finally(() => setMcpBusy(null))
+  }
+
+  const logoutMcp = (server: ExternalMcpServerRecord) => {
+    if (!api || mcpBusy) return
+    setMcpBusy(server.id)
+    void api.mcp
+      .logout(server.id)
+      .then(() => api.mcp.list())
+      .then((list) => {
+        setMcp(list)
+        notify(`已退出 ${server.name} 的 OAuth 登录`)
+      })
+      .catch((reason: unknown) => notify(friendlyMessage(reason, '退出 OAuth 登录失败')))
+      .finally(() => setMcpBusy(null))
+  }
+
   const testMcp = (server: ExternalMcpServerRecord) => {
     if (!api || mcpBusy) return
     setMcpBusy(server.id)
@@ -257,6 +289,7 @@ export function McpTab({ notify }: McpTabProps) {
       description: form.description,
       transport: form.transport,
       targets: form.targets,
+      auth: form.transport === 'http' ? form.auth : 'headers',
       ...(form.transport === 'stdio'
         ? {
             command: form.command,
@@ -267,7 +300,9 @@ export function McpTab({ notify }: McpTabProps) {
           }
         : { url: form.url }),
       env: parseKeyValueLines(form.env),
-      headers: parseKeyValueLines(form.headers)
+      ...(form.transport === 'http' && form.auth === 'oauth'
+        ? {}
+        : { headers: parseKeyValueLines(form.headers) })
     }
     setMcpBusy('form')
     const request = form.id ? api.mcp.update(form.id, input) : api.mcp.add(input)
@@ -524,15 +559,36 @@ export function McpTab({ notify }: McpTabProps) {
                 onChange={(event) => setForm({ ...form, env: event.target.value })}
               />
             </label>
-            <label className="wide">
-              <span>请求头（KEY=VALUE，每行一个；留空保留旧值）</span>
-              <textarea
-                value={form.headers}
-                rows={2}
-                aria-label="MCP 请求头"
-                onChange={(event) => setForm({ ...form, headers: event.target.value })}
-              />
-            </label>
+            {form.transport === 'http' ? (
+              <label>
+                <span>认证方式</span>
+                <select
+                  value={form.auth}
+                  aria-label="MCP 认证方式"
+                  onChange={(event) =>
+                    setForm({ ...form, auth: event.target.value as ExternalMcpAuthMode })
+                  }
+                >
+                  <option value="headers">请求头</option>
+                  <option value="oauth">OAuth 登录</option>
+                </select>
+              </label>
+            ) : null}
+            {form.transport === 'stdio' || form.auth === 'headers' ? (
+              <label className="wide">
+                <span>请求头（KEY=VALUE，每行一个；留空保留旧值）</span>
+                <textarea
+                  value={form.headers}
+                  rows={2}
+                  aria-label="MCP 请求头"
+                  onChange={(event) => setForm({ ...form, headers: event.target.value })}
+                />
+              </label>
+            ) : (
+              <p className="w1-capnote wide">
+                保存后在列表里点「登录」，凭据由浏览器授权后加密存本机；请求头不再使用。
+              </p>
+            )}
           </div>
           <div className="w1-capactions">
             <button
@@ -582,6 +638,27 @@ export function McpTab({ notify }: McpTabProps) {
                       <p>{mcpTarget(server) || server.description}</p>
                       <span className="w1-captags">
                         <i>{server.source === 'catalog' ? '内置目录' : '自定义'}</i>
+                        {server.auth === 'oauth' ? (
+                          <i
+                            className={
+                              server.oauth?.state === 'connected'
+                                ? 'oauth-ok'
+                                : server.oauth
+                                  ? 'warn'
+                                  : ''
+                            }
+                            title={server.oauth?.lastError || ''}
+                          >
+                            OAuth ·{' '}
+                            {server.oauth?.state === 'connected'
+                              ? '已连接'
+                              : server.oauth?.state === 'expired'
+                                ? '已过期'
+                                : server.oauth?.state === 'error'
+                                  ? '需重新登录'
+                                  : '未登录'}
+                          </i>
+                        ) : null}
                         {server.targets !== 'both' ? (
                           <i className="w1-captarget">{TARGET_LABELS[server.targets]}</i>
                         ) : null}
@@ -626,6 +703,26 @@ export function McpTab({ notify }: McpTabProps) {
                           onClick={() => toggleTools(server)}
                         >
                           {toolsOpen ? '收起工具' : `工具 ${server.tools.length}`}
+                        </button>
+                      ) : null}
+                      {server.auth === 'oauth' && server.transport === 'http' ? (
+                        <button
+                          type="button"
+                          className="w1-capmini"
+                          disabled={mcpBusy === server.id}
+                          onClick={() => loginMcp(server)}
+                        >
+                          {server.oauth ? '重新登录' : '登录'}
+                        </button>
+                      ) : null}
+                      {server.auth === 'oauth' && server.oauth ? (
+                        <button
+                          type="button"
+                          className="w1-capmini"
+                          disabled={mcpBusy === server.id}
+                          onClick={() => logoutMcp(server)}
+                        >
+                          退出登录
                         </button>
                       ) : null}
                       {server.trusted ? (

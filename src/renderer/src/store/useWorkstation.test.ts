@@ -154,6 +154,100 @@ describe('对话', () => {
     expect(state.threads[created.id]).toEqual([])
   })
 
+  it('重命名会话只改标题，空标题被忽略', () => {
+    const store = useWorkstation.getState()
+    store.renameAgentSession('s-1', '  重构 auth 模块  ')
+    expect(useWorkstation.getState().sessions.find((session) => session.id === 's-1')?.title).toBe(
+      '重构 auth 模块'
+    )
+
+    useWorkstation.getState().renameAgentSession('s-1', '   ')
+    expect(useWorkstation.getState().sessions.find((session) => session.id === 's-1')?.title).toBe(
+      '重构 auth 模块'
+    )
+  })
+
+  it('置顶会话只改标记，取消后恢复', () => {
+    useWorkstation.getState().toggleAgentSessionPin('s-2')
+    expect(useWorkstation.getState().sessions.find((session) => session.id === 's-2')?.pinned).toBe(
+      true
+    )
+
+    useWorkstation.getState().toggleAgentSessionPin('s-2')
+    expect(
+      useWorkstation.getState().sessions.find((session) => session.id === 's-2')?.pinned
+    ).toBeUndefined()
+  })
+
+  it('归档活跃会话后回选未归档会话，取消归档恢复', () => {
+    const store = useWorkstation.getState()
+    store.setActiveSession('s-2')
+    store.toggleAgentSessionArchive('s-2')
+
+    let state = useWorkstation.getState()
+    expect(state.sessions.find((session) => session.id === 's-2')?.archived).toBe(true)
+    expect(state.activeSessionId).toBe('s-1')
+    expect(state.threads['s-2']).toBeDefined()
+
+    store.toggleAgentSessionArchive('s-2')
+    state = useWorkstation.getState()
+    expect(state.sessions.find((session) => session.id === 's-2')?.archived).toBeUndefined()
+    expect(state.activeSessionId).toBe('s-1')
+  })
+
+  it('运行中的会话不允许归档', () => {
+    const store = useWorkstation.getState()
+    store.beginAgentReply('s-1', 'run-1')
+    store.toggleAgentSessionArchive('s-1')
+    expect(
+      useWorkstation.getState().sessions.find((session) => session.id === 's-1')?.archived
+    ).toBeUndefined()
+  })
+
+  it('全局搜索可设置笔记详情与学习卡定位', () => {
+    const store = useWorkstation.getState()
+    store.openNote({ id: 'n1', text: '特征值三条性质', time: '12:20' })
+    let state = useWorkstation.getState()
+    expect(state.activeView).toBe('notes')
+    expect(state.noteJump).toMatchObject({ id: 'n1', text: '特征值三条性质' })
+    store.clearNoteJump()
+    expect(useWorkstation.getState().noteJump).toBeNull()
+
+    const learningId = state.learningItems[0]?.id ?? ''
+    store.openLearningItem(learningId)
+    state = useWorkstation.getState()
+    expect(state.activeView).toBe('learning')
+    expect(state.learningJumpId).toBe(learningId)
+    expect(state.learningScope).toEqual({ kind: 'all' })
+    expect(state.learningReviewOpen).toBe(false)
+    store.clearLearningJump()
+    expect(useWorkstation.getState().learningJumpId).toBeNull()
+  })
+
+  it('删除活跃会话后回选下一个并清掉线程状态', () => {
+    const store = useWorkstation.getState()
+    store.setActiveSession('s-2')
+    store.sendMessage('待删除会话的消息')
+    store.removeAgentSession('s-2')
+
+    const state = useWorkstation.getState()
+    expect(state.sessions.map((session) => session.id)).toEqual(['s-1', 's-x1'])
+    expect(state.threads['s-2']).toBeUndefined()
+    expect(state.pendingPrompts).toEqual([])
+    expect(state.activeSessionId).toBe('s-x1')
+    expect(state.typing).toBe(false)
+  })
+
+  it('删除非活跃会话保留当前选中', () => {
+    useWorkstation.getState().setActiveSession('s-x1')
+    useWorkstation.getState().removeAgentSession('s-1')
+
+    const state = useWorkstation.getState()
+    expect(state.activeSessionId).toBe('s-x1')
+    expect(state.sessions.map((session) => session.id)).toEqual(['s-2', 's-x1'])
+    expect(state.threads['s-1']).toBeUndefined()
+  })
+
   it('导入本机会话会选中它、带出历史并切到 Agent 视图', () => {
     const now = Date.now()
     useWorkstation.getState().importAgentSession({
@@ -266,6 +360,31 @@ describe('对话', () => {
     expect(useWorkstation.getState().pendingPrompts).toEqual([
       { sessionId: 's-1', prompt: '会话一先发' }
     ])
+  })
+
+  it('重试只重新排队原提示，不重复写用户消息', () => {
+    const store = useWorkstation.getState()
+    const before = useWorkstation.getState().threads['s-1']?.length ?? 0
+    store.retryMessage('原提示')
+
+    const state = useWorkstation.getState()
+    expect(state.threads['s-1']?.length ?? 0).toBe(before)
+    expect(state.pendingPrompts).toEqual([{ sessionId: 's-1', prompt: '原提示' }])
+    expect(state.sessions.find((session) => session.id === 's-1')?.status).toBe('run')
+  })
+
+  it('同一会话有在途回合或排队提示时不重复重试', () => {
+    const store = useWorkstation.getState()
+    store.retryMessage('原提示')
+    store.retryMessage('原提示')
+
+    expect(useWorkstation.getState().pendingPrompts).toEqual([
+      { sessionId: 's-1', prompt: '原提示' }
+    ])
+
+    useWorkstation.getState().beginAgentReply('s-1', 'run-1')
+    useWorkstation.getState().retryMessage('再来一次')
+    expect(useWorkstation.getState().pendingPrompts).toHaveLength(1)
   })
 
   it('两个会话的审批卡互不覆盖，清掉一张不影响另一张', () => {

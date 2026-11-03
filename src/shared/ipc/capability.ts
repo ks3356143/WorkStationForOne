@@ -150,8 +150,22 @@ export interface ExternalMcpToolRecord {
   approval: McpToolApproval
 }
 
+export type ExternalMcpAuthMode = 'headers' | 'oauth'
+
+export type ExternalMcpOAuthState = 'connected' | 'expired' | 'error'
+
+export interface ExternalMcpOAuthInfo {
+  state: ExternalMcpOAuthState
+  issuer: string
+  scopes: string
+  expiresAt: number | null
+  lastError: string
+}
+
 export interface ExternalMcpServerRecord {
   id: string
+  auth: ExternalMcpAuthMode
+  oauth: ExternalMcpOAuthInfo | null
   key: string
   name: string
   description: string
@@ -183,6 +197,7 @@ export interface McpImportResult {
 
 export interface ExternalMcpSaveInput {
   name: string
+  auth?: ExternalMcpAuthMode
   description?: string
   transport: ExternalMcpTransport
   command?: string
@@ -228,6 +243,8 @@ export interface ExternalMcpApi {
   remove: (id: string) => Promise<void>
   setEnabled: (id: string, enabled: boolean, trust?: boolean) => Promise<ExternalMcpServerRecord>
   test: (id: string) => Promise<ExternalMcpServerRecord>
+  login: (id: string) => Promise<{ ok: boolean; message: string }>
+  logout: (id: string) => Promise<void>
   setToolPolicy: (
     id: string,
     toolName: string,

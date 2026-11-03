@@ -37,6 +37,8 @@ export function NotesView() {
   const memoryNotes = useWorkstation((state) => state.notes)
   const notesReady = useWorkstation((state) => state.notesReady)
   const noteRevision = useWorkstation((state) => state.noteRevision)
+  const noteJump = useWorkstation((state) => state.noteJump)
+  const clearNoteJump = useWorkstation((state) => state.clearNoteJump)
   const openQuickNote = useWorkstation((state) => state.openQuickNote)
   const updateNote = useWorkstation((state) => state.updateNote)
   const removeNote = useWorkstation((state) => state.removeNote)
@@ -183,6 +185,18 @@ export function NotesView() {
       }
     }
   }, [query, searchRefresh])
+
+  useEffect(() => {
+    if (!noteJump) return
+    setDetail({
+      id: noteJump.id,
+      text: noteJump.text,
+      time: noteJump.time,
+      tag: noteJump.tag,
+      pinned: noteJump.pinned
+    })
+    clearNoteJump()
+  }, [noteJump, clearNoteJump])
 
   const hasMore = mode === 'browse' && rows.length < total
 

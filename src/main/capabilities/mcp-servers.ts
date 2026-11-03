@@ -15,6 +15,15 @@ import { buildCodexMcpRuntime, type CodexMcpRuntime } from './codex-mcp'
 import { probeMcpServer } from './mcp-client'
 import { exportMcpConfig, parseMcpConfig } from './mcp-config'
 import { decryptSecrets } from './mcp-secrets'
+import { describeLoginError, loginOAuth, refreshOAuthToken, type ExistingOAuth } from './oauth/flow'
+import { startLoopbackCallback } from './oauth/loopback'
+import type { OAuthFetch } from './oauth/types'
+import {
+  accessTokenFromStored,
+  encryptSecret,
+  refreshTokenFromStored,
+  registrationFromStored
+} from './oauth/store'
 
 const MAX_NAME = 60
 const MAX_DESCRIPTION = 240
@@ -24,6 +33,14 @@ const MAX_ARGS = 40
 const MAX_SECRET = 4000
 const MAX_SECRETS = 40
 const UPDATE_TIMEOUT = 8_000
+const DEFAULT_OAUTH_PORTS = Array.from({ length: 10 }, (_, index) => 43110 + index)
+
+export interface McpOAuthDeps {
+  fetch: OAuthFetch
+  openExternal: (url: string) => Promise<void>
+  now?: () => number
+  ports?: number[]
+}
 
 export interface McpServerRuntime {
   name: string
@@ -150,9 +167,12 @@ async function latestVersion(entry: ExternalMcpCatalogEntry): Promise<string> {
  * 启动 Claude 时解密成临时配置，从不碰 ~/.claude、~/.codex。
  */
 export class McpServerService {
+  private readonly logins = new Map<string, Promise<{ ok: boolean; message: string }>>()
+
   constructor(
     private readonly repository: CapabilityRepository,
-    private readonly appVersion = '0.0.0'
+    private readonly appVersion = '0.0.0',
+    private readonly oauth?: McpOAuthDeps
   ) {}
 
   catalog(): ExternalMcpCatalogEntry[] {
@@ -198,7 +218,8 @@ export class McpServerService {
       version: catalog ? (input.version ?? catalog.version ?? '') : '',
       enabled: false,
       trusted: false,
-      targets: input.targets ?? 'both'
+      targets: input.targets ?? 'both',
+      auth: transport === 'http' ? (input.auth ?? 'headers') : 'headers'
     })
     this.repository.replaceSecrets(
       id,
@@ -242,8 +263,11 @@ export class McpServerService {
       version: input.version ?? existing.version,
       enabled: endpointChanged ? false : existing.enabled,
       trusted: endpointChanged ? false : existing.trusted,
-      targets: input.targets ?? existing.targets
+      targets: input.targets ?? existing.targets,
+      auth: transport === 'http' ? (input.auth ?? existing.auth) : 'headers'
     })
+    const authChanged = (input.auth ?? existing.auth) !== existing.auth || endpointChanged
+    if (authChanged || transport === 'stdio') this.repository.clearOAuth(id)
     this.repository.replaceSecrets(
       id,
       env,
@@ -270,6 +294,100 @@ export class McpServerService {
     return updated
   }
 
+  async login(id: string): Promise<{ ok: boolean; message: string }> {
+    const server = this.repository.findMcpServer(id)
+    if (!server) throw new Error('MCP Server 不存在')
+    if (server.transport !== 'http') throw new Error('OAuth 只用于 HTTP MCP Server')
+    if (server.auth !== 'oauth') throw new Error('先把认证方式切换为 OAuth 登录')
+    if (!this.oauth) throw new Error('OAuth 登录仅在桌面应用可用')
+    const running = this.logins.get(id)
+    if (running) return running
+    const task = this.runLogin(server).finally(() => this.logins.delete(id))
+    this.logins.set(id, task)
+    return task
+  }
+
+  private async runLogin(
+    server: ExternalMcpServerRecord
+  ): Promise<{ ok: boolean; message: string }> {
+    const deps = this.oauth
+    if (!deps) return { ok: false, message: 'OAuth 登录仅在桌面应用可用' }
+    const stored = this.repository.oauthFor(server.id)
+    const existing: ExistingOAuth | null = stored ? registrationFromStored(stored) : null
+    try {
+      const result = await loginOAuth({
+        resourceUrl: server.url,
+        ports: deps.ports ?? DEFAULT_OAUTH_PORTS,
+        existing,
+        deps: {
+          fetch: deps.fetch,
+          openExternal: deps.openExternal,
+          startCallback: (ports) => startLoopbackCallback(ports),
+          now: deps.now ?? Date.now
+        }
+      })
+      this.repository.saveOAuthRegistration(server.id, {
+        ...result.registration,
+        clientSecret: result.registration.clientSecret
+          ? encryptSecret(result.registration.clientSecret)
+          : null
+      })
+      this.repository.saveOAuthTokens(server.id, {
+        accessToken: encryptSecret(result.tokens.accessToken),
+        refreshToken: result.tokens.refreshToken ? encryptSecret(result.tokens.refreshToken) : null,
+        expiresAt: result.tokens.expiresAt
+      })
+      return { ok: true, message: 'OAuth 登录完成' }
+    } catch (error) {
+      const message = describeLoginError(error)
+      if (stored) this.repository.setOAuthError(server.id, message)
+      return { ok: false, message }
+    }
+  }
+
+  logout(id: string): void {
+    const server = this.repository.findMcpServer(id)
+    if (!server) throw new Error('MCP Server 不存在')
+    this.repository.clearOAuth(id)
+  }
+
+  /** 提前 60 秒刷新；失败时记错误并抛出可读原因。 */
+  private async ensureOAuthToken(serverId: string, force: boolean): Promise<string> {
+    const deps = this.oauth
+    if (!deps) throw new Error('OAuth 登录仅在桌面应用可用')
+    const stored = this.repository.oauthFor(serverId)
+    if (!stored) throw new Error('还没有完成 OAuth 登录')
+    const now = (deps.now ?? Date.now)()
+    const access = accessTokenFromStored(stored)
+    const fresh = stored.expiresAt === null || stored.expiresAt - 60_000 > now
+    if (!force && access && fresh) return access
+
+    const refresh = refreshTokenFromStored(stored)
+    if (!refresh) {
+      this.repository.setOAuthError(serverId, '登录已过期，请重新登录')
+      throw new Error('登录已过期，请重新登录')
+    }
+    try {
+      const tokens = await refreshOAuthToken({
+        registration: registrationFromStored(stored),
+        refreshToken: refresh,
+        deps: { fetch: deps.fetch, now: deps.now ?? Date.now }
+      })
+      this.repository.saveOAuthTokens(serverId, {
+        accessToken: encryptSecret(tokens.accessToken),
+        refreshToken: tokens.refreshToken
+          ? encryptSecret(tokens.refreshToken)
+          : stored.refreshToken,
+        expiresAt: tokens.expiresAt
+      })
+      return tokens.accessToken
+    } catch (error) {
+      const message = describeLoginError(error)
+      this.repository.setOAuthError(serverId, message)
+      throw new Error(message)
+    }
+  }
+
   async test(id: string): Promise<ExternalMcpServerRecord> {
     const server = this.repository.findMcpServer(id)
     if (!server) throw new Error('MCP Server 不存在')
@@ -277,7 +395,11 @@ export class McpServerService {
     try {
       const secrets = this.repository.secretsFor(id)
       const env = decryptSecrets(secrets.env)
-      const headers = decryptSecrets(secrets.headers)
+      const headers = { ...decryptSecrets(secrets.headers) }
+      if (server.auth === 'oauth') {
+        const token = await this.ensureOAuthToken(id, false)
+        headers.Authorization = `Bearer ${token}`
+      }
       const result = await probeMcpServer({
         transport: server.transport,
         ...(server.transport === 'stdio'
@@ -299,6 +421,35 @@ export class McpServerService {
       )
     } catch (error) {
       const message = error instanceof Error ? error.message : '连接测试失败'
+      if (server.auth === 'oauth' && /401|403|凭据被拒绝/.test(message)) {
+        try {
+          const token = await this.ensureOAuthToken(id, true)
+          const secrets = this.repository.secretsFor(id)
+          const env = decryptSecrets(secrets.env)
+          const headers = { ...decryptSecrets(secrets.headers), Authorization: `Bearer ${token}` }
+          const retried = await probeMcpServer({
+            transport: server.transport,
+            ...(server.transport === 'stdio'
+              ? {
+                  command: server.command,
+                  args: server.args,
+                  ...(Object.keys(env).length ? { env } : {})
+                }
+              : { url: server.url, headers }),
+            version: this.appVersion
+          })
+          this.repository.syncTools(id, retried.tools)
+          return (
+            this.repository.setMcpTest(
+              id,
+              retried.tools.map((tool) => tool.name),
+              ''
+            ) ?? server
+          )
+        } catch {
+          // 落到下面的错误分支
+        }
+      }
       // 测试失败保留已知工具与既有审批策略，改配置时才清空
       return this.repository.setMcpTest(id, server.toolNames, message) ?? server
     }
@@ -350,8 +501,10 @@ export class McpServerService {
    * Codex Provider 会话用的外部 Server 配置：密钥只以环境变量名下发，
    * 值与工具策略留给调用方注入子进程 / 审批。
    */
-  codexRuntime(): CodexMcpRuntime {
-    const live = new Map(this.runtimeServers('codex').map((server) => [server.name, server]))
+  async codexRuntime(): Promise<CodexMcpRuntime> {
+    const live = new Map(
+      (await this.runtimeServers('codex')).map((server) => [server.name, server])
+    )
     return buildCodexMcpRuntime(
       this.repository
         .listMcpServers()
@@ -457,29 +610,40 @@ export class McpServerService {
   }
 
   /** 启动 Claude 前取启用的 Server；密钥只在主进程解密，进临时配置。 */
-  runtimeServers(agent?: 'claude' | 'codex'): McpServerRuntime[] {
+  async runtimeServers(agent?: 'claude' | 'codex'): Promise<McpServerRuntime[]> {
     const servers = this.repository
       .listMcpServers()
       .filter((server) => server.enabled && server.trusted)
       .filter((server) => !agent || targetsAgent(server.targets, agent))
-    return servers.map((server) => {
+    const result: McpServerRuntime[] = []
+    for (const server of servers) {
       if (server.transport === 'stdio') {
         const env = decryptSecrets(this.repository.secretsFor(server.id).env)
-        return {
+        result.push({
           name: server.key,
           type: 'stdio' as const,
           command: server.command,
           args: [...server.args],
           ...(Object.keys(env).length > 0 ? { env } : {})
+        })
+        continue
+      }
+      const headers = { ...decryptSecrets(this.repository.secretsFor(server.id).headers) }
+      if (server.auth === 'oauth') {
+        try {
+          headers.Authorization = `Bearer ${await this.ensureOAuthToken(server.id, false)}`
+        } catch {
+          // 刷新失败：跳过这个 Server，不让一轮会话整体起不来
+          continue
         }
       }
-      const headers = decryptSecrets(this.repository.secretsFor(server.id).headers)
-      return {
+      result.push({
         name: server.key,
         type: 'http' as const,
         url: server.url,
         ...(Object.keys(headers).length > 0 ? { headers } : {})
-      }
-    })
+      })
+    }
+    return result
   }
 }

@@ -1,8 +1,9 @@
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { backupDirFor, backupFileName, listBackups, pruneBackups } from './backup'
+import { backupDirFor, backupFileName, createBackup, listBackups, pruneBackups } from './backup'
+import { migrate, openDatabase } from './database'
 
 const dirs: string[] = []
 function tempDir(): string {
@@ -27,6 +28,25 @@ describe('backupDirFor', () => {
   it('Windows 路径也能正确取目录', () => {
     expect(backupDirFor(String.raw`C:\data\workstation.db`)).toBe(String.raw`C:\data\backups`)
     // 应用只跑 Windows，路径语义按 win32；不额外断言 POSIX 行为
+  })
+})
+
+describe('createBackup', () => {
+  it('同一秒内重复备份自动加后缀，不覆盖已有文件', () => {
+    const dir = tempDir()
+    const dbFile = join(dir, 'workstation.db')
+    const db = openDatabase(dbFile)
+    migrate(db)
+    const backupDir = join(dir, 'backups')
+    const now = new Date(2026, 9, 28, 9, 5, 3)
+
+    const first = createBackup(db, backupDir, now)
+    const second = createBackup(db, backupDir, now)
+    expect(first).not.toBe(second)
+    expect(existsSync(first)).toBe(true)
+    expect(existsSync(second)).toBe(true)
+    expect(second.endsWith('-2.db')).toBe(true)
+    db.close()
   })
 })
 

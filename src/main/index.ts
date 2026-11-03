@@ -188,6 +188,10 @@ if (!gotTheLock) {
       appDataDir: database.layout.root,
       audit: database.audit,
       version: app.getVersion(),
+      oauth: {
+        fetch: globalThis.fetch.bind(globalThis),
+        openExternal: (url) => shell.openExternal(url)
+      },
       policy: database.mcp
     })
     // 插件源与更新检查：只操作应用私有目录，用私有 CODEX_HOME / CLAUDE_CONFIG_DIR
@@ -217,6 +221,7 @@ if (!gotTheLock) {
     registerCapabilityHandlers(capabilities, database.audit)
     registerAppHandlers({
       db: database.db,
+      dbFile: database.file,
       dir: database.layout.backupDir,
       dataDir: database.layout.dataDir,
       root: database.layout.root,

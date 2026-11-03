@@ -21,6 +21,7 @@ import {
 } from '../lib/labels'
 import { useWorkstation } from '../store/useWorkstation'
 import { CapabilityPanel } from './capability/CapabilityPanel'
+import { BackupRestore } from './settings/BackupRestore'
 import { ProviderCard } from './settings/ProviderCard'
 
 interface SettingsSheetProps {
@@ -41,6 +42,7 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
   const [storage, setStorage] = useState<StorageInfo | null>(null)
   const [storageBusy, setStorageBusy] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [backupRevision, setBackupRevision] = useState(0)
   const [settingsTab, setSettingsTab] = useState<'basic' | 'capability'>('basic')
   const mcpApi = typeof window === 'undefined' ? undefined : window.ws?.mcp
   const agentApi = typeof window === 'undefined' ? undefined : window.ws?.agent
@@ -188,6 +190,7 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
         notify(
           `已备份 ${(result.bytes / 1024).toFixed(0)} KB · ${result.file.split(/[\\/]/).pop() ?? ''}`
         )
+        setBackupRevision((value) => value + 1)
         return bridge.info().then(setInfo)
       })
       .catch((error: unknown) => {
@@ -257,229 +260,242 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
           </button>
         </div>
 
-        {settingsTab === 'basic' ? (
-          <>
-            <section className="w1-setgroup" aria-label="外观">
-              <h3>外观</h3>
-              <div className="w1-setrow">
-                <span>主题</span>
-                <button type="button" className="w1-setbtn" onClick={toggleTheme}>
-                  {themeLabel(theme)}
-                </button>
-              </div>
-              <div className="w1-setrow">
-                <span>皮肤</span>
-                <button type="button" className="w1-setbtn" onClick={toggleSkin}>
-                  {skinLabel(skin)}
-                </button>
-              </div>
-              <div className="w1-setrow">
-                <span>动效</span>
-                <button
-                  type="button"
-                  className={`w1-setbtn${motionOn ? ' on' : ''}`}
-                  aria-pressed={motionOn}
-                  onClick={toggleMotion}
-                >
-                  {motionOn ? '开启' : '关闭'}
-                </button>
-              </div>
-            </section>
-
-            <ProviderCard notify={notify} />
-
-            <section className="w1-setgroup" aria-label="MCP 数据权限">
-              <h3>MCP 数据权限</h3>
-              <p className="w1-provnote">
-                只读域拒绝写入；询问模式每次弹审批卡；可写域直接允许并写审计。切换会写审计。
-              </p>
-              {policies.length === 0 ? (
-                <p className="w1-provnote">仅在桌面应用可用。</p>
-              ) : (
-                policies.map((policy) => (
-                  <div className="w1-setrow" key={policy.domain}>
-                    <span>{MCP_DOMAIN_LABELS[policy.domain]}</span>
-                    <div
-                      className="w1-modepair"
-                      role="group"
-                      aria-label={`${MCP_DOMAIN_LABELS[policy.domain]} MCP 权限`}
-                    >
-                      <button
-                        type="button"
-                        className={`w1-setbtn${policy.mode === 'read' ? ' on' : ''}`}
-                        aria-pressed={policy.mode === 'read'}
-                        disabled={policyBusy}
-                        onClick={() => changePolicy(policy.domain, 'read')}
-                      >
-                        只读
-                      </button>
-                      <button
-                        type="button"
-                        className={`w1-setbtn${policy.mode === 'ask' ? ' on' : ''}`}
-                        aria-pressed={policy.mode === 'ask'}
-                        disabled={policyBusy}
-                        onClick={() => changePolicy(policy.domain, 'ask')}
-                      >
-                        询问
-                      </button>
-                      <button
-                        type="button"
-                        className={`w1-setbtn${policy.mode === 'write' ? ' on' : ''}`}
-                        aria-pressed={policy.mode === 'write'}
-                        disabled={policyBusy}
-                        onClick={() => changePolicy(policy.domain, 'write')}
-                      >
-                        可写
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </section>
-
-            <section className="w1-setgroup" aria-label="审批规则">
-              <h3>审批规则</h3>
-              <p className="w1-provnote">
-                只对 MCP 工具与本地只读工具生效；对该工作区里同 Agent
-                的所有会话生效。Bash、写入类工具与「本会话允许」不落库，应用退出后失效。
-              </p>
-              {!agentApi ? (
-                <p className="w1-provnote">仅在桌面应用可用。</p>
-              ) : approvalRules.length === 0 ? (
-                <p className="w1-provnote">还没有工作区审批规则。</p>
-              ) : (
-                <div className="w1-setrules">
-                  {approvalRules.map((rule) => (
-                    <div className="w1-setrule" key={rule.id}>
-                      <code className="w1-setruletool" title={rule.toolName}>
-                        {rule.toolName}
-                      </code>
-                      <span className="w1-setruleagent">
-                        {rule.agent === 'claude' ? 'Claude' : 'Codex'}
-                      </span>
-                      <span className="w1-setrulepath" title={rule.workspace}>
-                        {rule.workspace}
-                      </span>
-                      <time>{rule.lastUsedAt ? auditTime(rule.lastUsedAt) : '从未'}</time>
-                      <button
-                        type="button"
-                        className="w1-setbtn"
-                        disabled={ruleBusy}
-                        aria-label={`撤销 ${rule.toolName} 的规则`}
-                        onClick={() => revokeRule(rule.id)}
-                      >
-                        撤销
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section className="w1-setgroup" aria-label="活动记录">
-              <h3>活动记录</h3>
-              <div className="w1-auditfilter" role="group" aria-label="活动记录筛选">
-                {AUDIT_FILTERS.map((filter) => (
-                  <button
-                    key={filter.value}
-                    type="button"
-                    className={`w1-auditfilterbtn${auditDomain === filter.value ? ' on' : ''}`}
-                    aria-pressed={auditDomain === filter.value}
-                    onClick={() => setAuditDomain(filter.value)}
-                  >
-                    {filter.label}
+        <div className="w1-setpane" key={settingsTab}>
+          {settingsTab === 'basic' ? (
+            <>
+              <section className="w1-setgroup" aria-label="外观">
+                <h3>外观</h3>
+                <div className="w1-setrow">
+                  <span>主题</span>
+                  <button type="button" className="w1-setbtn" onClick={toggleTheme}>
+                    {themeLabel(theme)}
                   </button>
-                ))}
-              </div>
-              <div className="w1-auditlist">
-                {auditRows.length === 0 ? (
-                  <p className="w1-provnote">还没有活动记录。</p>
+                </div>
+                <div className="w1-setrow">
+                  <span>皮肤</span>
+                  <button type="button" className="w1-setbtn" onClick={toggleSkin}>
+                    {skinLabel(skin)}
+                  </button>
+                </div>
+                <div className="w1-setrow">
+                  <span>动效</span>
+                  <button
+                    type="button"
+                    className={`w1-setbtn${motionOn ? ' on' : ''}`}
+                    aria-pressed={motionOn}
+                    onClick={toggleMotion}
+                  >
+                    {motionOn ? '开启' : '关闭'}
+                  </button>
+                </div>
+              </section>
+
+              <ProviderCard notify={notify} />
+
+              <section className="w1-setgroup" aria-label="MCP 数据权限">
+                <h3>MCP 数据权限</h3>
+                <p className="w1-provnote">
+                  只读域拒绝写入；询问模式每次弹审批卡；可写域直接允许并写审计。切换会写审计。
+                </p>
+                {policies.length === 0 ? (
+                  <p className="w1-provnote">仅在桌面应用可用。</p>
                 ) : (
-                  auditRows.map((row) => (
-                    <div
-                      className="w1-auditrow"
-                      key={row.id}
-                      title={[row.title, row.detail, row.source].filter(Boolean).join(' · ')}
-                    >
-                      <time>{auditTime(row.at)}</time>
-                      <b>{AUDIT_DOMAIN_LABELS[row.domain] ?? row.domain}</b>
-                      <span>{row.title ?? row.targetId ?? '—'}</span>
-                      <em>{row.action}</em>
+                  policies.map((policy) => (
+                    <div className="w1-setrow" key={policy.domain}>
+                      <span>{MCP_DOMAIN_LABELS[policy.domain]}</span>
+                      <div
+                        className="w1-modepair"
+                        role="group"
+                        aria-label={`${MCP_DOMAIN_LABELS[policy.domain]} MCP 权限`}
+                      >
+                        <button
+                          type="button"
+                          className={`w1-setbtn${policy.mode === 'read' ? ' on' : ''}`}
+                          aria-pressed={policy.mode === 'read'}
+                          disabled={policyBusy}
+                          onClick={() => changePolicy(policy.domain, 'read')}
+                        >
+                          只读
+                        </button>
+                        <button
+                          type="button"
+                          className={`w1-setbtn${policy.mode === 'ask' ? ' on' : ''}`}
+                          aria-pressed={policy.mode === 'ask'}
+                          disabled={policyBusy}
+                          onClick={() => changePolicy(policy.domain, 'ask')}
+                        >
+                          询问
+                        </button>
+                        <button
+                          type="button"
+                          className={`w1-setbtn${policy.mode === 'write' ? ' on' : ''}`}
+                          aria-pressed={policy.mode === 'write'}
+                          disabled={policyBusy}
+                          onClick={() => changePolicy(policy.domain, 'write')}
+                        >
+                          可写
+                        </button>
+                      </div>
                     </div>
                   ))
                 )}
-              </div>
-            </section>
+              </section>
 
-            <section className="w1-setgroup" aria-label="数据">
-              <h3>数据</h3>
-              <div className="w1-setrow">
-                <span>数据库</span>
-                <code className="w1-setpath">{info?.dataDir ?? '读取中…'}</code>
-              </div>
-              <div className="w1-setrow">
-                <span>备份</span>
-                <code className="w1-setpath">
-                  {info ? `${info.backupCount} 份 · ${info.backupDir}` : '读取中…'}
-                </code>
-              </div>
-              <div className="w1-setrow">
-                <span>立即备份</span>
-                <button type="button" className="w1-setbtn" disabled={busy} onClick={backupNow}>
-                  {busy ? '备份中…' : '执行'}
-                </button>
-              </div>
-              <div className="w1-setrow w1-setstoragerow">
-                <span>存储位置</span>
-                <span className="w1-setstoragecopy">
-                  <code className="w1-setpath" title={storage?.root ?? ''}>
-                    {storage?.root ?? '读取中…'}
+              <section className="w1-setgroup" aria-label="审批规则">
+                <h3>审批规则</h3>
+                <p className="w1-provnote">
+                  只对 MCP 工具与本地只读工具生效；对该工作区里同 Agent
+                  的所有会话生效。Bash、写入类工具与「本会话允许」不落库，应用退出后失效。
+                </p>
+                {!agentApi ? (
+                  <p className="w1-provnote">仅在桌面应用可用。</p>
+                ) : approvalRules.length === 0 ? (
+                  <p className="w1-provnote">还没有工作区审批规则。</p>
+                ) : (
+                  <div className="w1-setrules">
+                    {approvalRules.map((rule) => (
+                      <div className="w1-setrule" key={rule.id}>
+                        <code className="w1-setruletool" title={rule.toolName}>
+                          {rule.toolName}
+                        </code>
+                        <span className="w1-setruleagent">
+                          {rule.agent === 'claude' ? 'Claude' : 'Codex'}
+                        </span>
+                        <span className="w1-setrulepath" title={rule.workspace}>
+                          {rule.workspace}
+                        </span>
+                        <time>{rule.lastUsedAt ? auditTime(rule.lastUsedAt) : '从未'}</time>
+                        <button
+                          type="button"
+                          className="w1-setbtn"
+                          disabled={ruleBusy}
+                          aria-label={`撤销 ${rule.toolName} 的规则`}
+                          onClick={() => revokeRule(rule.id)}
+                        >
+                          撤销
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="w1-setgroup" aria-label="活动记录">
+                <h3>活动记录</h3>
+                <div className="w1-auditfilter" role="group" aria-label="活动记录筛选">
+                  {AUDIT_FILTERS.map((filter) => (
+                    <button
+                      key={filter.value}
+                      type="button"
+                      className={`w1-auditfilterbtn${auditDomain === filter.value ? ' on' : ''}`}
+                      aria-pressed={auditDomain === filter.value}
+                      onClick={() => setAuditDomain(filter.value)}
+                    >
+                      {filter.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="w1-auditlist">
+                  {auditRows.length === 0 ? (
+                    <p className="w1-provnote">还没有活动记录。</p>
+                  ) : (
+                    auditRows.map((row) => (
+                      <div
+                        className="w1-auditrow"
+                        key={row.id}
+                        title={[row.title, row.detail, row.source].filter(Boolean).join(' · ')}
+                      >
+                        <time>{auditTime(row.at)}</time>
+                        <b>{AUDIT_DOMAIN_LABELS[row.domain] ?? row.domain}</b>
+                        <span>{row.title ?? row.targetId ?? '—'}</span>
+                        <em>{row.action}</em>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </section>
+
+              <section className="w1-setgroup" aria-label="数据">
+                <h3>数据</h3>
+                <div className="w1-setrow">
+                  <span>数据库</span>
+                  <code className="w1-setpath">{info?.dataDir ?? '读取中…'}</code>
+                </div>
+                <div className="w1-setrow">
+                  <span>备份</span>
+                  <i className="w1-setbackupcount">{info ? `${info.backupCount} 份` : '读取中…'}</i>
+                  <code className="w1-setpath" title={info?.backupDir}>
+                    {info?.backupDir ?? '读取中…'}
                   </code>
-                  {storage && storage.source !== 'default' ? (
-                    <i className="w1-setstoragesrc">
-                      {storage.source === 'env' ? '由 WS_DATA_DIR 指定' : '已自定义'}
-                    </i>
-                  ) : null}
-                </span>
-                <span className="w1-setstorageacts">
-                  <button
-                    type="button"
-                    className="w1-setbtn"
-                    disabled={storageBusy || !storage || storage.locked}
-                    onClick={pickStorage}
-                  >
-                    {storage?.pending ? '重新选择' : '更改'}
+                </div>
+                <div className="w1-setrow">
+                  <span>立即备份</span>
+                  <button type="button" className="w1-setbtn" disabled={busy} onClick={backupNow}>
+                    {busy ? '备份中…' : '执行'}
                   </button>
-                  {storage?.pending ? (
+                </div>
+                <BackupRestore
+                  notify={notify}
+                  refreshToken={backupRevision}
+                  onChanged={() => {
+                    void window.ws?.app
+                      ?.info()
+                      .then(setInfo)
+                      .catch(() => {})
+                  }}
+                />
+                <div className="w1-setrow w1-setstoragerow">
+                  <span>存储位置</span>
+                  <span className="w1-setstoragecopy">
+                    <code className="w1-setpath" title={storage?.root ?? ''}>
+                      {storage?.root ?? '读取中…'}
+                    </code>
+                    {storage && storage.source !== 'default' ? (
+                      <i className="w1-setstoragesrc">
+                        {storage.source === 'env' ? '由 WS_DATA_DIR 指定' : '已自定义'}
+                      </i>
+                    ) : null}
+                  </span>
+                  <span className="w1-setstorageacts">
                     <button
                       type="button"
                       className="w1-setbtn"
-                      disabled={storageBusy}
-                      onClick={cancelStorage}
+                      disabled={storageBusy || !storage || storage.locked}
+                      onClick={pickStorage}
                     >
-                      取消更换
+                      {storage?.pending ? '重新选择' : '更改'}
                     </button>
-                  ) : null}
-                </span>
-              </div>
-              {storage?.pending ? (
-                <p className="w1-setstoragenote">
-                  重启后迁移到 <code>{storage.pending}</code>
-                  ：先复制并校验，成功后才切换并删除原目录。
-                </p>
-              ) : (
-                <p className="w1-setstoragenote">
-                  数据、插件、备份与 Codex 隔离配置都在这个根目录下；便携版默认在程序同级目录。
-                </p>
-              )}
-              {storage?.lastError ? (
-                <p className="w1-setstoragenote warn">{storage.lastError}</p>
-              ) : null}
-            </section>
-          </>
-        ) : (
-          <CapabilityPanel notify={notify} />
-        )}
+                    {storage?.pending ? (
+                      <button
+                        type="button"
+                        className="w1-setbtn"
+                        disabled={storageBusy}
+                        onClick={cancelStorage}
+                      >
+                        取消更换
+                      </button>
+                    ) : null}
+                  </span>
+                </div>
+                {storage?.pending ? (
+                  <p className="w1-setstoragenote">
+                    重启后迁移到 <code>{storage.pending}</code>
+                    ：先复制并校验，成功后才切换并删除原目录。
+                  </p>
+                ) : (
+                  <p className="w1-setstoragenote">
+                    数据、插件、备份与 Codex 隔离配置都在这个根目录下；便携版默认在程序同级目录。
+                  </p>
+                )}
+                {storage?.lastError ? (
+                  <p className="w1-setstoragenote warn">{storage.lastError}</p>
+                ) : null}
+              </section>
+            </>
+          ) : (
+            <CapabilityPanel notify={notify} />
+          )}
+        </div>
 
         <footer className="w1-scheadfoot">
           当前版本 v{info?.version ?? __APP_VERSION__} · 本地优先，不上传任何数据

@@ -1,10 +1,18 @@
 import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type { DatabaseSync } from 'node:sqlite'
+import type { BackupEntry } from '../../shared/ipc'
 
 export const BACKUP_DIR = 'backups'
 export const KEEP_BACKUPS = 10
 const PREFIX = 'workstation-'
+
+/** 可恢复的文件名：普通备份、同秒冲突后缀，或恢复前自动留下的 -pre 快照。 */
+export const BACKUP_NAME_RE = /^workstation-\d{8}-\d{6}(?:-\d+|-pre(?:-\d+)?)?\.db$/
+
+export function isBackupFileName(name: string): boolean {
+  return BACKUP_NAME_RE.test(name)
+}
 
 /** 备份文件名带本地时间戳，纯函数便于测试。 */
 export function backupFileName(now: Date): string {
@@ -50,7 +58,13 @@ function quote(value: string): string {
  */
 export function createBackup(db: DatabaseSync, dir: string, now = new Date()): string {
   mkdirSync(dir, { recursive: true })
-  const file = join(dir, backupFileName(now))
+  const base = backupFileName(now)
+  let file = join(dir, base)
+  let index = 1
+  while (existsSync(file)) {
+    index += 1
+    file = join(dir, base.replace(/\.db$/, `-${index}.db`))
+  }
   db.exec(`VACUUM INTO ${quote(file)}`)
   pruneBackups(dir)
   return file
@@ -70,4 +84,43 @@ export function backupSize(file: string): number {
   } catch {
     return 0
   }
+}
+
+/** 设置页列表：只认可恢复的文件，按修改时间倒序。 */
+export function backupEntries(dir: string): BackupEntry[] {
+  if (!existsSync(dir)) return []
+  const entries: BackupEntry[] = []
+  for (const name of readdirSync(dir)) {
+    if (!isBackupFileName(name)) continue
+    try {
+      const stat = statSync(join(dir, name))
+      entries.push({
+        name,
+        bytes: stat.size,
+        at: stat.mtimeMs,
+        safety: name.includes('-pre')
+      })
+    } catch {
+      // 列表读取期间文件被清理时直接跳过
+    }
+  }
+  return entries.sort((a, b) => b.at - a.at)
+}
+
+/**
+ * 恢复前留一份当前库的快照。文件名带 -pre，设置页会标成「恢复前快照」，
+ * 也可以再次被恢复。
+ */
+export function createSafetyBackup(db: DatabaseSync, dir: string, now = new Date()): string {
+  mkdirSync(dir, { recursive: true })
+  const base = backupFileName(now).replace(/\.db$/, '')
+  let file = join(dir, `${base}-pre.db`)
+  let index = 1
+  while (existsSync(file)) {
+    index += 1
+    file = join(dir, `${base}-pre-${index}.db`)
+  }
+  db.exec(`VACUUM INTO ${quote(file)}`)
+  pruneBackups(dir)
+  return file
 }

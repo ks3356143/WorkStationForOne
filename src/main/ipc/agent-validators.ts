@@ -57,6 +57,14 @@ export function assertImportInput(value: unknown): AgentImportInput {
   }
 }
 
+export function assertAgentForkInput(value: unknown): { sessionId: string; messageId: string } {
+  const input = assertRecord(value, '分叉会话')
+  return {
+    sessionId: assertAgentId(input.sessionId, '会话 id'),
+    messageId: assertAgentId(input.messageId, '消息 id')
+  }
+}
+
 export function assertPresetInput(value: unknown): AgentPresetInput {
   const input = assertRecord(value, '预设')
   if (typeof input.name !== 'string') throw new TypeError('预设名称无效')
@@ -100,6 +108,14 @@ export function assertAgentSessionPatch(value: unknown): AgentSessionPatch {
   if (patch.status !== undefined) result.status = assertSessionStatus(patch.status)
   if (patch.resumeId !== undefined) result.resumeId = assertAgentId(patch.resumeId, '续接会话 id')
   if (patch.workspace !== undefined) result.workspace = assertWorkspacePath(patch.workspace)
+  if (patch.pinned !== undefined) {
+    if (typeof patch.pinned !== 'boolean') throw new TypeError('置顶状态无效')
+    result.pinned = patch.pinned
+  }
+  if (patch.archived !== undefined) {
+    if (typeof patch.archived !== 'boolean') throw new TypeError('归档状态无效')
+    result.archived = patch.archived
+  }
   return assertNotEmpty(result, '会话补丁')
 }
 

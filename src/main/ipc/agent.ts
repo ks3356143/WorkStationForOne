@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { writeFile } from 'node:fs/promises'
 import { isAbsolute } from 'node:path'
 import { app, dialog, ipcMain, shell, type BrowserWindow, type OpenDialogOptions } from 'electron'
 import type { AgentCli } from '../agent/claude'
@@ -6,6 +7,7 @@ import { startClaudeRun } from '../agent/claude'
 import type { ApprovalRuleService } from '../agent/approval-rules'
 import { discoverLocalSessions } from '../agent/discover'
 import { readSessionHistory } from '../agent/history'
+import { buildSessionMarkdown } from '../agent/export'
 import { listWorkspaceEntries, readWorkspaceText } from '../agent/workspace'
 import { startCodexAppServerRun } from '../agent/codex-app-server'
 import { startCodexRun } from '../agent/codex'
@@ -26,6 +28,7 @@ import {
   assertAgentMessage,
   assertAgentSendInput,
   assertAgentSessionPatch,
+  assertAgentForkInput,
   assertImportInput,
   assertPermissionResponse,
   assertPresetInput,
@@ -102,6 +105,13 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
     sessions: repository.listSessions(),
     messages: repository.listMessages()
   }))
+
+  ipcMain.handle(IPC.agentSearchSessions, (_event, query: unknown) => {
+    if (typeof query !== 'string') throw new TypeError('搜索关键词无效')
+    const trimmed = query.trim().slice(0, 80)
+    if (!trimmed) return []
+    return repository.searchSessions(trimmed)
+  })
 
   ipcMain.handle(IPC.agentPickWorkspace, async (_event, current: unknown) => {
     // 自动化测试缝：跳过原生对话框，但仍走同一套目录校验。
@@ -213,23 +223,81 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
     }
   })
 
+  ipcMain.handle(IPC.agentForkSession, (_event, value: unknown) => {
+    const input = assertAgentForkInput(value)
+    const source = repository.findSession(input.sessionId)
+    if (!source) throw new Error('会话不存在')
+    const id = `s-${randomUUID()}`
+    const title = `${source.title} · 分叉`.slice(0, 80)
+    const result = repository.forkSession({
+      sourceId: input.sessionId,
+      messageId: input.messageId,
+      id,
+      title
+    })
+    if (!result) throw new Error('找不到要分叉的消息')
+    return result
+  })
+
   ipcMain.handle(IPC.agentCreateSession, (_event, value: unknown) =>
     repository.createSession(assertAgentCreateInput(value))
   )
 
   ipcMain.handle(IPC.agentUpdateSession, (_event, id: unknown, value: unknown) => {
-    const updated = repository.updateSession(
-      assertAgentId(id, '会话 id'),
-      assertAgentSessionPatch(value)
-    )
+    const sessionId = assertAgentId(id, '会话 id')
+    const patch = assertAgentSessionPatch(value)
+    if (patch.archived === true) {
+      for (const run of runs.values()) {
+        if (run.sessionId === sessionId) throw new Error('会话正在运行，先停止再归档')
+      }
+    }
+    const updated = repository.updateSession(sessionId, patch)
     if (!updated) throw new Error('会话不存在')
+  })
+
+  ipcMain.handle(IPC.agentDeleteSession, (_event, id: unknown) => {
+    const sessionId = assertAgentId(id, '会话 id')
+    for (const run of runs.values()) {
+      if (run.sessionId === sessionId) throw new Error('会话正在运行，先停止再删除')
+    }
+    return repository.removeSession(sessionId)
   })
 
   ipcMain.handle(IPC.agentSaveMessage, (_event, value: unknown) => {
     repository.saveMessage(assertAgentMessage(value))
   })
 
-  ipcMain.handle(IPC.agentSend, (_event, value: unknown) => {
+  ipcMain.handle(IPC.agentExportSession, async (_event, id: unknown) => {
+    if (typeof id !== 'string' || !id.trim()) throw new TypeError('会话 id 无效')
+    const session = repository.findSession(id.trim())
+    if (!session) throw new Error('会话不存在')
+    const messages = repository.listMessagesForSession(session.id)
+    const markdown = buildSessionMarkdown(session, messages)
+    const forced = process.env.WS_EXPORT_PATH?.trim()
+    let filePath = forced ?? ''
+    if (!filePath) {
+      const safeName =
+        session.title
+          .replace(/[\\/:*?"<>|]/g, '-')
+          .trim()
+          .slice(0, 60) || 'session'
+      const options = {
+        title: '导出会话',
+        defaultPath: `${safeName}.md`,
+        filters: [{ name: 'Markdown 文件', extensions: ['md'] }]
+      }
+      const win = getWindow()
+      const picked = win
+        ? await dialog.showSaveDialog(win, options)
+        : await dialog.showSaveDialog(options)
+      if (picked.canceled || !picked.filePath) return { canceled: true }
+      filePath = picked.filePath
+    }
+    await writeFile(filePath, markdown, 'utf8')
+    return { canceled: false, path: filePath, count: messages.length }
+  })
+
+  ipcMain.handle(IPC.agentSend, async (_event, value: unknown) => {
     const input = assertAgentSendInput(value)
     for (const run of runs.values()) {
       if (run.sessionId === input.sessionId) {
@@ -277,10 +345,10 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
 
     const codexProvider = input.agent === 'codex' ? getProvider?.('codex') : undefined
     const codexServer = Boolean(codexProvider && codexHome)
-    let codexExternalMcp: ReturnType<AgentCapabilityRuntime['codexMcp']> | undefined
+    let codexExternalMcp: Awaited<ReturnType<AgentCapabilityRuntime['codexMcp']>> | undefined
     if (input.agent === 'codex' && codexProvider && codexHome && capabilities) {
       try {
-        codexExternalMcp = capabilities.codexMcp()
+        codexExternalMcp = await capabilities.codexMcp()
       } catch (error) {
         const detail = error instanceof Error ? error.message : '读取 Codex 外部 MCP 配置失败'
         throw new Error(`无法加载 Codex 外部 MCP：${detail}`)
@@ -289,13 +357,13 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
     const mcpEndpoint =
       input.agent === 'claude' || codexServer ? (mcp?.issue(input.sessionId) ?? null) : null
     let claudePlugins: string[] = []
-    let claudeMcpServers: ReturnType<AgentCapabilityRuntime['mcpServers']> = []
+    let claudeMcpServers: Awaited<ReturnType<AgentCapabilityRuntime['mcpServers']>> = []
     let claudeAllowedTools: string[] = []
     let claudeDeniedTools: string[] = []
     if (input.agent === 'claude' && capabilities) {
       try {
         claudePlugins = capabilities.pluginDirs()
-        claudeMcpServers = capabilities.mcpServers()
+        claudeMcpServers = await capabilities.mcpServers()
         const policy = capabilities.toolPolicy()
         claudeAllowedTools = policy.allowed
         claudeDeniedTools = policy.denied

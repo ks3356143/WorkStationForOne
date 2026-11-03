@@ -21,6 +21,8 @@ export function AgentDock() {
   const sessions = useWorkstation((state) => state.sessions)
   const setActiveSession = useWorkstation((state) => state.setActiveSession)
   const createAgentSession = useWorkstation((state) => state.createAgentSession)
+  const removeAgentSession = useWorkstation((state) => state.removeAgentSession)
+  const addForkedSession = useWorkstation((state) => state.addForkedSession)
   const activeSession = useWorkstation(selectActiveSession)
   const activeId = activeSession?.id ?? ''
   const agent = activeSession?.agent ?? 'claude'
@@ -34,6 +36,8 @@ export function AgentDock() {
   const clearToolPermission = useWorkstation((state) => state.clearToolPermission)
   const mcpPermission = useWorkstation((state) => state.mcpPermissions[state.activeSessionId])
   const clearMcpPermission = useWorkstation((state) => state.clearMcpPermission)
+  const agentJumpMessageId = useWorkstation((state) => state.agentJumpMessageId)
+  const clearAgentJump = useWorkstation((state) => state.clearAgentJump)
   // 后台会话的审批不抢占当前聊天，但要在输入栏上方留一个入口
   const pendingElsewhereId = useWorkstation((state) => {
     const pending = state.sessions.find(
@@ -67,12 +71,30 @@ export function AgentDock() {
     state.permission?.sessionId === state.activeSessionId ? state.tasks : EMPTY_TASKS
   )
   const sendMessage = useWorkstation((state) => state.sendMessage)
+  const retryMessage = useWorkstation((state) => state.retryMessage)
   const resolvePermission = useWorkstation((state) => state.resolvePermission)
   const setAgentWorkspace = useWorkstation((state) => state.setAgentWorkspace)
   const [codexApproval, setCodexApproval] = useState(false)
   const [workspaceBusy, setWorkspaceBusy] = useState(false)
   const [workspaceError, setWorkspaceError] = useState<string | null>(null)
   const [workspaceOpen, setWorkspaceOpen] = useState(false)
+  const [exportState, setExportState] = useState<'idle' | 'busy' | 'done' | 'error'>('idle')
+  const [forkingId, setForkingId] = useState<string | null>(null)
+  const [deleteState, setDeleteState] = useState<'idle' | 'armed' | 'busy' | 'error'>('idle')
+  const deleteTimer = useRef<number | null>(null)
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 切换会话时收起删除二次确认
+  useEffect(() => {
+    setDeleteState('idle')
+    if (deleteTimer.current) window.clearTimeout(deleteTimer.current)
+  }, [activeId])
+
+  useEffect(
+    () => () => {
+      if (deleteTimer.current) window.clearTimeout(deleteTimer.current)
+    },
+    []
+  )
 
   useEffect(() => {
     let alive = true
@@ -96,11 +118,30 @@ export function AgentDock() {
   }, [])
 
   const threadRef = useRef<HTMLDivElement>(null)
+  const nearBottomRef = useRef(true)
+  const lastScrollSession = useRef(activeId)
+  const [approvalAway, setApprovalAway] = useState(false)
   const threadMeta = useRef({
     sessionId: activeId,
     length: thread.length,
     initialized: false
   })
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 消息加载后线程长度变化要重试定位
+  useEffect(() => {
+    if (!agentJumpMessageId || !activeId) return
+    const root = threadRef.current
+    if (!root) return
+    const node = root.querySelector<HTMLElement>(
+      `[data-message-id="${CSS.escape(agentJumpMessageId)}"]`
+    )
+    if (!node) return
+    clearAgentJump()
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    node.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' })
+    node.classList.add('w1-msg-jump')
+    window.setTimeout(() => node.classList.remove('w1-msg-jump'), 1800)
+  }, [agentJumpMessageId, activeId, thread.length, clearAgentJump])
   const artifacts = useMemo(() => {
     const root = activeSession?.workspace?.replaceAll('\\', '/').replace(/\/+$/, '')
     const seen = new Set<string>()
@@ -123,8 +164,8 @@ export function AgentDock() {
     return result
   }, [activeSession?.workspace, thread])
   const counts = {
-    claude: sessions.filter((session) => session.agent === 'claude').length,
-    codex: sessions.filter((session) => session.agent === 'codex').length
+    claude: sessions.filter((session) => session.agent === 'claude' && !session.archived).length,
+    codex: sessions.filter((session) => session.agent === 'codex' && !session.archived).length
   }
   // 只看当前会话：别的会话在跑不该锁住这里的输入
   const typingHere = Boolean(activeId) && (Boolean(streamHere) || queuedHere)
@@ -150,26 +191,54 @@ export function AgentDock() {
     return () => window.clearTimeout(timer)
   }, [mcpPermission, clearMcpPermission])
 
+  const approvalKey = toolPermission?.requestId ?? mcpPermission?.requestId ?? permission?.id ?? ''
+
   // 有审批卡时窗口变窄也要把卡贴到可见区域，避免被输入栏盖住。
   useEffect(() => {
-    if (!mcpPermission) return
+    if (!approvalKey) return
     const onResize = () => {
       const node = threadRef.current
-      if (node) node.scrollTop = node.scrollHeight
+      if (node && nearBottomRef.current) node.scrollTop = node.scrollHeight
     }
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
-  }, [mcpPermission])
+  }, [approvalKey])
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: thread.length / typingHere / permission / mcpPermission 是滚动触发条件，用于在有新内容时贴底
+  // 只看用户是否原本停在底部：读历史时不抢滚动；审批卡在视野外则给一个入口。
+  // biome-ignore lint/correctness/useExhaustiveDependencies: thread.length / typingHere / approvalKey / activeId 是滚动触发条件
   useLayoutEffect(() => {
     const node = threadRef.current
-    if (node) node.scrollTop = node.scrollHeight
-  }, [thread.length, typingHere, permission, mcpPermission, activeId])
+    if (!node) return
+    if (lastScrollSession.current !== activeId) {
+      lastScrollSession.current = activeId
+      nearBottomRef.current = true
+      setApprovalAway(false)
+    }
+    if (nearBottomRef.current) {
+      node.scrollTop = node.scrollHeight
+      setApprovalAway(false)
+    } else if (approvalKey) {
+      setApprovalAway(true)
+    }
+  }, [thread.length, typingHere, approvalKey, activeId])
+
+  const onThreadScroll = () => {
+    const node = threadRef.current
+    if (!node) return
+    const near = node.scrollHeight - node.scrollTop - node.clientHeight < 96
+    nearBottomRef.current = near
+    if (near && approvalAway) setApprovalAway(false)
+  }
+
+  const scrollToApproval = () => {
+    const card = threadRef.current?.querySelector('.w1-perm')
+    card?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    setApprovalAway(false)
+  }
 
   const switchAgent = (next: AgentId) => {
     if (agent === next) return
-    const session = sessions.find((item) => item.agent === next)
+    const session = sessions.find((item) => item.agent === next && !item.archived)
     if (session) setActiveSession(session.id)
   }
 
@@ -199,6 +268,63 @@ export function AgentDock() {
   const writeApproval = agent === 'claude' || codexApproval
   const respondPermission =
     typeof window === 'undefined' ? undefined : window.ws?.agent?.respondPermission
+
+  const exportSession = () => {
+    const bridge = typeof window === 'undefined' ? undefined : window.ws?.agent
+    if (!bridge?.exportSession || exportState === 'busy') return
+    setExportState('busy')
+    void bridge
+      .exportSession(activeSession.id)
+      .then((result) => {
+        if (result.canceled) {
+          setExportState('idle')
+          return
+        }
+        setExportState('done')
+        window.setTimeout(() => setExportState('idle'), 1800)
+      })
+      .catch((error: unknown) => {
+        console.error('[agent] 导出会话失败', error)
+        setExportState('error')
+        window.setTimeout(() => setExportState('idle'), 2200)
+      })
+  }
+
+  const deleteSession = () => {
+    if (typingHere || deleteState === 'busy') return
+    if (deleteState !== 'armed') {
+      setDeleteState('armed')
+      if (deleteTimer.current) window.clearTimeout(deleteTimer.current)
+      deleteTimer.current = window.setTimeout(() => setDeleteState('idle'), 4000)
+      return
+    }
+    if (deleteTimer.current) window.clearTimeout(deleteTimer.current)
+    const bridge = typeof window === 'undefined' ? undefined : window.ws?.agent
+    if (!bridge?.deleteSession) return
+    setDeleteState('busy')
+    void bridge
+      .deleteSession(activeSession.id)
+      .then((removed) => {
+        if (!removed) throw new Error('会话不存在')
+        removeAgentSession(activeSession.id)
+      })
+      .catch((error: unknown) => {
+        console.error('[agent] 删除会话失败', error)
+        setDeleteState('error')
+        deleteTimer.current = window.setTimeout(() => setDeleteState('idle'), 2400)
+      })
+  }
+
+  const forkMessage = (messageId: string) => {
+    const bridge = typeof window === 'undefined' ? undefined : window.ws?.agent
+    if (!bridge?.forkSession || forkingId) return
+    setForkingId(messageId)
+    void bridge
+      .forkSession({ sessionId: activeSession.id, messageId })
+      .then((result) => addForkedSession(result))
+      .catch((error: unknown) => console.error('[agent] 分叉会话失败', error))
+      .finally(() => setForkingId(null))
+  }
 
   const pickWorkspace = () => {
     const bridge = typeof window === 'undefined' ? undefined : window.ws?.agent
@@ -281,10 +407,41 @@ export function AgentDock() {
         >
           文件
         </button>
+        <button
+          className="w1-aworkspacefiles"
+          type="button"
+          title="导出当前会话为 Markdown"
+          disabled={exportState === 'busy'}
+          onClick={exportSession}
+        >
+          {exportState === 'busy'
+            ? '导出中…'
+            : exportState === 'done'
+              ? '已导出'
+              : exportState === 'error'
+                ? '导出失败'
+                : '导出'}
+        </button>
+        <button
+          className={`w1-aworkspacefiles w1-adelete${deleteState === 'armed' ? ' armed' : ''}`}
+          type="button"
+          title={typingHere ? '会话运行中，先停止再删除' : '删除当前会话（消息一并删除）'}
+          aria-label="删除当前会话"
+          disabled={typingHere || deleteState === 'busy'}
+          onClick={deleteSession}
+        >
+          {deleteState === 'busy'
+            ? '删除中…'
+            : deleteState === 'armed'
+              ? '确认删除'
+              : deleteState === 'error'
+                ? '删除失败'
+                : '删除'}
+        </button>
         <span className="loc">本地</span>
       </div>
 
-      <div className="w1-thread" ref={threadRef}>
+      <div className="w1-thread" ref={threadRef} onScroll={onThreadScroll}>
         <m.div
           key={activeSession.id}
           className="w1-threadpad"
@@ -330,12 +487,31 @@ export function AgentDock() {
             </div>
           ) : null}
 
-          {thread.map((message) => (
+          {thread.map((message, index) => (
             <MessageRow
               key={message.id}
               message={message}
               agent={agent}
               animate={message.id === animateId}
+              onFork={
+                message.role === 'assistant' && !typingHere
+                  ? () => forkMessage(message.id)
+                  : undefined
+              }
+              forking={forkingId === message.id}
+              onRetry={
+                message.error && !message.imported && !typingHere
+                  ? () => {
+                      for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+                        const previous = thread[cursor]
+                        if (previous?.role === 'user') {
+                          retryMessage(previous.text)
+                          break
+                        }
+                      }
+                    }
+                  : undefined
+              }
             />
           ))}
 
@@ -390,6 +566,13 @@ export function AgentDock() {
           ) : null}
         </m.div>
       </div>
+
+      {approvalAway ? (
+        <button className="w1-queue" type="button" onClick={scrollToApproval}>
+          <span className="w1-queue-dot" />
+          当前会话有 1 项待审批 · 查看
+        </button>
+      ) : null}
 
       {pendingElsewhereId && pendingElsewhereCount > 0 ? (
         <button

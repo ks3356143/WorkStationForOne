@@ -347,6 +347,24 @@
   color: var(--fg);
 }
 
+.w1-lcardslot {
+  flex: 0 1 auto;
+  width: 100%;
+  display: flex;
+  animation: w1-next-card 220ms var(--ease-out) both;
+}
+
+@keyframes w1-next-card {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .w1-lcard {
   position: relative;
   flex: 0 1 auto;
@@ -354,26 +372,54 @@
   height: min(46vh, 380px);
   min-height: 220px;
   margin: auto;
-  display: grid;
-  border: 1px solid transparent;
+  display: block;
+  padding: 0;
+  border: 0;
   /* button 的 UA 背景是 buttonface，不显式清掉会在玻璃后面透出灰块 */
-  background-color: transparent;
+  background: transparent;
+  text-align: left;
+  overflow: visible;
+  perspective: 1600px;
+}
+
+/* 毛玻璃放在不参与 3D 的伪元素上：滤镜会压平后代，不能挂在内层 */
+.w1-lcard::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  backdrop-filter: blur(24px) saturate(165%);
+}
+
+.w1-lcard:focus-visible {
+  outline: 1px solid rgb(var(--ac2-rgb) / 0.8);
+  outline-offset: 3px;
+}
+
+.w1-lcardinner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  border: 1px solid transparent;
   background-image: var(--glass-spec), var(--glass-body);
   background-origin: padding-box;
   background-clip: padding-box, padding-box;
   border-image: var(--glass-rim) 1;
-  backdrop-filter: blur(24px) saturate(165%);
   box-shadow:
     var(--neu-in),
     var(--glass-drop),
     inset 0 0 40px rgb(var(--prism-1-rgb) / 0.04);
-  text-align: left;
-  overflow: hidden;
-  transition: box-shadow var(--dur-base);
+  transform-style: preserve-3d;
+  transition:
+    transform 620ms var(--ease-out),
+    box-shadow var(--dur-base);
+  will-change: transform;
 }
 
 /* 大块玻璃面需要自己的光场，否则整片压成一块实色 */
-.w1-lcard::before {
+.w1-lcardinner::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -383,16 +429,20 @@
     radial-gradient(90% 70% at 50% 108%, rgb(var(--ac2-rgb) / 0.1), transparent 60%);
 }
 
-.w1-lcard:hover {
+.w1-lcard:hover .w1-lcardinner {
   box-shadow:
     var(--neu-in),
     var(--glass-drop),
     0 0 40px rgb(var(--ac2-rgb) / 0.1);
 }
 
+.w1-lcard.flipped .w1-lcardinner {
+  transform: rotateY(180deg);
+}
+
 .w1-lface {
-  grid-area: 1 / 1;
-  position: relative;
+  position: absolute;
+  inset: 0;
   z-index: 1;
   display: flex;
   flex-direction: column;
@@ -400,6 +450,9 @@
   gap: 14px;
   padding: 34px 40px;
   min-width: 0;
+  background: transparent;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .w1-lfront {
@@ -409,6 +462,51 @@
 
 .w1-lback {
   align-items: flex-start;
+  justify-content: flex-start;
+  overflow-y: auto;
+  transform: rotateY(180deg);
+  scrollbar-width: thin;
+}
+
+/* 翻面时扫过一道极细的棱镜光，让 3D 转向有材质感 */
+.w1-lsheen {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.w1-lsheen::before {
+  content: "";
+  position: absolute;
+  inset: -20% -40%;
+  background: linear-gradient(
+    105deg,
+    transparent 34%,
+    rgb(var(--glass-hi-rgb) / 0.22) 48%,
+    rgb(var(--ac2-rgb) / 0.12) 52%,
+    transparent 66%
+  );
+  transform: translateX(-130%);
+}
+
+.w1-lcard.flipped .w1-lsheen {
+  opacity: 1;
+}
+
+.w1-lcard.flipped .w1-lsheen::before {
+  animation: w1-lsheen 780ms var(--ease-out) 40ms both;
+}
+
+@keyframes w1-lsheen {
+  0% {
+    transform: translateX(-130%);
+  }
+  100% {
+    transform: translateX(130%);
+  }
 }
 
 .w1-lcardtag {
@@ -453,6 +551,16 @@
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
+  opacity: 0.55;
+  transform: translateY(4px);
+  transition:
+    opacity var(--dur-ui) var(--ease-out),
+    transform var(--dur-ui) var(--ease-out);
+}
+
+.w1-lcard.flipped + .w1-lratings {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .w1-lrate {
@@ -599,7 +707,7 @@
 
 .w1-ldonetext {
   margin: 0;
-  font: 12px / 1.7 var(--mono);
+  font: 12.5px / 1.7 var(--mono);
   color: var(--mu);
 }
 
@@ -634,7 +742,7 @@
 .w1-lstatgrid span {
   display: block;
   color: var(--su);
-  font: 10.5px / 1.4 var(--mono);
+  font: 11.5px / 1.4 var(--mono);
   letter-spacing: 0.08em;
 }
 
@@ -647,7 +755,7 @@
 
 .w1-lstatgrid small {
   color: var(--su);
-  font: 10.5px / 1.4 var(--mono);
+  font: 11.5px / 1.4 var(--mono);
 }
 
 .w1-lstatblock {
@@ -659,7 +767,7 @@
   padding: 10px 12px;
   border: 1px dashed rgb(var(--ac-rgb) / 0.18);
   color: var(--su);
-  font: 11.5px / 1.6 var(--mono);
+  font: 12px / 1.6 var(--mono);
 }
 
 .w1-lreviewchart {
@@ -692,18 +800,20 @@
   display: block;
   width: 100%;
   background: rgb(var(--ac2-rgb) / 0.7);
+  transform-origin: bottom;
+  animation: w1-bar-grow 460ms var(--ease-out) both;
 }
 
 .w1-lreviewday b {
   color: var(--fg);
-  font: 9px / 1 var(--mono);
+  font: 10px / 1 var(--mono);
   font-variant-numeric: tabular-nums;
 }
 
 .w1-lreviewday small {
   min-height: 11px;
   color: var(--su);
-  font: 9px / 1.2 var(--mono);
+  font: 9.5px / 1.2 var(--mono);
   white-space: nowrap;
 }
 
@@ -748,7 +858,7 @@
   display: block;
   margin-bottom: 8px;
   color: var(--su);
-  font: 10.5px / 1.4 var(--mono);
+  font: 11.5px / 1.4 var(--mono);
   letter-spacing: 0.08em;
 }
 
@@ -784,18 +894,53 @@
   width: 100%;
   background: linear-gradient(180deg, var(--ac2), var(--ac));
   opacity: 0.85;
+  transform-origin: bottom;
+  animation: w1-bar-grow 460ms var(--ease-out) both;
+}
+
+.w1-lstatday:nth-child(2) .w1-lstatbar i {
+  animation-delay: 40ms;
+}
+
+.w1-lstatday:nth-child(3) .w1-lstatbar i {
+  animation-delay: 80ms;
+}
+
+.w1-lstatday:nth-child(4) .w1-lstatbar i {
+  animation-delay: 120ms;
+}
+
+.w1-lstatday:nth-child(5) .w1-lstatbar i {
+  animation-delay: 160ms;
+}
+
+.w1-lstatday:nth-child(6) .w1-lstatbar i {
+  animation-delay: 200ms;
+}
+
+.w1-lstatday:nth-child(7) .w1-lstatbar i {
+  animation-delay: 240ms;
+}
+
+@keyframes w1-bar-grow {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
 }
 
 .w1-lstatday b {
   color: var(--fg);
-  font: 11px / 1.2 var(--mono);
+  font: 12px / 1.2 var(--mono);
 }
 
 .w1-lstatday small {
   overflow: hidden;
   max-width: 100%;
   color: var(--su);
-  font: 10px / 1.2 var(--mono);
+  font: 11px / 1.2 var(--mono);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -830,7 +975,7 @@
   gap: 16px;
   margin-top: 7px;
   color: var(--su);
-  font: 11px / 1.5 var(--mono);
+  font: 12px / 1.5 var(--mono);
 }
 
 .w1-lstatlegend i {
@@ -855,7 +1000,7 @@
 .w1-lstatnote {
   margin: 16px 0 0;
   color: var(--su);
-  font: 11.5px / 1.6 var(--mono);
+  font: 12px / 1.6 var(--mono);
 }
 
 /* ---------- CSV 导入 / 导出 ---------- */
@@ -918,7 +1063,7 @@
   gap: 18px;
   margin: 12px 0 10px;
   color: var(--su);
-  font: 12px / 1.5 var(--mono);
+  font: 12.5px / 1.5 var(--mono);
 }
 
 .w1-limportstats b {
@@ -949,7 +1094,7 @@
   gap: 8px;
   min-width: 0;
   color: var(--fs);
-  font: 12.5px / 1.5 var(--sans);
+  font: 13.5px / 1.5 var(--sans);
 }
 
 .w1-limportrow span {
@@ -992,4 +1137,12 @@
   border: 1px dashed rgb(var(--ac-rgb) / 0.22);
   font: 11.5px / 1.6 var(--mono);
   color: var(--su);
+}
+
+.w1-litem.jump {
+  border-color: rgb(var(--ac2-rgb) / 0.62);
+  background: rgb(var(--ac2-rgb) / 0.06);
+  box-shadow:
+    0 0 0 1px rgb(var(--ac2-rgb) / 0.22),
+    0 0 28px rgb(var(--ac2-rgb) / 0.14);
 }

@@ -1,4 +1,6 @@
 import type {
+  ExternalMcpAuthMode,
+  ExternalMcpOAuthInfo,
   ExternalMcpServerRecord,
   ExternalMcpTargets,
   ExternalMcpTransport,
@@ -45,6 +47,7 @@ export interface PluginSourceRow {
 
 export interface McpServerRow {
   id: string
+  auth: ExternalMcpAuthMode
   key: string
   name: string
   description: string
@@ -87,10 +90,85 @@ export const SOURCE_COLUMNS = `id, name, kind, url, ref, root, last_synced_at, l
 
 export const MCP_SERVER_COLUMNS = `id, key, name, description, transport, command, args_json, url,
   source, catalog_id, version, enabled, trusted, tools_json, targets, last_test_at, last_error,
-  created_at, updated_at`
+  auth, created_at, updated_at`
 
 export interface StoredPlugin extends SkillRecord {
   installPath: string
+}
+
+export interface McpOAuthRow {
+  server_id: string
+  issuer: string
+  resource: string
+  client_id: string
+  client_secret_encrypted: Uint8Array | null
+  authorization_endpoint: string
+  token_endpoint: string
+  registration_endpoint: string
+  scopes: string
+  token_endpoint_auth_method: string
+  access_token_encrypted: Uint8Array | null
+  refresh_token_encrypted: Uint8Array | null
+  expires_at: number | null
+  last_error: string
+  updated_at: number
+}
+
+export const MCP_OAUTH_COLUMNS = `server_id, issuer, resource, client_id,
+  client_secret_encrypted, authorization_endpoint, token_endpoint, registration_endpoint,
+  scopes, token_endpoint_auth_method, access_token_encrypted, refresh_token_encrypted,
+  expires_at, last_error, updated_at`
+
+/** 加密 BLOB 保持 Buffer；只有主进程的 OAuth 服务负责解密。 */
+export interface StoredOAuth {
+  serverId: string
+  issuer: string
+  resource: string
+  clientId: string
+  clientSecret: Buffer | null
+  authorizationEndpoint: string
+  tokenEndpoint: string
+  registrationEndpoint: string
+  scopes: string
+  authMethod: string
+  accessToken: Buffer | null
+  refreshToken: Buffer | null
+  expiresAt: number | null
+  lastError: string
+  updatedAt: number
+}
+
+export function toOAuth(row: McpOAuthRow): StoredOAuth {
+  return {
+    serverId: row.server_id,
+    issuer: row.issuer,
+    resource: row.resource,
+    clientId: row.client_id,
+    clientSecret: row.client_secret_encrypted ? Buffer.from(row.client_secret_encrypted) : null,
+    authorizationEndpoint: row.authorization_endpoint,
+    tokenEndpoint: row.token_endpoint,
+    registrationEndpoint: row.registration_endpoint,
+    scopes: row.scopes,
+    authMethod: row.token_endpoint_auth_method,
+    accessToken: row.access_token_encrypted ? Buffer.from(row.access_token_encrypted) : null,
+    refreshToken: row.refresh_token_encrypted ? Buffer.from(row.refresh_token_encrypted) : null,
+    expiresAt: row.expires_at ?? null,
+    lastError: row.last_error ?? '',
+    updatedAt: row.updated_at
+  }
+}
+
+/** 只给渲染层的状态摘要，永远不含 Token。 */
+export function toOAuthInfo(oauth: StoredOAuth, now: number): ExternalMcpOAuthInfo | null {
+  if (!oauth.accessToken && !oauth.refreshToken) return null
+  const expired = oauth.expiresAt !== null && oauth.expiresAt <= now
+  return {
+    state: oauth.lastError ? 'error' : expired ? 'expired' : 'connected',
+    issuer: oauth.issuer,
+    scopes: oauth.scopes,
+    expiresAt: oauth.expiresAt,
+    lastError: oauth.lastError
+  }
 }
 
 export function parseStringArray(raw: string): string[] {
@@ -143,6 +221,8 @@ export function toSource(row: PluginSourceRow): PluginSourceRecord {
 export function toServer(row: McpServerRow): ExternalMcpServerRecord {
   return {
     id: row.id,
+    auth: row.auth ?? 'headers',
+    oauth: null,
     key: row.key,
     name: row.name,
     description: row.description,

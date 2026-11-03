@@ -28,6 +28,8 @@ const entry = (
 
 const server = (over: Partial<ExternalMcpServerRecord>): ExternalMcpServerRecord => ({
   id: 'mcp-1',
+  auth: 'headers',
+  oauth: null,
   key: 'memory',
   name: 'Memory',
   description: '',

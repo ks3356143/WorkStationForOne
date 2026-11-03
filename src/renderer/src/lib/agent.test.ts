@@ -5,6 +5,7 @@ import {
   agentSessionDate,
   agentSessionMeta,
   demoReply,
+  sortPinnedFirst,
   workspaceName
 } from './agent'
 
@@ -51,6 +52,14 @@ describe('workspaceName', () => {
     expect(workspaceName('C:\\work\\auth')).toBe('auth')
     expect(workspaceName('/home/me/project/')).toBe('project')
     expect(workspaceName('')).toBe('选择工作区')
+  })
+})
+
+describe('sortPinnedFirst', () => {
+  it('置顶排前，同置顶状态保持原顺序', () => {
+    const list = [{ id: 'a' }, { id: 'b', pinned: true }, { id: 'c' }, { id: 'd', pinned: true }]
+    expect(sortPinnedFirst(list).map((item) => item.id)).toEqual(['b', 'd', 'a', 'c'])
+    expect(sortPinnedFirst([])).toEqual([])
   })
 })
 

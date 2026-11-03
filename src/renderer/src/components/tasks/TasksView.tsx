@@ -1,4 +1,4 @@
-import { type DragEvent as ReactDragEvent, useEffect, useState } from 'react'
+import { type DragEvent as ReactDragEvent, useEffect, useRef, useState } from 'react'
 import { addDaysKey, dateKey } from '../../../../shared/date-key'
 import type { TaskDraft, TaskPatch } from '../../../../shared/ipc'
 import type { TaskScope, TaskViewMode } from '../../types'
@@ -23,6 +23,7 @@ import { PlanningPanel } from './PlanningPanel'
 import { SchedulePreview } from './SchedulePreview'
 import { QuickAdd } from './QuickAdd'
 import { TaskItem } from './TaskItem'
+import { WeekBoard } from './WeekBoard'
 
 const SMART_LISTS: { scope: TaskViewMode; label: string; key: string }[] = [
   { scope: 'inbox', label: '收集箱', key: '01' },
@@ -70,6 +71,9 @@ export function TasksView({ notify }: TasksViewProps) {
   const setScope = useWorkstation((state) => state.setTaskScope)
   const composeTask = useWorkstation((state) => state.composeTask)
   const taskComposerRequest = useWorkstation((state) => state.taskComposerRequest)
+  const taskJumpId = useWorkstation((state) => state.taskJumpId)
+  const clearTaskJump = useWorkstation((state) => state.clearTaskJump)
+  const openTask = useWorkstation((state) => state.openTask)
   const lastAddedTaskId = useWorkstation((state) => state.lastAddedTaskId)
   const clearLastAddedTask = useWorkstation((state) => state.clearLastAddedTask)
   const toggleTask = useWorkstation((state) => state.toggleTask)
@@ -80,8 +84,10 @@ export function TasksView({ notify }: TasksViewProps) {
 
   const [query, setQuery] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const jumpBusy = useRef(false)
   const [planningOpen, setPlanningOpen] = useState(false)
   const [dragTarget, setDragTarget] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'list' | 'week'>('list')
   const [scheduleOpen, setScheduleOpen] = useState(false)
   const renameTaskList = useWorkstation((state) => state.renameTaskList)
   const addSubtask = useWorkstation((state) => state.addSubtask)
@@ -107,7 +113,10 @@ export function TasksView({ notify }: TasksViewProps) {
       ? searchTasks(tasks, query)
       : filterTasksByScope(tasks, scope, today)
   const completedVisible = visible.reduce((count, task) => count + (task.done ? 1 : 0), 0)
-  const title = activeList ?? SMART_LISTS.find((item) => item.scope === scope)?.label ?? '任务'
+  const title =
+    viewMode === 'week'
+      ? '本周'
+      : (activeList ?? SMART_LISTS.find((item) => item.scope === scope)?.label ?? '任务')
 
   const beginRename = (name: string) => {
     setRenaming(name)
@@ -135,8 +144,34 @@ export function TasksView({ notify }: TasksViewProps) {
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scope/query 是触发条件，切换清单或改搜索词时收起详情
   useEffect(() => {
+    if (jumpBusy.current) return
     setExpandedId(null)
   }, [scope, query])
+
+  // 全局搜索/提醒中心跳转：展开详情、滚到行并把焦点交还任务行
+  useEffect(() => {
+    if (!taskJumpId) return
+    jumpBusy.current = true
+    setViewMode('list')
+    setQuery('')
+    setThreeOnly(false)
+    setExpandedId(taskJumpId)
+    clearTaskJump()
+    const focus = () => {
+      const row = document.getElementById(`todo-row-${taskJumpId}`)
+      row?.scrollIntoView({ block: 'center' })
+      row?.focus()
+    }
+    const frame = requestAnimationFrame(focus)
+    const timer = window.setTimeout(() => {
+      focus()
+      jumpBusy.current = false
+    }, 180)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.clearTimeout(timer)
+    }
+  }, [taskJumpId, clearTaskJump])
 
   // 详情打开后焦点可能落在行外（日期、清单栏），Esc 仍应收起。
   useEffect(() => {
@@ -237,6 +272,7 @@ export function TasksView({ notify }: TasksViewProps) {
               aria-pressed={scope === item.scope}
               onClick={() => {
                 setQuery('')
+                setViewMode('list')
                 setScope(item.scope)
               }}
               {...dragProps(item.scope)}
@@ -297,6 +333,7 @@ export function TasksView({ notify }: TasksViewProps) {
                     aria-pressed={scope === target}
                     onClick={() => {
                       setQuery('')
+                      setViewMode('list')
                       setScope(target)
                     }}
                     onKeyDown={(event) => {
@@ -394,12 +431,30 @@ export function TasksView({ notify }: TasksViewProps) {
             aria-pressed={threeOnly}
             title="从全部未完成任务里挑出最该动手的三件"
             onClick={() => {
+              setViewMode('list')
               setThreeOnly((current) => !current)
               setQuery('')
               setScope('all')
             }}
           >
             只做三件事
+          </button>
+          <button
+            className={`w1-planbtn${viewMode === 'week' ? ' on' : ''}`}
+            type="button"
+            aria-pressed={viewMode === 'week'}
+            title={viewMode === 'week' ? '切回列表视图' : '按周查看并拖拽改期'}
+            onClick={() => {
+              const next = viewMode === 'week' ? 'list' : 'week'
+              setViewMode(next)
+              if (next === 'week') {
+                setScope('all')
+                setQuery('')
+                setThreeOnly(false)
+              }
+            }}
+          >
+            {viewMode === 'week' ? '列表视图' : '周视图'}
           </button>
         </div>
 
@@ -426,92 +481,117 @@ export function TasksView({ notify }: TasksViewProps) {
           />
         ) : null}
 
-        <div className="w1-todoscroll" key={scope}>
-          {groups.map((group) => (
-            <div
-              className="w1-todogroupblock"
-              key={group.key}
-              role="list"
-              aria-label={searching ? '搜索结果' : group.label || title}
-            >
-              {group.label ? (
-                <div className="w1-todogroupdate">
-                  <span>{group.label}</span>
-                  <small>{group.tasks.length}</small>
-                </div>
-              ) : null}
+        {viewMode === 'week' && !searching && !threeOnly ? (
+          <WeekBoard
+            tasks={tasks}
+            today={today}
+            onOpen={(taskId) => {
+              setViewMode('list')
+              openTask(taskId)
+            }}
+            onSchedule={(taskId, date) => {
+              const task = tasks.find((item) => item.id === taskId)
+              if (!task) return
+              const previous = task.plannedFor ?? null
+              withViewTransition(() => updateTask(taskId, { plannedFor: date }))
+              notify(
+                `已排到 ${date.slice(5).replace('-', '.')}`,
+                {
+                  label: '撤销',
+                  run: () => withViewTransition(() => updateTask(taskId, { plannedFor: previous }))
+                },
+                5000
+              )
+            }}
+          />
+        ) : (
+          <div className="w1-todoscroll" key={scope}>
+            {groups.map((group) => (
+              <div
+                className="w1-todogroupblock"
+                key={group.key}
+                role="list"
+                aria-label={searching ? '搜索结果' : group.label || title}
+              >
+                {group.label ? (
+                  <div className="w1-todogroupdate">
+                    <span>{group.label}</span>
+                    <small>{group.tasks.length}</small>
+                  </div>
+                ) : null}
 
-              {group.tasks.map((task) => (
-                <TaskItem
-                  key={task.id}
-                  task={task}
-                  tasks={tasks}
-                  today={today}
-                  lists={listNames}
-                  expanded={expandedId === task.id}
-                  highlight={task.id === lastAddedTaskId}
-                  onToggle={() => withViewTransition(() => toggleTask(task.id))}
-                  onAddSubtask={(title) => withViewTransition(() => addSubtask(task.id, title))}
-                  onToggleSubtask={(id) => withViewTransition(() => toggleTask(id))}
-                  onExpand={() =>
-                    setExpandedId((current) => (current === task.id ? null : task.id))
-                  }
-                  onSave={(patch: TaskPatch) => {
-                    withViewTransition(() => {
-                      updateTask(task.id, patch)
+                {group.tasks.map((task) => (
+                  <TaskItem
+                    key={task.id}
+                    task={task}
+                    tasks={tasks}
+                    today={today}
+                    lists={listNames}
+                    expanded={expandedId === task.id}
+                    highlight={task.id === lastAddedTaskId}
+                    onToggle={() => withViewTransition(() => toggleTask(task.id))}
+                    onAddSubtask={(title) => withViewTransition(() => addSubtask(task.id, title))}
+                    onToggleSubtask={(id) => withViewTransition(() => toggleTask(id))}
+                    onExpand={() =>
+                      setExpandedId((current) => (current === task.id ? null : task.id))
+                    }
+                    onSave={(patch: TaskPatch) => {
+                      withViewTransition(() => {
+                        updateTask(task.id, patch)
+                        setExpandedId(null)
+                      })
+                      focusRow(task.id)
+                    }}
+                    onDelete={() => {
+                      withViewTransition(() => {
+                        removeTask(task.id)
+                        setExpandedId(null)
+                      })
+                      notify(
+                        `已删除「${task.title}」`,
+                        { label: '撤销', run: () => withViewTransition(undoRemoveTask) },
+                        6000
+                      )
+                      requestAnimationFrame(() =>
+                        document.querySelector<HTMLInputElement>('.w1-todosearch input')?.focus()
+                      )
+                    }}
+                    onCollapse={() => {
                       setExpandedId(null)
-                    })
-                    focusRow(task.id)
-                  }}
-                  onDelete={() => {
-                    withViewTransition(() => {
-                      removeTask(task.id)
-                      setExpandedId(null)
-                    })
-                    notify(
-                      `已删除「${task.title}」`,
-                      { label: '撤销', run: () => withViewTransition(undoRemoveTask) },
-                      6000
-                    )
-                    requestAnimationFrame(() =>
-                      document.querySelector<HTMLInputElement>('.w1-todosearch input')?.focus()
-                    )
-                  }}
-                  onCollapse={() => {
-                    setExpandedId(null)
-                    focusRow(task.id)
-                  }}
-                />
-              ))}
-            </div>
-          ))}
+                      focusRow(task.id)
+                    }}
+                  />
+                ))}
+              </div>
+            ))}
 
-          {!tasksReady ? (
-            <StatePlaceholder kind="loading" rows={4} />
-          ) : visible.length === 0 ? (
-            <div className="w1-todoempty">
-              <b>
-                {searching
-                  ? '没有匹配的任务。'
-                  : (EMPTY[scope as TaskViewMode] ?? '这个清单还是空的。')}
-              </b>
-              <span>
-                {searching
-                  ? '换个关键词，或清空搜索回到当前视图。'
-                  : scope === 'done'
-                    ? '完成任务后会出现在这里。'
-                    : '在下方输入一行，Enter 即可添加。'}
-              </span>
-            </div>
-          ) : (
-            <div className="w1-todoend">
-              <span>// END</span>
-              <b>
-                {visible.length} 项{completedVisible > 0 ? ` · ${completedVisible} 完成` : ''}
-              </b>
-            </div>
-          )}
-        </div>
+            {!tasksReady ? (
+              <StatePlaceholder kind="loading" rows={4} />
+            ) : visible.length === 0 ? (
+              <div className="w1-todoempty">
+                <b>
+                  {searching
+                    ? '没有匹配的任务。'
+                    : (EMPTY[scope as TaskViewMode] ?? '这个清单还是空的。')}
+                </b>
+                <span>
+                  {searching
+                    ? '换个关键词，或清空搜索回到当前视图。'
+                    : scope === 'done'
+                      ? '完成任务后会出现在这里。'
+                      : '在下方输入一行，Enter 即可添加。'}
+                </span>
+              </div>
+            ) : (
+              <div className="w1-todoend">
+                <span>// END</span>
+                <b>
+                  {visible.length} 项{completedVisible > 0 ? ` · ${completedVisible} 完成` : ''}
+                </b>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {scheduleOpen ? (

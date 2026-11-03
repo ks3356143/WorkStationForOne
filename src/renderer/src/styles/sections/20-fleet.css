@@ -264,6 +264,11 @@
   cursor: pointer;
 }
 
+.w1-fleetmain:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 .w1-fleettitle {
   display: flex;
   align-items: center;
@@ -307,7 +312,8 @@
 }
 
 .w1-fleetopen,
-.w1-fleetstop {
+.w1-fleetstop,
+.w1-fleetarchive {
   padding: 4px 8px;
   border: 1px solid rgb(var(--bd-rgb) / 0.6);
   background: rgb(var(--field-rgb) / 0.16);
@@ -318,7 +324,8 @@
 }
 
 .w1-fleetopen:hover,
-.w1-fleetstop:hover:not(:disabled) {
+.w1-fleetstop:hover:not(:disabled),
+.w1-fleetarchive:hover:not(:disabled) {
   border-color: rgb(var(--ac-rgb) / 0.4);
   color: var(--fg);
 }
@@ -328,7 +335,18 @@
   color: var(--ac2-fg);
 }
 
-.w1-fleetstop:disabled {
+.w1-fleetarchive {
+  border-color: rgb(var(--bd-rgb) / 0.45);
+  color: var(--su);
+}
+
+.w1-fleetarchive:hover:not(:disabled) {
+  border-color: rgb(var(--wn-rgb) / 0.5);
+  color: var(--wn-fg);
+}
+
+.w1-fleetstop:disabled,
+.w1-fleetarchive:disabled {
   opacity: 0.4;
   cursor: default;
 }

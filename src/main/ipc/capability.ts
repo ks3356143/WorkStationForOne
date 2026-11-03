@@ -35,6 +35,9 @@ function assertSaveInput(value: unknown): ExternalMcpSaveInput {
   ) {
     throw new TypeError('Agent 归属无效')
   }
+  if (input.auth !== undefined && input.auth !== 'headers' && input.auth !== 'oauth') {
+    throw new TypeError('认证方式无效')
+  }
   return input as unknown as ExternalMcpSaveInput
 }
 
@@ -174,6 +177,24 @@ export function registerCapabilityHandlers(center: CapabilityCenter, audit?: Aud
         : `${tested.name} · ${tested.toolNames.length} tools`
     )
     return tested
+  })
+
+  ipcMain.handle(IPC.capabilityMcpOAuthLogin, async (_event, id: unknown) => {
+    const target = assertLongId(id, 'MCP Server id')
+    const name = center.repository.findMcpServer(target)?.name ?? target
+    const result = await center.mcp.login(target)
+    record(
+      result.ok ? 'mcp.oauth-login' : 'mcp.oauth-login-failed',
+      result.ok ? name : `${name} · ${result.message.slice(0, 120)}`
+    )
+    return result
+  })
+
+  ipcMain.handle(IPC.capabilityMcpOAuthLogout, (_event, id: unknown) => {
+    const target = assertLongId(id, 'MCP Server id')
+    const name = center.repository.findMcpServer(target)?.name ?? target
+    center.mcp.logout(target)
+    record('mcp.oauth-logout', name)
   })
 
   ipcMain.handle(
