@@ -5,32 +5,12 @@
 | 日期 | 2026-10-23（2026-10-30 修订） |
 | 状态 | 已实现，随迭代更新 |
 | 平台 | Windows 10 / 11 x64 |
-| 产品版本 | v0.31.0 |
+| 产品版本 | 以 package.json / docs/status.md 为准 |
 | 视觉方向 | B‴ 极光 HUD（直角 + 玻璃 + 中文优先 + 全动效） |
 
-## 0. 实现状态与偏差（2026-10-30）
+## 0. 实现状态与偏差
 
-本文件保留 2026-10-23 的设计基线，后续章节未逐条改写；与实现冲突时，以本节、代码与 `AGENTS.md` 为准。
-
-当前 v0.36.0，数据库 v30。已实现五视图外壳（今日 / 任务 / Agent / 笔记 / 学习）、任务规划与重复、笔记 v2 与双链、学习 FSRS-6（MEM 科目）、CSV 导入导出、学习统计（含 14 天复习历史与评分分布）与挖空卡、习惯打卡、审计、备份、提醒、设置、快速捕获与便携版；Agent 页支持真实新建 Claude / Codex 会话、每会话独立工作区（DB v21，原生目录选择器、主进程校验，Claude/Codex 都只在该目录运行）、多会话并发（同一会话串行，不同会话各跑各的子进程；流、待发送提示词与审批按会话隔离）、舰队控制台（状态栏/舰队区/命令面板三入口，统一查看、筛选、打开、停止、新建应用内会话，含工作区预设与近 7 天用量）、本机会话只读扫描与导入（v0.27.0 → v0.30.0：读取本机 Claude / Codex CLI 的 JSONL 元数据、最近 200 条用户/助手正文与工具卡，按 resume id 接入舰队；DB v26 `origin` 标记导入历史，新消息仍由 CLI 续接，不改外部配置）、Agent 工作区只读文件树与本回合产物、本地技能导入/源文件详情、消息与工具卡持久化、resume id 跨重启续接、Claude 原生写工具与外部 MCP ask 经本机桥 `approval_request` 中继审批（v0.34.2）、审批规则（v0.31.0，DB v27：MCP 与本地只读工具按 Agent + 工作区持久放行，敏感工具只能单次或本会话，会话规则退出即失效）；Codex 继承 CLI 时只读，激活工具自己的 Provider 后走 `codex app-server`，命令、文件改动与额外权限请求进入同一张审批卡，Provider Key 系统加密；Codex 通过隔离的 HTTP MCP 桥读写本地数据，只读工具自动放行并审计、写入工具进入同一张审批卡，Token 仅在子进程环境；设置页的 Agent Provider 采用双端口接线台（目标端口、信号路由、继承说明卡与加密 Key 胶囊），并提供一次最小 HTTP「测试连接」，成功显示延迟、失败显示可读原因；官方 Anthropic 地址自动用 `x-api-key`、其它兼容端点用 Bearer，Base URL 下显示鉴权方式与实际请求端点；DeepSeek `deepseek-flash` 的真实 app-server、测试连接、工作区写入与 MCP `today_overview` / `tasks_create` 均已在隔离工作区验证；Main 内嵌 MCP 数据桥，按回合 Token 向 Claude 暴露 11 个工具（5 读 + 6 写），DB v19 保存四域只读 / 询问 / 可写权限与写入审批卡，设置页可查看活动记录；MCP 服务异常关闭后在同一端口指数退避重启；MCP 写入与审计在同一个可嵌套事务里。能力中心（DB v22）把 Claude 插件市场、外部 MCP 与内置工具收进设置页：插件用隔离的 `CLAUDE_CONFIG_DIR` 安装到应用私有目录，Claude 会话通过 `--plugin-dir` 按会话加载；官方市场用应用私有 shallow sparse 镜像（`market-src`，manifest 改名 `wsfo-official`，界面显示 Claude 官方），真实网络验证到 315 个插件；外部 MCP 支持 stdio / HTTP、`safeStorage` 密钥、启停、npm/PyPI 更新检查，以及已信任 Server 的连接测试与工具发现（stdio 经 `resolveCommand()` 处理 `.cmd`，HTTP 支持 session / SSE）；DB v24 按工具保存 allow/ask/deny，Claude 只把 allow 放进 `--allowedTools`、deny 放进 `--disallowedTools`，ask 在 Claude 会话经本机桥 `approval_request` 中继到审批卡（所有有本地桥的会话，v0.34.2）；环境自检只读 node/npx/uvx/git/claude/codex 版本，JSON 导入导出不泄露密钥值；Claude 会话只注入启用的外部 MCP 并通过 `--strict-mcp-config` 屏蔽全局 MCP；Codex Provider 会话通过应用 `codex-home` 下发同一批外部 MCP（v0.28.0：stdio 用 `env_vars`、HTTP 用 `env_http_headers`，密钥只在子进程环境），默认 `prompt`、allow / deny 走工具级配置；v0.34.3 已用真实 Codex app-server + DeepSeek 验证 HTTP 请求头、elicitation 卡与 `write_probe` 写入；新装默认停用，执行类组件需二次确认信任。未实现：真实 Claude 市场网络拉取与模型内技能触发仍需单独验证；导入会话的真实续接质量仍待单独验证；HTTP 外部 MCP 已用本机 Streamable HTTP 探针验证连接、请求头透传与 SSE 工具清单；真实 Claude + DeepSeek 已验证外部 MCP 写入工具与原生 `Write` 经审批允许一次后执行；公网无鉴权 DeepWiki 的远程工具调用与 Semgrep 无凭据 401 已实测。需要密钥的成功鉴权公网 Server 与 OAuth 类远程 MCP 仍待验证；Codex 其它 Provider 仍需分别验证。
-
-| 范围 | 设计基线 | 当前实现 |
-| --- | --- | --- |
-| 外壳 | 四视图 | 五视图，新增「学习」；学习内部为卡片库 / 复习态两态 |
-| Agent 接入 | 官方 SDK | 主进程 spawn 本机 `claude` CLI（stream-json）；Codex 继承 CLI 时 `codex exec --json` 只读，激活工具 Provider 后 `codex app-server --stdio` 工作区审批，不依赖 SDK；`.cmd` 包装解析到原生入口 |
-| 工具审批 | 权限卡逐行 diff，写操作需允许 | 读工具自动放行；Claude 原生写工具与外部 MCP 的 ask 工具由本机桥 `approval_request` 中继（v0.34.0 → v0.34.2，所有有本地桥的 Claude 会话；真实 CLI print 模式不触发 can_use_tool）；Codex app-server 的 command / fileChange / permissions 请求进入同一审批卡，允许一次 / 本会话 / 拒绝（v0.31.0，DB v27：MCP 与本地只读工具另可按工作区持久放行）；AskUserQuestion 自动拒绝 |
-| 会话 | 恢复 / Fork / 持久化 | `--session-id` / `--resume` 续接；会话、消息与 resume id 持久化（DB v16），空库从空态开始；同一会话串行，不同会话可并行，按 `runId` 路由事件与审批 |
-| 本地 MCP | 11 个工具 + 分区授权 | 11 个工具已实现（5 读 + 6 写）；四域 `read|ask|write` 权限（DB v19）；询问模式 + 写入审批卡（允许一次 / 本会话允许 / 此工作区允许 / 拒绝，60 秒超时）；设置页有只读审计列表 |
-| 能力中心 | — | 设置页「基础 / 能力中心」：Claude 插件市场（应用私有目录 + `--plugin-dir`、热度排序/分批加载、本地 SKILL.md 导入与源文件预览）、外部 MCP（stdio / HTTP、密钥加密、更新检查、连接测试与工具发现、工具级 allow/ask/deny（Claude 的 ask 经本机桥 `approval_request` 中继）、环境自检、JSON 导入导出、`--strict-mcp-config`；v0.28.0 同步下发 Codex Provider 的 app-server，密钥用环境变量引用）、内置 11 个数据工具目录（DB v24）；新装默认停用，执行组件需二次信任 |
-| Agent 工作区/预设 | — | Agent 顶栏只读文件树 + 产物列表（v0.26.0）；`agent_presets` 工作区预设与 `agent_runs` 近 7 天用量（DB v25），入口在舰队控制台；本机 CLI 会话只读扫描与导入（v0.27.0 → v0.30.0，元数据 + 最近 200 条只读正文与工具卡，DB v26 `origin` 标记） |
-| 任务 | 基础 CRUD | 计划今天与容量条、排程预览、拖拽改期、重复、子任务、提醒、只做三件事、清单重命名、完成热力图 |
-| 笔记 | 搜索 + 虚拟滚动 | 弹层详情可编辑删除、双链 `[[笔记首行]]`、挖空卡、笔记转学习卡 |
-| 学习 | 闪卡 v1 | MEM 初试科目（英语二 + 管综三科）、FSRS-6 调度（默认参数、90% 保留率）、到期队列、复习态、挖空卡、CSV 导入导出、7 天负载 / 保持率 / 14 天复习历史与评分分布 |
-| 习惯 | 打卡 | 按本地日期键存库，显示连续天数 |
-| 审计 | 只读列表 | 仓储层 `audit_log` 已写入，设置页「活动记录」只读展示 |
-| 表单控件 | 系统日期 / 时间 | 自建 `Popover` 控件（`components/fields/`） |
-| 打包 | NSIS 安装包 | 便携版输出到 `dist/WorkStationForOne/`，不引入打包器 |
-| 验证基线 | — | 729 单元测试 / 300 冒烟 / 251–253 运行时断言 / 五视图、舰队控制台（含本机会话导入面板与历史）、能力中心与工作区 1440×900、1180×720 截图 |
+当前实现、数据库版本与逐项验证快照统一维护在 [docs/status.md](../../status.md)。本文件只保留需求、架构、视觉与验收口径；与实现冲突时以 `docs/status.md` 和代码为准，不再在规格里复制版本号、功能清单与测试计数。
 
 ## 1. 摘要
 

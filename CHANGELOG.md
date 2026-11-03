@@ -6,6 +6,18 @@
 
 暂无。
 
+## [0.45.1] - 2026-11-04
+
+### 变更
+
+- **图谱交互性能**：拖拽可从节点开始，4px 阈值区分点击与拖拽；滚轮按 `deltaY` 指数缩放，触控板小步不再过度放大；预计算邻接关系并把 SVG 场景收敛为 `memo` 组件，平移/缩放不再重渲染全部节点；缩放夹取、键盘映射、滚轮因子和视图相等判断都收进 `lib/note-graph.ts` 并有单测。
+- **工具栏与无障碍**：「复位」合并到百分比按钮；「只看相连」保持固定名称与 `aria-pressed`，孤立节点归零时自动解除过滤；节点标题可点击打开，拖拽时统一为抓取光标。
+- **项目整理**：README 与设计规格的版本号、DB 版本、功能清单和测试计数收敛到 `docs/status.md`，移除重复的 SRS / 功能快照；旧版更新日志移入 `docs/CHANGELOG-archive.md`；清理空目录与构建临时文件。
+
+### 验证
+
+- 1014 项单元测试、冒烟 395 项、`npm run verify` 253 项全通过；图谱在 1440×900 / 1180×720、暗/亮主题截图检查。
+
 ## [0.45.0] - 2026-11-03
 
 ### 新增
@@ -220,7 +232,7 @@
 
 ### 变更
 
-- **代码模块化**：主进程拆出 `validate.ts`（IPC 入参守卫统一入口）、`ipc/plugin-handlers.ts`、`ipc/agent-validators.ts`、`ipc/settings-audit.ts`、`db/capabilities-rows.ts`（列清单与行映射只写一遍）、`agent/codex-parser.ts`、`capabilities/mcp-secrets.ts`、`capabilities/plugins/components.ts`、`mcp/views.ts`。渲染层拆出 `components/capability/ToolsTab.tsx`、`components/settings/ProviderCard.tsx`、`components/learning/LearningStatsModal.tsx`，并新增 `lib/collections.ts` 与 `lib/labels.ts`。样式拆出 `22-settings.css`（原 10-overlays 的 946 行设置与 Provider 规则），CHANGELOG 旧版本归档到 `CHANGELOG-archive.md`，AGENTS.md 的冒烟覆盖面和当前状态移入 `docs/`。
+- **代码模块化**：主进程拆出 `validate.ts`（IPC 入参守卫统一入口）、`ipc/plugin-handlers.ts`、`ipc/agent-validators.ts`、`ipc/settings-audit.ts`、`db/capabilities-rows.ts`（列清单与行映射只写一遍）、`agent/codex-parser.ts`、`capabilities/mcp-secrets.ts`、`capabilities/plugins/components.ts`、`mcp/views.ts`。渲染层拆出 `components/capability/ToolsTab.tsx`、`components/settings/ProviderCard.tsx`、`components/learning/LearningStatsModal.tsx`，并新增 `lib/collections.ts` 与 `lib/labels.ts`。样式拆出 `22-settings.css`（原 10-overlays 的 946 行设置与 Provider 规则），CHANGELOG 旧版本归档到 `docs/CHANGELOG-archive.md`，AGENTS.md 的冒烟覆盖面和当前状态移入 `docs/`。
 - **删除死代码**：`capabilityHandlerIPC`、`pluginConfigDir`、`listPluginDirs`、store 的 `clearRemovedTask`，以及重复的 `assertId` / `assertText` / 对象守卫 / 空补丁守卫 / 审计闭包 / 密钥解密循环 / 插件 id 拆分 / MCP 视图筛选实现。
 
 ### 修复
@@ -540,4 +552,4 @@
 
 - 655 项单元测试、254 项冒烟、251/251 运行时断言。
 
-更早的版本（0.1.0–0.20.0）见 [CHANGELOG-archive.md](CHANGELOG-archive.md)。
+更早的版本（0.1.0–0.20.0）见 [docs/CHANGELOG-archive.md](docs/CHANGELOG-archive.md)。

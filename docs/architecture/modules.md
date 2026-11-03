@@ -39,6 +39,7 @@
 | `components/settings/ProviderCard.tsx` | Provider 接线台（测试连接、拉取模型、加密保存） |
 | `components/capability/McpTab.tsx` | 外部 MCP 页：Server 增删改测、JSON 导入导出、工具级权限、环境自检 |
 | `components/learning/LearningStatsModal.tsx` | 学习统计弹层 |
+| `components/note-graph/GraphScene.tsx` | 图谱 SVG 场景（memo；按布局与激活态渲染节点/边） |
 
 ## 共享 `src/shared`
 

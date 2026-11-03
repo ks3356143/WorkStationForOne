@@ -4,7 +4,7 @@ import { useWorkstation } from '../store/useWorkstation'
 import { noteToCard } from '../lib/note-card'
 import { PlusIcon } from './Glyphs'
 import { NoteDetail, type NoteDetailValue } from './NoteDetail'
-import { NoteGraphView } from './NoteGraphView'
+import { NoteGraphView } from './note-graph/NoteGraphView'
 import { NoteList, NoteListFooter, type NoteListRow } from './NoteList'
 
 type Mode = 'browse' | 'search'

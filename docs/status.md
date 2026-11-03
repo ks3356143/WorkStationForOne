@@ -1,5 +1,7 @@
 # 当前状态
 
+> 本文是当前实现与验证结果的唯一快照；README 与设计规格只保留产品概览和需求，不再复制版本号、功能清单与测试计数。
+
 - 已实现：任务域与笔记域 SQLite 持久化（`src/main/db/`，Electron 内置 `node:sqlite`，WAL + `PRAGMA user_version` 前向迁移），类型化 preload 桥 `window.ws`，勾选与权限变更结果落库，启动时以数据库内容覆盖种子数据。
 - 已实现：任务工作区与完整任务字段。`tasks` 迁移到 v6：v3 新增 `notes / due_date / priority / list`，v4 新增 `deleted_at` 做软删（删除保留 30 天后清理，撤销只需清空该列），v6 新增 `planned_for / estimate_minutes` 区分「计划做」与「截止」；仓库支持 `create / update / remove / restore`；今日卡只含今天与逾期；快速添加、去向提示、清单派生、搜索（Esc 清空）、行内详情、快捷日期、焦点归位和 `Ctrl+Shift+N` 已接入。权限卡顺延会同步截止日期；笔记总数独立保存在 `noteTotal`，导航与上下文用量使用数据库总数而非预览条数。
 - 已实现：夜间/白天双主题（默认夜间），状态栏与命令面板可切换；主题写入 `localStorage`，启动首帧前应用，并通过 `app:set-theme` 窄 IPC 同步窗口背景与标题栏配色。
@@ -10,7 +12,7 @@
 - 已实现：学习域（间隔重复闪卡，FSRS-6）。`learning_items` / `learning_reviews` 迁移到 v7，DB v14 新增 `stability / difficulty / lapses / last_review_on`；调度在 `shared/srs.ts`（21 个默认参数、90% 保留率、间隔上限 365 天，1 重来 / 2 困难 / 3 良好 / 4 简单），主进程按本机当天计算，`review` 不接收日期。评分 1 留在今天，当天重复复习走短期公式；新卡用初始参数，旧 SM-2 数据首次评分沿用原间隔作为稳定度，不伪造复习历史。`lib/learning.ts` 负责到期队列、时长估算与科目分组；种子 24 张（英语二 16 个真题高频词 + 管综数学 / 逻辑 / 写作 8 张起步卡），仅空库写入。默认科目固定为 `shared/mem-starters.ts` 的 `MEM_SUBJECTS`（英语二 / 管综数学 / 管综逻辑 / 管综写作），但仍是软约束，历史「互联网」卡与自由科目继续保留。学习视图支持 CSV 导入导出（见上），导入前预览重复与错误行，不覆盖已有卡片；「统计」弹层展示未来 7 天负载、FSRS 保持率、掌握分布、最近 14 天复习量与评分占比（只读 `reviewHistory`，不改表）。
 - 笔记搜索：FTS5 `trigram` 分词（`unicode61` 无法检索中文）；**查询少于 3 字符时自动回退 `LIKE`**，写查询前请先看 `src/main/db/notes.ts` 的 `planSearch`。
 - 笔记双链（DB v13）：`note_links(source_id, target_id, title, created_at)`，主键 `(source_id, title)`，两个方向都 `ON DELETE CASCADE`；补全与反向链接走 `NoteRepository.links/titles`，不要另建数据源。
-- 已实现：笔记关系图谱（0.44.0 → 0.45.0）。笔记页头部「图谱」切换 `NoteGraphView`；`notes:graph` 返回全部节点与已解析双链（最多 400 节点），`lib/note-graph.ts` 做确定性力导向布局；悬停高亮相邻节点/边，点击节点经 `notes:get` 取全文后打开详情，不直接拿图谱节点覆盖正文。0.45.0 增加指针锚定滚轮缩放（45%–240%）、拖拽平移、双击/复位、键盘 `+` / `-` / `0` 与方向键、标签稳定配色与图例、孤立节点虚线与「只看相连」过滤；视图变换、标签统计与过滤都是 `lib/note-graph.ts` 的纯函数。
+- 已实现：笔记关系图谱（0.44.0 → 0.45.0）。笔记页头部「图谱」切换 `NoteGraphView`；`notes:graph` 返回全部节点与已解析双链（最多 400 节点），`lib/note-graph.ts` 做确定性力导向布局；悬停高亮相邻节点/边，点击节点经 `notes:get` 取全文后打开详情，不直接拿图谱节点覆盖正文。0.45.0 增加指针锚定滚轮缩放（45%–240%）、拖拽平移、双击/复位、键盘 `+` / `-` / `0` 与方向键、标签稳定配色与图例、孤立节点虚线与「只看相连」过滤；视图变换、标签统计与过滤都是 `lib/note-graph.ts` 的纯函数。0.45.1 用 4px 阈值区分点击与拖拽并允许从节点起拖，滚轮改为 `deltaY` 指数缩放；邻接、滚轮因子、键盘映射与视图相等判断都在 `lib/note-graph.ts`，`GraphScene` 以 memo 隔离平移/缩放时的重渲染。
 - 全部笔记页用固定行高虚拟滚动（`ROW_HEIGHT` 与 CSS `.w1-nvrow` 高度必须一致），分页每页 60 条。
 - 数据库位置：`%APPDATA%\WorkStationForOne\data\workstation.db`；设置 `WS_DATA_DIR` 可覆盖，冒烟与运行时校验据此使用临时库，避免改写真实数据。
 - 备份：每天首次启动用 `VACUUM INTO` 生成一份快照到 `<库目录>/backups/`（`workstation-YYYYMMDD-HHmmss.db`），只保留最近 10 份；命令面板「立即备份数据」可手动触发并在提示条显示文件名与大小。VACUUM INTO 是一致性快照，不需要停写入，也不要把库文件直接 `copyFile`（会拷到 WAL 中间态）。

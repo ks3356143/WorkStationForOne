@@ -1206,17 +1206,25 @@ async function run() {
     )
 
     await navTo('任务')
-    byText('.w1-todorow', '收集箱')?.click()
-    await sleep(300)
+    const inboxSelected = await waitFor(() => {
+      byText('.w1-todorow', '收集箱')?.click()
+      return (one('.w1-todorow.on')?.textContent ?? '').includes('收集箱')
+    }, 3000)
+    if (!inboxSelected) throw new Error('收集箱未选中')
     const inboxInput = one('.w1-todoinput')
     setValue(inboxInput, '未排期验证')
     await sleep(100)
     inboxInput.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
     )
-    await sleep(400)
+    const unplannedReady = await waitFor(async () => {
+      const task = (await window.ws.tasks.list()).find((item) => item.title === '未排期验证')
+      return Boolean(task && !task.plannedFor && !task.dueDate)
+    }, 3000)
+    if (!unplannedReady) throw new Error('未排期任务创建失败')
     byText('.w1-planbtn', '周视图')?.click()
     const weekReady = await waitFor(() => all('.w1-wkday').length === 7, 3000)
+    await waitFor(() => Boolean(one('.w1-weekbacklog')), 2000)
     check(
       '任务周视图显示七天',
       weekReady,
@@ -3527,11 +3535,19 @@ async function run() {
     await sleep(120)
     check(
       '笔记图谱滚轮缩放',
-      (one('.w1-gzoom')?.textContent ?? '') === '138%',
+      (one('.w1-gzoom')?.textContent ?? '') === '144%',
       one('.w1-gzoom')?.textContent ?? 'missing'
     )
     const graphSvg = one('.w1-notegraphcanvas svg')
     const panBefore = one('.w1-gview')?.getAttribute('transform') ?? ''
+    const parsePanX = (value) => {
+      const start = value.indexOf('translate(')
+      if (start < 0) return NaN
+      const rest = value.slice(start + 'translate('.length)
+      const end = rest.indexOf(' ')
+      return Number(rest.slice(0, end))
+    }
+    const panXBefore = parsePanX(panBefore)
     graphSvg?.dispatchEvent(
       new PointerEvent('pointerdown', {
         bubbles: true,
@@ -3568,10 +3584,59 @@ async function run() {
       })
     )
     await sleep(60)
+    const panAfter = one('.w1-gview')?.getAttribute('transform') ?? ''
+    const panXAfter = parsePanX(panAfter)
     check(
       '笔记图谱可拖拽平移',
-      (one('.w1-gview')?.getAttribute('transform') ?? '') !== panBefore,
-      one('.w1-gview')?.getAttribute('transform') ?? 'missing'
+      panAfter !== panBefore && Number.isFinite(panXBefore) && panXAfter > panXBefore,
+      panAfter || 'missing'
+    )
+    const nodePanBefore = one('.w1-gview')?.getAttribute('transform') ?? ''
+    const nodePanXBefore = parsePanX(nodePanBefore)
+    const nodeRect = taggedGraphNode?.getBoundingClientRect()
+    const nodeX = nodeRect ? nodeRect.left + nodeRect.width / 2 : 400
+    const nodeY = nodeRect ? nodeRect.top + nodeRect.height / 2 : 400
+    taggedGraphNode?.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        bubbles: true,
+        cancelable: true,
+        clientX: nodeX,
+        clientY: nodeY,
+        pointerId: 8,
+        button: 0,
+        pointerType: 'mouse'
+      })
+    )
+    await sleep(60)
+    graphSvg?.dispatchEvent(
+      new PointerEvent('pointermove', {
+        bubbles: true,
+        cancelable: true,
+        clientX: nodeX + 70,
+        clientY: nodeY + 20,
+        pointerId: 8,
+        button: 0,
+        pointerType: 'mouse'
+      })
+    )
+    await sleep(60)
+    graphSvg?.dispatchEvent(
+      new PointerEvent('pointerup', {
+        bubbles: true,
+        cancelable: true,
+        clientX: nodeX + 70,
+        clientY: nodeY + 20,
+        pointerId: 8,
+        button: 0,
+        pointerType: 'mouse'
+      })
+    )
+    await sleep(60)
+    const nodePanAfter = one('.w1-gview')?.getAttribute('transform') ?? ''
+    check(
+      '笔记图谱从节点拖拽也能平移',
+      parsePanX(nodePanAfter) > nodePanXBefore,
+      String(nodePanXBefore) + ' -> ' + String(parsePanX(nodePanAfter))
     )
     one('.w1-gzoom')?.click()
     await sleep(120)

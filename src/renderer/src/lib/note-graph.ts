@@ -4,8 +4,9 @@ export const NOTE_GRAPH_WIDTH = 1000
 export const NOTE_GRAPH_HEIGHT = 620
 export const NOTE_GRAPH_MIN_ZOOM = 0.45
 export const NOTE_GRAPH_MAX_ZOOM = 2.4
-
-const NOTE_GRAPH_PAN_MARGIN = 120
+export const NOTE_GRAPH_ZOOM_STEP = 1.2
+export const NOTE_GRAPH_PAN_STEP = 40
+export const NOTE_GRAPH_PAN_MARGIN = 120
 
 export interface NoteGraphViewport {
   zoom: number
@@ -105,15 +106,54 @@ export function panGraphView(view: NoteGraphViewport, dx: number, dy: number): N
   return clampPan({ zoom: view.zoom, panX: view.panX + dx, panY: view.panY + dy })
 }
 
-export function withoutIsolatedNodes(graph: NoteGraph): NoteGraph {
-  const linked = new Set<string>()
-  for (const edge of graph.edges) {
-    linked.add(edge.sourceId)
-    linked.add(edge.targetId)
+export function sameGraphViewport(a: NoteGraphViewport, b: NoteGraphViewport): boolean {
+  return a.zoom === b.zoom && a.panX === b.panX && a.panY === b.panY
+}
+
+/** 滚轮按 deltaY 指数缩放：鼠标一档与触控板连续小步都得到相近的手感。 */
+export function wheelZoomFactor(deltaY: number): number {
+  if (!Number.isFinite(deltaY) || deltaY === 0) return 1
+  return Math.exp(-clamp(deltaY, -120, 120) * 0.0015)
+}
+
+export type GraphKeyAction =
+  | { kind: 'zoom'; factor: number }
+  | { kind: 'reset' }
+  | { kind: 'pan'; dx: number; dy: number }
+
+export function graphKeyAction(key: string): GraphKeyAction | null {
+  if (key === '+' || key === '=') return { kind: 'zoom', factor: NOTE_GRAPH_ZOOM_STEP }
+  if (key === '-') return { kind: 'zoom', factor: 1 / NOTE_GRAPH_ZOOM_STEP }
+  if (key === '0') return { kind: 'reset' }
+  if (key === 'ArrowLeft') return { kind: 'pan', dx: -NOTE_GRAPH_PAN_STEP, dy: 0 }
+  if (key === 'ArrowRight') return { kind: 'pan', dx: NOTE_GRAPH_PAN_STEP, dy: 0 }
+  if (key === 'ArrowUp') return { kind: 'pan', dx: 0, dy: -NOTE_GRAPH_PAN_STEP }
+  if (key === 'ArrowDown') return { kind: 'pan', dx: 0, dy: NOTE_GRAPH_PAN_STEP }
+  return null
+}
+
+export function neighborIds(edges: readonly NoteGraphEdge[]): Map<string, Set<string>> {
+  const neighbors = new Map<string, Set<string>>()
+  const add = (from: string, to: string) => {
+    const existing = neighbors.get(from)
+    if (existing) existing.add(to)
+    else neighbors.set(from, new Set([to]))
   }
+  for (const edge of edges) {
+    if (edge.sourceId === edge.targetId) continue
+    add(edge.sourceId, edge.targetId)
+    add(edge.targetId, edge.sourceId)
+  }
+  return neighbors
+}
+
+export function withoutIsolatedNodes(graph: NoteGraph): NoteGraph {
+  const neighbors = neighborIds(graph.edges)
   return {
-    nodes: graph.nodes.filter((node) => linked.has(node.id)),
-    edges: graph.edges.filter((edge) => linked.has(edge.sourceId) && linked.has(edge.targetId))
+    nodes: graph.nodes.filter((node) => neighbors.has(node.id)),
+    edges: graph.edges.filter(
+      (edge) => neighbors.has(edge.sourceId) && neighbors.has(edge.targetId)
+    )
   }
 }
 

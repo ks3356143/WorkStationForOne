@@ -2,7 +2,7 @@
 
 Windows 上的个人 AI 工作站。把「今日看板 + 任务清单 + Agent 工作区 + 笔记库 + 闪卡复习」收进一个窗口：左侧导航一次只打开一个全宽工作区，Agent 视图里驱动本机 Claude Code CLI 对话，任务、笔记、学习与习惯全部落在本机 SQLite。
 
-> 当前版本 v0.44.0（2026-11-03）。任务（含清单、计划、重复、子任务）、笔记（含双链）、学习（MEM 科目 + FSRS-6 + CSV 导入导出 + 统计）、习惯、审计、Agent 会话、Provider 配置、工作区、能力中心、会话预设与用量、审批规则（MCP 与本地只读工具可按工作区持久放行，敏感工具只能单次或本会话，会话规则退出即失效）均已落库（DB v36）；Agent 通过本机 `claude` / `codex` CLI 流式对话：Claude 读工具自动放行、写操作弹审批卡；Codex 继承 CLI 时以只读沙箱运行，激活工具自己的 Provider 后走 `codex app-server` 的工作区审批模式，命令、文件改动与额外权限请求都进同一张审批卡；每个 Agent 会话选择自己的项目目录，Claude 与 Codex 都只在该目录里运行；不同会话可以同时运行，各自的事件、流式正文与审批卡互不串台，同一会话内仍保持串行；状态栏和左侧舰队区可打开「舰队控制台」，统一查看、筛选、切换和停止所有应用内会话，并可只读扫描本机 Claude / Codex CLI 会话，把外部窗口的会话按 resume id 导入统一续接，同时带出最近 200 条只读历史与工具卡；Codex 也能通过隔离的 HTTP MCP 桥读取和写入本地数据，读工具自动放行并写审计，写工具默认弹审批卡（MCP 工具可按本会话 / 此工作区放行，工作区规则只对 MCP 与本地只读工具开放）；Provider 支持 Claude Code / Codex CLI 双目标，设置页提供双端口接线台、轻量「测试连接」与模型列表拉取，官方 Anthropic 自动用 `x-api-key`、其它兼容端点用 Bearer，Base URL 下显示鉴权与请求端点；各自可继承 CLI 或使用工具加密保存的配置，Codex 使用隔离的 `codex-home`；Main 进程内嵌 MCP 数据桥，提供 5 个读取 + 6 个写入工具，按任务 / 习惯 / 学习 / 笔记四域配置只读、询问或可写，询问模式弹审批卡，写入带幂等键并写审计；服务异常关闭后在同一端口自动重启；MCP 写入与审计同事务；设置页可查看活动记录。能力中心把 Claude 插件市场、外部 MCP 与内置工具收进应用自己的目录：插件通过会话级 `--plugin-dir` 加载；外部 MCP 按归属（Claude / Codex / 两者）进入对应会话，密钥只进子进程环境，工具按「自动 / 询问 / 禁止」审批，Claude 的询问工具经本机桥 `approval_request` 中继到同一张审批卡；两者都不写 `~/.claude`、`~/.codex`、CC Switch 或桌面端配置；新装插件与 MCP 默认停用，带 hooks/MCP 的插件和所有外部 Server 需要确认信任后才会启用。已信任的外部 MCP 可在设置里测试连接并列出工具清单，改配置会自动清空旧测试结果；环境面板显示 Node / npx / uvx / Git / Claude / Codex 的版本，MCP 配置支持 JSON 导入导出（密钥值不导出）。实时网络已验证官方市场 315 个插件与 `sequential-thinking` MCP 的工具发现。界面字体统一为苹方优先的非衬线字体，设置、能力中心与审批提示的小字号已放大。存储位置可在设置里改到任意目录，重启时自动迁移并删除原目录；插件支持 Claude 与 Codex 双 Agent、官方与第三方 Git 源、本机配置只读导入，启动后自动检查更新并提示。便携版可用。
+> 当前版本 v0.45.1（2026-11-04），数据库 v36。逐项实现状态、数据库版本与最近验证结论以 [docs/status.md](docs/status.md) 为准；这里只保留用户视角的功能概览。
 
 ## 特点
 
@@ -16,7 +16,7 @@ Windows 上的个人 AI 工作站。把「今日看板 + 任务清单 + Agent �
 - **本地优先**：数据只存在本机 SQLite；不使用云同步、不上传遥测；默认不保存 API Key，只有显式保存的自定义 Provider Key 会以系统加密存本机。
 - **备份与恢复**：每天首次启动自动生成数据库快照，设置页「数据」可立即备份、查看快照并一键恢复；恢复前自动留安全快照，损坏或版本不兼容的备份会被拒绝，恢复在下次启动前执行，失败自动回滚。
 - **中文优先的 HUD 界面**：极光玻璃、直角、终端式元素；夜色与白天双主题，动效可整体关闭，也尊重系统的「减少动效」设置。任务完成有复选框弹跳与行扫光，提醒行会滑出并把静音条淡入，周视图键盘移动有棱镜脉冲，切换工作区时有一条 HUD 扫线。
-- **间隔重复复习**：面向 MEM 初试的闪卡，默认科目为英语二 / 管综数学 / 管综逻辑 / 管综写作；调度使用 **FSRS-6**（默认参数、90% 目标保留率），每张卡维护稳定度 / 难度 / 失误次数，评分 1 留在今天，当天重复复习走短期公式。支持 `{{c1::答案}}` 挖空卡与一键把笔记转成卡片。
+- **间隔重复复习**：面向 MEM 初试的闪卡，默认科目为英语二 / 管综数学 / 管综逻辑 / 管综写作；调度使用 **FSRS-6**（默认参数、90% 目标保留率），评分 1 留在今天，具体公式与参数见 `shared/srs.ts`。支持 `{{c1::答案}}` 挖空卡与一键把笔记转成卡片。
 - **学习统计**：学习视图的「统计」弹层用 FSRS 稳定度估算当前记忆保持率，按复习日分桶展示未来 7 天到期负载，按新卡 / 学习中（稳定度 < 21 天）/ 成熟卡展示掌握分布，并给出最近 14 天复习量与四档评分占比。
 - **学习卡批量导入导出**：用 UTF-8 CSV（`科目,正面,背面,来源,类型,挖空原文`）批量灌入 MEM 词表与题库；导入前预览可导入 / 重复 / 错误行，按「科目 + 正面」去重，不覆盖已有卡；导出按当前科目筛出启用卡，直接用 Excel / WPS 编辑。
 - **笔记全文搜索、双链与图谱**：SQLite FTS5 + trigram 分词，中文与英文都能检索，两字短词自动回退模糊匹配；弹层详情可编辑、删除与转卡。正文里用 `[[笔记首行]]` 互相引用，详情显示出链与被引用列表，输入 `[[` 自动补全唯一标题；「图谱」模式把全部笔记与双链画成确定性力导向关系图，悬停高亮相邻节点，点击节点直接打开详情；滚轮缩放、拖拽平移，按标签着色并可只显示有双链的笔记。
@@ -36,7 +36,7 @@ Windows 上的个人 AI 工作站。把「今日看板 + 任务清单 + Agent �
 | --- | --- |
 | 桌面壳 | Electron 45（sandbox + contextIsolation，仅暴露窄 preload 桥） |
 | 界面 | React 19、TypeScript、Zustand、Motion、cmdk |
-| 数据 | Electron 内置 `node:sqlite`（WAL、`PRAGMA user_version` 前向迁移、FTS5，DB v25） |
+| 数据 | Electron 内置 `node:sqlite`（WAL、`PRAGMA user_version` 前向迁移、FTS5，DB v36） |
 | 构建 | electron-vite、Vite 8、Vitest、Biome |
 
 不引入原生 SQLite 模块，因此没有 `@electron/rebuild` 与 ABI 匹配问题。
@@ -60,9 +60,9 @@ npm run dev
 | `npm run build` | 生产构建，输出到 `out/` |
 | `npm start` | 预览上一次构建 |
 | `npm run typecheck` | 类型检查（main/preload 与 renderer 各一套配置） |
-| `npm test` | 运行全部单元测试（729 项） |
+| `npm test` | 运行全部单元测试（1014 项） |
 | `npm run check` | Biome 检查格式与 lint（Rust 单二进制，不依赖 Prettier / ESLint） |
-| `npm run smoke` | 构建后跑 UI 交互冒烟（300 项，真实主进程 + 临时 SQLite） |
+| `npm run smoke` | 构建后跑 UI 交互冒烟（395 项，真实主进程 + 临时 SQLite） |
 | `npm run verify` | 启动真实主进程跑 253–255 项运行时断言（五视图、双主题/皮肤、跨重启） |
 | `npm run capture -- .screenshots/home.png 1440 900 .screenshots/audit.json` | 截图并输出布局审计 |
 | `npm run capture -- .screenshots/notes-1180.png 1180 720 .screenshots/audit-notes.json dark notes` | 指定主题 `dark|light` 与视图 `today|tasks|agent|notes|learning` 截图 |
@@ -82,7 +82,7 @@ src/
     mcp/                本地 MCP 数据桥（HTTP JSON-RPC、读写工具、权限与审计）
   preload/              暴露 window.ws 的窄类型化桥
   renderer/             界面（无 Node、无数据库、无文件系统权限）
-    src/components/     左侧导航、今日看板、任务 / Agent / 笔记 / 学习工作区、自建表单控件
+    src/components/     左侧导航、今日看板、任务 / Agent / 笔记 / 学习工作区、note-graph、自建表单控件
     src/lib/            纯函数规则（日程、任务筛选、快速添加解析、排程、重复、热力图、学习）
     src/store/          Zustand 状态
   shared/ipc.ts         IPC 通道常量与跨进程类型契约
@@ -100,7 +100,7 @@ docs/superpowers/specs/ 产品与架构设计规格
 ## 数据
 
 - 位置：`%APPDATA%\WorkStationForOne\data\workstation.db`
-- 已落库：任务（清单、截止/计划日期、时长、优先级、备注、完成时间、重复、子任务）、笔记（含 FTS5 索引与双链）、学习卡片（含 FSRS 稳定度 / 难度 / 失误次数）与复习记录、习惯与按日打卡、智能体会话与消息（含工具卡、resume id 与导入历史标记）、Provider 配置（Claude / Codex 双目标，Key 加密后存 BLOB）、MCP 四域权限、审计日志
+- 已落库：任务（清单、截止/计划日期、时长、优先级、备注、完成时间、重复、子任务）、笔记（含 FTS5 索引与双链）、学习卡片与复习记录、习惯与按日打卡、智能体会话与消息（含工具卡、resume id 与导入历史标记）、Provider 配置（Claude / Codex 双目标，Key 加密后存 BLOB）、MCP 四域权限、审计日志
 - 备份：每天首次启动用 `VACUUM INTO` 生成快照到 `<库目录>/backups/`，保留最近 10 份；命令面板可手动备份
 - 全局快速捕获：`Ctrl+Alt+Space` 随时记一条，落库后主窗口即时刷新
 
@@ -120,14 +120,17 @@ docs/superpowers/specs/ 产品与架构设计规格
 - Agent 依赖本机 `claude` CLI 已登录且模型可用；继承模式下若全局配置指向的模型被网关拒绝，会明确显示 API 错误，可在设置里改用自定义 Provider。
 - 自定义 Provider 优先于全局 Claude settings，但仍会加载当前目录的项目级 settings；API Key 不写入日志、命令行或渲染层。官方 Anthropic 地址自动使用 `x-api-key`，第三方 Anthropic 兼容端点使用 Bearer；连接测试与模型列表会按推断顺序尝试并在凭据被拒时回退另一种。要求 `x-api-key` 但域名不是 `anthropic.com` 的自定义网关目前会按 Bearer 处理。
 - Codex 继承 CLI 时只读；激活工具 Provider 后走 `codex app-server`，工作区内的改动由 Codex 沙箱与 `on-request` 策略决定，越界、联网或额外权限会弹审批卡。Codex CLI 0.166 起只支持 Responses 协议，设置页已移除 Chat。DeepSeek `deepseek-flash` 的真实 app-server、工作区写入、MCP 读取 `today_overview` 与写入 `tasks_create` 均已验证；MCP 工具调用进入同一张审批卡，四域权限与审计由本地桥负责。其它 Provider 仍需分别验证。
-- HTTP 外部 MCP 已用本机 Streamable HTTP 探针验证连接、请求头透传与 SSE 工具清单；真实 Claude + DeepSeek 已验证外部 MCP 写入工具在审批卡「允许一次」后执行；Claude 原生 `Write` / `Bash`（含无外部 MCP 会话）也经同一中继审批并落盘。公网无鉴权 DeepWiki（SSE）与 Semgrep 无凭据 401 已实测；带密钥的 Context7 已在应用内添加、信任、测试并调用真实工具；Codex 外部 HTTP MCP 的请求头、elicitation 审批与写入工具已用真实 app-server + DeepSeek 验证；OAuth 远程 MCP 已用本地 mock 全链路验证发现 → DCR → PKCE → 回调 → Token → 运行时 Bearer；真实 Notion 已完成浏览器授权，连接测试列出 69 个工具，重启应用后仍保持连接。
+- HTTP 外部 MCP、真实 Claude / Codex 外部写入与 OAuth 远程 MCP 已在本地探针或真实环境中验证；带密钥的公网 Server、其它 Provider 与 Notion 退出登录仍需分别验证。
 - 审计日志已有记录与设置页「活动记录」入口，但只读展示，不支持删除或导出。
 - 笔记双链只按「唯一首行」解析：重名或找不到的目标不建立链接；目标改首行后旧链接仍指向它，但正文里显示的是保存时的标题快照。
-- 学习域使用 FSRS-6 默认参数，不提供参数优化器；CSV 导入按「科目 + 正面」去重。
 - 到点提醒只覆盖任务；学习到期不会推送系统通知。
 - 仅支持 Windows；默认夜间主题，可在状态栏或命令面板切换到白天模式。
 
 ## 文档
 
+- 当前实现与验证：[docs/status.md](docs/status.md)
 - 设计规格：[docs/superpowers/specs/2026-10-23-workstation-design.md](docs/superpowers/specs/2026-10-23-workstation-design.md)
+- 模块地图：[docs/architecture/modules.md](docs/architecture/modules.md)
+- 冒烟覆盖：[docs/development/smoke.md](docs/development/smoke.md)
+- 旧版更新日志：[docs/CHANGELOG-archive.md](docs/CHANGELOG-archive.md)
 - 协作约定：[AGENTS.md](AGENTS.md)

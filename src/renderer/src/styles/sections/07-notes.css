@@ -609,9 +609,11 @@
   cursor: grab;
   touch-action: none;
   outline: none;
+  user-select: none;
 }
 
-.w1-notegraphcanvas svg.dragging {
+.w1-notegraphcanvas svg.dragging,
+.w1-notegraphcanvas svg.dragging .w1-gnode {
   cursor: grabbing;
 }
 
@@ -691,7 +693,6 @@
   paint-order: stroke;
   stroke: var(--bg0);
   stroke-width: 2.5px;
-  pointer-events: none;
 }
 
 .w1-gnode:hover circle,
