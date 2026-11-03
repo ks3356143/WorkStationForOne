@@ -343,7 +343,7 @@ export function NotesView() {
           <span>{graphOpen ? '双链来自 [[笔记首行]]' : '本地 SQLite · trigram 全文索引'}</span>
           <span>
             {graphOpen
-              ? '点击节点打开笔记 · 固定布局'
+              ? '滚轮缩放 · 拖拽平移 · 点击打开笔记'
               : mode === 'search'
                 ? '两字以内自动回退模糊匹配'
                 : '置顶优先 · 按更新时间排序'}

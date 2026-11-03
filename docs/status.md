@@ -10,7 +10,7 @@
 - 已实现：学习域（间隔重复闪卡，FSRS-6）。`learning_items` / `learning_reviews` 迁移到 v7，DB v14 新增 `stability / difficulty / lapses / last_review_on`；调度在 `shared/srs.ts`（21 个默认参数、90% 保留率、间隔上限 365 天，1 重来 / 2 困难 / 3 良好 / 4 简单），主进程按本机当天计算，`review` 不接收日期。评分 1 留在今天，当天重复复习走短期公式；新卡用初始参数，旧 SM-2 数据首次评分沿用原间隔作为稳定度，不伪造复习历史。`lib/learning.ts` 负责到期队列、时长估算与科目分组；种子 24 张（英语二 16 个真题高频词 + 管综数学 / 逻辑 / 写作 8 张起步卡），仅空库写入。默认科目固定为 `shared/mem-starters.ts` 的 `MEM_SUBJECTS`（英语二 / 管综数学 / 管综逻辑 / 管综写作），但仍是软约束，历史「互联网」卡与自由科目继续保留。学习视图支持 CSV 导入导出（见上），导入前预览重复与错误行，不覆盖已有卡片；「统计」弹层展示未来 7 天负载、FSRS 保持率、掌握分布、最近 14 天复习量与评分占比（只读 `reviewHistory`，不改表）。
 - 笔记搜索：FTS5 `trigram` 分词（`unicode61` 无法检索中文）；**查询少于 3 字符时自动回退 `LIKE`**，写查询前请先看 `src/main/db/notes.ts` 的 `planSearch`。
 - 笔记双链（DB v13）：`note_links(source_id, target_id, title, created_at)`，主键 `(source_id, title)`，两个方向都 `ON DELETE CASCADE`；补全与反向链接走 `NoteRepository.links/titles`，不要另建数据源。
-- 已实现：笔记关系图谱（0.44.0）。笔记页头部「图谱」切换 `NoteGraphView`；`notes:graph` 返回全部节点与已解析双链（最多 400 节点），`lib/note-graph.ts` 做确定性力导向布局；悬停高亮相邻节点/边，点击节点经 `notes:get` 取全文后打开详情，不直接拿图谱节点覆盖正文。
+- 已实现：笔记关系图谱（0.44.0 → 0.45.0）。笔记页头部「图谱」切换 `NoteGraphView`；`notes:graph` 返回全部节点与已解析双链（最多 400 节点），`lib/note-graph.ts` 做确定性力导向布局；悬停高亮相邻节点/边，点击节点经 `notes:get` 取全文后打开详情，不直接拿图谱节点覆盖正文。0.45.0 增加指针锚定滚轮缩放（45%–240%）、拖拽平移、双击/复位、键盘 `+` / `-` / `0` 与方向键、标签稳定配色与图例、孤立节点虚线与「只看相连」过滤；视图变换、标签统计与过滤都是 `lib/note-graph.ts` 的纯函数。
 - 全部笔记页用固定行高虚拟滚动（`ROW_HEIGHT` 与 CSS `.w1-nvrow` 高度必须一致），分页每页 60 条。
 - 数据库位置：`%APPDATA%\WorkStationForOne\data\workstation.db`；设置 `WS_DATA_DIR` 可覆盖，冒烟与运行时校验据此使用临时库，避免改写真实数据。
 - 备份：每天首次启动用 `VACUUM INTO` 生成一份快照到 `<库目录>/backups/`（`workstation-YYYYMMDD-HHmmss.db`），只保留最近 10 份；命令面板「立即备份数据」可手动触发并在提示条显示文件名与大小。VACUUM INTO 是一致性快照，不需要停写入，也不要把库文件直接 `copyFile`（会拷到 WAL 中间态）。

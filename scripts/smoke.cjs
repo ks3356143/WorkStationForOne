@@ -3485,8 +3485,8 @@ async function run() {
     await sleep(400)
     check('Esc 不关闭笔记工作区', activeNav() === '笔记' && !!one('.w1-notesview'), activeNav())
 
-    await window.ws.notes.create('冒烟图谱目标')
-    await window.ws.notes.create('冒烟图谱来源 [[冒烟图谱目标]]')
+    await window.ws.notes.create('冒烟图谱目标', '冒烟标签')
+    await window.ws.notes.create('冒烟图谱来源 [[冒烟图谱目标]]', '冒烟标签')
     one('.w1-nvgraphbtn')?.click()
     const graphReady = await waitFor(
       () => all('.w1-gnode').length >= 2 && all('.w1-gedge').length >= 1,
@@ -3497,6 +3497,106 @@ async function run() {
       graphReady &&
         (one('.w1-notegraphbar')?.textContent ?? '').includes('条双链'),
       (one('.w1-notegraphbar')?.textContent ?? 'missing').slice(0, 80)
+    )
+    const taggedGraphNode = all('.w1-gnode').find((node) =>
+      node.textContent?.includes('冒烟图谱目标')
+    )
+    check(
+      '笔记图谱按标签着色',
+      /w1-gtone-[1-6]/.test(taggedGraphNode?.getAttribute('class') ?? '') &&
+        (one('.w1-gtags')?.textContent ?? '').includes('冒烟标签'),
+      taggedGraphNode?.getAttribute('class') ?? 'missing'
+    )
+    one('[aria-label="放大图谱"]')?.click()
+    await sleep(120)
+    check(
+      '笔记图谱可放大',
+      (one('.w1-gzoom')?.textContent ?? '') === '120%' &&
+        (one('.w1-gview')?.getAttribute('transform') ?? '').includes('scale(1.2)'),
+      one('.w1-gzoom')?.textContent ?? 'missing'
+    )
+    one('.w1-notegraphcanvas')?.dispatchEvent(
+      new WheelEvent('wheel', {
+        deltaY: -120,
+        clientX: 400,
+        clientY: 300,
+        bubbles: true,
+        cancelable: true
+      })
+    )
+    await sleep(120)
+    check(
+      '笔记图谱滚轮缩放',
+      (one('.w1-gzoom')?.textContent ?? '') === '138%',
+      one('.w1-gzoom')?.textContent ?? 'missing'
+    )
+    const graphSvg = one('.w1-notegraphcanvas svg')
+    const panBefore = one('.w1-gview')?.getAttribute('transform') ?? ''
+    graphSvg?.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 300,
+        clientY: 300,
+        pointerId: 7,
+        button: 0,
+        pointerType: 'mouse'
+      })
+    )
+    await sleep(60)
+    graphSvg?.dispatchEvent(
+      new PointerEvent('pointermove', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 380,
+        clientY: 330,
+        pointerId: 7,
+        button: 0,
+        pointerType: 'mouse'
+      })
+    )
+    await sleep(60)
+    graphSvg?.dispatchEvent(
+      new PointerEvent('pointerup', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 380,
+        clientY: 330,
+        pointerId: 7,
+        button: 0,
+        pointerType: 'mouse'
+      })
+    )
+    await sleep(60)
+    check(
+      '笔记图谱可拖拽平移',
+      (one('.w1-gview')?.getAttribute('transform') ?? '') !== panBefore,
+      one('.w1-gview')?.getAttribute('transform') ?? 'missing'
+    )
+    one('.w1-gzoom')?.click()
+    await sleep(120)
+    check(
+      '笔记图谱可复位视图',
+      (one('.w1-gview')?.getAttribute('transform') ?? '') === 'translate(0 0) scale(1)',
+      one('.w1-gview')?.getAttribute('transform') ?? 'missing'
+    )
+    const fullGraphNodes = all('.w1-gnode').length
+    one('.w1-gtoggle')?.click()
+    await sleep(200)
+    const filteredGraphNodes = all('.w1-gnode').length
+    check(
+      '笔记图谱可只看相连',
+      filteredGraphNodes > 0 &&
+        filteredGraphNodes < fullGraphNodes &&
+        one('.w1-gtoggle')?.getAttribute('aria-pressed') === 'true',
+      String(fullGraphNodes) + '→' + String(filteredGraphNodes)
+    )
+    one('.w1-gtoggle')?.click()
+    await sleep(200)
+    check(
+      '笔记图谱可恢复孤立节点',
+      all('.w1-gnode').length === fullGraphNodes,
+      String(all('.w1-gnode').length)
     )
     const graphNode = all('.w1-gnode').find((node) =>
       node.textContent?.includes('冒烟图谱目标')
