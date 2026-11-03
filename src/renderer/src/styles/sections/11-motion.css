@@ -125,11 +125,45 @@
 }
 
 .w1-view {
+  position: relative;
   opacity: 1;
   transform: translateY(0);
   transition:
     opacity var(--dur-view) var(--ease-out),
     transform var(--dur-view) var(--ease-out);
+}
+
+/* HUD 过场扫线：只画在视图顶层，不参与布局 */
+.w1-view::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(var(--ac2-rgb) / 0.36) 35%,
+    rgb(var(--ac2-rgb) / 0.5) 50%,
+    transparent 65%
+  );
+  opacity: 0;
+  animation: w1-view-scan 480ms var(--ease-out);
+  will-change: transform, opacity;
+}
+
+@keyframes w1-view-scan {
+  0% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  12% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(100vh);
+  }
 }
 
 @starting-style {

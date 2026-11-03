@@ -501,6 +501,73 @@
   box-shadow: 0 0 12px rgb(var(--ok-rgb) / 0.24);
 }
 
+/* 完成反馈只在本回合勾选时触发，静态已完成行不会反复闪 */
+.w1-todorowwrap.celebrate .w1-todocb {
+  position: relative;
+  animation: taskCheckPop 440ms var(--ease-out);
+}
+
+.w1-todorowwrap.celebrate .w1-todocb::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border: 1px solid rgb(var(--ok-rgb) / 0.65);
+  opacity: 0;
+  pointer-events: none;
+  animation: taskCheckRing 620ms var(--ease-out) forwards;
+}
+
+.w1-todorowwrap.celebrate .w1-todorowmain {
+  animation: taskRowSpark 620ms var(--ease-out);
+}
+
+.w1-todorowwrap.celebrate .w1-todotitletext {
+  animation: taskTitleDone 620ms var(--ease-out);
+}
+
+@keyframes taskCheckPop {
+  0% {
+    transform: scale(0.7);
+  }
+  55% {
+    transform: scale(1.16);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes taskCheckRing {
+  0% {
+    opacity: 0.8;
+    transform: scale(0.85);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+}
+
+@keyframes taskRowSpark {
+  0% {
+    background-color: rgb(var(--ok-rgb) / 0.14);
+    box-shadow: inset 2px 0 rgb(var(--ok-rgb) / 0.6);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: inset 2px 0 transparent;
+  }
+}
+
+@keyframes taskTitleDone {
+  0% {
+    color: var(--fg);
+  }
+  100% {
+    color: var(--su);
+  }
+}
+
 .w1-todobody {
   min-width: 0;
   display: flex;
@@ -1461,6 +1528,36 @@
 
 .w1-wktask.done .w1-wktitle {
   text-decoration: line-through;
+}
+
+.w1-wkchip.moved,
+.w1-wktask.moved {
+  position: relative;
+}
+
+.w1-wkchip.moved::after,
+.w1-wktask.moved::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+  border: 1px solid rgb(var(--ac2-rgb) / 0.7);
+  box-shadow: 0 0 18px rgb(var(--ac2-rgb) / 0.28);
+  animation: w1-week-moved 620ms var(--ease-out) forwards;
+}
+
+@keyframes w1-week-moved {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.96);
+  }
+  55% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.04);
+  }
 }
 
 .w1-wktask time {

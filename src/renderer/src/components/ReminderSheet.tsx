@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { m } from 'motion/react'
+import { AnimatePresence, m } from 'motion/react'
 import type { Task } from '../types'
 import { DURATION, EASE_OUT } from '../lib/motion'
 import { reminderBuckets, snoozeTime } from '../lib/reminder-center'
@@ -30,7 +30,14 @@ function ReminderRow({
   onMute: () => void
 }) {
   return (
-    <div className={`w1-reminderrow ${kind}`}>
+    <m.div
+      className={`w1-reminderrow ${kind}`}
+      layout="position"
+      initial={{ opacity: 0, transform: 'translateY(6px)' }}
+      animate={{ opacity: 1, transform: 'translateY(0px)' }}
+      exit={{ opacity: 0, transform: 'translateX(10px)' }}
+      transition={{ duration: DURATION.ui, ease: EASE_OUT }}
+    >
       <button className="w1-reminderopen" type="button" onClick={onOpen}>
         <time>{task.time}</time>
         <span className="w1-reminderrowmain">
@@ -55,7 +62,7 @@ function ReminderRow({
           今天不再
         </button>
       </span>
-    </div>
+    </m.div>
   )
 }
 
@@ -179,11 +186,15 @@ export function ReminderSheet({ notify, onClose, onOpenTask }: ReminderSheetProp
                   <span className="w1-eyebrow">// 已错过</span>
                   <b>{missed.length}</b>
                 </div>
-                {missed.length === 0 ? (
-                  <p className="w1-reminderhint">没有错过的时间。</p>
-                ) : (
-                  renderRows(missed, 'missed')
-                )}
+                <AnimatePresence initial={false}>
+                  {missed.length === 0 ? (
+                    <p className="w1-reminderhint" key="missed-empty">
+                      没有错过的时间。
+                    </p>
+                  ) : (
+                    renderRows(missed, 'missed')
+                  )}
+                </AnimatePresence>
               </section>
 
               <section className="w1-remindergroup" aria-label="稍后">
@@ -191,26 +202,40 @@ export function ReminderSheet({ notify, onClose, onOpenTask }: ReminderSheetProp
                   <span className="w1-eyebrow">// 稍后</span>
                   <b>{upcoming.length}</b>
                 </div>
-                {upcoming.length === 0 ? (
-                  <p className="w1-reminderhint">今天没有更晚的提醒。</p>
-                ) : (
-                  renderRows(upcoming, 'upcoming')
-                )}
+                <AnimatePresence initial={false}>
+                  {upcoming.length === 0 ? (
+                    <p className="w1-reminderhint" key="upcoming-empty">
+                      今天没有更晚的提醒。
+                    </p>
+                  ) : (
+                    renderRows(upcoming, 'upcoming')
+                  )}
+                </AnimatePresence>
               </section>
             </>
           )}
         </div>
 
-        {mutedItems.length > 0 ? (
-          <div className="w1-remindermutedbar" role="status">
-            <span>
-              今天已静音 <b>{mutedItems.length}</b> 项
-            </span>
-            <button type="button" className="w1-reminderrestore" onClick={restoreAll}>
-              恢复全部
-            </button>
-          </div>
-        ) : null}
+        <AnimatePresence initial={false}>
+          {mutedItems.length > 0 ? (
+            <m.div
+              className="w1-remindermutedbar"
+              role="status"
+              layout
+              initial={{ opacity: 0, transform: 'translateY(6px)' }}
+              animate={{ opacity: 1, transform: 'translateY(0px)' }}
+              exit={{ opacity: 0, transform: 'translateY(4px)' }}
+              transition={{ duration: DURATION.ui, ease: EASE_OUT }}
+            >
+              <span>
+                今天已静音 <b>{mutedItems.length}</b> 项
+              </span>
+              <button type="button" className="w1-reminderrestore" onClick={restoreAll}>
+                恢复全部
+              </button>
+            </m.div>
+          ) : null}
+        </AnimatePresence>
 
         <p className="w1-remindernote">
           系统通知只在应用运行时发送；错过的时间不会补发；静音只对今天生效。

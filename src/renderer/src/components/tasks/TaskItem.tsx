@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, m } from 'motion/react'
 import type { TaskPatch } from '../../../../shared/ipc'
 import { TASK_DRAG_TYPE } from '../../lib/dnd'
@@ -51,10 +52,25 @@ export function TaskItem({
   const progress = subtaskProgress(tasks, task.id)
   const priority = task.priority ?? 0
   const editorId = `todo-edit-${task.id}`
+  const wasDone = useRef(task.done)
+  const [celebrate, setCelebrate] = useState(false)
+
+  // 只庆祝本回合从未完成变成完成；过滤/重挂载已完成任务不再闪一次。
+  useEffect(() => {
+    const previous = wasDone.current
+    wasDone.current = task.done
+    if (!task.done) setCelebrate(false)
+    if (previous || !task.done) return
+    setCelebrate(true)
+    const timer = window.setTimeout(() => setCelebrate(false), 680)
+    return () => window.clearTimeout(timer)
+  }, [task.done])
 
   return (
     <div
-      className={`w1-todorowwrap${task.done ? ' done' : ''}${highlight ? ' landing' : ''}`}
+      className={`w1-todorowwrap${task.done ? ' done' : ''}${highlight ? ' landing' : ''}${
+        celebrate ? ' celebrate' : ''
+      }`}
       role="listitem"
       style={{ viewTransitionName: `task-${task.id}` }}
       data-task-id={task.id}

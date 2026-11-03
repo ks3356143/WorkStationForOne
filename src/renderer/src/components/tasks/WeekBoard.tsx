@@ -27,7 +27,9 @@ export function WeekBoard({ tasks, today, onOpen, onSchedule }: WeekBoardProps) 
   const [start, setStart] = useState(() => startOfWeekKey(today))
   const [dragDate, setDragDate] = useState<string | null>(null)
   const [focusTaskId, setFocusTaskId] = useState<string | null>(null)
+  const [movedTaskId, setMovedTaskId] = useState<string | null>(null)
   const boardRef = useRef<HTMLElement>(null)
+  const moveTimer = useRef<number | null>(null)
   const groups = groupTasksByWeek(tasks, start)
   const backlog = weekBacklog(tasks)
   const days = weekDayKeys(start)
@@ -44,17 +46,32 @@ export function WeekBoard({ tasks, today, onOpen, onSchedule }: WeekBoardProps) 
     setFocusTaskId(null)
   }, [focusTaskId, start, tasks])
 
+  useEffect(
+    () => () => {
+      if (moveTimer.current) window.clearTimeout(moveTimer.current)
+    },
+    []
+  )
+
+  const flashMoved = (taskId: string) => {
+    setMovedTaskId(taskId)
+    if (moveTimer.current) window.clearTimeout(moveTimer.current)
+    moveTimer.current = window.setTimeout(() => setMovedTaskId(null), 620)
+  }
+
   const moveTask = (taskId: string, date: string, delta: number) => {
     const next = addDaysKey(date, delta)
     onSchedule(taskId, next, { instant: true })
     const nextStart = startOfWeekKey(next)
     if (nextStart !== start) setStart(nextStart)
     setFocusTaskId(taskId)
+    flashMoved(taskId)
   }
 
   const scheduleBacklog = (taskId: string) => {
     onSchedule(taskId, days[0] ?? start, { instant: true })
     setFocusTaskId(taskId)
+    flashMoved(taskId)
   }
 
   const dropProps = (date: string) => ({
@@ -111,7 +128,7 @@ export function WeekBoard({ tasks, today, onOpen, onSchedule }: WeekBoardProps) 
             {backlog.slice(0, 12).map((task) => (
               <button
                 key={task.id}
-                className="w1-wkchip"
+                className={`w1-wkchip${movedTaskId === task.id ? ' moved' : ''}`}
                 type="button"
                 draggable
                 data-task-id={task.id}
@@ -162,7 +179,7 @@ export function WeekBoard({ tasks, today, onOpen, onSchedule }: WeekBoardProps) 
               {group.tasks.map((task) => (
                 <button
                   key={task.id}
-                  className={`w1-wktask${task.done ? ' done' : ''}${task.priority ? ` p${task.priority}` : ''}`}
+                  className={`w1-wktask${task.done ? ' done' : ''}${task.priority ? ` p${task.priority}` : ''}${movedTaskId === task.id ? ' moved' : ''}`}
                   type="button"
                   draggable
                   data-task-id={task.id}

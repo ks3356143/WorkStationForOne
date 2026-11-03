@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { dateKey } from '../../../shared/date-key'
 import { TASK_DRAG_TYPE } from '../lib/dnd'
 import { filterTasks, useWorkstation } from '../store/useWorkstation'
@@ -25,6 +26,8 @@ export function TaskCard({ nextTaskId }: TaskCardProps) {
   const toggleTask = useWorkstation((state) => state.toggleTask)
   const resolution = useWorkstation((state) => state.resolution)
   const permission = useWorkstation((state) => state.permission)
+  const [celebrateId, setCelebrateId] = useState<string | null>(null)
+  const celebrateTimer = useRef<number | null>(null)
   const now = useNow(60_000)
   const today = dateKey(now)
   const todayTasks = tasksForTodayCard(tasks, today)
@@ -40,6 +43,22 @@ export function TaskCard({ nextTaskId }: TaskCardProps) {
 
   const countFor = (id: TaskFilter) =>
     id === 'all' ? todayTasks.length : id === 'todo' ? todoCount : doneCount
+
+  useEffect(
+    () => () => {
+      if (celebrateTimer.current) window.clearTimeout(celebrateTimer.current)
+    },
+    []
+  )
+
+  const complete = (task: (typeof todayTasks)[number]) => {
+    if (!task.done) {
+      setCelebrateId(task.id)
+      if (celebrateTimer.current) window.clearTimeout(celebrateTimer.current)
+      celebrateTimer.current = window.setTimeout(() => setCelebrateId(null), 680)
+    }
+    toggleTask(task.id)
+  }
 
   return (
     <section className="w1-card w1-tasks">
@@ -100,14 +119,16 @@ export function TaskCard({ nextTaskId }: TaskCardProps) {
                 type="button"
                 role="checkbox"
                 aria-checked={task.done}
-                className={`w1-task${task.done ? ' done' : ''}`}
+                className={`w1-task${task.done ? ' done' : ''}${
+                  celebrateId === task.id ? ' celebrate' : ''
+                }`}
                 data-task-id={task.id}
                 draggable={!task.done}
                 onDragStart={(event) => {
                   event.dataTransfer.setData(TASK_DRAG_TYPE, task.id)
                   event.dataTransfer.effectAllowed = 'move'
                 }}
-                onClick={() => toggleTask(task.id)}
+                onClick={() => complete(task)}
               >
                 <span className="w1-time">{task.time}</span>
                 <span className={`w1-cb${task.done ? ' on' : ''}`}>
