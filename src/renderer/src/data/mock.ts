@@ -9,6 +9,7 @@ export function createInitialData(): WorkstationData {
   return {
     activeView: 'today',
     tasks: createSeedTasks(),
+    reminderMutes: { day: '', taskIds: [] },
     learningItems: createSeedLearning(),
     learningReady: false,
     tasksReady: false,

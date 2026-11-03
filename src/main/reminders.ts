@@ -2,6 +2,7 @@ import { appendFileSync } from 'node:fs'
 import { app, Notification } from 'electron'
 import { dateKey } from '../shared/date-key'
 import { dueReminders, reminderBody, reminderKey } from '../shared/reminders'
+import type { ReminderMuteRepository } from './db/reminders'
 import type { TaskRepository } from './db/tasks'
 
 interface ReminderOptions {
@@ -23,6 +24,7 @@ function appQuitting(): boolean {
 
 export function startReminderLoop(
   repository: TaskRepository,
+  mutes: ReminderMuteRepository,
   options: ReminderOptions = {}
 ): () => void {
   const tickMs = options.tickMs ?? 20_000
@@ -44,12 +46,18 @@ export function startReminderLoop(
       // 换天要清空，否则同一任务第二天永远不会再提醒
       fired.clear()
       day = today
+      try {
+        mutes.pruneBefore(today)
+      } catch (error) {
+        console.error('[reminder] 清理静音记录失败', error)
+      }
     }
     const now = new Date()
     const nowMinutes = now.getHours() * 60 + now.getMinutes()
     let hits: ReturnType<typeof dueReminders> = []
     try {
-      hits = dueReminders(repository.list(), today, nowMinutes, fired)
+      const muted = new Set(mutes.mutedIds(today))
+      hits = dueReminders(repository.list(), today, nowMinutes, fired, muted)
     } catch (error) {
       console.error('[reminder] 读取任务失败', error)
       return

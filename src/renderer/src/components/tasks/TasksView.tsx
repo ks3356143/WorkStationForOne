@@ -489,11 +489,13 @@ export function TasksView({ notify }: TasksViewProps) {
               setViewMode('list')
               openTask(taskId)
             }}
-            onSchedule={(taskId, date) => {
+            onSchedule={(taskId, date, options) => {
               const task = tasks.find((item) => item.id === taskId)
               if (!task) return
               const previous = task.plannedFor ?? null
-              withViewTransition(() => updateTask(taskId, { plannedFor: date }))
+              const apply = () => updateTask(taskId, { plannedFor: date })
+              if (options?.instant) apply()
+              else withViewTransition(apply)
               notify(
                 `已排到 ${date.slice(5).replace('-', '.')}`,
                 {

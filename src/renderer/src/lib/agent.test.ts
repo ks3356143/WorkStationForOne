@@ -24,6 +24,17 @@ describe('agentCommandPreview', () => {
     })
   })
 
+  it('待真分叉时续接参数带 --fork-session', () => {
+    expect(agentCommandPreview('claude', 'cli-1', false, true)).toEqual({
+      bin: 'claude',
+      args: '--resume cli-1 --fork-session --permission-mode manual --permission-prompts host'
+    })
+    expect(agentCommandPreview('claude', 'cli-1').args).not.toContain('--fork-session')
+    expect(agentCommandPreview('codex', 'thread-1', false, true).args).not.toContain(
+      '--fork-session'
+    )
+  })
+
   it('Codex 固定为只读沙箱与 JSONL', () => {
     expect(agentCommandPreview('codex')).toEqual({
       bin: 'codex',

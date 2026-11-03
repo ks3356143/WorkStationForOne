@@ -3,6 +3,7 @@ import { useNow } from '../lib/useNow'
 import { formatHM } from '../lib/date'
 import { reminderBuckets } from '../lib/reminder-center'
 import { skinLabel, themeLabel } from '../lib/theme'
+import { dateKey } from '../../../shared/date-key'
 
 interface StatusBarProps {
   notify: (text: string) => void
@@ -41,8 +42,14 @@ export function StatusBar({ notify, onShortcuts, onFleet, onReminders }: StatusB
   const toggleSkin = useWorkstation((state) => state.toggleSkin)
   const openAgentSession = useWorkstation((state) => state.openAgentSession)
   const tasks = useWorkstation((state) => state.tasks)
+  const reminderMutes = useWorkstation((state) => state.reminderMutes)
   const now = useNow(30_000)
-  const reminders = reminderBuckets(tasks, now)
+  const today = dateKey(now)
+  const muted =
+    reminderMutes.day === today && reminderMutes.taskIds.length > 0
+      ? new Set(reminderMutes.taskIds)
+      : undefined
+  const reminders = reminderBuckets(tasks, now, muted)
 
   const agentName = session ? (session.agent === 'claude' ? 'Claude Code' : 'Codex') : null
   const stateLabel = session

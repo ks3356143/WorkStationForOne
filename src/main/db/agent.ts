@@ -20,6 +20,7 @@ interface SessionRow {
   title: string
   status: 'run' | 'wait' | 'idle'
   resume_id: string | null
+  pending_fork: number
   workspace: string
   pinned: number
   archived: number
@@ -78,6 +79,7 @@ function toSession(row: SessionRow): AgentSessionRecord {
     updatedAt: row.updated_at
   }
   if (row.resume_id) session.resumeId = row.resume_id
+  if (row.pending_fork === 1) session.pendingFork = true
   if (row.workspace) session.workspace = row.workspace
   if (row.pinned === 1) session.pinned = true
   if (row.archived === 1) session.archived = true
@@ -119,8 +121,8 @@ export class AgentRepository {
     const pattern = `%${escaped}%`
     const rows = this.db
       .prepare(
-        `SELECT s.id, s.agent, s.title, s.status, s.resume_id, s.workspace, s.pinned, s.archived,
-           s.created_at, s.updated_at,
+        `SELECT s.id, s.agent, s.title, s.status, s.resume_id, s.pending_fork, s.workspace,
+           s.pinned, s.archived, s.created_at, s.updated_at,
            (SELECT m.id FROM agent_messages m
             WHERE m.session_id = s.id AND m.text LIKE ? ESCAPE '\\'
             ORDER BY m.created_at DESC, m.rowid DESC LIMIT 1) AS message_id,
@@ -150,7 +152,8 @@ export class AgentRepository {
   listSessions(): AgentSessionRecord[] {
     const rows = this.db
       .prepare(
-        `SELECT id, agent, title, status, resume_id, workspace, pinned, archived, created_at, updated_at
+        `SELECT id, agent, title, status, resume_id, pending_fork, workspace, pinned, archived,
+           created_at, updated_at
          FROM agent_sessions ORDER BY pinned DESC, updated_at DESC, created_at DESC`
       )
       .all() as unknown as SessionRow[]
@@ -160,7 +163,8 @@ export class AgentRepository {
   findSession(id: string): AgentSessionRecord | undefined {
     const row = this.db
       .prepare(
-        `SELECT id, agent, title, status, resume_id, workspace, pinned, archived, created_at, updated_at
+        `SELECT id, agent, title, status, resume_id, pending_fork, workspace, pinned, archived,
+           created_at, updated_at
          FROM agent_sessions WHERE id = ?`
       )
       .get(id) as SessionRow | undefined
@@ -222,6 +226,10 @@ export class AgentRepository {
       assignments.push('resume_id = ?')
       values.push(patch.resumeId)
     }
+    if (patch.pendingFork !== undefined) {
+      assignments.push('pending_fork = ?')
+      values.push(patch.pendingFork ? 1 : 0)
+    }
     if (patch.workspace !== undefined) {
       assignments.push('workspace = ?')
       values.push(patch.workspace)
@@ -250,13 +258,13 @@ export class AgentRepository {
     return Number(result.changes) > 0
   }
 
-  /** 从消息处分叉：复制到此消息为止的对话，新会话不继承 resume_id。 */
+  /** 从消息处分叉：先复制对话；是否继承源 resume_id 由 IPC 层按 CLI 能力决定。 */
   forkSession(input: {
     sourceId: string
     messageId: string
     id: string
     title: string
-  }): AgentForkResult | null {
+  }): Omit<AgentForkResult, 'mode'> | null {
     const source = this.findSession(input.sourceId)
     if (!source) return null
     const messages = this.listMessagesForSession(input.sourceId)

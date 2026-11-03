@@ -11,6 +11,7 @@ interface MessageRowProps {
   animate?: boolean
   onRetry?: () => void
   onFork?: () => void
+  forkTitle?: string
   forking?: boolean
 }
 
@@ -35,6 +36,7 @@ export const MessageRow = memo(function MessageRow({
   animate = false,
   onRetry,
   onFork,
+  forkTitle = '复制到此消息为止的对话；模型上下文从新会话开始',
   forking = false
 }: MessageRowProps) {
   const meta = AGENT_META[agent]
@@ -87,7 +89,7 @@ export const MessageRow = memo(function MessageRow({
               type="button"
               className="w1-copy w1-fork"
               aria-label="从这条回复分叉会话"
-              title="复制到此消息为止的对话；模型上下文从新会话开始"
+              title={forkTitle}
               disabled={forking}
               onClick={onFork}
             >

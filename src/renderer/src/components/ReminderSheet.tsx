@@ -6,8 +6,10 @@ import { reminderBuckets, snoozeTime } from '../lib/reminder-center'
 import { useNow } from '../lib/useNow'
 import { useWorkstation } from '../store/useWorkstation'
 import { StatePlaceholder } from './StatePlaceholder'
+import { dateKey } from '../../../shared/date-key'
 
 interface ReminderSheetProps {
+  notify: (text: string, action?: { label: string; run: () => void }, duration?: number) => void
   onClose: () => void
   onOpenTask: (taskId: string) => void
 }
@@ -17,13 +19,15 @@ function ReminderRow({
   kind,
   onOpen,
   onDone,
-  onSnooze
+  onSnooze,
+  onMute
 }: {
   task: Task
   kind: 'missed' | 'upcoming'
   onOpen: () => void
   onDone: () => void
   onSnooze: () => void
+  onMute: () => void
 }) {
   return (
     <div className={`w1-reminderrow ${kind}`}>
@@ -42,18 +46,39 @@ function ReminderRow({
         <button type="button" className="w1-reminderact" onClick={onSnooze}>
           +10 分
         </button>
+        <button
+          type="button"
+          className="w1-reminderact w1-remindermute"
+          title="今天不再提醒"
+          onClick={onMute}
+        >
+          今天不再
+        </button>
       </span>
     </div>
   )
 }
 
-export function ReminderSheet({ onClose, onOpenTask }: ReminderSheetProps) {
+export function ReminderSheet({ notify, onClose, onOpenTask }: ReminderSheetProps) {
   const tasks = useWorkstation((state) => state.tasks)
   const tasksReady = useWorkstation((state) => state.tasksReady)
+  const reminderMutes = useWorkstation((state) => state.reminderMutes)
   const toggleTask = useWorkstation((state) => state.toggleTask)
   const updateTask = useWorkstation((state) => state.updateTask)
+  const muteReminder = useWorkstation((state) => state.muteReminder)
+  const unmuteReminder = useWorkstation((state) => state.unmuteReminder)
+  const clearReminderMutes = useWorkstation((state) => state.clearReminderMutes)
   const now = useNow(30_000)
-  const { missed, upcoming } = reminderBuckets(tasks, now)
+  const today = dateKey(now)
+  const mutedIds =
+    reminderMutes.day === today && reminderMutes.taskIds.length > 0
+      ? new Set(reminderMutes.taskIds)
+      : undefined
+  const all = reminderBuckets(tasks, now)
+  const { missed, upcoming } = reminderBuckets(tasks, now, mutedIds)
+  const mutedItems = [...all.missed, ...all.upcoming].filter((task) => mutedIds?.has(task.id))
+  const total = all.missed.length + all.upcoming.length
+  const visibleCount = missed.length + upcoming.length
   const boxRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -72,6 +97,20 @@ export function ReminderSheet({ onClose, onOpenTask }: ReminderSheetProps) {
     if (next) updateTask(task.id, { time: next })
   }
 
+  const mute = (task: Task) => {
+    muteReminder(task.id, today)
+    notify(
+      `今天不再提醒「${task.title}」`,
+      { label: '撤销', run: () => unmuteReminder(task.id, today) },
+      4200
+    )
+  }
+
+  const restoreAll = () => {
+    clearReminderMutes(today)
+    notify('已恢复今天的全部提醒')
+  }
+
   const renderRows = (list: Task[], kind: 'missed' | 'upcoming') =>
     list.map((task) => (
       <ReminderRow
@@ -81,6 +120,7 @@ export function ReminderSheet({ onClose, onOpenTask }: ReminderSheetProps) {
         onOpen={() => open(task)}
         onDone={() => complete(task)}
         onSnooze={() => snooze(task)}
+        onMute={() => mute(task)}
       />
     ))
 
@@ -119,7 +159,7 @@ export function ReminderSheet({ onClose, onOpenTask }: ReminderSheetProps) {
             <span className="w1-eyebrow">// REMINDERS</span>
             <b>提醒中心</b>
           </div>
-          <span className="w1-remindercount">{missed.length + upcoming.length} 项 · 今天</span>
+          <span className="w1-remindercount">{visibleCount} 项 · 今天</span>
           <button type="button" className="w1-reminderclose" onClick={onClose}>
             <kbd>Esc</kbd> 关闭
           </button>
@@ -128,8 +168,10 @@ export function ReminderSheet({ onClose, onOpenTask }: ReminderSheetProps) {
         <div className="w1-reminderbody">
           {!tasksReady ? (
             <StatePlaceholder kind="loading" rows={3} />
-          ) : missed.length + upcoming.length === 0 ? (
+          ) : total === 0 ? (
             <p className="w1-reminderempty">今天没有带时间的待办。给任务加上时间，到点就会提醒。</p>
+          ) : visibleCount === 0 ? (
+            <p className="w1-reminderempty">今天的提醒都已静音。需要时在下方恢复。</p>
           ) : (
             <>
               <section className="w1-remindergroup" aria-label="已错过">
@@ -159,7 +201,20 @@ export function ReminderSheet({ onClose, onOpenTask }: ReminderSheetProps) {
           )}
         </div>
 
-        <p className="w1-remindernote">系统通知只在应用运行时发送；错过的时间不会补发。</p>
+        {mutedItems.length > 0 ? (
+          <div className="w1-remindermutedbar" role="status">
+            <span>
+              今天已静音 <b>{mutedItems.length}</b> 项
+            </span>
+            <button type="button" className="w1-reminderrestore" onClick={restoreAll}>
+              恢复全部
+            </button>
+          </div>
+        ) : null}
+
+        <p className="w1-remindernote">
+          系统通知只在应用运行时发送；错过的时间不会补发；静音只对今天生效。
+        </p>
       </m.div>
     </m.div>
   )

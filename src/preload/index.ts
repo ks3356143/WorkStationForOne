@@ -33,6 +33,12 @@ const api: WsApi = {
       }
     }
   },
+  reminders: {
+    muted: (day) => ipcRenderer.invoke(IPC_CHANNELS.remindersMuted, day),
+    mute: (taskId, day) => ipcRenderer.invoke(IPC_CHANNELS.remindersMute, taskId, day),
+    unmute: (taskId, day) => ipcRenderer.invoke(IPC_CHANNELS.remindersUnmute, taskId, day),
+    unmuteDay: (day) => ipcRenderer.invoke(IPC_CHANNELS.remindersUnmuteDay, day)
+  },
   notes: {
     bootstrap: (notes) => ipcRenderer.invoke(IPC_CHANNELS.notesBootstrap, notes),
     page: (offset, limit) => ipcRenderer.invoke(IPC_CHANNELS.notesPage, offset, limit),

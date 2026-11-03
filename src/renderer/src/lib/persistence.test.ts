@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dateKey } from '../../../shared/date-key'
 import type { TaskRecord } from '../../../shared/ipc'
 import { createInitialData } from '../data/mock'
-import { useWorkstation } from '../store/useWorkstation'
-import { hydrateTasks, refreshTasks, type HydrateDeps } from './persistence'
+import { bindReminderPersistence, useWorkstation } from '../store/useWorkstation'
+import { hydrateReminderMutes, hydrateTasks, refreshTasks, type HydrateDeps } from './persistence'
 
 function deps(overrides: Partial<HydrateDeps> = {}): HydrateDeps {
   let stored: TaskRecord[] = []
@@ -24,6 +25,50 @@ function deps(overrides: Partial<HydrateDeps> = {}): HydrateDeps {
 
 beforeEach(() => {
   useWorkstation.setState(createInitialData())
+  bindReminderPersistence(null)
+})
+
+describe('hydrateReminderMutes', () => {
+  const bridge = (overrides: Record<string, unknown> = {}) => ({
+    muted: vi.fn().mockResolvedValue(['t1']),
+    mute: vi.fn().mockResolvedValue(undefined),
+    unmute: vi.fn().mockResolvedValue(undefined),
+    unmuteDay: vi.fn().mockResolvedValue(undefined),
+    ...overrides
+  })
+
+  it('读取当天静音并绑定写回', async () => {
+    const deps = bridge()
+    await hydrateReminderMutes(deps)
+
+    expect(useWorkstation.getState().reminderMutes).toEqual({
+      day: dateKey(),
+      taskIds: ['t1']
+    })
+    useWorkstation.getState().muteReminder('t2', dateKey())
+    expect(deps.mute).toHaveBeenCalledWith('t2', dateKey())
+  })
+
+  it('没有 preload 桥时回到空静音', async () => {
+    useWorkstation.setState({ reminderMutes: { day: '2026-11-03', taskIds: ['old'] } })
+    await hydrateReminderMutes(undefined)
+
+    expect(useWorkstation.getState().reminderMutes).toEqual({
+      day: dateKey(),
+      taskIds: []
+    })
+  })
+
+  it('读取失败时不让界面卡住', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await hydrateReminderMutes(bridge({ muted: vi.fn().mockRejectedValue(new Error('db locked')) }))
+
+    expect(useWorkstation.getState().reminderMutes).toEqual({
+      day: dateKey(),
+      taskIds: []
+    })
+    spy.mockRestore()
+  })
 })
 
 describe('hydrateTasks', () => {

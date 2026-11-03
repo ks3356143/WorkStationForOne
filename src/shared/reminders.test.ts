@@ -47,6 +47,16 @@ describe('dueReminders', () => {
     const tasks = [task({ id: 'past', time: '08:00', dueDate: TODAY })]
     expect(dueReminders(tasks, TODAY, 630, new Set())).toEqual([])
   })
+
+  it('今天已静音的任务不提醒，其他任务照常', () => {
+    const tasks = [
+      task({ id: 'muted', time: '10:30', dueDate: TODAY }),
+      task({ id: 'open', time: '10:30', dueDate: TODAY })
+    ]
+    expect(
+      dueReminders(tasks, TODAY, 630, new Set(), new Set(['muted'])).map((item) => item.id)
+    ).toEqual(['open'])
+  })
 })
 
 describe('reminderBody', () => {

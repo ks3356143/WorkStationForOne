@@ -1060,6 +1060,49 @@ async function run() {
       return tasks.some((task) => task.title === snoozeTitle && task.time !== oldTime)
     }, 3000)
     check('提醒中心可延后 10 分钟', reminderSnoozed, snoozeTitle + ' ' + oldTime)
+
+    const muteRow = all('.w1-reminderrow')[0]
+    const muteTitle = muteRow?.querySelector('.w1-reminderrowmain b')?.textContent ?? ''
+    const muteCountBefore = all('.w1-reminderrow').length
+    muteRow?.querySelector('.w1-remindermute')?.click()
+    const reminderMuted = await waitFor(
+      () => all('.w1-reminderrow').length === muteCountBefore - 1,
+      2500
+    )
+    check('提醒中心可今天不再提醒', reminderMuted, muteTitle)
+    const mutedStored = await waitFor(async () => {
+      const tasks = await window.ws.tasks.list()
+      const target = tasks.find((task) => task.title === muteTitle)
+      if (!target) return false
+      return (await window.ws.reminders.muted(todayKey)).includes(target.id)
+    }, 3000)
+    check('今天不再提醒已写入数据库', mutedStored, muteTitle)
+
+    one('.w1-reminderclose')?.click()
+    await waitFor(() => !one('.w1-remindersheet'), 2000)
+    one('.w1-st-reminders')?.click()
+    await waitFor(() => Boolean(one('.w1-remindersheet')), 2000)
+    check(
+      '重新打开后静音项仍隐藏',
+      !all('.w1-reminderrow').some((row) => row.textContent?.includes(muteTitle)),
+      muteTitle
+    )
+    const mutedBar = one('.w1-remindermutedbar')
+    check('提醒中心显示静音计数', Boolean(mutedBar), mutedBar?.textContent ?? 'missing')
+    one('.w1-reminderrestore')?.click()
+    const restoredMute = await waitFor(
+      () => all('.w1-reminderrow').some((row) => row.textContent?.includes(muteTitle)),
+      2500
+    )
+    check('恢复全部让静音项回到列表', restoredMute, muteTitle)
+    const muteCleared = await waitFor(async () => {
+      const tasks = await window.ws.tasks.list()
+      const target = tasks.find((task) => task.title === muteTitle)
+      if (!target) return false
+      return !(await window.ws.reminders.muted(todayKey)).includes(target.id)
+    }, 2500)
+    check('恢复全部清空数据库静音', muteCleared, muteTitle)
+
     one('.w1-reminderclose')?.click()
     await waitFor(() => !one('.w1-remindersheet'), 2000)
 
@@ -1158,6 +1201,54 @@ async function run() {
       Boolean(one('.w1-weekbacklog')),
       one('.w1-weekbacklog')?.textContent?.slice(0, 50) ?? 'missing'
     )
+    const backlogChip = all('.w1-wkchip').find((el) =>
+      el.textContent?.includes('未排期验证')
+    )
+    const firstDay = one('.w1-wkday')?.getAttribute('data-week-date') ?? ''
+    backlogChip?.focus()
+    backlogChip?.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', altKey: true, bubbles: true })
+    )
+    const backlogScheduled = await waitFor(async () => {
+      const tasks = await window.ws.tasks.list()
+      const task = tasks.find((item) => item.title === '未排期验证')
+      return (
+        task?.plannedFor === firstDay &&
+        Boolean(all('.w1-wkday')[0]?.textContent?.includes('未排期验证'))
+      )
+    }, 3000)
+    check('未排期任务 Alt+→ 排到本周一', backlogScheduled, firstDay)
+
+    const scheduledTask = (await window.ws.tasks.list()).find(
+      (item) => item.title === '未排期验证'
+    )
+    const scheduledButton = scheduledTask
+      ? one('.w1-wkday [data-task-id="' + scheduledTask.id + '"]')
+      : null
+    scheduledButton?.focus()
+    scheduledButton?.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', altKey: true, bubbles: true })
+    )
+    const movedByKeyboard = await waitFor(async () => {
+      const tasks = await window.ws.tasks.list()
+      const task = tasks.find((item) => item.id === scheduledTask?.id)
+      const secondDay = all('.w1-wkday')[1]?.getAttribute('data-week-date')
+      return (
+        task?.plannedFor === secondDay &&
+        Boolean(all('.w1-wkday')[1]?.textContent?.includes('未排期验证'))
+      )
+    }, 3000)
+    check('任务卡 Alt+→ 移动一天', movedByKeyboard, scheduledTask?.id ?? 'missing')
+    const focusFollowed = await waitFor(
+      () => document.activeElement?.getAttribute('data-task-id') === scheduledTask?.id,
+      2000
+    )
+    check(
+      '键盘移动后焦点跟随任务',
+      focusFollowed,
+      document.activeElement?.getAttribute('data-task-id') ?? 'missing'
+    )
+
     const rangeBefore = one('.w1-weekrange')?.textContent ?? ''
     one('[aria-label="下一周"]')?.click()
     await sleep(250)
@@ -2011,18 +2102,22 @@ async function run() {
       one('.w1-thread')?.textContent?.slice(0, 160) ?? 'missing'
     )
 
-    all('.w1-amsg .w1-fork').at(-1)?.click()
+    const forkButton = all('.w1-amsg .w1-fork').at(-1)
+    const forkHint = forkButton?.getAttribute('title') ?? ''
+    check('最新回复提供真分叉提示', forkHint.includes('真分叉'), forkHint)
+    forkButton?.click()
     const forked = await waitFor(async () => {
       const bundle = await window.ws.agent.threads()
       return bundle.sessions.some(
         (session) =>
           session.title.includes('分叉') &&
-          session.resumeId === undefined &&
+          session.resumeId === persistedImport?.resumeId &&
+          session.pendingFork === true &&
           bundle.messages.some((message) => message.sessionId === session.id)
       )
     }, 3000)
     check(
-      '会话可从消息分叉',
+      '会话可从最新回复真分叉',
       forked && (one('.w1-sess.on .w1-st')?.textContent ?? '').includes('分叉'),
       one('.w1-sess.on .w1-st')?.textContent ?? 'missing'
     )
@@ -2117,13 +2212,22 @@ async function run() {
       new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
     )
     await sleep(600)
+    const subParentFound = await waitFor(
+      () => all('.w1-todorowwrap').some((row) => row.textContent?.includes('整理季度复盘')),
+      3000
+    )
     all('.w1-todorowwrap')
       .find((row) => row.textContent?.includes('整理季度复盘'))
       ?.querySelector('.w1-todobody')
       ?.click()
-    await sleep(400)
+    const subInputOpen = await waitFor(() => Boolean(one('.w1-todosubadd input')), 2500)
     const subInput = one('.w1-todosubadd input')
-    check('详情里有子任务输入框', Boolean(subInput))
+    check(
+      '详情里有子任务输入框',
+      subParentFound && subInputOpen && Boolean(subInput),
+      subParentFound ? (subInputOpen ? 'open' : 'detail missing') : 'row missing'
+    )
+    if (!subInput) throw new Error('子任务输入框未出现')
     for (const title of ['收集数据', '写结论']) {
       setValue(subInput, title)
       await sleep(80)
@@ -3692,6 +3796,7 @@ async function run() {
       activeNav() === 'Agent' && one('.w1-thread')?.textContent?.includes('帮我拟一条周报提醒') && !!one('.w1-typing'),
       activeNav()
     )
+    await waitFor(() => !one('.w1-palette'), 1500)
 
     await openPalette(150)
     const busyInput = one('.w1-paletteinput')
@@ -3704,7 +3809,7 @@ async function run() {
       sendItem?.getAttribute('data-disabled') ?? 'missing'
     )
     busyInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
-    await sleep(500)
+    await waitFor(() => !one('.w1-palette'), 1500)
     await openPalette()
     const backupInput = one('.w1-paletteinput')
     setValue(backupInput, '立即备份数据')

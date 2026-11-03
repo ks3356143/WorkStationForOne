@@ -24,6 +24,7 @@ function toSession(record: AgentSessionRecord, messageCount: number, now: number
     threadDate: agentSessionDate(record.updatedAt, now),
     ...(record.workspace ? { workspace: record.workspace } : {}),
     ...(record.resumeId ? { resumeId: record.resumeId } : {}),
+    ...(record.pendingFork ? { pendingFork: true } : {}),
     ...(record.pinned ? { pinned: true } : {}),
     ...(record.archived ? { archived: true } : {})
   }

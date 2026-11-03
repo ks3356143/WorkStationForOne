@@ -27,7 +27,7 @@ import { ViewErrorBoundary } from './components/ViewErrorBoundary'
 import { WorkspaceNav } from './components/WorkspaceNav'
 import { useWorkstation } from './store/useWorkstation'
 import { DURATION, EASE_OUT } from './lib/motion'
-import { hydrateTasks, refreshTasks } from './lib/persistence'
+import { hydrateReminderMutes, hydrateTasks, refreshTasks } from './lib/persistence'
 import { hydrateAgent } from './lib/agent-persistence'
 import { hydrateNotes } from './lib/notes-persistence'
 import { hydrateHabits } from './lib/habits-persistence'
@@ -104,6 +104,7 @@ export default function App() {
 
   useEffect(() => {
     void hydrateTasks()
+    void hydrateReminderMutes()
     void hydrateAgent()
     void hydrateNotes()
     void hydrateLearning()
@@ -268,7 +269,7 @@ export default function App() {
                   {activeView === 'agent' ? (
                     <section className="w1-workspace w1-agent" aria-label="Agent 工作区">
                       <SessionRail />
-                      <AgentDock />
+                      <AgentDock notify={notify} />
                     </section>
                   ) : null}
                   {activeView === 'notes' ? <NotesView /> : null}
@@ -307,6 +308,7 @@ export default function App() {
           <AnimatePresence>
             {remindersOpen ? (
               <ReminderSheet
+                notify={notify}
                 onClose={closeReminders}
                 onOpenTask={(taskId) => {
                   closeReminders()

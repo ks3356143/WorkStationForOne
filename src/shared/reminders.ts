@@ -31,9 +31,11 @@ export function dueReminders(
   tasks: ReminderTask[],
   today: string,
   nowMinutes: number,
-  fired: ReadonlySet<string>
+  fired: ReadonlySet<string>,
+  muted: ReadonlySet<string> = new Set()
 ): ReminderTask[] {
   return tasks.filter((task) => {
+    if (muted.has(task.id)) return false
     if (task.done || task.dueDate !== today) return false
     const at = minutesOf(task.time)
     if (at === null || at !== nowMinutes) return false

@@ -14,6 +14,7 @@ import { registerHabitHandlers } from './ipc/habits'
 import { registerLearningHandlers } from './ipc/learning'
 import { registerMcpHandlers } from './ipc/mcp'
 import { registerNoteHandlers } from './ipc/notes'
+import { registerReminderHandlers } from './ipc/reminders'
 import { registerTaskHandlers } from './ipc/tasks'
 import { McpBridge } from './mcp/server'
 import { McpPermissionBroker } from './mcp/permissions'
@@ -228,6 +229,7 @@ if (!gotTheLock) {
       takeMigration: takeMigrationResult
     })
     registerTaskHandlers(database.tasks)
+    registerReminderHandlers(database.tasks, database.reminders)
     registerNoteHandlers(database.notes)
     registerLearningHandlers(database.learning)
     registerHabitHandlers(database.habits)
@@ -299,7 +301,7 @@ if (!gotTheLock) {
       approvalRules
     })
     // 到点提醒：轮询数据库，命中「今天 + 正好到点 + 没提醒过」就弹系统通知
-    stopReminders = startReminderLoop(database.tasks, {
+    stopReminders = startReminderLoop(database.tasks, database.reminders, {
       ...(process.env.WS_REMINDER_TICK_MS
         ? { tickMs: Number(process.env.WS_REMINDER_TICK_MS) }
         : {}),

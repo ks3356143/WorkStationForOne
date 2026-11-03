@@ -1,5 +1,6 @@
-import { useState, type DragEvent as ReactDragEvent } from 'react'
+import { useEffect, useRef, useState, type DragEvent as ReactDragEvent } from 'react'
 import type { Task } from '../../types'
+import { addDaysKey } from '../../../../shared/date-key'
 import { WEEKDAY_CN } from '../../lib/date'
 import { TASK_DRAG_TYPE } from '../../lib/dnd'
 import {
@@ -14,7 +15,7 @@ interface WeekBoardProps {
   tasks: Task[]
   today: string
   onOpen: (taskId: string) => void
-  onSchedule: (taskId: string, date: string) => void
+  onSchedule: (taskId: string, date: string, options?: { instant?: boolean }) => void
 }
 
 function weekdayOf(key: string): number {
@@ -25,11 +26,36 @@ function weekdayOf(key: string): number {
 export function WeekBoard({ tasks, today, onOpen, onSchedule }: WeekBoardProps) {
   const [start, setStart] = useState(() => startOfWeekKey(today))
   const [dragDate, setDragDate] = useState<string | null>(null)
+  const [focusTaskId, setFocusTaskId] = useState<string | null>(null)
+  const boardRef = useRef<HTMLElement>(null)
   const groups = groupTasksByWeek(tasks, start)
   const backlog = weekBacklog(tasks)
   const days = weekDayKeys(start)
   const count = groups.reduce((total, group) => total + group.tasks.length, 0)
   const range = `${start.slice(5).replace('-', '.')} – ${days[6]?.slice(5).replace('-', '.')}`
+
+  // 跨周移动后重新挂载的是另一列里的按钮，渲染完成再把焦点还给同一任务。
+  // biome-ignore lint/correctness/useExhaustiveDependencies: start/tasks 用于跨周或列表刷新后重新尝试聚焦
+  useEffect(() => {
+    if (!focusTaskId) return
+    const target = boardRef.current?.querySelector<HTMLElement>(`[data-task-id="${focusTaskId}"]`)
+    if (!target) return
+    target.focus()
+    setFocusTaskId(null)
+  }, [focusTaskId, start, tasks])
+
+  const moveTask = (taskId: string, date: string, delta: number) => {
+    const next = addDaysKey(date, delta)
+    onSchedule(taskId, next, { instant: true })
+    const nextStart = startOfWeekKey(next)
+    if (nextStart !== start) setStart(nextStart)
+    setFocusTaskId(taskId)
+  }
+
+  const scheduleBacklog = (taskId: string) => {
+    onSchedule(taskId, days[0] ?? start, { instant: true })
+    setFocusTaskId(taskId)
+  }
 
   const dropProps = (date: string) => ({
     onDragOver: (event: ReactDragEvent) => {
@@ -48,7 +74,7 @@ export function WeekBoard({ tasks, today, onOpen, onSchedule }: WeekBoardProps) 
   })
 
   return (
-    <section className="w1-weekview" aria-label="任务周视图">
+    <section className="w1-weekview" aria-label="任务周视图" ref={boardRef}>
       <div className="w1-weekhead">
         <span className="w1-eyebrow">// 周视图</span>
         <b className="w1-weekrange">{range}</b>
@@ -74,7 +100,9 @@ export function WeekBoard({ tasks, today, onOpen, onSchedule }: WeekBoardProps) 
           ›
         </button>
       </div>
-      <p className="w1-weekhint">拖拽任务到别的日期即可改期；计划日期优先于截止日期。</p>
+      <p className="w1-weekhint">
+        拖拽或 Alt + ←/→ 改期；未排期按 Alt + → 排到本周一。计划日期优先于截止日期。
+      </p>
 
       {backlog.length > 0 ? (
         <div className="w1-weekbacklog">
@@ -86,12 +114,19 @@ export function WeekBoard({ tasks, today, onOpen, onSchedule }: WeekBoardProps) 
                 className="w1-wkchip"
                 type="button"
                 draggable
-                title={task.title}
+                data-task-id={task.id}
+                aria-keyshortcuts="Alt+ArrowRight"
+                title={`${task.title} · Alt+→ 排到本周一`}
                 onDragStart={(event) => {
                   event.dataTransfer.setData(TASK_DRAG_TYPE, task.id)
                   event.dataTransfer.effectAllowed = 'move'
                 }}
                 onClick={() => onOpen(task.id)}
+                onKeyDown={(event) => {
+                  if (!event.altKey || event.key !== 'ArrowRight') return
+                  event.preventDefault()
+                  scheduleBacklog(task.id)
+                }}
               >
                 {task.title}
               </button>
@@ -130,12 +165,20 @@ export function WeekBoard({ tasks, today, onOpen, onSchedule }: WeekBoardProps) 
                   className={`w1-wktask${task.done ? ' done' : ''}${task.priority ? ` p${task.priority}` : ''}`}
                   type="button"
                   draggable
-                  title={task.title}
+                  data-task-id={task.id}
+                  aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
+                  title={`${task.title} · Alt+←/→ 移动一天`}
                   onDragStart={(event) => {
                     event.dataTransfer.setData(TASK_DRAG_TYPE, task.id)
                     event.dataTransfer.effectAllowed = 'move'
                   }}
                   onClick={() => onOpen(task.id)}
+                  onKeyDown={(event) => {
+                    if (!event.altKey) return
+                    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+                    event.preventDefault()
+                    moveTask(task.id, group.date, event.key === 'ArrowLeft' ? -1 : 1)
+                  }}
                 >
                   {task.time !== '—' ? <time>{task.time}</time> : null}
                   <span className="w1-wktitle">{task.title}</span>

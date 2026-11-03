@@ -194,11 +194,48 @@
   color: var(--mu);
   font: 10px / 1 var(--mono);
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .w1-reminderact:hover {
   border-color: rgb(var(--ac2-rgb) / 0.45);
   color: var(--ac2-fg);
+}
+
+.w1-remindermutedbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 1px dashed rgb(var(--bd-rgb) / 0.55);
+  background: rgb(var(--field-rgb) / 0.16);
+  color: var(--su);
+  font: 11.5px / 1.4 var(--sans);
+}
+
+.w1-remindermutedbar b {
+  color: var(--ac2-fg);
+  font: 11px / 1 var(--mono);
+}
+
+.w1-reminderrestore {
+  margin-left: auto;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid rgb(var(--ac2-rgb) / 0.42);
+  background: transparent;
+  color: var(--ac2-fg);
+  font: 10.5px / 1 var(--mono);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui);
+}
+
+.w1-reminderrestore:hover {
+  border-color: rgb(var(--ac2-rgb) / 0.68);
+  background: rgb(var(--ac2-rgb) / 0.12);
 }
 
 .w1-reminderhint,

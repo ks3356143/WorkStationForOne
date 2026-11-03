@@ -88,6 +88,12 @@ export interface AgentPersistence {
   saveMessage: (message: AgentMessageRecord) => Promise<void>
 }
 
+export interface ReminderPersistence {
+  mute: (taskId: string, day: string) => Promise<void>
+  unmute: (taskId: string, day: string) => Promise<void>
+  unmuteDay: (day: string) => Promise<void>
+}
+
 let persistence: TaskPersistence | null = null
 let habitPersistence: {
   setCheckin: (id: string, day: string, done: boolean) => Promise<void>
@@ -95,6 +101,7 @@ let habitPersistence: {
 let notePersistence: NotePersistence | null = null
 let learningPersistence: LearningPersistence | null = null
 let agentPersistence: AgentPersistence | null = null
+let reminderPersistence: ReminderPersistence | null = null
 
 export const ACTIVE_AGENT_KEY = 'workstation.agentActive'
 
@@ -118,6 +125,10 @@ export function bindLearningPersistence(next: LearningPersistence | null): void 
 
 export function bindAgentPersistence(next: AgentPersistence | null): void {
   agentPersistence = next
+}
+
+export function bindReminderPersistence(next: ReminderPersistence | null): void {
+  reminderPersistence = next
 }
 
 function reportPersistenceError(error: unknown): void {
@@ -145,6 +156,10 @@ interface WorkstationActions {
   updateTask: (taskId: string, patch: TaskPatch) => void
   removeTask: (taskId: string) => void
   renameTaskList: (from: string, to: string) => void
+  setReminderMutes: (day: string, taskIds: string[]) => void
+  muteReminder: (taskId: string, day: string) => void
+  unmuteReminder: (taskId: string, day: string) => void
+  clearReminderMutes: (day: string) => void
   undoRemoveTask: () => void
   composeTask: () => void
   clearLastAddedTask: () => void
@@ -431,6 +446,37 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     persistQuietly(() => persistence?.renameList(from, next) ?? Promise.resolve())
   },
 
+  setReminderMutes: (day, taskIds) => {
+    set({ reminderMutes: { day, taskIds: [...new Set(taskIds)] } })
+  },
+
+  muteReminder: (taskId, day) => {
+    set((state) => {
+      const current = state.reminderMutes.day === day ? state.reminderMutes.taskIds : []
+      if (current.includes(taskId)) return { reminderMutes: { day, taskIds: current } }
+      return { reminderMutes: { day, taskIds: [...current, taskId] } }
+    })
+    persistQuietly(() => reminderPersistence?.mute(taskId, day) ?? Promise.resolve())
+  },
+
+  unmuteReminder: (taskId, day) => {
+    set((state) => {
+      if (state.reminderMutes.day !== day) return {}
+      return {
+        reminderMutes: {
+          day,
+          taskIds: state.reminderMutes.taskIds.filter((id) => id !== taskId)
+        }
+      }
+    })
+    persistQuietly(() => reminderPersistence?.unmute(taskId, day) ?? Promise.resolve())
+  },
+
+  clearReminderMutes: (day) => {
+    set({ reminderMutes: { day, taskIds: [] } })
+    persistQuietly(() => reminderPersistence?.unmuteDay(day) ?? Promise.resolve())
+  },
+
   removeTask: (taskId) => {
     // 记住被删任务及其位置，撤销时原位放回。
     const state = get()
@@ -635,10 +681,10 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
   setAgentResume: (sessionId, resumeId) => {
     set((state) => ({
       sessions: state.sessions.map((session) =>
-        session.id === sessionId ? { ...session, resumeId } : session
+        session.id === sessionId ? { ...session, resumeId, pendingFork: false } : session
       )
     }))
-    persistAgentSession(sessionId, { resumeId })
+    persistAgentSession(sessionId, { resumeId, pendingFork: false })
   },
 
   setAgentWorkspace: (sessionId, workspace) => {
@@ -660,7 +706,8 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       meta: agentSessionMeta(record.updatedAt, messages.length, now),
       threadDate: agentSessionDate(record.updatedAt, now),
       ...(record.workspace ? { workspace: record.workspace } : {}),
-      ...(record.resumeId ? { resumeId: record.resumeId } : {})
+      ...(record.resumeId ? { resumeId: record.resumeId } : {}),
+      ...(record.pendingFork ? { pendingFork: true } : {})
     }
     set((state) => ({
       sessions: [session, ...state.sessions.filter((item) => item.id !== record.id)],
@@ -682,7 +729,9 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       status: record.status,
       meta: agentSessionMeta(record.updatedAt, messages.length, now),
       threadDate: agentSessionDate(record.updatedAt, now),
-      ...(record.workspace ? { workspace: record.workspace } : {})
+      ...(record.workspace ? { workspace: record.workspace } : {}),
+      ...(record.resumeId ? { resumeId: record.resumeId } : {}),
+      ...(record.pendingFork ? { pendingFork: true } : {})
     }
     set((state) => ({
       sessions: [session, ...state.sessions.filter((item) => item.id !== record.id)],

@@ -54,7 +54,8 @@ export function agentSessionMeta(updatedAt: number, messageCount: number, now: n
 export function agentCommandPreview(
   agent: AgentId,
   resumeId?: string,
-  codexApproval = false
+  codexApproval = false,
+  forkSession = false
 ): { bin: string; args: string } {
   if (agent === 'codex') {
     if (codexApproval) {
@@ -73,7 +74,7 @@ export function agentCommandPreview(
   return {
     bin: 'claude',
     args: resumeId
-      ? `--resume ${resumeId} --permission-mode manual --permission-prompts host`
+      ? `--resume ${resumeId}${forkSession ? ' --fork-session' : ''} --permission-mode manual --permission-prompts host`
       : '--permission-mode manual --permission-prompts host'
   }
 }

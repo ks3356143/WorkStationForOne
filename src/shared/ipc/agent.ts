@@ -18,6 +18,8 @@ export interface AgentSessionRecord {
   status: AgentSessionStatus
   /** Claude CLI 自己的 session id；重启后用于 --resume */
   resumeId?: string
+  /** 下一次续接要用 --fork-session；init 拿到新 session id 后清除 */
+  pendingFork?: boolean
   /** 会话自己的工作目录；空表示尚未选择 */
   workspace?: string
   /** 置顶会话在列表里排在同 Agent 分组前面 */
@@ -71,6 +73,7 @@ export interface AgentSessionPatch {
   title?: string
   status?: AgentSessionStatus
   resumeId?: string
+  pendingFork?: boolean
   workspace?: string
   pinned?: boolean
   archived?: boolean
@@ -215,8 +218,10 @@ export interface AgentForkInput {
 
 export interface AgentForkResult {
   session: AgentSessionRecord
-  /** 到此消息为止的对话副本；新会话没有 resumeId，模型上下文从新回合开始 */
+  /** 到此消息为止的对话副本；cli 模式会继承源 resumeId，并在首轮用 --fork-session */
   messages: AgentMessageRecord[]
+  /** cli：从会话末尾真分叉；copy：较早消息只能复制对话 */
+  mode: 'cli' | 'copy'
 }
 
 export interface AgentPresetRecord {

@@ -161,9 +161,38 @@ describe('AgentRepository · 会话', () => {
     )
 
     expect(userVersion(db)).toBe(33)
+    const row = db.prepare('SELECT archived FROM agent_sessions WHERE id = ?').get('s1') as {
+      archived: number
+    }
+    expect(row.archived).toBe(0)
+    expect(db.prepare('SELECT COUNT(*) AS n FROM agent_sessions').get()).toMatchObject({ n: 1 })
+    db.close()
+  })
+
+  it('v34 升级到 v35 分叉标记默认关闭且可切换', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wsfo-agent-fork-'))
+    dirs.push(dir)
+    const db = openDatabase(join(dir, 'workstation.db'))
+    migrate(
+      db,
+      MIGRATIONS.filter((migration) => migration.version <= 34)
+    )
+    db.prepare(
+      `INSERT INTO agent_sessions (id, agent, title, status, created_at, updated_at)
+       VALUES ('s1', 'claude', '旧会话', 'idle', 1, 1)`
+    ).run()
+
+    migrate(db)
+
+    expect(userVersion(db)).toBe(35)
     const repo = new AgentRepository(db)
-    expect(repo.findSession('s1')?.archived).toBeUndefined()
-    expect(repo.listSessions()).toHaveLength(1)
+    expect(repo.findSession('s1')?.pendingFork).toBeUndefined()
+
+    repo.updateSession('s1', { resumeId: 'cli-1', pendingFork: true })
+    expect(repo.findSession('s1')).toMatchObject({ resumeId: 'cli-1', pendingFork: true })
+
+    repo.updateSession('s1', { pendingFork: false })
+    expect(repo.findSession('s1')?.pendingFork).toBeUndefined()
     db.close()
   })
 

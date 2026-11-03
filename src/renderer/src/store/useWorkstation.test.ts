@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { dateKey } from '../../../shared/date-key'
 import { createInitialData } from '../data/mock'
 import {
+  bindAgentPersistence,
+  bindReminderPersistence,
   bindTaskPersistence,
   selectPreviewNotes,
   selectVisibleTasks,
@@ -11,6 +13,8 @@ import {
 beforeEach(() => {
   useWorkstation.setState(createInitialData())
   bindTaskPersistence(null)
+  bindReminderPersistence(null)
+  bindAgentPersistence(null)
 })
 
 describe('任务', () => {
@@ -38,6 +42,105 @@ describe('任务', () => {
     useWorkstation.getState().setFilter('todo')
     expect(selectVisibleTasks(useWorkstation.getState()).every((task) => !task.done)).toBe(true)
     expect(selectVisibleTasks(useWorkstation.getState())).toHaveLength(6)
+  })
+})
+
+describe('提醒静音', () => {
+  it('静音、撤销与恢复全部同步写入仓储', () => {
+    const persistence = {
+      mute: vi.fn().mockResolvedValue(undefined),
+      unmute: vi.fn().mockResolvedValue(undefined),
+      unmuteDay: vi.fn().mockResolvedValue(undefined)
+    }
+    bindReminderPersistence(persistence)
+    const day = '2026-11-03'
+
+    useWorkstation.getState().muteReminder('t2', day)
+    expect(useWorkstation.getState().reminderMutes).toEqual({ day, taskIds: ['t2'] })
+    expect(persistence.mute).toHaveBeenCalledWith('t2', day)
+
+    useWorkstation.getState().muteReminder('t2', day)
+    expect(useWorkstation.getState().reminderMutes.taskIds).toEqual(['t2'])
+
+    useWorkstation.getState().unmuteReminder('t2', day)
+    expect(useWorkstation.getState().reminderMutes).toEqual({ day, taskIds: [] })
+    expect(persistence.unmute).toHaveBeenCalledWith('t2', day)
+
+    useWorkstation.getState().muteReminder('t2', day)
+    useWorkstation.getState().clearReminderMutes(day)
+    expect(useWorkstation.getState().reminderMutes).toEqual({ day, taskIds: [] })
+    expect(persistence.unmuteDay).toHaveBeenCalledWith(day)
+  })
+
+  it('换天后的新静音替换旧日期的列表', () => {
+    useWorkstation.getState().setReminderMutes('2026-11-02', ['t1', 't2'])
+    useWorkstation.getState().muteReminder('t3', '2026-11-03')
+
+    expect(useWorkstation.getState().reminderMutes).toEqual({
+      day: '2026-11-03',
+      taskIds: ['t3']
+    })
+  })
+})
+
+describe('Agent 真分叉状态', () => {
+  const session = (extra: Record<string, unknown> = {}) => ({
+    id: 's1',
+    agent: 'claude' as const,
+    title: '原会话',
+    meta: '刚刚 · 1 条',
+    status: 'idle' as const,
+    threadDate: '今天',
+    ...extra
+  })
+
+  it('setAgentResume 清除待分叉标记并持久化', () => {
+    const updateSession = vi.fn().mockResolvedValue(undefined)
+    bindAgentPersistence({
+      createSession: vi.fn(),
+      updateSession,
+      saveMessage: vi.fn()
+    })
+    useWorkstation.setState({
+      sessions: [session({ resumeId: 'source-1', pendingFork: true })],
+      activeSessionId: 's1'
+    })
+
+    useWorkstation.getState().setAgentResume('s1', 'forked-1')
+
+    expect(useWorkstation.getState().sessions[0]).toMatchObject({
+      resumeId: 'forked-1',
+      pendingFork: false
+    })
+    expect(updateSession).toHaveBeenCalledWith('s1', {
+      resumeId: 'forked-1',
+      pendingFork: false
+    })
+  })
+
+  it('addForkedSession 保留源 resumeId 与待分叉标记', () => {
+    useWorkstation.setState({ sessions: [], threads: {} })
+
+    useWorkstation.getState().addForkedSession({
+      mode: 'cli',
+      session: {
+        id: 's2',
+        agent: 'claude',
+        title: '原会话 · 分叉',
+        status: 'idle',
+        resumeId: 'source-1',
+        pendingFork: true,
+        createdAt: 1,
+        updatedAt: 1
+      },
+      messages: []
+    })
+
+    expect(useWorkstation.getState().sessions[0]).toMatchObject({
+      id: 's2',
+      resumeId: 'source-1',
+      pendingFork: true
+    })
   })
 })
 

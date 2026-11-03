@@ -42,6 +42,12 @@ describe('智能体会话参数', () => {
     expect(() => registerAgentHandlersIPC.assertAgentSessionPatch({ status: 'paused' })).toThrow(
       TypeError
     )
+    expect(registerAgentHandlersIPC.assertAgentSessionPatch({ pendingFork: true })).toEqual({
+      pendingFork: true
+    })
+    expect(() => registerAgentHandlersIPC.assertAgentSessionPatch({ pendingFork: 'yes' })).toThrow(
+      TypeError
+    )
   })
 
   it('工作区必须是存在的绝对目录', () => {

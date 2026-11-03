@@ -1758,16 +1758,35 @@ async function main() {
   record('渲染进程无 Node require', security.require === 'undefined', security.require)
   record('渲染进程无 process', security.process === 'undefined', security.process)
   record(
-    'preload 桥仅暴露窄接口（tasks/notes/capture/learning/habits/agent/mcp/capability/provider/audit/app.setTheme+backupRestore+info+storage）',
+    'preload 桥仅暴露窄接口（tasks/reminders/notes/capture/learning/habits/agent/mcp/capability/provider/audit/app.setTheme+backupRestore+info+storage）',
     security.invoke === 'function' &&
       !security.dbAccess &&
       [...security.wsKeys].sort().join() ===
-        'agent,app,audit,capability,capture,habits,learning,mcp,notes,provider,tasks' &&
+        'agent,app,audit,capability,capture,habits,learning,mcp,notes,provider,reminders,tasks' &&
       security.appKeys.join() ===
         'setTheme,backupNow,listBackups,restoreBackup,restoreStatus,relaunch,info,storage,pickStorage,cancelStorage',
     security
   )
   phases[0].security = security
+
+  const reminderMute = await pageEval(
+    `(async () => {
+      const day = new Date().toLocaleDateString('sv-SE')
+      const id = ${JSON.stringify(runtimeTask?.id ?? '')}
+      if (!id) return { skipped: true }
+      await window.ws.reminders.mute(id, day)
+      const afterMute = await window.ws.reminders.muted(day)
+      await window.ws.reminders.unmute(id, day)
+      const afterUnmute = await window.ws.reminders.muted(day)
+      return { muted: afterMute.includes(id), cleared: !afterUnmute.includes(id) }
+    })()`,
+    'reminder mute'
+  )
+  record(
+    '运行时：提醒静音可写入并撤销',
+    reminderMute?.muted === true && reminderMute?.cleared === true,
+    reminderMute
+  )
 
   const approvalRules = await pageEval(
     `(async () => {

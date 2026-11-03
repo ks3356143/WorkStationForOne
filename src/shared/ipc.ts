@@ -18,6 +18,7 @@ export type {
   TaskTone,
   TaskPriority
 } from './ipc/tasks'
+export type { ReminderApi } from './ipc/reminders'
 export type {
   NoteRecord,
   NotePage,

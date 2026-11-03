@@ -79,6 +79,8 @@ export function buildClaudeArgs(
     plugins?: string[]
     allowedTools?: string[]
     disallowedTools?: string[]
+    /** 续接时创建新的 CLI session id，保留上下文但不写回源会话 */
+    forkSession?: boolean
     /** 外部 MCP 的 ask 工具经本机桥中继到审批卡 */
     permissionPromptTool?: string
   }
@@ -114,8 +116,10 @@ export function buildClaudeArgs(
   for (const plugin of options?.plugins ?? []) {
     args.push('--plugin-dir', plugin)
   }
-  if (resumeId) args.push('--resume', resumeId)
-  else if (sessionId) args.push('--session-id', sessionId)
+  if (resumeId) {
+    args.push('--resume', resumeId)
+    if (options?.forkSession) args.push('--fork-session')
+  } else if (sessionId) args.push('--session-id', sessionId)
   return args
 }
 
@@ -138,6 +142,8 @@ export interface ClaudeRunOptions {
   prompt: string
   /** 续接上一轮时传 Claude 自己的 session id */
   resumeId?: string
+  /** 续接时用 --fork-session 创建新 CLI 会话，不写回源会话 */
+  forkSession?: boolean
   cwd: string
   provider?: ProviderRuntime
   /** 本地只读 MCP 桥；token 只写进临时配置文件 */
@@ -255,6 +261,7 @@ export function startClaudeRun(options: ClaudeRunOptions): RunHandle {
       ...(options.plugins ? { plugins: options.plugins } : {}),
       ...(options.allowedTools ? { allowedTools: options.allowedTools } : {}),
       ...(options.disallowedTools ? { disallowedTools: options.disallowedTools } : {}),
+      ...(options.forkSession ? { forkSession: true } : {}),
       ...(options.permissionPromptTool
         ? { permissionPromptTool: options.permissionPromptTool }
         : {})

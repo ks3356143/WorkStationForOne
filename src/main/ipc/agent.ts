@@ -22,6 +22,7 @@ import type { AgentCapabilityRuntime } from '../capabilities'
 import type { ProviderTarget } from '../../shared/ipc'
 import { IPC_CHANNELS, type AgentImportResult } from '../../shared/ipc'
 import { summarizeToolInput, type AgentRunEvent } from '../../shared/agent-stream'
+import { canForkWithCli } from '../../shared/fork'
 import {
   assertAgentCreateInput,
   assertAgentId,
@@ -227,8 +228,18 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
     const input = assertAgentForkInput(value)
     const source = repository.findSession(input.sessionId)
     if (!source) throw new Error('会话不存在')
+    for (const run of runs.values()) {
+      if (run.sessionId === input.sessionId) throw new Error('会话正在运行，结束再分叉')
+    }
     const id = `s-${randomUUID()}`
     const title = `${source.title} · 分叉`.slice(0, 80)
+    const mode = canForkWithCli(
+      source,
+      repository.listMessagesForSession(input.sessionId),
+      input.messageId
+    )
+      ? 'cli'
+      : 'copy'
     const result = repository.forkSession({
       sourceId: input.sessionId,
       messageId: input.messageId,
@@ -236,7 +247,11 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
       title
     })
     if (!result) throw new Error('找不到要分叉的消息')
-    return result
+    if (mode === 'cli' && source.resumeId) {
+      repository.updateSession(id, { resumeId: source.resumeId, pendingFork: true })
+      return { ...result, session: repository.findSession(id) ?? result.session, mode }
+    }
+    return { ...result, mode }
   })
 
   ipcMain.handle(IPC.agentCreateSession, (_event, value: unknown) =>
@@ -308,6 +323,10 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
     if (!session) throw new Error('会话不存在')
     if (session.agent !== input.agent) throw new Error('会话类型不匹配')
     if (!session.workspace) throw new Error('请先为会话选择工作区')
+    const forkPending = input.agent === 'claude' && session.pendingFork === true
+    if (forkPending && !session.resumeId) throw new Error('源会话缺少可续接的 CLI 会话 id')
+    // 数据库是续接真相：真分叉必须使用源 resumeId，不能信任渲染层传来的旧值。
+    const resumeId = forkPending ? session.resumeId : (session.resumeId ?? input.resumeId)
     const workspace = assertWorkspacePath(session.workspace)
     seq += 1
     const runId = `run-${seq}`
@@ -317,6 +336,13 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
     const emit = (runEvent: AgentRunEvent) => {
       let event = runEvent
       if (runEvent.kind === 'result') runResult = runEvent
+      if (input.agent === 'claude' && runEvent.kind === 'init' && runEvent.sessionId) {
+        // init 表示 CLI 已接受 --resume/--fork-session；这一刻才把新 session id 落库。
+        repository.updateSession(input.sessionId, {
+          resumeId: runEvent.sessionId,
+          pendingFork: false
+        })
+      }
       if (runEvent.kind === 'permission') {
         const scoped = `${runId}:${runEvent.request.requestId}`
         permissionRuns.set(scoped, {
@@ -424,7 +450,7 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
             if (codexProvider && codexHome) {
               return startCodexAppServerRun({
                 prompt: input.prompt,
-                ...(input.resumeId ? { resumeId: input.resumeId } : {}),
+                ...(resumeId ? { resumeId } : {}),
                 cwd: workspace,
                 provider: codexProvider,
                 home: codexHome,
@@ -441,7 +467,7 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
             }
             return startCodexRun({
               prompt: input.prompt,
-              ...(input.resumeId ? { resumeId: input.resumeId } : {}),
+              ...(resumeId ? { resumeId } : {}),
               cwd: workspace,
               ...(codexProvider ? { provider: codexProvider } : {}),
               ...(codexHome ? { home: codexHome } : {}),
@@ -454,7 +480,8 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
             const provider = getProvider?.('claude')
             return startClaudeRun({
               prompt: input.prompt,
-              resumeId: input.resumeId,
+              ...(resumeId ? { resumeId } : {}),
+              ...(forkPending ? { forkSession: true } : {}),
               cwd: workspace,
               autoApprove,
               ...(provider ? { provider } : {}),

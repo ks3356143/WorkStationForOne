@@ -634,6 +634,28 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE agent_sessions ADD COLUMN archived INTEGER NOT NULL DEFAULT 0
         CHECK (archived IN (0, 1));
     `
+  },
+  {
+    // 提醒静音按「任务 + 本地日期」记录：同一天改时间也不再提醒，换天自动恢复。
+    version: 34,
+    sql: `
+      CREATE TABLE reminder_mutes (
+        task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+        day TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (task_id, day)
+      );
+
+      CREATE INDEX idx_reminder_mutes_day ON reminder_mutes(day);
+    `
+  },
+  {
+    // 下一次 --resume 是否要加 --fork-session；真分叉拿到新 CLI session id 后清除。
+    version: 35,
+    sql: `
+      ALTER TABLE agent_sessions ADD COLUMN pending_fork INTEGER NOT NULL DEFAULT 0
+        CHECK (pending_fork IN (0, 1));
+    `
   }
 ]
 

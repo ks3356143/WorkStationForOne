@@ -134,6 +134,23 @@ describe('Provider 隔离', () => {
     expect(buildClaudeArgs(cli, undefined)).not.toContain('--permission-prompt-tool')
   })
 
+  it('真分叉只在续接时追加 --fork-session', () => {
+    const args = buildClaudeArgs(cli, 'cli-1', undefined, undefined, undefined, {
+      forkSession: true
+    })
+    const resumeIndex = args.indexOf('--resume')
+    expect(args.slice(resumeIndex, resumeIndex + 3)).toEqual([
+      '--resume',
+      'cli-1',
+      '--fork-session'
+    ])
+    expect(buildClaudeArgs(cli, 'cli-1')).not.toContain('--fork-session')
+    expect(
+      buildClaudeArgs(cli, undefined, undefined, undefined, undefined, { forkSession: true })
+    ).not.toContain('--fork-session')
+    expect(args.join(' ')).not.toContain('--dangerously')
+  })
+
   it('外部 MCP 工具只把显式 allow / deny 放进参数', () => {
     const args = buildClaudeArgs(cli, undefined, undefined, undefined, undefined, {
       allowedTools: ['mcp__memory__read'],

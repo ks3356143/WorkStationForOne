@@ -91,6 +91,16 @@ describe('hydrateAgent', () => {
     expect(useWorkstation.getState().sessions[0]?.pinned).toBe(true)
   })
 
+  it('恢复待真分叉标记', async () => {
+    await hydrateAgent(
+      deps({
+        sessions: [{ ...bundle.sessions[0], pendingFork: true }],
+        messages: []
+      })
+    )
+    expect(useWorkstation.getState().sessions[0]?.pendingFork).toBe(true)
+  })
+
   it('恢复归档标记，且不把归档会话选为当前', async () => {
     const base = bundle.sessions[0]
     await hydrateAgent(

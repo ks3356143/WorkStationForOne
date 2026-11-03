@@ -1,5 +1,11 @@
-import { replaceTasks, bindTaskPersistence, useWorkstation } from '../store/useWorkstation'
-import type { TaskDraft, TaskPatch, TaskRecord } from '../../../shared/ipc'
+import {
+  bindReminderPersistence,
+  bindTaskPersistence,
+  replaceTasks,
+  useWorkstation
+} from '../store/useWorkstation'
+import { dateKey } from '../../../shared/date-key'
+import type { ReminderApi, TaskDraft, TaskPatch, TaskRecord } from '../../../shared/ipc'
 import type { Task } from '../types'
 
 export interface HydrateDeps {
@@ -71,6 +77,32 @@ export async function refreshTasks(
   }
 }
 
+export async function hydrateReminderMutes(
+  deps: ReminderApi | undefined = bridgeReminders()
+): Promise<void> {
+  const day = dateKey()
+  if (!deps) {
+    bindReminderPersistence(null)
+    useWorkstation.setState({ reminderMutes: { day, taskIds: [] } })
+    return
+  }
+  bindReminderPersistence({
+    mute: deps.mute,
+    unmute: deps.unmute,
+    unmuteDay: deps.unmuteDay
+  })
+  try {
+    useWorkstation.setState({ reminderMutes: { day, taskIds: await deps.muted(day) } })
+  } catch (error) {
+    console.error('[persistence] 提醒静音读取失败', error)
+    useWorkstation.setState({ reminderMutes: { day, taskIds: [] } })
+  }
+}
+
 function bridgeTasks(): HydrateDeps | undefined {
   return typeof window === 'undefined' ? undefined : window.ws?.tasks
+}
+
+function bridgeReminders(): ReminderApi | undefined {
+  return typeof window === 'undefined' ? undefined : window.ws?.reminders
 }

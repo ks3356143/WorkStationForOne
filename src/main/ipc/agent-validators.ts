@@ -107,6 +107,10 @@ export function assertAgentSessionPatch(value: unknown): AgentSessionPatch {
   if (patch.title !== undefined) result.title = assertTitle(patch.title)
   if (patch.status !== undefined) result.status = assertSessionStatus(patch.status)
   if (patch.resumeId !== undefined) result.resumeId = assertAgentId(patch.resumeId, '续接会话 id')
+  if (patch.pendingFork !== undefined) {
+    if (typeof patch.pendingFork !== 'boolean') throw new TypeError('分叉续接标记无效')
+    result.pendingFork = patch.pendingFork
+  }
   if (patch.workspace !== undefined) result.workspace = assertWorkspacePath(patch.workspace)
   if (patch.pinned !== undefined) {
     if (typeof patch.pinned !== 'boolean') throw new TypeError('置顶状态无效')

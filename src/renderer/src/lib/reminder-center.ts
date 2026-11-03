@@ -8,10 +8,15 @@ export interface ReminderBuckets {
 }
 
 /** 只统计今天、带具体时间、未完成的顶层任务；时间相同按优先级与标题稳定排序。 */
-export function reminderBuckets(tasks: Task[], now: Date): ReminderBuckets {
+export function reminderBuckets(
+  tasks: Task[],
+  now: Date,
+  muted: ReadonlySet<string> = new Set()
+): ReminderBuckets {
   const today = dateKey(now)
   const nowMinutes = now.getHours() * 60 + now.getMinutes()
   const items = tasks
+    .filter((task) => !muted.has(task.id))
     .filter((task) => !task.done && !task.parentId && task.dueDate === today)
     .map((task) => ({ task, minutes: toMinutes(task.time) }))
     .filter((item): item is { task: Task; minutes: number } => item.minutes !== null)

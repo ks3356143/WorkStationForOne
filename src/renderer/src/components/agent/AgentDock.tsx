@@ -14,10 +14,15 @@ import { PermissionCard } from './PermissionCard'
 import { ToolApprovalCard } from './ToolApprovalCard'
 import { WorkspaceSheet } from './WorkspaceSheet'
 import { friendlyMessage } from '../../lib/errors'
+import { canForkWithCli } from '../../../../shared/fork'
 
 const EMPTY_TASKS: Task[] = []
 
-export function AgentDock() {
+interface AgentDockProps {
+  notify: (text: string, action?: { label: string; run: () => void }, duration?: number) => void
+}
+
+export function AgentDock({ notify }: AgentDockProps) {
   const sessions = useWorkstation((state) => state.sessions)
   const setActiveSession = useWorkstation((state) => state.setActiveSession)
   const createAgentSession = useWorkstation((state) => state.createAgentSession)
@@ -263,7 +268,12 @@ export function AgentDock() {
     )
   }
 
-  const command = agentCommandPreview(agent, activeSession.resumeId, codexApproval)
+  const command = agentCommandPreview(
+    agent,
+    activeSession.resumeId,
+    codexApproval,
+    activeSession.pendingFork === true
+  )
   const meta = AGENT_META[agent]
   const writeApproval = agent === 'claude' || codexApproval
   const respondPermission =
@@ -321,7 +331,16 @@ export function AgentDock() {
     setForkingId(messageId)
     void bridge
       .forkSession({ sessionId: activeSession.id, messageId })
-      .then((result) => addForkedSession(result))
+      .then((result) => {
+        addForkedSession(result)
+        notify(
+          result.mode === 'cli'
+            ? '已从 CLI 真分叉：下一条消息延续原上下文'
+            : '已复制到此消息：较早位置无法真分叉',
+          undefined,
+          4200
+        )
+      })
       .catch((error: unknown) => console.error('[agent] 分叉会话失败', error))
       .finally(() => setForkingId(null))
   }
@@ -497,6 +516,11 @@ export function AgentDock() {
                 message.role === 'assistant' && !typingHere
                   ? () => forkMessage(message.id)
                   : undefined
+              }
+              forkTitle={
+                canForkWithCli({ agent, resumeId: activeSession.resumeId }, thread, message.id)
+                  ? '从这条回复真分叉：下一条消息延续 CLI 上下文'
+                  : '复制到此消息；只有最新回复能真分叉'
               }
               forking={forkingId === message.id}
               onRetry={

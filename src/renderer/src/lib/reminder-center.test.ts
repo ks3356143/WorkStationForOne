@@ -46,6 +46,16 @@ describe('reminderBuckets', () => {
     expect(buckets.upcoming.map((item) => item.id)).toEqual(['今天'])
   })
 
+  it('今天已静音的任务从两个分组都消失', () => {
+    const buckets = reminderBuckets(
+      [task('九点', '09:00'), task('十八点', '18:00')],
+      now,
+      new Set(['九点'])
+    )
+    expect(buckets.missed).toEqual([])
+    expect(buckets.upcoming.map((item) => item.id)).toEqual(['十八点'])
+  })
+
   it('延后 10 分钟并在跨日时收敛到 23:59', () => {
     expect(snoozeTime('10:30')).toBe('10:40')
     expect(snoozeTime('23:55')).toBe('23:59')

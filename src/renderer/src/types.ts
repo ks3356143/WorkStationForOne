@@ -49,6 +49,8 @@ export interface Session {
   workspace?: string
   /** Claude CLI 自己的会话 id；重启后用于 --resume */
   resumeId?: string
+  /** 下一次续接用 --fork-session；init 后清除 */
+  pendingFork?: boolean
   /** 置顶会话在同 Agent 分组内排在前面 */
   pinned?: boolean
   /** 归档会话从会话栏隐藏，可在舰队控制台恢复 */
@@ -131,9 +133,16 @@ export interface NoteJump {
   pinned?: boolean
 }
 
+export interface ReminderMuteState {
+  /** 静音所属的本地日期；换天后旧记录自动失效，不需要清理状态。 */
+  day: string
+  taskIds: string[]
+}
+
 export interface WorkstationData {
   activeView: View
   tasks: Task[]
+  reminderMutes: ReminderMuteState
   learningItems: LearningItem[]
   learningReady: boolean
   /**
