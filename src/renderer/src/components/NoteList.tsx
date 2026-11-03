@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { StatePlaceholder } from './StatePlaceholder'
 
 export interface NoteListRow {
   id: string
@@ -79,7 +80,11 @@ export function NoteList({ rows, loading, mode, endLabel, resetKey, onOpen }: No
   const slice = rows.slice(range.start, Math.min(range.end, rows.length))
   const showEnd = Boolean(endLabel) && range.end > rows.length
 
-  if (rows.length === 0 && !loading) {
+  if (rows.length === 0 && loading) {
+    return <StatePlaceholder kind="loading" rows={3} />
+  }
+
+  if (rows.length === 0) {
     return (
       <div className="w1-nvempty">
         {mode === 'search' ? '没有匹配的笔记。换个关键词试试。' : '还没有笔记。按 ^N 记下第一条。'}

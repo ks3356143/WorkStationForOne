@@ -115,6 +115,7 @@
 - MEM 内容：`shared/mem-starters.ts` 同时供渲染层空库种子与 DB v15 迁移使用。v15 只在**已有学习数据**的库补 8 张管综卡（`WHERE EXISTS`），空库必须交给首次种子，否则只会写进 8 张、丢掉 16 张英语二；迁移不得删除历史「互联网」卡。
 - 复习卡是 `<button>`，必须显式 `background-color: transparent`（UA 的 `buttonface` 会从玻璃层后透出灰块），并把 `.w1-lcard` 加进 `11-motion.css` 定义 `--glass-rim` 的选择器白名单，否则棱镜描边不生效。大块玻璃面要自带 `::before` 光场，否则整片压成实色。
 - 今日看板末尾的学习卡与学习视图共用 `learningItems`：到期数与时长来自同一组纯函数，不得另建数据源；`开始复习` 走 store 的 `startLearningReview()`，同时切视图与进复习态。
+- 首屏读库前不要先渲染空态：任务 / 笔记 / Agent 会话 / 学习卡在各自的 `tasksReady`、`notesReady`、`sessionsReady`、`learningReady` 未结束前用 `components/StatePlaceholder.tsx` 的骨架占位，否则会先闪一下「还没有…」。这些标记在成功、失败、无 preload 桥三种路径都必须置 `true`：卡在骨架比显示内存数据更糟，浏览器调试与 `capture` 都没有桥。
 - 动效统一使用 `--ease-*` / `--dur-*`（`styles/sections/00-base.css`）与 `src/renderer/src/lib/motion.ts`；列表重排走 `withViewTransition`（`lib/view-transition.ts`），系统减少动效或 `motion-off` 时自动退回同步更新，不要绕过它直接调 `startViewTransition`；高频键盘动作保持即时，hover 位移在粗指针设备下关闭，可点击控件使用统一的 `:active` 缩放反馈。
 - 颜色一律走令牌：半透明色用 `rgb(var(--*-rgb) / α)`，不要在组件里写死 `rgba()` 或深浅主题分支；浅色覆盖集中在 `styles/sections/14-theme.css`。
 - 主题状态在 `lib/theme.ts`：读取/写入 `localStorage`、应用 `<html data-theme>`，并通过 `window.ws.app.setTheme` 同步窗口背景与标题栏。`src/renderer/public/theme-init.js` 在样式表之前同步写入 `data-theme`，避免重载/可见窗口的首帧闪色；它重复了存储键 `workstation.theme`，改键时两处一起改。新增主题相关逻辑复用这些函数。

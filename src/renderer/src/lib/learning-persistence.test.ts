@@ -76,7 +76,8 @@ describe('hydrateLearning', () => {
   it('没有 preload 桥时保持种子且不写入', async () => {
     await hydrateLearning(undefined)
     expect(useWorkstation.getState().learningItems).toHaveLength(24)
-    expect(useWorkstation.getState().learningReady).toBe(false)
+    // 无桥意味着永远不会读库：必须标记就绪，否则视图会停在加载占位
+    expect(useWorkstation.getState().learningReady).toBe(true)
   })
 
   it('hydrate 后新建卡片写库并替换 id', async () => {

@@ -124,6 +124,14 @@ export interface WorkstationData {
   tasks: Task[]
   learningItems: LearningItem[]
   learningReady: boolean
+  /**
+   * 各域首次读库是否已结束（成功或失败都算）。
+   * 读库前内存里是种子/空数组，直接渲染会把「还没有」这类空态闪一下，
+   * 视图据此先显示占位再切换到真实内容。
+   */
+  tasksReady: boolean
+  notesReady: boolean
+  sessionsReady: boolean
   learningScope: LearningScope
   learningReviewOpen: boolean
   learningReviewSession: string[] | null

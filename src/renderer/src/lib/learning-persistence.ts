@@ -18,7 +18,10 @@ export interface HydrateLearningDeps {
 export async function hydrateLearning(
   deps: HydrateLearningDeps | undefined = bridgeLearning()
 ): Promise<void> {
-  if (!deps) return
+  if (!deps) {
+    useWorkstation.setState({ learningReady: true })
+    return
+  }
 
   bindLearningPersistence({ create: deps.create, update: deps.update, review: deps.review })
 
@@ -33,6 +36,8 @@ export async function hydrateLearning(
     replaceLearning(stored)
   } catch (error) {
     console.error('[persistence] 学习卡片读取失败，使用内存种子数据', error)
+    // 失败也标记就绪，否则视图会一直停在占位态
+    useWorkstation.setState({ learningReady: true })
   }
 }
 

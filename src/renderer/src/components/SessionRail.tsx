@@ -1,8 +1,10 @@
 import { useWorkstation } from '../store/useWorkstation'
 import { ClaudeGlyph, CodexGlyph, PlusIcon } from './Glyphs'
+import { StatePlaceholder } from './StatePlaceholder'
 
 export function SessionRail() {
   const sessions = useWorkstation((state) => state.sessions)
+  const sessionsReady = useWorkstation((state) => state.sessionsReady)
   const activeSessionId = useWorkstation((state) => state.activeSessionId)
   const setActiveSession = useWorkstation((state) => state.setActiveSession)
   const createAgentSession = useWorkstation((state) => state.createAgentSession)
@@ -62,8 +64,14 @@ export function SessionRail() {
       </div>
 
       <div className="w1-railscroll">
-        {renderGroup('claude', claudeSessions)}
-        {renderGroup('codex', codexSessions)}
+        {sessionsReady ? (
+          <>
+            {renderGroup('claude', claudeSessions)}
+            {renderGroup('codex', codexSessions)}
+          </>
+        ) : (
+          <StatePlaceholder kind="loading" rows={3} />
+        )}
       </div>
     </aside>
   )

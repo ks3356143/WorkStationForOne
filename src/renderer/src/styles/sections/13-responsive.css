@@ -250,7 +250,8 @@
 
   .w1-task {
     min-height: 38px;
-    padding: 7px 3px 7px 0;
+    /* 与 04-tasks.css 保持一致：左侧留白给 hover 高亮线 */
+    padding: 7px 3px 7px 8px;
   }
 
   .w1-habits {

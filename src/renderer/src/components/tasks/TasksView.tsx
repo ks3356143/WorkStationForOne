@@ -13,6 +13,7 @@ import {
 import { useNow } from '../../lib/useNow'
 import { useWorkstation } from '../../store/useWorkstation'
 import { PlusIcon } from '../Glyphs'
+import { StatePlaceholder } from '../StatePlaceholder'
 import { dayCapacity } from '../../lib/capacity'
 import { topThree } from '../../lib/focus'
 import { scopeDropPatch, TASK_DRAG_TYPE } from '../../lib/dnd'
@@ -64,6 +65,7 @@ let lastHandledComposeRequest = 0
 
 export function TasksView({ notify }: TasksViewProps) {
   const tasks = useWorkstation((state) => state.tasks)
+  const tasksReady = useWorkstation((state) => state.tasksReady)
   const scope = useWorkstation((state) => state.taskScope)
   const setScope = useWorkstation((state) => state.setTaskScope)
   const composeTask = useWorkstation((state) => state.composeTask)
@@ -484,7 +486,9 @@ export function TasksView({ notify }: TasksViewProps) {
             </div>
           ))}
 
-          {visible.length === 0 ? (
+          {!tasksReady ? (
+            <StatePlaceholder kind="loading" rows={4} />
+          ) : visible.length === 0 ? (
             <div className="w1-todoempty">
               <b>
                 {searching

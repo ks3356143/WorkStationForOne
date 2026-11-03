@@ -22,7 +22,11 @@ export interface HydrateDeps {
 }
 
 export async function hydrateTasks(deps: HydrateDeps | undefined = bridgeTasks()): Promise<void> {
-  if (!deps) return
+  if (!deps) {
+    // 没有 preload 桥（浏览器调试或缺桥）时也要结束占位态，否则界面永远停在骨架
+    useWorkstation.setState({ tasksReady: true })
+    return
+  }
 
   bindTaskPersistence({
     setDone: deps.setDone,
@@ -49,6 +53,9 @@ export async function hydrateTasks(deps: HydrateDeps | undefined = bridgeTasks()
     replaceTasks(stored satisfies Task[])
   } catch (error) {
     console.error('[persistence] 任务读取失败，使用内存种子数据', error)
+  } finally {
+    // 失败也算结束：卡在占位态比显示种子更糟
+    useWorkstation.setState({ tasksReady: true })
   }
 }
 

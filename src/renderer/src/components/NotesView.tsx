@@ -35,6 +35,7 @@ export function hitsToRows(hits: NoteSearchHit[]): NoteListRow[] {
 export function NotesView() {
   const api = typeof window === 'undefined' ? undefined : window.ws?.notes
   const memoryNotes = useWorkstation((state) => state.notes)
+  const notesReady = useWorkstation((state) => state.notesReady)
   const noteRevision = useWorkstation((state) => state.noteRevision)
   const openQuickNote = useWorkstation((state) => state.openQuickNote)
   const updateNote = useWorkstation((state) => state.updateNote)
@@ -46,7 +47,7 @@ export function NotesView() {
   const [mode, setMode] = useState<Mode>('browse')
   const [rows, setRows] = useState<NoteListRow[]>(() => notesToRows(memoryNotes))
   const [total, setTotal] = useState(memoryNotes.length)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(() => !notesReady)
   const [searchRefresh, setSearchRefresh] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [detail, setDetail] = useState<NoteDetailValue | null>(null)
@@ -103,6 +104,11 @@ export function NotesView() {
     if (!api) return
     void loadPage(true)
   }, [])
+
+  // 没有 preload 桥时页面拉不到数据，靠读取标记结束占位，避免骨架永远转下去
+  useEffect(() => {
+    if (notesReady && !api) setLoading(false)
+  }, [notesReady, api])
 
   useEffect(() => {
     if (revisionRef.current === noteRevision) return

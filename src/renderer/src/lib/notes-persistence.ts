@@ -15,7 +15,10 @@ export interface HydrateNoteDeps {
 export async function hydrateNotes(
   deps: HydrateNoteDeps | undefined = bridgeNotes()
 ): Promise<void> {
-  if (!deps) return
+  if (!deps) {
+    useWorkstation.setState({ notesReady: true })
+    return
+  }
 
   // 老桥没有这两个方法时不要绑定空实现，否则 store 会以为写入成功了
   const update = deps.update
@@ -35,6 +38,8 @@ export async function hydrateNotes(
     replaceNotes(first.items satisfies Note[], first.total)
   } catch (error) {
     console.error('[persistence] 笔记读取失败，使用内存种子数据', error)
+  } finally {
+    useWorkstation.setState({ notesReady: true })
   }
 }
 

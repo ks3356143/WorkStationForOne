@@ -459,7 +459,8 @@
   grid-template-columns: 12px 22px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
-  padding: 9px 4px;
+  /* 左侧留 8px：hover 的 2px 高亮线画在留白里，不压住拖拽手柄 */
+  padding: 9px 4px 9px 8px;
   transition: background-color var(--dur-ui);
 }
 
@@ -1211,4 +1212,45 @@
 .w1-todosubadd input:focus {
   border-color: rgb(var(--ac2-rgb) / 0.6);
   border-style: solid;
+}
+
+/* ---------- 首次读库的占位 ---------- */
+/* 列表在 hydrate 完成前用骨架占位，避免「还没有…」空态闪一下再跳成真实内容 */
+.w1-statepane {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-top: 14px;
+  padding: 16px 14px;
+  border: 1px solid rgb(var(--ac-rgb) / 0.12);
+  background: linear-gradient(150deg, rgb(var(--vio-rgb) / 0.04), transparent 62%);
+}
+
+.w1-statepanehead {
+  font: 10px / 1 var(--mono);
+  letter-spacing: 0.12em;
+  color: var(--su);
+  opacity: 0.75;
+}
+
+.w1-stateline {
+  height: 12px;
+  border-radius: 1px;
+  background: linear-gradient(
+    90deg,
+    rgb(var(--ac-rgb) / 0.16),
+    rgb(var(--ac2-rgb) / 0.1),
+    rgb(var(--ac-rgb) / 0.16)
+  );
+  background-size: 220% 100%;
+  animation: w1-statepane-sweep 1.6s var(--ease-soft) infinite;
+}
+
+@keyframes w1-statepane-sweep {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -60% 0;
+  }
 }

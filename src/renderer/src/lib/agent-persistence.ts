@@ -28,7 +28,10 @@ function toSession(record: AgentSessionRecord, messageCount: number, now: number
 }
 
 export async function hydrateAgent(deps = bridgeAgent()): Promise<void> {
-  if (!deps) return
+  if (!deps) {
+    useWorkstation.setState({ sessionsReady: true })
+    return
+  }
 
   bindAgentPersistence({
     createSession: deps.createSession,
@@ -70,7 +73,8 @@ export async function hydrateAgent(deps = bridgeAgent()): Promise<void> {
       typing: false,
       pendingPrompts: [],
       streams: {},
-      pendingReplyTo: null
+      pendingReplyTo: null,
+      sessionsReady: true
     })
   } catch (error) {
     console.error('[agent] 会话读取失败', error)
@@ -85,7 +89,8 @@ export async function hydrateAgent(deps = bridgeAgent()): Promise<void> {
       typing: false,
       pendingPrompts: [],
       streams: {},
-      pendingReplyTo: null
+      pendingReplyTo: null,
+      sessionsReady: true
     })
   }
 }

@@ -28,6 +28,7 @@ import { ComboSelect } from '../fields/ComboSelect'
 import { DatePicker } from '../fields/DatePicker'
 import { PlusIcon } from '../Glyphs'
 import { LearningStatsModal } from './LearningStatsModal'
+import { StatePlaceholder } from '../StatePlaceholder'
 
 interface LearningItemRowProps {
   item: LearningItem
@@ -369,6 +370,7 @@ interface LearningLibraryProps {
 
 export function LearningLibrary({ onStartReview }: LearningLibraryProps) {
   const items = useWorkstation((state) => state.learningItems)
+  const learningReady = useWorkstation((state) => state.learningReady)
   const scope = useWorkstation((state) => state.learningScope)
   const setScope = useWorkstation((state) => state.setLearningScope)
   const addItem = useWorkstation((state) => state.addLearningItem)
@@ -716,7 +718,9 @@ export function LearningLibrary({ onStartReview }: LearningLibraryProps) {
             ))}
           </div>
 
-          {visible.length === 0 && !creating ? (
+          {!learningReady && !creating ? (
+            <StatePlaceholder kind="loading" rows={4} />
+          ) : visible.length === 0 && !creating ? (
             <div className="w1-todoempty">
               <b>
                 {searching

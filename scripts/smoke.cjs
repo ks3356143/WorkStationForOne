@@ -822,7 +822,6 @@ async function run() {
       String(all('.w1-todorowwrap').length)
     )
 
-
     const planButton = byText('button', '计划今天')
     check('任务区有计划今天入口', Boolean(planButton))
     planButton?.click()
@@ -988,6 +987,44 @@ async function run() {
       document.activeElement?.className?.toString?.() ?? ''
     )
     await navTo('今日')
+
+    // 两处 hover 高亮都是 inset 2px 线，必须画在左内边距里而不是压住内容。
+    // 今日看板曾因左内边距为 0 让线盖住时间文字；13-responsive.css 还会把值覆盖回去。
+    // 放在任务块末尾：来回切视图会重建 DOM，前面的断言持有旧节点引用。
+    await navTo('任务')
+    taskScopeTo('全部任务')
+    const rowReady = await waitFor(() => Boolean(one('.w1-todorowmain')), 4000)
+    const rowGeometry = rowReady
+      ? await (async () => {
+          const row = one('.w1-todorowmain')
+          const drag = row.querySelector('.w1-tododrag')
+          const pad = parseFloat(getComputedStyle(row).paddingLeft || '0')
+          const gap = drag
+            ? drag.getBoundingClientRect().left - row.getBoundingClientRect().left
+            : 0
+          return {
+            ok: pad >= 6 && gap >= 6,
+            detail: 'padding ' + pad + 'px · 手柄距左 ' + gap.toFixed(1) + 'px'
+          }
+        })()
+      : { ok: false, detail: '等不到任务行' }
+    check('任务行 hover 高亮线不压住拖拽手柄', rowGeometry.ok, rowGeometry.detail)
+
+    await navTo('今日')
+    const cardReady = await waitFor(() => Boolean(one('.w1-task .w1-time')), 4000)
+    const cardGeometry = cardReady
+      ? await (async () => {
+          const row = one('.w1-task')
+          const time = row.querySelector('.w1-time')
+          const pad = parseFloat(getComputedStyle(row).paddingLeft || '0')
+          const gap = time.getBoundingClientRect().left - row.getBoundingClientRect().left
+          return {
+            ok: pad >= 6 && gap >= 6,
+            detail: 'padding ' + pad + 'px · 时间距左 ' + gap.toFixed(1) + 'px'
+          }
+        })()
+      : { ok: false, detail: '等不到看板任务行' }
+    check('看板任务行 hover 高亮线不压住时间', cardGeometry.ok, cardGeometry.detail)
 
     await navTo('Agent')
     check('导航切换到 Agent', activeNav() === 'Agent', activeNav())
@@ -2069,10 +2106,12 @@ async function run() {
       JSON.stringify(mcpState.map((server) => [server.name, server.enabled]))
     )
 
+    // 环境自检要 spawn 六次 --version，机器繁忙时返回慢；等它落盘再断言，不要立刻读 DOM
+    const envReady = await waitFor(() => all('.w1-capenvitem').length === 6, 15000)
     const envItems = all('.w1-capenvitem')
     check(
       'MCP 环境自检显示本机命令',
-      envItems.length === 6 && (one('.w1-capenv')?.textContent ?? '').includes('node'),
+      envReady && (one('.w1-capenv')?.textContent ?? '').includes('node'),
       String(envItems.length) + ' · ' + (one('.w1-capenv')?.textContent?.slice(0, 80) ?? 'missing')
     )
 

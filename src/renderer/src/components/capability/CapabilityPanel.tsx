@@ -12,6 +12,7 @@ import type {
 } from '../../../../shared/ipc'
 import { friendlyMessage } from '../../lib/errors'
 import { replaceById } from '../../lib/collections'
+import { StatePlaceholder } from '../StatePlaceholder'
 import { ToolsTab } from './ToolsTab'
 import { McpTab } from './McpTab'
 import { filterMarket, formatCount, marketLabel, sortMarket } from '../../lib/capabilities'
@@ -65,12 +66,32 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
   const [pluginOpsBusy, setPluginOpsBusy] = useState<string | null>(null)
   const [confirmKey, setConfirmKey] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const [updateBusy, setUpdateBusy] = useState(false)
   const [updateReport, setUpdateReport] = useState('')
 
-  useEffect(() => {
+  /** 首屏三个列表一起读；失败时保留错误，供横幅里的「重试」再调一次。 */
+  const loadCore = () => {
     if (!api) return
+    setLoading(true)
+    setError(null)
+    void Promise.all([api.skills.list(), api.mcp.list(), api.builtinTools()])
+      .then(([nextSkills, nextMcp, nextTools]) => {
+        setSkills(nextSkills)
+        setMcp(nextMcp)
+        setTools(nextTools)
+      })
+      .catch((reason: unknown) => setError(friendlyMessage(reason, '能力中心读取失败')))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    if (!api) {
+      setLoading(false)
+      return
+    }
     let alive = true
+    setLoading(true)
     void Promise.all([api.skills.list(), api.mcp.list(), api.builtinTools()])
       .then(([nextSkills, nextMcp, nextTools]) => {
         if (!alive) return
@@ -80,6 +101,9 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
       })
       .catch((reason: unknown) => {
         if (alive) setError(friendlyMessage(reason, '能力中心读取失败'))
+      })
+      .finally(() => {
+        if (alive) setLoading(false)
       })
     // 插件源与启动更新结果：源列表独立加载，不阻塞首屏
     void api
@@ -530,6 +554,9 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
       {error ? (
         <div className="w1-caperror" role="alert">
           {error}
+          <button type="button" className="w1-capmini pri" onClick={loadCore}>
+            重试
+          </button>
           <button type="button" onClick={() => setError(null)}>
             关闭
           </button>
@@ -833,7 +860,9 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
                   </div>
                 </div>
               ) : null}
-              {skills.length === 0 && installedCodex.length === 0 ? (
+              {loading && skills.length === 0 ? (
+                <StatePlaceholder kind="loading" rows={3} />
+              ) : skills.length === 0 && installedCodex.length === 0 ? (
                 <div className="w1-capemptycard">
                   <b>还没有应用私有插件。</b>
                   <p>
