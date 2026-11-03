@@ -7,9 +7,13 @@ import { demoReply } from './agent'
 /** 把主进程推来的事件写进对应会话的线程 */
 function apply(event: AgentRunEvent, sessionId: string): void {
   const store = useWorkstation.getState()
+  if ('turnId' in event && event.turnId) store.setAgentTurnId(sessionId, event.turnId)
   switch (event.kind) {
     case 'init':
       if (event.sessionId) store.setAgentResume(sessionId, event.sessionId)
+      break
+    case 'turn':
+      store.setAgentTurnId(sessionId, event.turnId)
       break
     case 'text':
       store.appendAgentText(sessionId, event.text)

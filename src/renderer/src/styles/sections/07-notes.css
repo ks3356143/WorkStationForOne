@@ -467,3 +467,151 @@
   font: 11.5px / 1.4 var(--mono);
   color: var(--su);
 }
+
+/* ---------- note graph ---------- */
+
+.w1-nvgraphbtn {
+  margin-right: 8px;
+  border-color: rgb(var(--ac2-rgb) / 0.28);
+  background: rgb(var(--ac2-rgb) / 0.08);
+  color: var(--ac2-fg);
+}
+
+.w1-nvgraphbtn:hover,
+.w1-nvgraphbtn.on {
+  border-color: rgb(var(--ac2-rgb) / 0.55);
+  background: rgb(var(--ac2-rgb) / 0.16);
+  color: var(--fg);
+}
+
+.w1-notegraph {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid rgb(var(--ac-rgb) / 0.14);
+  background:
+    radial-gradient(circle at 50% 44%, rgb(var(--ac2-rgb) / 0.05), transparent 58%),
+    linear-gradient(180deg, rgb(var(--panel-1-rgb) / 0.08), transparent 68%);
+}
+
+.w1-notegraphbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 4px;
+  border-bottom: 1px solid rgb(var(--bd-rgb) / 0.35);
+  color: var(--su);
+  font: 10.5px / 1 var(--mono);
+}
+
+.w1-notegraphbar b {
+  color: var(--ac2-fg);
+  font: 600 11px / 1 var(--mono);
+}
+
+.w1-notegraphbar em {
+  margin-left: auto;
+  color: var(--mu);
+  font: 10.5px / 1 var(--sans);
+  font-style: normal;
+}
+
+.w1-notegraphcanvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.w1-notegraphcanvas svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.w1-gedge {
+  stroke: rgb(var(--ac-rgb) / 0.22);
+  stroke-width: 1;
+  transition:
+    stroke var(--dur-ui),
+    stroke-width var(--dur-ui);
+}
+
+.w1-gedge.active {
+  stroke: rgb(var(--ac2-rgb) / 0.7);
+  stroke-width: 1.6;
+}
+
+.w1-gnode {
+  cursor: pointer;
+  outline: none;
+  animation: w1-gnode-in 380ms var(--ease-out) both;
+}
+
+.w1-gnode circle {
+  fill: rgb(var(--panel-2-rgb) / 0.78);
+  stroke: rgb(var(--ac-rgb) / 0.5);
+  stroke-width: 1.2;
+  transition:
+    fill var(--dur-ui),
+    stroke var(--dur-ui),
+    stroke-width var(--dur-ui);
+}
+
+.w1-gnode text {
+  fill: var(--fs);
+  font: 11px / 1 var(--sans);
+  text-anchor: middle;
+  dominant-baseline: hanging;
+  paint-order: stroke;
+  stroke: var(--bg0);
+  stroke-width: 2.5px;
+  pointer-events: none;
+}
+
+.w1-gnode:hover circle,
+.w1-gnode.active circle,
+.w1-gnode:focus-visible circle {
+  fill: rgb(var(--ac2-rgb) / 0.16);
+  stroke: var(--ac2);
+}
+
+.w1-gnode.pinned circle {
+  stroke: rgb(var(--ac2-rgb) / 0.85);
+}
+
+.w1-gnode.connected circle {
+  stroke: rgb(var(--ac2-rgb) / 0.65);
+}
+
+.w1-gnode:focus-visible circle {
+  stroke-width: 2.4;
+}
+
+.w1-notegraphstate {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  color: var(--mu);
+  font: 13px / 1.6 var(--sans);
+  text-align: center;
+}
+
+.w1-notegraphstate.error {
+  color: var(--dg-fg);
+}
+
+@keyframes w1-gnode-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

@@ -14,11 +14,19 @@ export interface AgentPermissionRequest {
 /** 一次 Agent 运行推给渲染层的事件。kind 是判别式，渲染层按它分支。 */
 export type AgentRunEvent =
   | { kind: 'init'; model?: string; sessionId?: string }
-  | { kind: 'text'; text: string }
-  | { kind: 'tool'; id: string; name: string; detail: string }
-  | { kind: 'tool-result'; id: string; ok: boolean; detail: string }
+  | { kind: 'turn'; turnId: string }
+  | { kind: 'text'; text: string; turnId?: string }
+  | { kind: 'tool'; id: string; name: string; detail: string; turnId?: string }
+  | { kind: 'tool-result'; id: string; ok: boolean; detail: string; turnId?: string }
   | { kind: 'permission'; request: AgentPermissionRequest }
-  | { kind: 'result'; ok: boolean; costUsd?: number; durationMs?: number; turns?: number }
+  | {
+      kind: 'result'
+      ok: boolean
+      costUsd?: number
+      durationMs?: number
+      turns?: number
+      turnId?: string
+    }
   | { kind: 'error'; message: string }
 
 const MAX_DETAIL = 120

@@ -102,7 +102,7 @@ describe('Agent 真分叉状态', () => {
       saveMessage: vi.fn()
     })
     useWorkstation.setState({
-      sessions: [session({ resumeId: 'source-1', pendingFork: true })],
+      sessions: [session({ resumeId: 'source-1', pendingFork: true, forkTurnId: 'turn-1' })],
       activeSessionId: 's1'
     })
 
@@ -110,11 +110,13 @@ describe('Agent 真分叉状态', () => {
 
     expect(useWorkstation.getState().sessions[0]).toMatchObject({
       resumeId: 'forked-1',
-      pendingFork: false
+      pendingFork: false,
+      forkTurnId: undefined
     })
     expect(updateSession).toHaveBeenCalledWith('s1', {
       resumeId: 'forked-1',
-      pendingFork: false
+      pendingFork: false,
+      forkTurnId: null
     })
   })
 
@@ -130,6 +132,7 @@ describe('Agent 真分叉状态', () => {
         status: 'idle',
         resumeId: 'source-1',
         pendingFork: true,
+        forkTurnId: 'turn-1',
         createdAt: 1,
         updatedAt: 1
       },
@@ -139,8 +142,37 @@ describe('Agent 真分叉状态', () => {
     expect(useWorkstation.getState().sessions[0]).toMatchObject({
       id: 's2',
       resumeId: 'source-1',
-      pendingFork: true
+      pendingFork: true,
+      forkTurnId: 'turn-1'
     })
+  })
+
+  it('Codex 回合 id 随助手消息落库', () => {
+    const saveMessage = vi.fn().mockResolvedValue(undefined)
+    bindAgentPersistence({
+      createSession: vi.fn(),
+      updateSession: vi.fn().mockResolvedValue(undefined),
+      saveMessage
+    })
+    useWorkstation.setState({
+      sessions: [session({ agent: 'codex' })],
+      activeSessionId: 's1',
+      threads: {}
+    })
+
+    const store = useWorkstation.getState()
+    store.beginAgentReply('s1', 'run-1')
+    store.setAgentTurnId('s1', 'turn-1')
+    store.appendAgentText('s1', '答复')
+    store.finishAgentReply('s1')
+
+    expect(useWorkstation.getState().threads.s1?.[0]).toMatchObject({
+      text: '答复',
+      turnId: 'turn-1'
+    })
+    expect(saveMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ turnId: 'turn-1', text: '答复' })
+    )
   })
 })
 

@@ -20,6 +20,8 @@ export interface AgentSessionRecord {
   resumeId?: string
   /** 下一次续接要用 --fork-session；init 拿到新 session id 后清除 */
   pendingFork?: boolean
+  /** Codex 真分叉要截到的 turn id；init 后清除 */
+  forkTurnId?: string
   /** 会话自己的工作目录；空表示尚未选择 */
   workspace?: string
   /** 置顶会话在列表里排在同 Agent 分组前面 */
@@ -39,6 +41,8 @@ export interface AgentMessageRecord {
   error?: boolean
   tools?: AgentToolRecord[]
   createdAt: number
+  /** Codex app-server 的回合 id，用于从该条回复真分叉 */
+  turnId?: string
   /** app = 应用内产生；import = 从本机 CLI JSONL 只读导入 */
   origin?: 'app' | 'import'
 }
@@ -74,6 +78,7 @@ export interface AgentSessionPatch {
   status?: AgentSessionStatus
   resumeId?: string
   pendingFork?: boolean
+  forkTurnId?: string | null
   workspace?: string
   pinned?: boolean
   archived?: boolean
@@ -218,9 +223,9 @@ export interface AgentForkInput {
 
 export interface AgentForkResult {
   session: AgentSessionRecord
-  /** 到此消息为止的对话副本；cli 模式会继承源 resumeId，并在首轮用 --fork-session */
+  /** 到此消息为止的对话副本；cli 模式会继承源 resumeId，并在首轮用 CLI 的分叉能力 */
   messages: AgentMessageRecord[]
-  /** cli：从会话末尾真分叉；copy：较早消息只能复制对话 */
+  /** cli：真分叉（Claude --fork-session / Codex thread/fork）；copy：只能复制对话 */
   mode: 'cli' | 'copy'
 }
 

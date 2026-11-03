@@ -21,6 +21,7 @@ interface SessionRow {
   status: 'run' | 'wait' | 'idle'
   resume_id: string | null
   pending_fork: number
+  fork_turn_id: string | null
   workspace: string
   pinned: number
   archived: number
@@ -65,6 +66,7 @@ interface MessageRow {
   time_label: string
   error: number
   tools_json: string | null
+  turn_id: string | null
   created_at: number
   origin: 'app' | 'import'
 }
@@ -80,6 +82,7 @@ function toSession(row: SessionRow): AgentSessionRecord {
   }
   if (row.resume_id) session.resumeId = row.resume_id
   if (row.pending_fork === 1) session.pendingFork = true
+  if (row.fork_turn_id) session.forkTurnId = row.fork_turn_id
   if (row.workspace) session.workspace = row.workspace
   if (row.pinned === 1) session.pinned = true
   if (row.archived === 1) session.archived = true
@@ -106,6 +109,7 @@ function toMessage(row: MessageRow): AgentMessageRecord {
     createdAt: row.created_at
   }
   if (row.error === 1) message.error = true
+  if (row.turn_id) message.turnId = row.turn_id
   if (row.origin === 'import') message.origin = 'import'
   const tools = parseTools(row.tools_json)
   if (tools) message.tools = tools
@@ -121,8 +125,8 @@ export class AgentRepository {
     const pattern = `%${escaped}%`
     const rows = this.db
       .prepare(
-        `SELECT s.id, s.agent, s.title, s.status, s.resume_id, s.pending_fork, s.workspace,
-           s.pinned, s.archived, s.created_at, s.updated_at,
+        `SELECT s.id, s.agent, s.title, s.status, s.resume_id, s.pending_fork, s.fork_turn_id,
+           s.workspace, s.pinned, s.archived, s.created_at, s.updated_at,
            (SELECT m.id FROM agent_messages m
             WHERE m.session_id = s.id AND m.text LIKE ? ESCAPE '\\'
             ORDER BY m.created_at DESC, m.rowid DESC LIMIT 1) AS message_id,
@@ -152,8 +156,8 @@ export class AgentRepository {
   listSessions(): AgentSessionRecord[] {
     const rows = this.db
       .prepare(
-        `SELECT id, agent, title, status, resume_id, pending_fork, workspace, pinned, archived,
-           created_at, updated_at
+        `SELECT id, agent, title, status, resume_id, pending_fork, fork_turn_id, workspace,
+           pinned, archived, created_at, updated_at
          FROM agent_sessions ORDER BY pinned DESC, updated_at DESC, created_at DESC`
       )
       .all() as unknown as SessionRow[]
@@ -163,8 +167,8 @@ export class AgentRepository {
   findSession(id: string): AgentSessionRecord | undefined {
     const row = this.db
       .prepare(
-        `SELECT id, agent, title, status, resume_id, pending_fork, workspace, pinned, archived,
-           created_at, updated_at
+        `SELECT id, agent, title, status, resume_id, pending_fork, fork_turn_id, workspace,
+           pinned, archived, created_at, updated_at
          FROM agent_sessions WHERE id = ?`
       )
       .get(id) as SessionRow | undefined
@@ -174,7 +178,8 @@ export class AgentRepository {
   listMessages(): AgentMessageRecord[] {
     const rows = this.db
       .prepare(
-        `SELECT id, session_id, role, text, time_label, error, tools_json, created_at, origin
+        `SELECT id, session_id, role, text, time_label, error, tools_json, turn_id, created_at,
+           origin
          FROM agent_messages ORDER BY created_at ASC, rowid ASC`
       )
       .all() as unknown as MessageRow[]
@@ -184,7 +189,8 @@ export class AgentRepository {
   listMessagesForSession(sessionId: string): AgentMessageRecord[] {
     const rows = this.db
       .prepare(
-        `SELECT id, session_id, role, text, time_label, error, tools_json, created_at, origin
+        `SELECT id, session_id, role, text, time_label, error, tools_json, turn_id, created_at,
+           origin
          FROM agent_messages WHERE session_id = ? ORDER BY created_at ASC, rowid ASC`
       )
       .all(sessionId) as unknown as MessageRow[]
@@ -213,7 +219,7 @@ export class AgentRepository {
 
   updateSession(id: string, patch: AgentSessionPatch): AgentSessionRecord | undefined {
     const assignments: string[] = []
-    const values: (string | number)[] = []
+    const values: (string | number | null)[] = []
     if (patch.title !== undefined) {
       assignments.push('title = ?')
       values.push(patch.title)
@@ -229,6 +235,10 @@ export class AgentRepository {
     if (patch.pendingFork !== undefined) {
       assignments.push('pending_fork = ?')
       values.push(patch.pendingFork ? 1 : 0)
+    }
+    if (patch.forkTurnId !== undefined) {
+      assignments.push('fork_turn_id = ?')
+      values.push(patch.forkTurnId)
     }
     if (patch.workspace !== undefined) {
       assignments.push('workspace = ?')
@@ -280,8 +290,8 @@ export class AgentRepository {
         .run(input.id, source.agent, input.title, source.workspace ?? '', now, now)
       const insert = this.db.prepare(
         `INSERT INTO agent_messages
-          (id, session_id, role, text, time_label, error, tools_json, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+          (id, session_id, role, text, time_label, error, tools_json, turn_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)`
       )
       for (let cursor = 0; cursor <= index; cursor += 1) {
         const message = messages[cursor]
@@ -310,13 +320,14 @@ export class AgentRepository {
     this.db
       .prepare(
         `INSERT INTO agent_messages
-          (id, session_id, role, text, time_label, error, tools_json, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          (id, session_id, role, text, time_label, error, tools_json, turn_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            text = excluded.text,
            time_label = excluded.time_label,
            error = excluded.error,
-           tools_json = excluded.tools_json`
+           tools_json = excluded.tools_json,
+           turn_id = excluded.turn_id`
       )
       .run(
         message.id,
@@ -326,6 +337,7 @@ export class AgentRepository {
         message.timeLabel,
         message.error ? 1 : 0,
         tools,
+        message.turnId ?? null,
         message.createdAt
       )
     this.db
@@ -339,13 +351,14 @@ export class AgentRepository {
     if (list.length === 0) return
     const insert = this.db.prepare(
       `INSERT INTO agent_messages
-        (id, session_id, role, text, time_label, error, tools_json, created_at, origin)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'import')
+        (id, session_id, role, text, time_label, error, tools_json, turn_id, created_at, origin)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'import')
        ON CONFLICT(id) DO UPDATE SET
          text = excluded.text,
          time_label = excluded.time_label,
          error = excluded.error,
          tools_json = excluded.tools_json,
+         turn_id = excluded.turn_id,
          created_at = excluded.created_at,
          origin = 'import'`
     )
@@ -359,6 +372,7 @@ export class AgentRepository {
           message.timeLabel,
           message.error ? 1 : 0,
           message.tools ? JSON.stringify(message.tools) : null,
+          message.turnId ?? null,
           message.createdAt
         )
       }

@@ -39,6 +39,25 @@ export interface NoteLinks {
   backlinks: NoteRecord[]
 }
 
+export interface NoteGraphNode {
+  id: string
+  title: string
+  time: string
+  tag?: string
+  pinned?: boolean
+}
+
+export interface NoteGraphEdge {
+  sourceId: string
+  targetId: string
+  title: string
+}
+
+export interface NoteGraph {
+  nodes: NoteGraphNode[]
+  edges: NoteGraphEdge[]
+}
+
 export interface NoteApi {
   bootstrap: (notes: NoteRecord[]) => Promise<void>
   page: (offset: number, limit: number) => Promise<NotePage>
@@ -49,6 +68,8 @@ export interface NoteApi {
   remove: (id: string) => Promise<boolean>
   links: (id: string) => Promise<NoteLinks>
   titles: (query: string, limit: number, excludeId?: string) => Promise<string[]>
+  get: (id: string) => Promise<NoteRecord | undefined>
+  graph: () => Promise<NoteGraph>
 }
 
 export interface CaptureApi {

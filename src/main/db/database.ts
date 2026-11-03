@@ -656,6 +656,14 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE agent_sessions ADD COLUMN pending_fork INTEGER NOT NULL DEFAULT 0
         CHECK (pending_fork IN (0, 1));
     `
+  },
+  {
+    // Codex 任意轮次分叉：消息记录所属 turn，会话记录待使用的 lastTurnId。
+    version: 36,
+    sql: `
+      ALTER TABLE agent_sessions ADD COLUMN fork_turn_id TEXT;
+      ALTER TABLE agent_messages ADD COLUMN turn_id TEXT;
+    `
   }
 ]
 

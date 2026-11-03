@@ -62,7 +62,7 @@ export function agentCommandPreview(
       return {
         bin: 'codex',
         args: resumeId
-          ? `app-server --stdio · resume ${resumeId}`
+          ? `app-server --stdio · ${forkSession ? 'fork' : 'resume'} ${resumeId}`
           : 'app-server --stdio · 工作区审批'
       }
     }

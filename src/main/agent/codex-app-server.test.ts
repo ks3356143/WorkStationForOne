@@ -37,6 +37,8 @@ function run(
   prompt: string,
   options: {
     resumeId?: string
+    forkThread?: boolean
+    forkTurnId?: string
     externalMcp?: CodexMcpRuntime
     autoApprove?: (toolName: string) => 'session' | 'workspace' | null
     onPermission?: (handle: ReturnType<typeof startCodexAppServerRun>) => void
@@ -48,6 +50,8 @@ function run(
     handle = startCodexAppServerRun({
       prompt,
       ...(options.resumeId ? { resumeId: options.resumeId } : {}),
+      ...(options.forkThread ? { forkThread: true } : {}),
+      ...(options.forkTurnId ? { forkTurnId: options.forkTurnId } : {}),
       ...(options.externalMcp ? { externalMcp: options.externalMcp } : {}),
       ...(options.autoApprove ? { autoApprove: options.autoApprove } : {}),
       cwd: process.cwd(),
@@ -664,6 +668,49 @@ describe('startCodexAppServerRun · stub 链路', () => {
     })
     expect(streamText(events)).toBe('已续接 Codex 线程。')
     expect(events).toContainEqual({ kind: 'result', ok: true })
+  })
+
+  it('真分叉用 thread/fork 并拿到新 thread id', async () => {
+    const { events, done } = run('分叉验证', {
+      resumeId: 'codex-stub-thread',
+      forkThread: true
+    })
+    const exit = await done
+
+    expect(exit).toMatchObject({ code: 0, cancelled: false })
+    expect(events).toContainEqual({
+      kind: 'init',
+      sessionId: 'codex-stub-forked',
+      model: 'stub-model'
+    })
+    expect(events).toContainEqual({ kind: 'result', ok: true })
+  })
+
+  it('从指定回合真分叉时把 lastTurnId 交给 thread/fork', async () => {
+    const { events, done } = run('分叉验证', {
+      resumeId: 'codex-stub-thread',
+      forkThread: true,
+      forkTurnId: 'turn-1'
+    })
+    const exit = await done
+
+    expect(exit).toMatchObject({ code: 0, cancelled: false })
+    expect(events).toContainEqual({
+      kind: 'init',
+      sessionId: 'codex-stub-forked-turn',
+      model: 'stub-model'
+    })
+    expect(events).toContainEqual({ kind: 'result', ok: true })
+  })
+
+  it('真分叉缺少源 thread 时明确报错并结束', async () => {
+    const { events, done } = run('分叉验证', { forkThread: true })
+    const exit = await done
+
+    expect(exit).toMatchObject({ code: 0, cancelled: false })
+    const error = events.find((event) => event.kind === 'error')
+    expect(error?.kind === 'error' ? error.message : '').toContain('缺少源线程 id')
+    expect(events.some((event) => event.kind === 'result')).toBe(false)
   })
 
   it('找不到可续接的 thread 时明确报错并结束', async () => {

@@ -6,6 +6,29 @@
 
 暂无。
 
+## [0.44.0] - 2026-11-03
+
+### 新增
+
+- **提醒自定义稍后**：提醒中心的 `+10 分` 旁新增稍后菜单（10 / 30 / 60 分钟 / 明天 09:00），复用现有任务时间更新与提醒重新触发逻辑。
+- **Codex 任意轮次真分叉**：Codex 消息记录 turn id；从任意助手回复分叉时把该 turn 作为 `thread/fork` 的 `lastTurnId`，新线程只继承到这条回复为止的上下文。较早消息不再只能复制；DB v36 增加 `agent_messages.turn_id` 与 `agent_sessions.fork_turn_id`。
+- **笔记关系图谱**：笔记视图新增图谱模式，按双链构建确定性力导向布局；悬停高亮相邻节点与边，点击节点打开笔记详情；新增 `notes:get` 与 `notes:graph` IPC。
+
+### 验证
+
+- 1001 项单元测试、冒烟 387 项、`npm run verify` 253 项全通过；真实 Codex + DeepSeek 验证「第一条回复记住 A=7391、第二条记住 B=2468，从第一条真分叉」后新线程只答出 A，B 未被继承；图谱在 1440×900 / 1180×720、暗/亮主题截图检查。
+
+## [0.43.0] - 2026-11-03
+
+### 新增
+
+- **Codex 真 CLI 分叉**：激活 Codex Provider 时，最新一条助手回复用 app-server 的 `thread/fork` 创建新线程并保留上下文；未激活 Provider 或较早消息仍走复制分叉。分叉会话复用 `pendingFork`，`init` 拿到新 thread id 后落库并清除标记；运行中的会话禁止分叉。
+- Claude 继续使用 `--resume --fork-session`；Codex 命令预览显示 `app-server --stdio · fork <thread>`，两种模式共用同一张分叉提示。
+
+### 验证
+
+- 994 项单元测试、冒烟 383 项、`npm run verify` 253 项全通过；真实 Codex app-server + DeepSeek Provider 验证：源线程记住 `7391`，`thread/fork` 后新线程答出 `7391`，thread id 改变且 `pendingFork` 清除。
+
 ## [0.42.0] - 2026-11-03
 
 ### 变更

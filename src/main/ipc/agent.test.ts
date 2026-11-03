@@ -48,6 +48,15 @@ describe('智能体会话参数', () => {
     expect(() => registerAgentHandlersIPC.assertAgentSessionPatch({ pendingFork: 'yes' })).toThrow(
       TypeError
     )
+    expect(registerAgentHandlersIPC.assertAgentSessionPatch({ forkTurnId: 'turn-1' })).toEqual({
+      forkTurnId: 'turn-1'
+    })
+    expect(registerAgentHandlersIPC.assertAgentSessionPatch({ forkTurnId: null })).toEqual({
+      forkTurnId: null
+    })
+    expect(() => registerAgentHandlersIPC.assertAgentSessionPatch({ forkTurnId: '' })).toThrow(
+      TypeError
+    )
   })
 
   it('工作区必须是存在的绝对目录', () => {

@@ -11,6 +11,7 @@ export function toChatMessage(record: AgentMessageRecord): ChatMessage {
     time: record.timeLabel,
     ...(record.error ? { error: true } : {}),
     ...(record.origin === 'import' ? { imported: true } : {}),
+    ...(record.turnId ? { turnId: record.turnId } : {}),
     ...(tools ? { tools } : {})
   }
 }

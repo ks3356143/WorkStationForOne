@@ -111,6 +111,10 @@ export function assertAgentSessionPatch(value: unknown): AgentSessionPatch {
     if (typeof patch.pendingFork !== 'boolean') throw new TypeError('分叉续接标记无效')
     result.pendingFork = patch.pendingFork
   }
+  if (patch.forkTurnId !== undefined) {
+    result.forkTurnId =
+      patch.forkTurnId === null ? null : assertAgentId(patch.forkTurnId, '分叉回合 id')
+  }
   if (patch.workspace !== undefined) result.workspace = assertWorkspacePath(patch.workspace)
   if (patch.pinned !== undefined) {
     if (typeof patch.pinned !== 'boolean') throw new TypeError('置顶状态无效')
@@ -208,6 +212,7 @@ export function assertAgentMessage(value: unknown): AgentMessageRecord {
     createdAt: Math.trunc(message.createdAt)
   }
   if (message.error === true) result.error = true
+  if (message.turnId !== undefined) result.turnId = assertAgentId(message.turnId, '回合 id')
   const tools = assertTools(message.tools)
   if (tools) result.tools = tools
   return result

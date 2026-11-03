@@ -203,6 +203,42 @@
   color: var(--ac2-fg);
 }
 
+.w1-remindersnooze {
+  width: 22px;
+  padding: 0;
+  color: var(--su);
+  font-size: 11px;
+}
+
+.w1-snoozemenu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+}
+
+.w1-snoozemenu button {
+  padding: 7px 9px;
+  border: 0;
+  background: transparent;
+  color: var(--fs);
+  font: 12px / 1.2 var(--sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+.w1-snoozemenu button:hover {
+  background: rgb(var(--ac2-rgb) / 0.12);
+  color: var(--fg);
+}
+
+.w1-snoozemenu button:last-child {
+  margin-top: 3px;
+  padding-top: 8px;
+  border-top: 1px solid rgb(var(--bd-rgb) / 0.4);
+  color: var(--ac2-fg);
+}
+
 .w1-remindermutedbar {
   display: flex;
   align-items: center;

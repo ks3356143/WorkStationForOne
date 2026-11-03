@@ -49,7 +49,9 @@ const api: WsApi = {
     remove: (id) => ipcRenderer.invoke(IPC_CHANNELS.notesRemove, id),
     links: (id) => ipcRenderer.invoke(IPC_CHANNELS.notesLinks, id),
     titles: (query, limit, excludeId) =>
-      ipcRenderer.invoke(IPC_CHANNELS.notesTitles, query, limit, excludeId)
+      ipcRenderer.invoke(IPC_CHANNELS.notesTitles, query, limit, excludeId),
+    get: (id) => ipcRenderer.invoke(IPC_CHANNELS.notesGet, id),
+    graph: () => ipcRenderer.invoke(IPC_CHANNELS.notesGraph)
   },
   capture: {
     open: () => ipcRenderer.invoke(IPC_CHANNELS.captureOpen),

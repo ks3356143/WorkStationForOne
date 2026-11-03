@@ -186,6 +186,7 @@ interface WorkstationActions {
   takePendingPrompt: (sessionId?: string) => { sessionId: string; prompt: string } | null
   beginAgentReply: (sessionId: string, runId: string | null) => void
   bindAgentRun: (sessionId: string, runId: string) => void
+  setAgentTurnId: (sessionId: string, turnId: string) => void
   appendAgentText: (sessionId: string, chunk: string) => void
   upsertAgentTool: (sessionId: string, tool: ToolCall, status: string) => void
   setAgentToolStatus: (sessionId: string, toolId: string, status: string) => void
@@ -277,6 +278,7 @@ function persistAgentMessage(sessionId: string, message: ChatMessage): void {
     createdAt: Date.now()
   }
   if (message.error) record.error = true
+  if (message.turnId) record.turnId = message.turnId
   const tools = agentTools(message.tools)
   if (tools) record.tools = tools
   persistQuietly(() => persistence.saveMessage(record))
@@ -681,10 +683,12 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
   setAgentResume: (sessionId, resumeId) => {
     set((state) => ({
       sessions: state.sessions.map((session) =>
-        session.id === sessionId ? { ...session, resumeId, pendingFork: false } : session
+        session.id === sessionId
+          ? { ...session, resumeId, pendingFork: false, forkTurnId: undefined }
+          : session
       )
     }))
-    persistAgentSession(sessionId, { resumeId, pendingFork: false })
+    persistAgentSession(sessionId, { resumeId, pendingFork: false, forkTurnId: null })
   },
 
   setAgentWorkspace: (sessionId, workspace) => {
@@ -707,7 +711,8 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       threadDate: agentSessionDate(record.updatedAt, now),
       ...(record.workspace ? { workspace: record.workspace } : {}),
       ...(record.resumeId ? { resumeId: record.resumeId } : {}),
-      ...(record.pendingFork ? { pendingFork: true } : {})
+      ...(record.pendingFork ? { pendingFork: true } : {}),
+      ...(record.forkTurnId ? { forkTurnId: record.forkTurnId } : {})
     }
     set((state) => ({
       sessions: [session, ...state.sessions.filter((item) => item.id !== record.id)],
@@ -731,7 +736,8 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       threadDate: agentSessionDate(record.updatedAt, now),
       ...(record.workspace ? { workspace: record.workspace } : {}),
       ...(record.resumeId ? { resumeId: record.resumeId } : {}),
-      ...(record.pendingFork ? { pendingFork: true } : {})
+      ...(record.pendingFork ? { pendingFork: true } : {}),
+      ...(record.forkTurnId ? { forkTurnId: record.forkTurnId } : {})
     }
     set((state) => ({
       sessions: [session, ...state.sessions.filter((item) => item.id !== record.id)],
@@ -892,6 +898,13 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       return { streams: { ...state.streams, [sessionId]: { ...stream, runId } } }
     }),
 
+  setAgentTurnId: (sessionId, turnId) =>
+    set((state) => {
+      const stream = state.streams[sessionId]
+      if (!stream || !turnId) return {}
+      return { streams: { ...state.streams, [sessionId]: { ...stream, turnId } } }
+    }),
+
   appendAgentText: (sessionId, chunk) => {
     const stream = get().streams[sessionId]
     if (!stream || !chunk) return
@@ -945,7 +958,7 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
   finishAgentReply: (sessionId, error) => {
     const stream = get().streams[sessionId]
     if (!stream) return
-    const { messageId } = stream
+    const { messageId, turnId } = stream
     const now = Date.now()
     const toolPermissions = { ...get().toolPermissions }
     delete toolPermissions[sessionId]
@@ -980,13 +993,16 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
               return {
                 ...entry,
                 text: entry.text ? `${entry.text}\n\n${friendly}` : friendly,
+                ...(turnId ? { turnId } : {}),
                 error: true
               }
             }
             // 已经标过错误的条目不要被随后的 result 事件抹平
             if (entry.error) return entry
             // 空回复也要留个痕迹，否则界面像「什么都没发生」
-            return entry.text ? entry : { ...entry, text: '（本轮没有输出）' }
+            return entry.text
+              ? { ...entry, ...(turnId ? { turnId } : {}) }
+              : { ...entry, text: '（本轮没有输出）', ...(turnId ? { turnId } : {}) }
           })
         },
         streams,

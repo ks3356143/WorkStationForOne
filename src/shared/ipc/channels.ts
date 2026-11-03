@@ -21,6 +21,8 @@ export const IPC_CHANNELS = {
   notesRemove: 'notes:remove',
   notesLinks: 'notes:links',
   notesTitles: 'notes:titles',
+  notesGet: 'notes:get',
+  notesGraph: 'notes:graph',
   tasksChanged: 'tasks:changed',
   captureOpen: 'capture:open',
   captureClose: 'capture:close',

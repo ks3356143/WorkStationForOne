@@ -233,13 +233,11 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
     }
     const id = `s-${randomUUID()}`
     const title = `${source.title} · 分叉`.slice(0, 80)
-    const mode = canForkWithCli(
-      source,
-      repository.listMessagesForSession(input.sessionId),
-      input.messageId
-    )
-      ? 'cli'
-      : 'copy'
+    const messages = repository.listMessagesForSession(input.sessionId)
+    const selected = messages.find((message) => message.id === input.messageId)
+    const codexReady = source.agent !== 'codex' || Boolean(getProvider?.('codex'))
+    const mode = canForkWithCli(source, messages, input.messageId) && codexReady ? 'cli' : 'copy'
+    const forkTurnId = source.agent === 'codex' ? selected?.turnId : undefined
     const result = repository.forkSession({
       sourceId: input.sessionId,
       messageId: input.messageId,
@@ -248,7 +246,11 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
     })
     if (!result) throw new Error('找不到要分叉的消息')
     if (mode === 'cli' && source.resumeId) {
-      repository.updateSession(id, { resumeId: source.resumeId, pendingFork: true })
+      repository.updateSession(id, {
+        resumeId: source.resumeId,
+        pendingFork: true,
+        forkTurnId: forkTurnId ?? null
+      })
       return { ...result, session: repository.findSession(id) ?? result.session, mode }
     }
     return { ...result, mode }
@@ -323,11 +325,17 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
     if (!session) throw new Error('会话不存在')
     if (session.agent !== input.agent) throw new Error('会话类型不匹配')
     if (!session.workspace) throw new Error('请先为会话选择工作区')
-    const forkPending = input.agent === 'claude' && session.pendingFork === true
+    const forkPending = session.pendingFork === true
     if (forkPending && !session.resumeId) throw new Error('源会话缺少可续接的 CLI 会话 id')
     // 数据库是续接真相：真分叉必须使用源 resumeId，不能信任渲染层传来的旧值。
     const resumeId = forkPending ? session.resumeId : (session.resumeId ?? input.resumeId)
+    const forkTurnId = forkPending ? session.forkTurnId : undefined
     const workspace = assertWorkspacePath(session.workspace)
+    const codexProvider = input.agent === 'codex' ? getProvider?.('codex') : undefined
+    const codexServer = Boolean(codexProvider && codexHome)
+    if (forkPending && input.agent === 'codex' && !codexServer) {
+      throw new Error('Codex Provider 未启用，无法真分叉')
+    }
     seq += 1
     const runId = `run-${seq}`
     let runResult: Extract<AgentRunEvent, { kind: 'result' }> | null = null
@@ -336,11 +344,12 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
     const emit = (runEvent: AgentRunEvent) => {
       let event = runEvent
       if (runEvent.kind === 'result') runResult = runEvent
-      if (input.agent === 'claude' && runEvent.kind === 'init' && runEvent.sessionId) {
-        // init 表示 CLI 已接受 --resume/--fork-session；这一刻才把新 session id 落库。
+      if (runEvent.kind === 'init' && runEvent.sessionId) {
+        // init 表示 CLI 已接受续接 / 分叉；这一刻才把新 session id 落库。
         repository.updateSession(input.sessionId, {
           resumeId: runEvent.sessionId,
-          pendingFork: false
+          pendingFork: false,
+          forkTurnId: null
         })
       }
       if (runEvent.kind === 'permission') {
@@ -369,8 +378,6 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
       win.webContents.send(IPC.agentEvent, { runId, event })
     }
 
-    const codexProvider = input.agent === 'codex' ? getProvider?.('codex') : undefined
-    const codexServer = Boolean(codexProvider && codexHome)
     let codexExternalMcp: Awaited<ReturnType<AgentCapabilityRuntime['codexMcp']>> | undefined
     if (input.agent === 'codex' && codexProvider && codexHome && capabilities) {
       try {
@@ -451,6 +458,8 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
               return startCodexAppServerRun({
                 prompt: input.prompt,
                 ...(resumeId ? { resumeId } : {}),
+                ...(forkPending ? { forkThread: true } : {}),
+                ...(forkTurnId ? { forkTurnId } : {}),
                 cwd: workspace,
                 provider: codexProvider,
                 home: codexHome,

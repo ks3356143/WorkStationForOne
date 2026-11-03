@@ -424,3 +424,18 @@ describe('NoteRepository 编辑与删除', () => {
     second.close()
   })
 })
+
+describe('NoteRepository 关系图谱', () => {
+  it('返回笔记节点与已解析的双链', () => {
+    const { db, repo } = seedDb()
+    const target = repo.create('目标笔记\n正文')
+    const source = repo.create('来源笔记\n[[目标笔记]]')
+
+    const graph = repo.graph()
+
+    expect(graph.nodes).toHaveLength(2)
+    expect(graph.nodes.find((node) => node.id === target.id)?.title).toBe('目标笔记')
+    expect(graph.edges).toEqual([{ sourceId: source.id, targetId: target.id, title: '目标笔记' }])
+    db.close()
+  })
+})

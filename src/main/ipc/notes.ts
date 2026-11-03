@@ -124,6 +124,10 @@ export function registerNoteHandlers(repository: NoteRepository): void {
     repository.links(assertNoteId(id))
   )
 
+  ipcMain.handle(IPC_CHANNELS.notesGet, (_event, id: unknown) => repository.find(assertNoteId(id)))
+
+  ipcMain.handle(IPC_CHANNELS.notesGraph, () => repository.graph())
+
   ipcMain.handle(
     IPC_CHANNELS.notesTitles,
     (_event, query: unknown, limit: unknown, exclude: unknown) => {

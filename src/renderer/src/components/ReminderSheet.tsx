@@ -1,12 +1,13 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, m } from 'motion/react'
 import type { Task } from '../types'
+import { addDaysKey, dateKey } from '../../../shared/date-key'
 import { DURATION, EASE_OUT } from '../lib/motion'
 import { reminderBuckets, snoozeTime } from '../lib/reminder-center'
 import { useNow } from '../lib/useNow'
 import { useWorkstation } from '../store/useWorkstation'
+import { Popover } from './fields/Popover'
 import { StatePlaceholder } from './StatePlaceholder'
-import { dateKey } from '../../../shared/date-key'
 
 interface ReminderSheetProps {
   notify: (text: string, action?: { label: string; run: () => void }, duration?: number) => void
@@ -26,7 +27,7 @@ function ReminderRow({
   kind: 'missed' | 'upcoming'
   onOpen: () => void
   onDone: () => void
-  onSnooze: () => void
+  onSnooze: (minutes: number | 'tomorrow') => void
   onMute: () => void
 }) {
   return (
@@ -50,9 +51,10 @@ function ReminderRow({
         <button type="button" className="w1-reminderact" onClick={onDone}>
           完成
         </button>
-        <button type="button" className="w1-reminderact" onClick={onSnooze}>
+        <button type="button" className="w1-reminderact" onClick={() => onSnooze(10)}>
           +10 分
         </button>
+        <ReminderSnooze onPick={onSnooze} />
         <button
           type="button"
           className="w1-reminderact w1-remindermute"
@@ -63,6 +65,58 @@ function ReminderRow({
         </button>
       </span>
     </m.div>
+  )
+}
+
+function ReminderSnooze({ onPick }: { onPick: (minutes: number | 'tomorrow') => void }) {
+  const [open, setOpen] = useState(false)
+  const anchorRef = useRef<HTMLButtonElement>(null)
+  return (
+    <>
+      <button
+        ref={anchorRef}
+        type="button"
+        className="w1-reminderact w1-remindersnooze"
+        aria-label="更多稍后时间"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        title="更多稍后时间"
+        onClick={() => setOpen((value) => !value)}
+      >
+        ⌄
+      </button>
+      <Popover
+        anchor={anchorRef.current}
+        open={open}
+        onClose={() => setOpen(false)}
+        label="稍后提醒"
+        width={150}
+      >
+        <div className="w1-snoozemenu">
+          {[10, 30, 60].map((minutes) => (
+            <button
+              key={minutes}
+              type="button"
+              onClick={() => {
+                onPick(minutes)
+                setOpen(false)
+              }}
+            >
+              {minutes} 分钟后
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              onPick('tomorrow')
+              setOpen(false)
+            }}
+          >
+            明天 09:00
+          </button>
+        </div>
+      </Popover>
+    </>
   )
 }
 
@@ -99,8 +153,12 @@ export function ReminderSheet({ notify, onClose, onOpenTask }: ReminderSheetProp
 
   const complete = (task: Task) => toggleTask(task.id)
 
-  const snooze = (task: Task) => {
-    const next = snoozeTime(task.time)
+  const snooze = (task: Task, minutes: number | 'tomorrow') => {
+    if (minutes === 'tomorrow') {
+      updateTask(task.id, { dueDate: addDaysKey(today, 1), time: '09:00' })
+      return
+    }
+    const next = snoozeTime(task.time, minutes)
     if (next) updateTask(task.id, { time: next })
   }
 
@@ -126,7 +184,7 @@ export function ReminderSheet({ notify, onClose, onOpenTask }: ReminderSheetProp
         kind={kind}
         onOpen={() => open(task)}
         onDone={() => complete(task)}
-        onSnooze={() => snooze(task)}
+        onSnooze={(minutes) => snooze(task, minutes)}
         onMute={() => mute(task)}
       />
     ))

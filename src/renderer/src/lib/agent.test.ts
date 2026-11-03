@@ -24,14 +24,18 @@ describe('agentCommandPreview', () => {
     })
   })
 
-  it('待真分叉时续接参数带 --fork-session', () => {
+  it('待真分叉时 Claude/Codex 显示各自的续接方式', () => {
     expect(agentCommandPreview('claude', 'cli-1', false, true)).toEqual({
       bin: 'claude',
       args: '--resume cli-1 --fork-session --permission-mode manual --permission-prompts host'
     })
     expect(agentCommandPreview('claude', 'cli-1').args).not.toContain('--fork-session')
-    expect(agentCommandPreview('codex', 'thread-1', false, true).args).not.toContain(
-      '--fork-session'
+    expect(agentCommandPreview('codex', 'thread-1', true, true)).toEqual({
+      bin: 'codex',
+      args: 'app-server --stdio · fork thread-1'
+    })
+    expect(agentCommandPreview('codex', 'thread-1', true).args).toBe(
+      'app-server --stdio · resume thread-1'
     )
   })
 

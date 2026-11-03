@@ -433,6 +433,19 @@ function runAppServer() {
             approvalPolicy: 'on-request',
             sandbox: { type: 'workspaceWrite' }
           })
+        } else if (message.method === 'thread/fork') {
+          if (!message.params?.threadId || message.params.threadId === 'missing-thread') {
+            fail(message.id, 'thread not found')
+            continue
+          }
+          threadId = message.params.lastTurnId ? 'codex-stub-forked-turn' : 'codex-stub-forked'
+          reply(message.id, {
+            thread: { id: threadId },
+            model: 'stub-model',
+            modelProvider: 'workstation',
+            approvalPolicy: 'on-request',
+            sandbox: { type: 'workspaceWrite' }
+          })
         } else if (message.method === 'turn/start') {
           const prompt = message.params?.input?.find((item) => item.type === 'text')?.text ?? ''
           const resumed = prompt.includes('继续上次')

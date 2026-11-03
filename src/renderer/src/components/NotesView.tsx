@@ -4,6 +4,7 @@ import { useWorkstation } from '../store/useWorkstation'
 import { noteToCard } from '../lib/note-card'
 import { PlusIcon } from './Glyphs'
 import { NoteDetail, type NoteDetailValue } from './NoteDetail'
+import { NoteGraphView } from './NoteGraphView'
 import { NoteList, NoteListFooter, type NoteListRow } from './NoteList'
 
 type Mode = 'browse' | 'search'
@@ -47,6 +48,7 @@ export function NotesView() {
 
   const [query, setQuery] = useState('')
   const [mode, setMode] = useState<Mode>('browse')
+  const [graphOpen, setGraphOpen] = useState(false)
   const [rows, setRows] = useState<NoteListRow[]>(() => notesToRows(memoryNotes))
   const [total, setTotal] = useState(memoryNotes.length)
   const [loading, setLoading] = useState(() => !notesReady)
@@ -248,10 +250,21 @@ export function NotesView() {
           </div>
           <div className="w1-nvheadright">
             <span className="w1-nvcount">
-              {mode === 'search'
-                ? `命中 ${total}${total >= SEARCH_LIMIT ? '+' : ''}`
-                : `共 ${total} 条 · 已载入 ${rows.length}`}
+              {graphOpen
+                ? '关系图谱'
+                : mode === 'search'
+                  ? `命中 ${total}${total >= SEARCH_LIMIT ? '+' : ''}`
+                  : `共 ${total} 条 · 已载入 ${rows.length}`}
             </span>
+            <button
+              className={`w1-nvnew w1-nvgraphbtn${graphOpen ? ' on' : ''}`}
+              type="button"
+              aria-pressed={graphOpen}
+              title={graphOpen ? '返回笔记列表' : '查看笔记关系图谱'}
+              onClick={() => setGraphOpen((value) => !value)}
+            >
+              {graphOpen ? '列表' : '图谱'}
+            </button>
             <button
               className="w1-nvnew"
               type="button"
@@ -265,57 +278,75 @@ export function NotesView() {
           </div>
         </header>
 
-        <div className="w1-nvsearch">
-          <span>&gt;</span>
-          <input
-            className="w1-nvinput"
-            value={query}
-            placeholder="搜索笔记内容，支持中文与英文…"
-            aria-label="搜索笔记"
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.nativeEvent.isComposing || event.keyCode === 229) return
-              if (event.key === 'Escape' && query) setQuery('')
-            }}
-          />
-          {query ? (
-            <button className="w1-nvclear" type="button" onClick={() => setQuery('')}>
-              清空
-            </button>
-          ) : (
-            <kbd>Esc</kbd>
-          )}
-        </div>
+        {graphOpen ? null : (
+          <div className="w1-nvsearch">
+            <span>&gt;</span>
+            <input
+              className="w1-nvinput"
+              value={query}
+              placeholder="搜索笔记内容，支持中文与英文…"
+              aria-label="搜索笔记"
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing || event.keyCode === 229) return
+                if (event.key === 'Escape' && query) setQuery('')
+              }}
+            />
+            {query ? (
+              <button className="w1-nvclear" type="button" onClick={() => setQuery('')}>
+                清空
+              </button>
+            ) : (
+              <kbd>Esc</kbd>
+            )}
+          </div>
+        )}
 
         {error ? <div className="w1-nverror">{error}</div> : null}
         {notice ? <div className="w1-nvnotice">{notice}</div> : null}
 
-        <NoteList
-          rows={rows}
-          loading={loading}
-          mode={mode}
-          resetKey={`${mode}:${query}`}
-          onOpen={openDetail}
-          endLabel={
-            !hasMore && rows.length > 0
-              ? `// END · ${mode === 'search' ? '命中' : '共'} ${total} 条`
-              : undefined
-          }
-        />
-
-        {hasMore ? (
-          <NoteListFooter
-            loading={loading}
-            visible={rows.length}
-            total={total}
-            onMore={() => void loadPage(false)}
+        {graphOpen ? (
+          <NoteGraphView
+            revision={noteRevision}
+            onOpenNote={(note) => {
+              setGraphOpen(false)
+              setDetail(note)
+            }}
           />
-        ) : null}
+        ) : (
+          <>
+            <NoteList
+              rows={rows}
+              loading={loading}
+              mode={mode}
+              resetKey={`${mode}:${query}`}
+              onOpen={openDetail}
+              endLabel={
+                !hasMore && rows.length > 0
+                  ? `// END · ${mode === 'search' ? '命中' : '共'} ${total} 条`
+                  : undefined
+              }
+            />
+
+            {hasMore ? (
+              <NoteListFooter
+                loading={loading}
+                visible={rows.length}
+                total={total}
+                onMore={() => void loadPage(false)}
+              />
+            ) : null}
+          </>
+        )}
 
         <div className="w1-nvfoot">
-          <span>本地 SQLite · trigram 全文索引</span>
+          <span>{graphOpen ? '双链来自 [[笔记首行]]' : '本地 SQLite · trigram 全文索引'}</span>
           <span>
-            {mode === 'search' ? '两字以内自动回退模糊匹配' : '置顶优先 · 按更新时间排序'}
+            {graphOpen
+              ? '点击节点打开笔记 · 固定布局'
+              : mode === 'search'
+                ? '两字以内自动回退模糊匹配'
+                : '置顶优先 · 按更新时间排序'}
           </span>
         </div>
       </div>

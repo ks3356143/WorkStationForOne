@@ -3,6 +3,7 @@ import type { DatabaseSync, StatementSync } from 'node:sqlite'
 import { runInTransaction } from './transaction'
 import { noteLinkName, parseNoteLinks } from '../../shared/note-links'
 import type {
+  NoteGraph,
   NoteLinkRef,
   NoteLinks,
   NotePage,
@@ -139,6 +140,37 @@ export class NoteRepository {
   count(): number {
     const row = this.sql(COUNT_SQL).get() as { n: number }
     return Number(row.n)
+  }
+
+  graph(limit = 400): NoteGraph {
+    const rows = this.sql(
+      `SELECT id, body, tag, pinned, time_label FROM notes
+       ORDER BY pinned DESC, updated_at DESC, rowid DESC LIMIT ?`
+    ).all(Math.min(Math.max(1, Math.trunc(limit)), 500)) as unknown as NoteRow[]
+    const nodes = rows.map((row) => ({
+      id: row.id,
+      title: noteLinkName(row.body) || '未命名笔记',
+      time: row.time_label,
+      ...(row.tag ? { tag: row.tag } : {}),
+      ...(row.pinned === 1 ? { pinned: true } : {})
+    }))
+    const ids = new Set(nodes.map((node) => node.id))
+    const edges = (
+      this.sql(
+        'SELECT source_id, target_id, title FROM note_links ORDER BY source_id, title'
+      ).all() as unknown as {
+        source_id: string
+        target_id: string
+        title: string
+      }[]
+    )
+      .filter((edge) => ids.has(edge.source_id) && ids.has(edge.target_id))
+      .map((edge) => ({
+        sourceId: edge.source_id,
+        targetId: edge.target_id,
+        title: edge.title
+      }))
+    return { nodes, edges }
   }
 
   bootstrap(notes: NoteRecord[]): void {

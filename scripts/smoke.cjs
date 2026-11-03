@@ -1103,6 +1103,32 @@ async function run() {
     }, 2500)
     check('恢复全部清空数据库静音', muteCleared, muteTitle)
 
+    const customRow = all('.w1-reminderrow')[0]
+    const customTitle = customRow?.querySelector('.w1-reminderrowmain b')?.textContent ?? ''
+    customRow?.querySelector('.w1-remindersnooze')?.click()
+    const snoozeMenuReady = await waitFor(
+      () => all('.w1-snoozemenu button').length === 4,
+      2000
+    )
+    const snoozeOptions = all('.w1-snoozemenu button').map((el) => el.textContent?.trim() ?? '')
+    check(
+      '稍后菜单提供四档时间',
+      snoozeMenuReady && snoozeOptions.includes('明天 09:00'),
+      snoozeOptions.join(' / ')
+    )
+    byText('.w1-snoozemenu button', '明天 09:00')?.click()
+    const nextDay = (() => {
+      const date = new Date()
+      date.setDate(date.getDate() + 1)
+      return date.toLocaleDateString('sv-SE')
+    })()
+    const customSnoozed = await waitFor(async () => {
+      const tasks = await window.ws.tasks.list()
+      const task = tasks.find((item) => item.title === customTitle)
+      return task?.dueDate === nextDay && task.time === '09:00'
+    }, 3000)
+    check('提醒中心可延后到明天 09:00', customSnoozed, customTitle)
+
     one('.w1-reminderclose')?.click()
     await waitFor(() => !one('.w1-remindersheet'), 2000)
 
@@ -3459,6 +3485,33 @@ async function run() {
     await sleep(400)
     check('Esc 不关闭笔记工作区', activeNav() === '笔记' && !!one('.w1-notesview'), activeNav())
 
+    await window.ws.notes.create('冒烟图谱目标')
+    await window.ws.notes.create('冒烟图谱来源 [[冒烟图谱目标]]')
+    one('.w1-nvgraphbtn')?.click()
+    const graphReady = await waitFor(
+      () => all('.w1-gnode').length >= 2 && all('.w1-gedge').length >= 1,
+      3000
+    )
+    check(
+      '笔记图谱显示节点与双链',
+      graphReady &&
+        (one('.w1-notegraphbar')?.textContent ?? '').includes('条双链'),
+      (one('.w1-notegraphbar')?.textContent ?? 'missing').slice(0, 80)
+    )
+    const graphNode = all('.w1-gnode').find((node) =>
+      node.textContent?.includes('冒烟图谱目标')
+    )
+    graphNode?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    const graphOpened = await waitFor(
+      () =>
+        Boolean(one('.w1-notedetail')) &&
+        (one('.w1-notedetail-text')?.value ?? '').includes('冒烟图谱目标'),
+      3000
+    )
+    check('笔记图谱节点可打开详情', graphOpened, one('.w1-notedetail-text')?.value ?? 'missing')
+    one('.w1-notedetail .w1-modalx')?.click()
+    await waitFor(() => !one('.w1-notedetail'), 2000)
+
     // 笔记详情：编辑正文、改标签、删除
     const noteRow = all('.w1-nvrowbtn')[0]
     noteRow?.click()
@@ -3507,7 +3560,7 @@ async function run() {
 
     // 笔记双链：建两篇，来源引用目标，详情里能来回跳
     const createNote = async (value) => {
-      one('.w1-nvnew')?.click()
+      one('.w1-nvnew:not(.w1-nvgraphbtn)')?.click()
       await sleep(300)
       setValue(one('.w1-modal .w1-noteinput'), value)
       byText('.w1-modalacts .w1-pb.pri', '保存笔记')?.click()

@@ -27,6 +27,9 @@ export type {
   NoteLinkStatus,
   NoteLinkRef,
   NoteLinks,
+  NoteGraphNode,
+  NoteGraphEdge,
+  NoteGraph,
   NoteApi,
   CaptureApi
 } from './ipc/notes'

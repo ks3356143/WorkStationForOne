@@ -49,6 +49,10 @@ export interface CodexAppServerRunOptions {
   prompt: string
   /** 续接 Codex 自己的 thread id */
   resumeId?: string
+  /** 续接时用 thread/fork 创建新线程，保留上下文但不写回源线程 */
+  forkThread?: boolean
+  /** Codex 分叉截到这条 turn（含）；不传则复制整个线程 */
+  forkTurnId?: string
   cwd: string
   provider: ProviderRuntime
   /** 工具维护的 Codex home；Provider 必须隔离，不能读写 ~/.codex */
@@ -395,6 +399,8 @@ export function startCodexAppServerRun(options: CodexAppServerRunOptions): Codex
       const message = asString(error.message) ?? 'Codex app-server 请求失败'
       if (method === 'thread/resume') {
         fail(`无法续接 Codex 会话：${message}。请新建一个 Codex 会话。`)
+      } else if (method === 'thread/fork') {
+        fail(`无法分叉 Codex 会话：${message}。请确认源会话仍在且 Codex Provider 可用。`)
       } else {
         fail(`Codex ${method} 失败：${message}`)
       }
@@ -405,7 +411,17 @@ export function startCodexAppServerRun(options: CodexAppServerRunOptions): Codex
     if (method === 'initialize') {
       send({ method: 'initialized' })
       const params = { ...threadParams(options.cwd) }
-      if (options.resumeId) {
+      if (options.forkThread) {
+        if (!options.resumeId) {
+          fail('Codex 真分叉缺少源线程 id')
+          return
+        }
+        request('thread/fork', {
+          threadId: options.resumeId,
+          ...(options.forkTurnId ? { lastTurnId: options.forkTurnId } : {}),
+          ...params
+        })
+      } else if (options.resumeId) {
         request('thread/resume', { threadId: options.resumeId, ...params })
       } else {
         request('thread/start', params)
@@ -413,7 +429,7 @@ export function startCodexAppServerRun(options: CodexAppServerRunOptions): Codex
       return
     }
 
-    if (method === 'thread/start' || method === 'thread/resume') {
+    if (method === 'thread/start' || method === 'thread/resume' || method === 'thread/fork') {
       const thread = asRecord(result.thread)
       const idValue = asString(thread?.id)
       if (!idValue) {
@@ -435,9 +451,12 @@ export function startCodexAppServerRun(options: CodexAppServerRunOptions): Codex
 
     if (method === 'turn/start') {
       const turn = asRecord(result.turn)
-      if (!turn || asString(turn.id) === undefined) {
+      const turnId = asString(turn?.id)
+      if (!turnId) {
         fail('Codex 未返回回合 id')
+        return
       }
+      options.onEvent({ kind: 'turn', turnId })
     }
   }
 

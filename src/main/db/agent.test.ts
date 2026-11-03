@@ -74,10 +74,11 @@ describe('迁移 v16', () => {
     )
 
     expect(userVersion(db)).toBe(26)
-    const messages = new AgentRepository(db).listMessages()
-    expect(messages).toHaveLength(1)
-    expect(messages[0]).toMatchObject({ id: 'm1', text: '旧消息' })
-    expect(messages[0].origin).toBeUndefined()
+    const row = db.prepare('SELECT origin FROM agent_messages WHERE id = ?').get('m1') as {
+      origin: string
+    }
+    expect(row.origin).toBe('app')
+    expect(db.prepare('SELECT COUNT(*) AS n FROM agent_messages').get()).toMatchObject({ n: 1 })
     db.close()
   })
 })
@@ -184,7 +185,7 @@ describe('AgentRepository · 会话', () => {
 
     migrate(db)
 
-    expect(userVersion(db)).toBe(35)
+    expect(userVersion(db)).toBe(MIGRATIONS.at(-1)!.version)
     const repo = new AgentRepository(db)
     expect(repo.findSession('s1')?.pendingFork).toBeUndefined()
 
@@ -193,6 +194,41 @@ describe('AgentRepository · 会话', () => {
 
     repo.updateSession('s1', { pendingFork: false })
     expect(repo.findSession('s1')?.pendingFork).toBeUndefined()
+    db.close()
+  })
+
+  it('v35 升级到 v36 保存消息 turn id 与会话分叉回合', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wsfo-agent-turn-'))
+    dirs.push(dir)
+    const db = openDatabase(join(dir, 'workstation.db'))
+    migrate(
+      db,
+      MIGRATIONS.filter((migration) => migration.version <= 35)
+    )
+    db.prepare(
+      `INSERT INTO agent_sessions (id, agent, title, status, created_at, updated_at)
+       VALUES ('s1', 'codex', '旧会话', 'idle', 1, 1)`
+    ).run()
+
+    migrate(db)
+
+    expect(userVersion(db)).toBe(MIGRATIONS.at(-1)!.version)
+    const repo = new AgentRepository(db)
+    repo.saveMessage({
+      id: 'm1',
+      sessionId: 's1',
+      role: 'assistant',
+      text: '已有正文',
+      timeLabel: '刚刚',
+      turnId: 'turn-1',
+      createdAt: 2
+    })
+    expect(repo.listMessagesForSession('s1')[0]?.turnId).toBe('turn-1')
+
+    repo.updateSession('s1', { forkTurnId: 'turn-1' })
+    expect(repo.findSession('s1')?.forkTurnId).toBe('turn-1')
+    repo.updateSession('s1', { forkTurnId: null })
+    expect(repo.findSession('s1')?.forkTurnId).toBeUndefined()
     db.close()
   })
 

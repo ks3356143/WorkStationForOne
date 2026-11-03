@@ -51,6 +51,8 @@ export interface Session {
   resumeId?: string
   /** 下一次续接用 --fork-session；init 后清除 */
   pendingFork?: boolean
+  /** Codex 真分叉要截到的 turn id；init 后清除 */
+  forkTurnId?: string
   /** 置顶会话在同 Agent 分组内排在前面 */
   pinned?: boolean
   /** 归档会话从会话栏隐藏，可在舰队控制台恢复 */
@@ -60,6 +62,7 @@ export interface Session {
 export interface AgentStream {
   runId: string | null
   messageId: string
+  turnId?: string
 }
 
 export interface PendingAgentPrompt {
@@ -89,6 +92,8 @@ export interface ChatMessage {
   error?: boolean
   /** 从本机 CLI 历史导入的消息，只读展示 */
   imported?: boolean
+  /** Codex 回合 id，用于从该条回复真分叉 */
+  turnId?: string
 }
 
 export interface PermissionChange {
