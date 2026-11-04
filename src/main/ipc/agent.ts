@@ -3,19 +3,29 @@ import { writeFile } from 'node:fs/promises'
 import { isAbsolute } from 'node:path'
 import { app, dialog, ipcMain, shell, type BrowserWindow, type OpenDialogOptions } from 'electron'
 import type { AgentCli } from '../agent/claude'
-import { startClaudeRun } from '../agent/claude'
+import { parseQuestions, startClaudeRun } from '../agent/claude'
+import { buildAttentionNotice, type AgentNotifier, type AttentionSession } from '../agent/attention'
 import type { ApprovalRuleService } from '../agent/approval-rules'
 import { discoverLocalSessions } from '../agent/discover'
 import { readSessionHistory } from '../agent/history'
 import { buildSessionMarkdown } from '../agent/export'
+import { buildContextPrompt } from '../agent/context'
+import { CheckpointAccumulator } from '../agent/checkpoint-accumulator'
+import { filePathsFromInput, restoreFiles } from '../agent/checkpoints'
+import { toCheckpointView } from '../agent/checkpoints'
+import { assertRecord } from '../validate'
+import { imageDataUrl, imagePath, readImageBase64, removeImage, saveImage } from '../agent/images'
 import { listWorkspaceEntries, readWorkspaceText } from '../agent/workspace'
 import { startCodexAppServerRun } from '../agent/codex-app-server'
 import { startCodexRun } from '../agent/codex'
+import type { AuditLog } from '../db/audit'
 import type { AgentRepository } from '../db/agent'
 import type {
   McpEndpoint,
   McpExternalApprovalDecision,
-  McpExternalApprovalInput
+  McpExternalApprovalInput,
+  McpQuestionDecision,
+  McpQuestionInput
 } from '../mcp/server'
 import type { ProviderRuntime } from '../providers'
 import type { AgentCapabilityRuntime } from '../capabilities'
@@ -23,6 +33,8 @@ import type { ProviderTarget } from '../../shared/ipc'
 import { IPC_CHANNELS, type AgentImportResult } from '../../shared/ipc'
 import { summarizeToolInput, type AgentRunEvent } from '../../shared/agent-stream'
 import { canForkWithCli } from '../../shared/fork'
+import { planModeDenial, planModePrompt } from '../../shared/plan-mode'
+import { toolSurfaceDenial } from '../../shared/tool-surface'
 import {
   assertAgentCreateInput,
   assertAgentId,
@@ -32,6 +44,7 @@ import {
   assertAgentForkInput,
   assertImportInput,
   assertPermissionResponse,
+  assertQuestionResponse,
   assertPresetInput,
   assertWorkspacePath
 } from './agent-validators'
@@ -47,12 +60,24 @@ interface ActiveRun {
   workspace: string
   cancel: () => void
   respondPermission: (requestId: string, behavior: 'allow' | 'deny', message?: string) => boolean
+  respondQuestion: (
+    requestId: string,
+    answers: Record<string, string> | undefined,
+    deny?: boolean
+  ) => boolean
 }
 
 interface PermissionOwner {
   runId: string
   toolName: string
+  /** 本次写入涉及的工作区路径；允许时先抓快照 */
+  paths?: string[]
   respond: (behavior: 'allow' | 'deny', message?: string) => boolean
+}
+
+interface QuestionOwner {
+  runId: string
+  respond: (answers: Record<string, string> | undefined, deny: boolean) => boolean
 }
 
 export interface McpAccess {
@@ -71,10 +96,17 @@ export interface AgentHandlerOptions {
   codexHome?: string
   capabilities?: AgentCapabilityRuntime
   approvalRules: ApprovalRuleService
+  /** 回退检查点写一条审计；省略时不写 */
+  audit?: Pick<AuditLog, 'record'>
+  /** 图片私有目录；省略时按应用数据目录派生 */
+  imagesDir: string
+  /** 后台审批 / 追问通知；省略时不发通知 */
+  notifyAttention?: AgentNotifier
 }
 
 export interface AgentBridgeHandlers {
   requestBridgeApproval: (input: McpExternalApprovalInput) => Promise<McpExternalApprovalDecision>
+  requestBridgeQuestion: (input: McpQuestionInput) => Promise<McpQuestionDecision>
   hasApprovalRelay: (sessionId: string) => boolean
 }
 
@@ -93,19 +125,42 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
     cancelPermissions,
     codexHome,
     capabilities,
-    approvalRules
+    approvalRules,
+    audit,
+    imagesDir,
+    notifyAttention
   } = options
   const runs = new Map<string, ActiveRun>()
   // Codex app-server 与 stub 的审批 id 只在各自进程内唯一；加 run 前缀后才不会串台
   const permissionRuns = new Map<string, PermissionOwner>()
+  /** 每个运行只保留一份「写入前」快照；成功与否都保留，便于用户回退。 */
+  const checkpointRuns = new Map<string, CheckpointAccumulator>()
+  const questionRuns = new Map<string, QuestionOwner>()
   // 只有配置了外部 MCP 的 Claude 会话才暴露桥内审批中继
   const bridgeRelaySessions = new Set<string>()
   let seq = 0
+
+  const notifyEvent = (session: AttentionSession, event: AgentRunEvent) => {
+    if (!notifyAttention) return
+    if (event.kind !== 'permission' && event.kind !== 'question') return
+    notifyAttention(buildAttentionNotice(session, event))
+  }
 
   ipcMain.handle(IPC.agentThreads, () => ({
     sessions: repository.listSessions(),
     messages: repository.listMessages()
   }))
+
+  ipcMain.handle(IPC.agentSessions, () => ({
+    sessions: repository.listSessions(),
+    counts: repository.messageCounts()
+  }))
+
+  ipcMain.handle(IPC.agentThread, (_event, id: unknown) => {
+    const sessionId = assertAgentId(id, '会话 id')
+    if (!repository.findSession(sessionId)) throw new Error('会话不存在')
+    return repository.listMessagesForSession(sessionId)
+  })
 
   ipcMain.handle(IPC.agentSearchSessions, (_event, query: unknown) => {
     if (typeof query !== 'string') throw new TypeError('搜索关键词无效')
@@ -159,7 +214,57 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
     if (error) throw new Error(error)
   })
 
+  ipcMain.handle(IPC.agentSaveImage, (_event, value: unknown) => {
+    const input = assertRecord(value, '图片')
+    if (typeof input.data !== 'string' || typeof input.mime !== 'string') {
+      throw new TypeError('图片参数无效')
+    }
+    const name = typeof input.name === 'string' ? input.name.slice(0, 80) : undefined
+    return saveImage(imagesDir, {
+      mime: input.mime,
+      data: input.data,
+      ...(name ? { name } : {})
+    })
+  })
+
+  ipcMain.handle(IPC.agentImageData, (_event, value: unknown) => {
+    const image = assertRecord(value, '图片引用')
+    const id = assertAgentId(image.id, '图片 id')
+    const mime = typeof image.mime === 'string' ? image.mime : ''
+    const name = typeof image.name === 'string' ? image.name : 'image'
+    const size = typeof image.size === 'number' ? image.size : 0
+    return imageDataUrl(imagesDir, { id, mime, name, size })
+  })
+
   ipcMain.handle(IPC.agentPresets, () => repository.listPresets())
+
+  ipcMain.handle(IPC.agentCheckpoints, (_event, value: unknown) => {
+    const sessionId = assertAgentId(value, '会话 id')
+    return repository.listCheckpoints(sessionId).map(toCheckpointView)
+  })
+
+  ipcMain.handle(IPC.agentRollback, (_event, value: unknown) => {
+    const checkpointId = assertAgentId(value, '检查点 id')
+    const checkpoint = repository.findCheckpoint(checkpointId)
+    if (!checkpoint) throw new Error('检查点不存在')
+    const session = repository.findSession(checkpoint.sessionId)
+    if (!session?.workspace) throw new Error('会话工作区已不存在')
+    if (runs.has(checkpoint.runId) || [...runs.values()].some((r) => r.sessionId === session.id)) {
+      throw new Error('会话还在运行，先停止后再回退')
+    }
+    const result = restoreFiles(assertWorkspacePath(session.workspace), checkpoint.files)
+    repository.markCheckpointRestored(checkpointId, Date.now())
+    audit?.record({
+      at: Date.now(),
+      domain: 'system',
+      action: 'settings',
+      targetId: checkpoint.id,
+      title: `rollback ${checkpoint.summary}`,
+      source: 'ui',
+      detail: `restored=${result.restored} removed=${result.removed} failed=${result.failed.length}`
+    })
+    return result
+  })
 
   ipcMain.handle(IPC.agentSavePreset, (_event, value: unknown) =>
     repository.savePreset(assertPresetInput(value))
@@ -277,7 +382,16 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
     for (const run of runs.values()) {
       if (run.sessionId === sessionId) throw new Error('会话正在运行，先停止再删除')
     }
-    return repository.removeSession(sessionId)
+    const sessionImages = repository.listImageRefsForSession(sessionId)
+    const removed = repository.removeSession(sessionId)
+    if (removed && sessionImages.length > 0) {
+      // 分叉会话会复制图片引用；只清理已经没有任何消息引用的文件。
+      const remaining = new Set(repository.listImageRefs().map((image) => image.id))
+      for (const image of sessionImages) {
+        if (!remaining.has(image.id)) removeImage(imagesDir, image)
+      }
+    }
+    return removed
   })
 
   ipcMain.handle(IPC.agentSaveMessage, (_event, value: unknown) => {
@@ -331,13 +445,60 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
     const resumeId = forkPending ? session.resumeId : (session.resumeId ?? input.resumeId)
     const forkTurnId = forkPending ? session.forkTurnId : undefined
     const workspace = assertWorkspacePath(session.workspace)
+    const planMode = session.planMode === true
+    // 工具面按 Agent 全局生效；读取失败时退回「全部启用」，不阻断会话
+    let surfacePolicy = { disabledClaudeTools: [], codexFlags: [], codexDeniedTools: [] } as {
+      disabledClaudeTools: string[]
+      codexFlags: string[]
+      codexDeniedTools: string[]
+    }
+    let toolPriority = ''
+    if (capabilities) {
+      try {
+        surfacePolicy = capabilities.toolSurface.nativePolicy(input.agent)
+        toolPriority = capabilities.toolSurface.priorityPrompt(input.agent)
+      } catch (error) {
+        console.error('[agent] 读取工具面设置失败，本轮按默认启用处理', error)
+      }
+    }
+    const disabledNames =
+      input.agent === 'claude' ? surfacePolicy.disabledClaudeTools : surfacePolicy.codexDeniedTools
+    const disabledToolDenial = (toolName: string) => toolSurfaceDenial(toolName, disabledNames)
+    // 文件内容只在这一步进内存；发送前失败不会留下没有收尾的运行记录。
+    const contextPrompt = buildContextPrompt(workspace, input.prompt, input.contextFiles ?? [])
+    const prompt = planMode ? planModePrompt(contextPrompt) : contextPrompt
+    const codexInstructions = [
+      planMode ? '[计划模式] 只读调查并给出计划，不要修改文件或执行写入命令。' : '',
+      toolPriority
+    ]
+      .filter(Boolean)
+      .join('\n\n')
     const codexProvider = input.agent === 'codex' ? getProvider?.('codex') : undefined
     const codexServer = Boolean(codexProvider && codexHome)
+    if (input.images?.length && input.agent === 'codex' && !codexServer) {
+      throw new Error('Codex 继承 CLI 的只读模式不支持图片；请启用 Codex Provider 后再发送')
+    }
+    const claudeImages =
+      input.agent === 'claude'
+        ? (input.images ?? []).map((image) => ({
+            mime: image.mime,
+            data: readImageBase64(imagesDir, image)
+          }))
+        : undefined
+    const codexImages =
+      input.agent === 'codex'
+        ? (input.images ?? []).map((image) => imagePath(imagesDir, image))
+        : undefined
     if (forkPending && input.agent === 'codex' && !codexServer) {
       throw new Error('Codex Provider 未启用，无法真分叉')
     }
     seq += 1
     const runId = `run-${seq}`
+    const checkpoints = new CheckpointAccumulator(workspace)
+    checkpointRuns.set(runId, checkpoints)
+    const onWriteIntent = (paths: string[], toolName: string) => {
+      checkpoints.capture(paths, toolName)
+    }
     let runResult: Extract<AgentRunEvent, { kind: 'result' }> | null = null
     repository.recordRunStart(runId, input.sessionId, Date.now())
 
@@ -353,10 +514,20 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
         })
       }
       if (runEvent.kind === 'permission') {
+        const disabledDenial = disabledToolDenial(runEvent.request.toolName)
+        const denial =
+          disabledDenial ??
+          (planMode ? planModeDenial(input.agent, runEvent.request.toolName) : null)
+        if (denial) {
+          // 计划模式 / 工具面关闭都不发卡：直接拒绝，避免任何链路把写入放进来。
+          runs.get(runId)?.respondPermission(runEvent.request.requestId, 'deny', denial)
+          return
+        }
         const scoped = `${runId}:${runEvent.request.requestId}`
         permissionRuns.set(scoped, {
           runId,
           toolName: runEvent.request.toolName,
+          paths: runEvent.request.diffs?.map((diff) => diff.path) ?? [],
           respond: (behavior, message) =>
             runs.get(runId)?.respondPermission(runEvent.request.requestId, behavior, message) ??
             false
@@ -373,9 +544,22 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
           }
         }
       }
+      if (runEvent.kind === 'question') {
+        const scoped = `${runId}:${runEvent.request.requestId}`
+        questionRuns.set(scoped, {
+          runId,
+          respond: (answers, deny) =>
+            runs.get(runId)?.respondQuestion(runEvent.request.requestId, answers, deny) ?? false
+        })
+        event = {
+          ...runEvent,
+          request: { ...runEvent.request, requestId: scoped }
+        }
+      }
       const win = getWindow()
       if (!win || win.isDestroyed()) return
       win.webContents.send(IPC.agentEvent, { runId, event })
+      notifyEvent(session, event)
     }
 
     let codexExternalMcp: Awaited<ReturnType<AgentCapabilityRuntime['codexMcp']>> | undefined
@@ -420,6 +604,22 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
       cancelled: boolean
     }) => {
       runs.delete(runId)
+      checkpointRuns.delete(runId)
+      const pendingFiles = checkpoints.take()
+      if (pendingFiles.length > 0) {
+        try {
+          repository.saveCheckpoint({
+            id: `checkpoint-${randomUUID()}`,
+            sessionId: input.sessionId,
+            runId,
+            summary: checkpoints.summary(),
+            files: pendingFiles,
+            createdAt: Date.now()
+          })
+        } catch (error) {
+          console.error('[agent] 保存检查点失败', error)
+        }
+      }
       bridgeRelaySessions.delete(input.sessionId)
       if (mcpEndpoint) mcp?.revoke(mcpEndpoint.token)
       cancelPermissions?.(input.sessionId)
@@ -428,6 +628,12 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
         // 桥内中继的 Promise 必须收尾，否则外部 MCP 调用会一直挂着
         owner.respond('deny', '会话已结束')
         permissionRuns.delete(requestId)
+      }
+      for (const [requestId, owner] of questionRuns) {
+        if (owner.runId !== runId) continue
+        // 桥内问答是一个等待 MCP 响应的 Promise，退出时必须收尾
+        owner.respond(undefined, true)
+        questionRuns.delete(requestId)
       }
       repository.finishRun(runId, {
         ok: !cancelled && (runResult?.ok ?? code === 0),
@@ -443,11 +649,23 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
       if (code !== 0) {
         const detail = stderr.trim().split(/\r?\n/).at(-1) ?? ''
         emit({ kind: 'error', message: detail || `CLI 退出码 ${code}` })
+        return
       }
+      // 进程已经退出、run 也已从表中移除；这时再通知渲染层结束回合，
+      // 否则用户看到回复后立刻发送可能撞上「这个会话还在进行中」。
+      emit({ kind: 'done' })
     }
 
-    const autoApprove = (toolName: string) =>
-      approvalRules.check({ sessionId: input.sessionId, agent: input.agent, workspace }, toolName)
+    const autoApprove = (toolName: string) => {
+      // 工具面关闭的原生工具不自动放行，也不经规则放行
+      if (disabledToolDenial(toolName)) return null
+      // 计划模式：只读工具直接放行（沙箱仍禁止写入），写入类工具不自动放行。
+      if (planMode) return planModeDenial(input.agent, toolName) ? null : 'session'
+      return approvalRules.check(
+        { sessionId: input.sessionId, agent: input.agent, workspace },
+        toolName
+      )
+    }
 
     const handle =
       input.agent === 'codex'
@@ -456,7 +674,7 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
             // exec 只读，避免为了写入去读改用户自己的 ~/.codex 配置。
             if (codexProvider && codexHome) {
               return startCodexAppServerRun({
-                prompt: input.prompt,
+                prompt,
                 ...(resumeId ? { resumeId } : {}),
                 ...(forkPending ? { forkThread: true } : {}),
                 ...(forkTurnId ? { forkTurnId } : {}),
@@ -468,16 +686,22 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
                 ...(codexExternalMcp && codexExternalMcp.servers.length > 0
                   ? { externalMcp: codexExternalMcp }
                   : {}),
+                ...(planMode ? { planMode: true } : {}),
+                ...(surfacePolicy.codexFlags.length > 0 ? { flags: surfacePolicy.codexFlags } : {}),
+                ...(codexInstructions ? { developerInstructions: codexInstructions } : {}),
+                ...(codexImages?.length ? { images: codexImages } : {}),
                 clientVersion: app.getVersion(),
                 ...(codexCli === undefined ? {} : { cli: codexCli }),
+                onWriteIntent,
                 onEvent: emit,
                 onExit
               })
             }
             return startCodexRun({
-              prompt: input.prompt,
+              prompt,
               ...(resumeId ? { resumeId } : {}),
               cwd: workspace,
+              ...(surfacePolicy.codexFlags.length > 0 ? { flags: surfacePolicy.codexFlags } : {}),
               ...(codexProvider ? { provider: codexProvider } : {}),
               ...(codexHome ? { home: codexHome } : {}),
               ...(codexCli === undefined ? {} : { cli: codexCli }),
@@ -488,17 +712,24 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
         : (() => {
             const provider = getProvider?.('claude')
             return startClaudeRun({
-              prompt: input.prompt,
+              prompt,
               ...(resumeId ? { resumeId } : {}),
               ...(forkPending ? { forkSession: true } : {}),
+              ...(planMode ? { planMode: true } : {}),
+              ...(claudeImages?.length ? { images: claudeImages } : {}),
               cwd: workspace,
               autoApprove,
+              onWriteIntent,
               ...(provider ? { provider } : {}),
               ...(mcpEndpoint ? { mcp: mcpEndpoint } : {}),
               ...(claudePlugins.length > 0 ? { plugins: claudePlugins } : {}),
               ...(claudeMcpServers.length > 0 ? { mcpServers: claudeMcpServers } : {}),
               ...(claudeAllowedTools.length > 0 ? { allowedTools: claudeAllowedTools } : {}),
               ...(claudeDeniedTools.length > 0 ? { disallowedTools: claudeDeniedTools } : {}),
+              ...(surfacePolicy.disabledClaudeTools.length > 0
+                ? { disabledTools: surfacePolicy.disabledClaudeTools }
+                : {}),
+              ...(toolPriority ? { appendSystemPrompt: toolPriority } : {}),
               ...(useBridgeApproval
                 ? { permissionPromptTool: 'mcp__workstationforone__approval_request' }
                 : {}),
@@ -514,9 +745,22 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
       agent: input.agent,
       workspace,
       cancel: handle.cancel,
-      respondPermission: handle.respondPermission
+      respondPermission: handle.respondPermission,
+      respondQuestion:
+        (handle as { respondQuestion?: ActiveRun['respondQuestion'] }).respondQuestion ??
+        (() => false)
     })
     return { runId }
+  })
+
+  ipcMain.handle(IPC.agentQuestionResponse, (_event, value: unknown) => {
+    const response = assertQuestionResponse(value)
+    const owner = questionRuns.get(response.requestId)
+    const run = owner ? runs.get(owner.runId) : undefined
+    if (!owner || !run) return false
+    const ok = owner.respond(response.answers, response.deny === true)
+    if (ok) questionRuns.delete(response.requestId)
+    return ok
   })
 
   ipcMain.handle(IPC.agentCancel, (_event, runId: unknown) => {
@@ -530,6 +774,9 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
     const owner = permissionRuns.get(response.requestId)
     const run = owner ? runs.get(owner.runId) : undefined
     if (!owner || !run) return false
+    if (response.allow && owner.paths?.length) {
+      checkpointRuns.get(owner.runId)?.capture(owner.paths, owner.toolName)
+    }
 
     const scope = response.allow ? (response.scope ?? 'once') : 'once'
     if (
@@ -570,14 +817,27 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
     }
     if (!session.workspace) return { behavior: 'deny', message: '会话还没有选择工作区' }
     const workspace = assertWorkspacePath(session.workspace)
+    const denied = capabilities
+      ? toolSurfaceDenial(
+          input.toolName,
+          capabilities.toolSurface.nativePolicy('claude').disabledClaudeTools
+        )
+      : null
+    if (denied) return { behavior: 'deny', message: denied }
+    const denial = session.planMode ? planModeDenial('claude', input.toolName) : null
+    if (denial) return { behavior: 'deny', message: denial }
     const auto = approvalRules.check(
       { sessionId: input.sessionId, agent: 'claude', workspace },
       input.toolName
     )
-    if (auto) return { behavior: 'allow', updatedInput: input.input }
     const run = [...runs.values()].find(
       (item) => item.sessionId === input.sessionId && item.agent === 'claude'
     )
+    if (auto) {
+      const paths = filePathsFromInput(input.input)
+      if (run && paths.length) checkpointRuns.get(run.runId)?.capture(paths, input.toolName)
+      return { behavior: 'allow', updatedInput: input.input }
+    }
     if (!run) return { behavior: 'deny', message: '会话没有进行中的运行' }
 
     const requestId = `${run.runId}:bridge-${randomUUID()}`
@@ -598,7 +858,12 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
       permissionRuns.set(requestId, {
         runId: run.runId,
         toolName: input.toolName,
+        paths: filePathsFromInput(input.input),
         respond: (behavior, message) => {
+          if (behavior === 'allow') {
+            const paths = filePathsFromInput(input.input)
+            if (paths.length) checkpointRuns.get(run.runId)?.capture(paths, input.toolName)
+          }
           resolve(
             behavior === 'allow'
               ? { behavior: 'allow', updatedInput: input.input }
@@ -614,11 +879,63 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
         return
       }
       win.webContents.send(IPC.agentEvent, { runId: run.runId, event })
+      notifyEvent(session, event)
+    })
+  }
+
+  const requestBridgeQuestion = async (input: McpQuestionInput): Promise<McpQuestionDecision> => {
+    const session = repository.findSession(input.sessionId)
+    if (session?.agent !== 'claude') {
+      return { behavior: 'deny', message: '会话不存在或类型不匹配' }
+    }
+    const questions = parseQuestions(input.input)
+    if (!questions) return { behavior: 'deny', message: 'AskUserQuestion 参数无效' }
+    const run = [...runs.values()].find(
+      (item) => item.sessionId === input.sessionId && item.agent === 'claude'
+    )
+    if (!run) return { behavior: 'deny', message: '会话没有进行中的运行' }
+
+    const requestId = `${run.runId}:bridge-q-${randomUUID()}`
+    const event: AgentRunEvent = {
+      kind: 'question',
+      request: { requestId, toolUseId: input.toolUseId, questions }
+    }
+
+    return new Promise<McpQuestionDecision>((resolve) => {
+      questionRuns.set(requestId, {
+        runId: run.runId,
+        respond: (answers, deny) => {
+          if (deny || !answers) {
+            resolve({ behavior: 'deny', message: '用户拒绝回答' })
+            return true
+          }
+          const scoped: Record<string, string> = {}
+          for (const question of questions) {
+            const answer = answers[question.question]?.trim()
+            if (!answer) {
+              resolve({ behavior: 'deny', message: '问答答案不完整' })
+              return true
+            }
+            scoped[question.question] = answer
+          }
+          resolve({ behavior: 'allow', answers: scoped })
+          return true
+        }
+      })
+      const win = getWindow()
+      if (!win || win.isDestroyed()) {
+        questionRuns.delete(requestId)
+        resolve({ behavior: 'deny', message: '应用窗口不可用' })
+        return
+      }
+      win.webContents.send(IPC.agentEvent, { runId: run.runId, event })
+      notifyEvent(session, event)
     })
   }
 
   return {
     requestBridgeApproval,
+    requestBridgeQuestion,
     hasApprovalRelay: (sessionId: string) => bridgeRelaySessions.has(sessionId)
   }
 }
@@ -630,6 +947,7 @@ export const registerAgentHandlersIPC = {
   assertAgentMessage,
   assertImportInput,
   assertPermissionResponse,
+  assertQuestionResponse,
   assertPresetInput,
   assertWorkspacePath
 } as const

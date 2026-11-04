@@ -7,6 +7,7 @@ import type { McpEndpoint } from '../mcp/server'
 import type { ProviderRuntime } from '../providers'
 import { resolveCodexCli, type AgentCli } from './cli'
 import { writeCodexProviderConfig } from './codex'
+import { buildCodexFileDiffs } from './file-diff'
 import {
   MAX_PREVIEW,
   RUN_TIMEOUT_MS,
@@ -22,8 +23,8 @@ import {
 export { createCodexAppServerParser }
 export type { CodexAppServerParser }
 
-export function buildCodexAppServerArgs(cli: AgentCli): string[] {
-  return [...cli.prefixArgs, 'app-server', '--stdio']
+export function buildCodexAppServerArgs(cli: AgentCli, flags: string[] = []): string[] {
+  return [...cli.prefixArgs, ...flags.flatMap((flag) => ['-c', flag]), 'app-server', '--stdio']
 }
 
 /**
@@ -31,11 +32,27 @@ export function buildCodexAppServerArgs(cli: AgentCli): string[] {
  * 越界、联网和高风险动作会变成审批请求交给审批卡。
  * 不写 `~/.codex`；Provider 配置只落在应用自己的 codex-home。
  */
-function threadParams(cwd: string): Record<string, unknown> {
+function threadParams(
+  cwd: string,
+  planMode = false,
+  developerInstructions?: string
+): Record<string, unknown> {
+  const instructions = developerInstructions?.trim() || undefined
+  if (planMode) {
+    // 计划模式：只读沙箱挡住写入；on-request 让主进程只自动放行只读工具，
+    // 写入类工具仍会在 permission 事件里被拒绝。
+    return {
+      cwd,
+      approvalPolicy: 'on-request',
+      sandbox: 'read-only',
+      ...(instructions ? { developerInstructions: instructions } : {})
+    }
+  }
   return {
     cwd,
     approvalPolicy: 'on-request',
-    permissions: ':workspace'
+    permissions: ':workspace',
+    ...(instructions ? { developerInstructions: instructions } : {})
   }
 }
 
@@ -47,6 +64,8 @@ export interface CodexAppServerExit {
 
 export interface CodexAppServerRunOptions {
   prompt: string
+  /** 应用私有目录里的图片绝对路径；Codex 用 localImage 输入 */
+  images?: string[]
   /** 续接 Codex 自己的 thread id */
   resumeId?: string
   /** 续接时用 thread/fork 创建新线程，保留上下文但不写回源线程 */
@@ -63,8 +82,16 @@ export interface CodexAppServerRunOptions {
   externalMcp?: CodexMcpRuntime
   /** 透传给 app-server 的客户端版本，仅用于握手标识 */
   clientVersion?: string
+  /** 计划模式：thread 固定只读沙箱，不执行写入 */
+  planMode?: boolean
+  /** 工具面关闭项生成的进程级 -c 参数 */
+  flags?: string[]
+  /** 工具优先级说明；只含名称，不含密钥或命令 */
+  developerInstructions?: string
   /** 规则命中时在发卡前直接放行；返回命中作用域或 null */
   autoApprove?: (toolName: string) => 'session' | 'workspace' | null
+  /** 规则直接放行写入前通知快照；审批卡路径由主进程在允许时抓取 */
+  onWriteIntent?: (paths: string[], toolName: string) => void
   onEvent: (event: AgentRunEvent) => void
   onExit: (info: CodexAppServerExit) => void
   /** 省略时按环境解析；显式传 null 表示「没有可用的 CLI」 */
@@ -120,6 +147,7 @@ function approvalRequest(
     const item = parser.item(itemId) ?? {}
     const paths = pathsOf(item)
     const reason = asString(params.reason)
+    const diffs = buildCodexFileDiffs(item.changes)
     const preview = JSON.stringify({
       itemId,
       reason: params.reason ?? null,
@@ -135,7 +163,8 @@ function approvalRequest(
         detail: clip(paths.join(' · ')),
         description: reason ?? 'Codex 请求应用文件改动。',
         inputPreview:
-          preview.length > MAX_PREVIEW ? `${preview.slice(0, MAX_PREVIEW - 1)}…` : preview
+          preview.length > MAX_PREVIEW ? `${preview.slice(0, MAX_PREVIEW - 1)}…` : preview,
+        ...(diffs?.length ? { diffs } : {})
       }
     }
   }
@@ -201,20 +230,24 @@ export function startCodexAppServerRun(options: CodexAppServerRunOptions): Codex
     return { sessionId, cancel: () => {}, respondPermission: () => false }
   }
 
-  const child: ChildProcessWithoutNullStreams = spawn(cli.bin, buildCodexAppServerArgs(cli), {
-    cwd: options.cwd,
-    env: {
-      ...process.env,
-      ...(cli.viaNode ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
-      CODEX_HOME: options.home,
-      WS_CODEX_PROVIDER_TOKEN: options.provider.token,
-      ...(options.mcp ? { WS_CODEX_MCP_TOKEN: options.mcp.token } : {}),
-      ...(options.externalMcp?.env ?? {})
-    },
-    stdio: ['pipe', 'pipe', 'pipe'],
-    shell: false,
-    windowsHide: true
-  })
+  const child: ChildProcessWithoutNullStreams = spawn(
+    cli.bin,
+    buildCodexAppServerArgs(cli, options.flags),
+    {
+      cwd: options.cwd,
+      env: {
+        ...process.env,
+        ...(cli.viaNode ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
+        CODEX_HOME: options.home,
+        WS_CODEX_PROVIDER_TOKEN: options.provider.token,
+        ...(options.mcp ? { WS_CODEX_MCP_TOKEN: options.mcp.token } : {}),
+        ...(options.externalMcp?.env ?? {})
+      },
+      stdio: ['pipe', 'pipe', 'pipe'],
+      shell: false,
+      windowsHide: true
+    }
+  )
 
   const send = (payload: Record<string, unknown>): boolean => {
     if (settled) return false
@@ -297,6 +330,10 @@ export function startCodexAppServerRun(options: CodexAppServerRunOptions): Codex
     if (approval) {
       if (options.autoApprove?.(approval.request.toolName)) {
         // 规则命中时不发卡也不登记 pending：本轮直接放行，审批链接不到它
+        options.onWriteIntent?.(
+          approval.request.diffs?.map((diff) => diff.path) ?? [],
+          approval.request.toolName
+        )
         respondApproval(id, method, params, true)
         return
       }
@@ -410,7 +447,11 @@ export function startCodexAppServerRun(options: CodexAppServerRunOptions): Codex
 
     if (method === 'initialize') {
       send({ method: 'initialized' })
-      const params = { ...threadParams(options.cwd) }
+      const params = threadParams(
+        options.cwd,
+        options.planMode === true,
+        options.developerInstructions
+      )
       if (options.forkThread) {
         if (!options.resumeId) {
           fail('Codex 真分叉缺少源线程 id')
@@ -444,7 +485,10 @@ export function startCodexAppServerRun(options: CodexAppServerRunOptions): Codex
       })
       request('turn/start', {
         threadId,
-        input: [{ type: 'text', text: options.prompt }]
+        input: [
+          ...(options.images ?? []).map((path) => ({ type: 'localImage', path })),
+          { type: 'text', text: options.prompt }
+        ]
       })
       return
     }

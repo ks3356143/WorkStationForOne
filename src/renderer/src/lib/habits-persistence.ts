@@ -5,6 +5,9 @@ interface HabitBridge {
   list: () => Promise<HabitRecord[]>
   bootstrap: (habits: HabitRecord[]) => Promise<void>
   setCheckin: (id: string, day: string, done: boolean) => Promise<void>
+  create?: (name: string) => Promise<HabitRecord>
+  rename?: (id: string, name: string) => Promise<boolean>
+  remove?: (id: string) => Promise<boolean>
 }
 
 function bridgeHabits(): HabitBridge | undefined {
@@ -18,7 +21,15 @@ function bridgeHabits(): HabitBridge | undefined {
 export async function hydrateHabits(deps: HabitBridge | undefined = bridgeHabits()): Promise<void> {
   if (!deps) return
 
-  bindHabitPersistence({ setCheckin: deps.setCheckin })
+  const create = deps.create
+  const rename = deps.rename
+  const remove = deps.remove
+  bindHabitPersistence({
+    setCheckin: deps.setCheckin,
+    ...(create ? { create: (name: string) => create(name) } : {}),
+    ...(rename ? { rename: (id: string, name: string) => rename(id, name) } : {}),
+    ...(remove ? { remove: (id: string) => remove(id) } : {})
+  })
 
   try {
     const seed = useWorkstation.getState().habits

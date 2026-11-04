@@ -12,7 +12,7 @@ import { join, resolve } from 'node:path'
 
 /**
  * 便携版打包：electron-vite 已经把主进程与渲染层打成自包含产物，
- * 主进程不 require 任何第三方包（渲染层的 react/motion 等由 Vite 内联），
+ * 主进程不 require 任何第三方包（diff 与渲染层依赖都在构建时内联），
  * 所以只需要「Electron 运行时 + resources/app」即可运行，不必引入打包器。
  */
 const root = process.cwd()

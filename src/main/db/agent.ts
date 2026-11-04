@@ -2,6 +2,9 @@ import { randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import type {
   AgentCreateInput,
+  AgentCheckpointFile,
+  AgentCheckpointRecord,
+  AgentImageRef,
   AgentForkResult,
   AgentSessionSearchHit,
   AgentMessageRecord,
@@ -25,6 +28,7 @@ interface SessionRow {
   workspace: string
   pinned: number
   archived: number
+  plan_mode: number
   created_at: number
   updated_at: number
 }
@@ -58,6 +62,43 @@ export interface AgentRunFinish {
   turns?: number
 }
 
+interface CheckpointRow {
+  id: string
+  session_id: string
+  run_id: string
+  summary: string
+  files_json: string
+  restored_at: number | null
+  created_at: number
+}
+
+const MAX_CHECKPOINTS_PER_SESSION = 50
+const MAX_CHECKPOINT_BYTES_PER_SESSION = 32 * 1024 * 1024
+
+export interface AgentRepositoryLimits {
+  maxCheckpoints?: number
+  maxCheckpointBytes?: number
+}
+
+function toCheckpoint(row: CheckpointRow): AgentCheckpointRecord {
+  let files: AgentCheckpointFile[] = []
+  try {
+    const parsed: unknown = JSON.parse(row.files_json)
+    if (Array.isArray(parsed)) files = parsed as AgentCheckpointFile[]
+  } catch {
+    files = []
+  }
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    runId: row.run_id,
+    summary: row.summary,
+    files,
+    createdAt: row.created_at,
+    ...(row.restored_at ? { restoredAt: row.restored_at } : {})
+  }
+}
+
 interface MessageRow {
   id: string
   session_id: string
@@ -67,6 +108,8 @@ interface MessageRow {
   error: number
   tools_json: string | null
   turn_id: string | null
+  context_files: string | null
+  images_json: string | null
   created_at: number
   origin: 'app' | 'import'
 }
@@ -86,6 +129,7 @@ function toSession(row: SessionRow): AgentSessionRecord {
   if (row.workspace) session.workspace = row.workspace
   if (row.pinned === 1) session.pinned = true
   if (row.archived === 1) session.archived = true
+  if (row.plan_mode === 1) session.planMode = true
   return session
 }
 
@@ -94,6 +138,18 @@ function parseTools(raw: string | null): AgentToolRecord[] | undefined {
   try {
     const value: unknown = JSON.parse(raw)
     return Array.isArray(value) ? (value as AgentToolRecord[]) : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function parseContextFiles(raw: string | null): string[] | undefined {
+  if (!raw) return undefined
+  try {
+    const value: unknown = JSON.parse(raw)
+    if (!Array.isArray(value)) return undefined
+    const files = value.filter((item): item is string => typeof item === 'string')
+    return files.length > 0 ? files : undefined
   } catch {
     return undefined
   }
@@ -113,11 +169,46 @@ function toMessage(row: MessageRow): AgentMessageRecord {
   if (row.origin === 'import') message.origin = 'import'
   const tools = parseTools(row.tools_json)
   if (tools) message.tools = tools
+  const contextFiles = parseContextFiles(row.context_files)
+  if (contextFiles) message.contextFiles = contextFiles
+  const images = parseImages(row.images_json)
+  if (images) message.images = images
   return message
 }
 
+function parseImages(raw: string | null): AgentImageRef[] | undefined {
+  if (!raw) return undefined
+  try {
+    const value: unknown = JSON.parse(raw)
+    if (!Array.isArray(value)) return undefined
+    const images = value.filter(
+      (item): item is AgentImageRef =>
+        typeof item === 'object' && item !== null && typeof (item as AgentImageRef).id === 'string'
+    )
+    return images.length > 0 ? images : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function dedupeImages(rows: { images_json: string | null }[]): AgentImageRef[] {
+  const seen = new Set<string>()
+  const images: AgentImageRef[] = []
+  for (const row of rows) {
+    for (const image of parseImages(row.images_json) ?? []) {
+      if (seen.has(image.id)) continue
+      seen.add(image.id)
+      images.push(image)
+    }
+  }
+  return images
+}
+
 export class AgentRepository {
-  constructor(private readonly db: DatabaseSync) {}
+  constructor(
+    private readonly db: DatabaseSync,
+    private readonly limits: AgentRepositoryLimits = {}
+  ) {}
 
   /** 标题与消息正文一起搜；LIKE 转义 % _ \，CJK 直接子串匹配即可。 */
   searchSessions(query: string, limit = 40): AgentSessionSearchHit[] {
@@ -126,7 +217,7 @@ export class AgentRepository {
     const rows = this.db
       .prepare(
         `SELECT s.id, s.agent, s.title, s.status, s.resume_id, s.pending_fork, s.fork_turn_id,
-           s.workspace, s.pinned, s.archived, s.created_at, s.updated_at,
+           s.workspace, s.pinned, s.archived, s.plan_mode, s.created_at, s.updated_at,
            (SELECT m.id FROM agent_messages m
             WHERE m.session_id = s.id AND m.text LIKE ? ESCAPE '\\'
             ORDER BY m.created_at DESC, m.rowid DESC LIMIT 1) AS message_id,
@@ -157,7 +248,7 @@ export class AgentRepository {
     const rows = this.db
       .prepare(
         `SELECT id, agent, title, status, resume_id, pending_fork, fork_turn_id, workspace,
-           pinned, archived, created_at, updated_at
+           pinned, archived, plan_mode, created_at, updated_at
          FROM agent_sessions ORDER BY pinned DESC, updated_at DESC, created_at DESC`
       )
       .all() as unknown as SessionRow[]
@@ -168,18 +259,26 @@ export class AgentRepository {
     const row = this.db
       .prepare(
         `SELECT id, agent, title, status, resume_id, pending_fork, fork_turn_id, workspace,
-           pinned, archived, created_at, updated_at
+           pinned, archived, plan_mode, created_at, updated_at
          FROM agent_sessions WHERE id = ?`
       )
       .get(id) as SessionRow | undefined
     return row ? toSession(row) : undefined
   }
 
+  /** 启动时只需要数量；正文在切换会话时再取。 */
+  messageCounts(): Record<string, number> {
+    const rows = this.db
+      .prepare('SELECT session_id, COUNT(*) AS n FROM agent_messages GROUP BY session_id')
+      .all() as unknown as { session_id: string; n: number }[]
+    return Object.fromEntries(rows.map((row) => [row.session_id, Number(row.n)]))
+  }
+
   listMessages(): AgentMessageRecord[] {
     const rows = this.db
       .prepare(
-        `SELECT id, session_id, role, text, time_label, error, tools_json, turn_id, created_at,
-           origin
+        `SELECT id, session_id, role, text, time_label, error, tools_json, turn_id,
+           context_files, images_json, created_at, origin
          FROM agent_messages ORDER BY created_at ASC, rowid ASC`
       )
       .all() as unknown as MessageRow[]
@@ -189,8 +288,8 @@ export class AgentRepository {
   listMessagesForSession(sessionId: string): AgentMessageRecord[] {
     const rows = this.db
       .prepare(
-        `SELECT id, session_id, role, text, time_label, error, tools_json, turn_id, created_at,
-           origin
+        `SELECT id, session_id, role, text, time_label, error, tools_json, turn_id,
+           context_files, images_json, created_at, origin
          FROM agent_messages WHERE session_id = ? ORDER BY created_at ASC, rowid ASC`
       )
       .all(sessionId) as unknown as MessageRow[]
@@ -252,6 +351,10 @@ export class AgentRepository {
       assignments.push('archived = ?')
       values.push(patch.archived ? 1 : 0)
     }
+    if (patch.planMode !== undefined) {
+      assignments.push('plan_mode = ?')
+      values.push(patch.planMode ? 1 : 0)
+    }
     if (assignments.length === 0) return this.findSession(id)
 
     assignments.push('updated_at = ?')
@@ -290,8 +393,9 @@ export class AgentRepository {
         .run(input.id, source.agent, input.title, source.workspace ?? '', now, now)
       const insert = this.db.prepare(
         `INSERT INTO agent_messages
-          (id, session_id, role, text, time_label, error, tools_json, turn_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)`
+          (id, session_id, role, text, time_label, error, tools_json, turn_id, context_files,
+           images_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)`
       )
       for (let cursor = 0; cursor <= index; cursor += 1) {
         const message = messages[cursor]
@@ -304,6 +408,8 @@ export class AgentRepository {
           message.timeLabel,
           message.error ? 1 : 0,
           message.tools ? JSON.stringify(message.tools) : null,
+          message.contextFiles ? JSON.stringify(message.contextFiles) : null,
+          message.images ? JSON.stringify(message.images) : null,
           message.createdAt
         )
       }
@@ -316,18 +422,23 @@ export class AgentRepository {
   /** 用户消息与助手最终消息都走 upsert：流式结束时同 id 覆盖中间态。 */
   saveMessage(message: AgentMessageRecord): void {
     const tools = message.tools ? JSON.stringify(message.tools) : null
+    const contextFiles = message.contextFiles ? JSON.stringify(message.contextFiles) : null
+    const images = message.images ? JSON.stringify(message.images) : null
     const now = Date.now()
     this.db
       .prepare(
         `INSERT INTO agent_messages
-          (id, session_id, role, text, time_label, error, tools_json, turn_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          (id, session_id, role, text, time_label, error, tools_json, turn_id, context_files,
+           images_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            text = excluded.text,
            time_label = excluded.time_label,
            error = excluded.error,
            tools_json = excluded.tools_json,
-           turn_id = excluded.turn_id`
+           turn_id = excluded.turn_id,
+           context_files = excluded.context_files,
+           images_json = excluded.images_json`
       )
       .run(
         message.id,
@@ -338,6 +449,8 @@ export class AgentRepository {
         message.error ? 1 : 0,
         tools,
         message.turnId ?? null,
+        contextFiles,
+        images,
         message.createdAt
       )
     this.db
@@ -417,6 +530,106 @@ export class AgentRepository {
 
   removePreset(id: string): void {
     this.db.prepare('DELETE FROM agent_presets WHERE id = ?').run(id)
+  }
+
+  saveCheckpoint(input: {
+    id: string
+    sessionId: string
+    runId: string
+    summary: string
+    files: AgentCheckpointFile[]
+    createdAt: number
+  }): void {
+    this.db
+      .prepare(
+        `INSERT INTO agent_checkpoints
+          (id, session_id, run_id, summary, files_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        input.id,
+        input.sessionId,
+        input.runId,
+        input.summary,
+        JSON.stringify(input.files),
+        input.createdAt
+      )
+    // 检查点保存文件原内容：既限制条数，也限制每个会话的总字节数。
+    runInTransaction(this.db, () => {
+      this.db
+        .prepare(
+          `DELETE FROM agent_checkpoints
+           WHERE session_id = ? AND id NOT IN (
+             SELECT id FROM agent_checkpoints WHERE session_id = ?
+             ORDER BY created_at DESC, rowid DESC LIMIT ?
+           )`
+        )
+        .run(
+          input.sessionId,
+          input.sessionId,
+          this.limits.maxCheckpoints ?? MAX_CHECKPOINTS_PER_SESSION
+        )
+      const rows = this.db
+        .prepare(
+          `SELECT id, LENGTH(files_json) AS bytes FROM agent_checkpoints
+           WHERE session_id = ? ORDER BY created_at DESC, rowid DESC`
+        )
+        .all(input.sessionId) as unknown as { id: string; bytes: number }[]
+      const maxBytes = this.limits.maxCheckpointBytes ?? MAX_CHECKPOINT_BYTES_PER_SESSION
+      let total = 0
+      const excess: string[] = []
+      rows.forEach((row, index) => {
+        total += Number(row.bytes ?? 0)
+        // 最新一条即使自己超预算也保留，否则回退会连最近一次改动都看不到。
+        if (index > 0 && total > maxBytes) excess.push(row.id)
+      })
+      if (excess.length > 0) {
+        const placeholders = excess.map(() => '?').join(', ')
+        this.db
+          .prepare(`DELETE FROM agent_checkpoints WHERE id IN (${placeholders})`)
+          .run(...excess)
+      }
+    })
+  }
+
+  listCheckpoints(sessionId: string): AgentCheckpointRecord[] {
+    const rows = this.db
+      .prepare(
+        `SELECT id, session_id, run_id, summary, files_json, restored_at, created_at
+         FROM agent_checkpoints WHERE session_id = ?
+         ORDER BY created_at DESC, rowid DESC`
+      )
+      .all(sessionId) as unknown as CheckpointRow[]
+    return rows.map(toCheckpoint)
+  }
+
+  findCheckpoint(id: string): AgentCheckpointRecord | undefined {
+    const row = this.db
+      .prepare(
+        `SELECT id, session_id, run_id, summary, files_json, restored_at, created_at
+         FROM agent_checkpoints WHERE id = ?`
+      )
+      .get(id) as CheckpointRow | undefined
+    return row ? toCheckpoint(row) : undefined
+  }
+
+  markCheckpointRestored(id: string, at: number): void {
+    this.db.prepare('UPDATE agent_checkpoints SET restored_at = ? WHERE id = ?').run(at, id)
+  }
+
+  /** 会话内引用到的图片；用于删除会话时清理孤儿文件。 */
+  listImageRefsForSession(sessionId: string): AgentImageRef[] {
+    const rows = this.db
+      .prepare('SELECT images_json FROM agent_messages WHERE session_id = ?')
+      .all(sessionId) as unknown as { images_json: string | null }[]
+    return dedupeImages(rows)
+  }
+
+  listImageRefs(): AgentImageRef[] {
+    const rows = this.db
+      .prepare('SELECT images_json FROM agent_messages WHERE images_json IS NOT NULL')
+      .all() as unknown as { images_json: string | null }[]
+    return dedupeImages(rows)
   }
 
   recordRunStart(id: string, sessionId: string, startedAt: number): void {

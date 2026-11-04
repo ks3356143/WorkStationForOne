@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { dateKey } from '../../../shared/date-key'
 import { createInitialData } from '../data/mock'
+import { ERROR_DETAIL_SEPARATOR } from '../lib/errors'
 import {
   bindAgentPersistence,
   bindReminderPersistence,
@@ -522,6 +523,98 @@ describe('对话', () => {
     expect(useWorkstation.getState().pendingPrompts).toHaveLength(1)
   })
 
+  it('发送时带上附件路径并写进用户消息', () => {
+    useWorkstation.getState().sendMessage('看这两个文件', ['src/a.ts', 'docs/b.md'])
+
+    const state = useWorkstation.getState()
+    expect(state.threads['s-1'].at(-1)).toMatchObject({
+      role: 'user',
+      text: '看这两个文件',
+      contextFiles: ['src/a.ts', 'docs/b.md']
+    })
+    expect(state.pendingPrompts).toEqual([
+      {
+        sessionId: 's-1',
+        prompt: '看这两个文件',
+        contextFiles: ['src/a.ts', 'docs/b.md']
+      }
+    ])
+  })
+
+  it('重试保留原消息的附件路径', () => {
+    useWorkstation.getState().retryMessage('看文件', ['src/a.ts'])
+
+    expect(useWorkstation.getState().pendingPrompts).toEqual([
+      { sessionId: 's-1', prompt: '看文件', contextFiles: ['src/a.ts'] }
+    ])
+  })
+
+  it('发送图片引用并随消息落库', () => {
+    const saveMessage = vi.fn(() => Promise.resolve())
+    bindAgentPersistence({
+      updateSession: vi.fn(() => Promise.resolve()),
+      saveMessage
+    } as never)
+    const images = [{ id: 'img-1', name: 'shot.png', mime: 'image/png', size: 70 }]
+    useWorkstation.getState().sendMessage('看图', undefined, images)
+
+    const state = useWorkstation.getState()
+    expect(state.threads['s-1'].at(-1)).toMatchObject({ role: 'user', images })
+    expect(state.pendingPrompts).toEqual([{ sessionId: 's-1', prompt: '看图', images }])
+    expect(saveMessage).toHaveBeenCalledWith(expect.objectContaining({ text: '看图', images }))
+  })
+
+  it('切换计划模式并持久化', () => {
+    const updateSession = vi.fn(() => Promise.resolve())
+    bindAgentPersistence({ updateSession, saveMessage: vi.fn() } as never)
+    const store = useWorkstation.getState()
+    store.toggleAgentPlanMode('s-1')
+
+    expect(useWorkstation.getState().sessions.find((item) => item.id === 's-1')?.planMode).toBe(
+      true
+    )
+    expect(updateSession).toHaveBeenCalledWith('s-1', { planMode: true })
+
+    useWorkstation.getState().toggleAgentPlanMode('s-1')
+    expect(
+      useWorkstation.getState().sessions.find((item) => item.id === 's-1')?.planMode
+    ).toBeUndefined()
+    expect(updateSession).toHaveBeenLastCalledWith('s-1', { planMode: false })
+  })
+
+  it('失败回复给出可读原因并保留脱敏后的原始详情', () => {
+    const saveMessage = vi.fn(() => Promise.resolve())
+    bindAgentPersistence({
+      updateSession: vi.fn(() => Promise.resolve()),
+      saveMessage
+    } as never)
+    const store = useWorkstation.getState()
+    store.beginAgentReply('s-1', 'run-1')
+    store.finishAgentReply('s-1', 'API Error: 400 Model Not Exist key sk-abcdefgh12345678')
+
+    const message = useWorkstation.getState().threads['s-1'].at(-1)
+    expect(message?.error).toBe(true)
+    expect(message?.text).toContain('模型不可用')
+    expect(message?.text).toContain('拉取模型')
+    expect(message?.text).toContain(ERROR_DETAIL_SEPARATOR)
+    expect(message?.text).not.toContain('sk-abcdefgh12345678')
+    expect(message?.text).toContain('[已隐藏]')
+    expect(saveMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ text: expect.stringContaining('Model Not Exist') })
+    )
+  })
+
+  it('按需加载会话线程并标记已加载', () => {
+    useWorkstation
+      .getState()
+      .setAgentThread('s-1', [{ id: 'u1', role: 'user', text: '按需加载', time: '刚刚' }])
+    const state = useWorkstation.getState()
+    expect(state.threads['s-1']).toEqual([
+      { id: 'u1', role: 'user', text: '按需加载', time: '刚刚' }
+    ])
+    expect(state.threadsLoaded['s-1']).toBe(true)
+  })
+
   it('两个会话的审批卡互不覆盖，清掉一张不影响另一张', () => {
     const store = useWorkstation.getState()
     store.beginAgentReply('s-1', 'run-1')
@@ -590,6 +683,45 @@ describe('对话', () => {
     store.clearToolPermission('s-1')
     expect(useWorkstation.getState().sessions.find((item) => item.id === 's-1')?.status).toBe('run')
     expect(useWorkstation.getState().toolPermissions['s-1']).toBeUndefined()
+  })
+
+  it('问答卡按会话保存，和工具审批一起等待最后一张卡', () => {
+    const store = useWorkstation.getState()
+    store.createAgentSession('claude')
+    const sessionId = useWorkstation.getState().activeSessionId
+    store.beginAgentReply(sessionId, 'run-q')
+    store.setAgentQuestion(sessionId, {
+      requestId: 'q-1',
+      toolUseId: 't-1',
+      questions: [
+        {
+          question: '选哪个？',
+          header: '选择',
+          options: [{ label: 'A' }, { label: 'B' }]
+        }
+      ]
+    })
+    expect(useWorkstation.getState().agentQuestions[sessionId]?.requestId).toBe('q-1')
+    expect(useWorkstation.getState().sessions.find((item) => item.id === sessionId)?.status).toBe(
+      'wait'
+    )
+
+    store.setToolPermission(sessionId, {
+      requestId: 'p-1',
+      toolName: 'Edit',
+      toolUseId: 't-2',
+      detail: 'a.ts',
+      inputPreview: '{}'
+    })
+    store.clearToolPermission(sessionId)
+    expect(useWorkstation.getState().sessions.find((item) => item.id === sessionId)?.status).toBe(
+      'wait'
+    )
+
+    store.clearAgentQuestion(sessionId)
+    const state = useWorkstation.getState()
+    expect(state.agentQuestions[sessionId]).toBeUndefined()
+    expect(state.sessions.find((item) => item.id === sessionId)?.status).toBe('run')
   })
 
   it('结束一个会话的回合只清它自己的审批卡', () => {
@@ -749,6 +881,30 @@ describe('视图导航', () => {
     const state = useWorkstation.getState()
     expect(state.activeSessionId).toBe('s-c1')
     expect(state.activeView).toBe('today')
+  })
+
+  it('后台通知点击后切回会话并记录待聚焦的审批请求', () => {
+    useWorkstation.getState().setView('notes')
+    useWorkstation.getState().focusAgentAttention('s-x1', 'run-1:req-1')
+
+    let state = useWorkstation.getState()
+    expect(state.activeSessionId).toBe('s-x1')
+    expect(state.activeView).toBe('agent')
+    expect(state.agentAttentionRequestId).toBe('run-1:req-1')
+    expect(state.agentJumpMessageId).toBeNull()
+
+    state.clearAgentAttention()
+    state = useWorkstation.getState()
+    expect(state.agentAttentionRequestId).toBeNull()
+  })
+
+  it('通知指向不存在的会话时保持当前状态', () => {
+    useWorkstation.getState().focusAgentAttention('missing', 'run-1:req-1')
+
+    const state = useWorkstation.getState()
+    expect(state.activeSessionId).toBe('s-c1')
+    expect(state.activeView).toBe('today')
+    expect(state.agentAttentionRequestId).toBeNull()
   })
 
   it('在 Agent 工作区内切换会话不改变工作区', () => {

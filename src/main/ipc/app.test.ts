@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { IPC_CHANNELS } from '../../shared/ipc'
 
 const { handle, fromWebContents } = vi.hoisted(() => ({
   handle: vi.fn(),
@@ -17,21 +18,27 @@ vi.mock('electron', () => ({
 
 const { registerAppHandlers, registerAppHandlersIPC } = await import('./app')
 
-function windowStub(destroyed = false) {
+function windowStub(options: { destroyed?: boolean; maximized?: boolean } = {}) {
   return {
-    isDestroyed: () => destroyed,
-    setBackgroundColor: vi.fn(),
-    setTitleBarOverlay: vi.fn()
+    isDestroyed: () => options.destroyed ?? false,
+    isMaximized: () => options.maximized ?? false,
+    minimize: vi.fn(),
+    maximize: vi.fn(),
+    unmaximize: vi.fn(),
+    close: vi.fn(),
+    setBackgroundColor: vi.fn()
   }
 }
 
-function lastHandler() {
+function handlerFor(channel: string) {
   // 备份连接在这些断言里用不到，给个空壳即可
   registerAppHandlers({ db: {} as never, dbFile: '', dir: '', dataDir: '', root: '' })
-  return handle.mock.calls.at(-1)![1] as (event: unknown, value: unknown) => void
+  const call = handle.mock.calls.find(([name]) => name === channel)
+  if (!call) throw new Error(`handler not registered: ${channel}`)
+  return call[1] as (event: unknown, ...args: unknown[]) => unknown
 }
 
-describe('主题 IPC', () => {
+describe('主题与窗口 IPC', () => {
   beforeEach(() => {
     handle.mockClear()
     fromWebContents.mockReset()
@@ -43,25 +50,55 @@ describe('主题 IPC', () => {
     expect(registerAppHandlersIPC.assertTheme('light')).toBe('light')
   })
 
-  it('同步窗口背景与标题栏配色', () => {
+  it('同步窗口背景色', () => {
     const win = windowStub()
     fromWebContents.mockReturnValue(win)
 
-    lastHandler()({ sender: 'sender' }, 'light')
+    handlerFor(IPC_CHANNELS.appSetTheme)({ sender: 'sender' }, 'light')
 
     expect(win.setBackgroundColor).toHaveBeenCalledWith('#EEF2FB')
-    expect(win.setTitleBarOverlay).toHaveBeenCalledWith({
-      color: '#EEF2FB',
-      symbolColor: '#35415C',
-      height: 52
-    })
   })
 
   it('窗口不可用时跳过外观同步', () => {
-    const win = windowStub(true)
+    const win = windowStub({ destroyed: true })
     fromWebContents.mockReturnValue(win)
 
-    expect(() => lastHandler()({ sender: 'sender' }, 'dark')).not.toThrow()
+    expect(() => handlerFor(IPC_CHANNELS.appSetTheme)({ sender: 'sender' }, 'dark')).not.toThrow()
     expect(win.setBackgroundColor).not.toHaveBeenCalled()
+  })
+
+  it('窗口控制走当前窗口：最小化 / 最大化·还原 / 关闭', () => {
+    const win = windowStub()
+    fromWebContents.mockReturnValue(win)
+
+    handlerFor(IPC_CHANNELS.appWindowMinimize)({ sender: 'sender' })
+    handlerFor(IPC_CHANNELS.appWindowToggleMaximize)({ sender: 'sender' })
+    handlerFor(IPC_CHANNELS.appWindowClose)({ sender: 'sender' })
+
+    expect(win.minimize).toHaveBeenCalledTimes(1)
+    expect(win.maximize).toHaveBeenCalledTimes(1)
+    expect(win.close).toHaveBeenCalledTimes(1)
+  })
+
+  it('最大化时再次切换会还原', () => {
+    const win = windowStub({ maximized: true })
+    fromWebContents.mockReturnValue(win)
+
+    handlerFor(IPC_CHANNELS.appWindowToggleMaximize)({ sender: 'sender' })
+
+    expect(win.unmaximize).toHaveBeenCalledTimes(1)
+    expect(win.maximize).not.toHaveBeenCalled()
+  })
+
+  it('读取窗口最大化状态', () => {
+    fromWebContents.mockReturnValueOnce(windowStub({ maximized: true }))
+    expect(handlerFor(IPC_CHANNELS.appWindowGetState)({ sender: 'sender' })).toEqual({
+      maximized: true
+    })
+
+    fromWebContents.mockReturnValueOnce(windowStub({ maximized: false }))
+    expect(handlerFor(IPC_CHANNELS.appWindowGetState)({ sender: 'sender' })).toEqual({
+      maximized: false
+    })
   })
 })

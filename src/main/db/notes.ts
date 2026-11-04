@@ -9,7 +9,8 @@ import type {
   NotePage,
   NotePatch,
   NoteRecord,
-  NoteSearchHit
+  NoteSearchHit,
+  NoteTags
 } from '../../shared/ipc'
 import type { AuditLog } from './audit'
 
@@ -29,20 +30,22 @@ interface SearchRow extends NoteRow {
 const TRIGRAM_MIN = 3
 const SNIPPET_RADIUS = 26
 
-const LIST_SQL = `SELECT id, body, tag, pinned, time_label FROM notes
-  ORDER BY pinned DESC, updated_at DESC, rowid DESC
+const LIST_SELECT = 'SELECT id, body, tag, pinned, time_label FROM notes'
+const LIST_ORDER = `ORDER BY pinned DESC, updated_at DESC, rowid DESC
   LIMIT ? OFFSET ?`
 
 const COUNT_SQL = 'SELECT COUNT(*) AS n FROM notes'
 
-const SEARCH_FTS_SQL = `SELECT n.id, n.body, n.tag, n.pinned, n.time_label,
+function searchFtsSql(scoped: boolean): string {
+  return `SELECT n.id, n.body, n.tag, n.pinned, n.time_label,
     snippet(notes_fts, 1, '\u0001', '\u0002', '…', 12) AS snippet,
     bm25(notes_fts) AS score
   FROM notes_fts
   JOIN notes n ON n.rowid = notes_fts.rowid
-  WHERE notes_fts MATCH ?
+  WHERE notes_fts MATCH ?${scoped ? ' AND n.tag = ?' : ''}
   ORDER BY n.pinned DESC, score ASC
   LIMIT ?`
+}
 
 const SEARCH_LIKE_HEAD = `SELECT id, body, tag, pinned, time_label,
     '' AS snippet, 0 AS score
@@ -54,9 +57,9 @@ const SEARCH_LIKE_TAIL = `
   LIMIT ?`
 
 // 短词回退必须保留每个关键词：只用第一个会静默放宽结果。
-function likeSql(termCount: number): string {
+function likeSql(termCount: number, scoped: boolean): string {
   const where = Array.from({ length: termCount }, () => SEARCH_LIKE_CLAUSE).join(' AND ')
-  return `${SEARCH_LIKE_HEAD}${where}${SEARCH_LIKE_TAIL}`
+  return `${SEARCH_LIKE_HEAD}${where}${scoped ? ' AND tag = ?' : ''}${SEARCH_LIKE_TAIL}`
 }
 
 function toRecord(row: NoteRow): NoteRecord {
@@ -142,6 +145,28 @@ export class NoteRepository {
     return Number(row.n)
   }
 
+  private countFor(tag?: string): number {
+    if (!tag) return this.count()
+    const row = this.sql('SELECT COUNT(*) AS n FROM notes WHERE tag = ?').get(tag) as {
+      n: number
+    }
+    return Number(row.n)
+  }
+
+  /** 全部笔记数 + 非空标签的计数，供笔记页筛选条使用。 */
+  tags(): NoteTags {
+    const rows = this.sql(
+      `SELECT tag, COUNT(*) AS n FROM notes
+       WHERE tag IS NOT NULL AND tag <> ''
+       GROUP BY tag
+       ORDER BY n DESC, tag ASC`
+    ).all() as unknown as { tag: string; n: number }[]
+    return {
+      total: this.count(),
+      tags: rows.map((row) => ({ tag: row.tag, count: Number(row.n) }))
+    }
+  }
+
   graph(limit = 400): NoteGraph {
     const rows = this.sql(
       `SELECT id, body, tag, pinned, time_label FROM notes
@@ -187,26 +212,36 @@ export class NoteRepository {
     })
   }
 
-  page(offset: number, limit: number): NotePage {
+  page(offset: number, limit: number, tag?: string): NotePage {
     const safeLimit = Math.min(Math.max(1, Math.trunc(limit)), 200)
     const safeOffset = Math.max(0, Math.trunc(offset))
-    const rows = this.sql(LIST_SQL).all(safeLimit, safeOffset) as unknown as NoteRow[]
-    return { items: rows.map(toRecord), total: this.count() }
+    const scopedTag = tag?.trim() || undefined
+    const query = `${LIST_SELECT}${scopedTag ? ' WHERE tag = ?' : ''} ${LIST_ORDER}`
+    const rows = this.sql(query).all(
+      ...(scopedTag ? [scopedTag] : []),
+      safeLimit,
+      safeOffset
+    ) as unknown as NoteRow[]
+    return { items: rows.map(toRecord), total: this.countFor(scopedTag) }
   }
 
-  search(raw: string, limit: number): NoteSearchHit[] {
+  search(raw: string, limit: number, tag?: string): NoteSearchHit[] {
     const plan = planSearch(raw)
     if (!plan) return []
     const safeLimit = Math.min(Math.max(1, Math.trunc(limit)), 100)
+    const scopedTag = tag?.trim() || undefined
 
     if (plan.mode === 'fts') {
-      const rows = this.sql(SEARCH_FTS_SQL).all(plan.value, safeLimit) as unknown as SearchRow[]
+      const rows = this.sql(searchFtsSql(Boolean(scopedTag))).all(
+        ...(scopedTag ? [plan.value, scopedTag, safeLimit] : [plan.value, safeLimit])
+      ) as unknown as SearchRow[]
       return rows.map((row) => ({ ...toRecord(row), snippet: normalizeSnippet(row.snippet) }))
     }
 
     const patterns = plan.terms.map((term) => `%${escapeLike(term)}%`)
-    const rows = this.sql(likeSql(patterns.length)).all(
+    const rows = this.sql(likeSql(patterns.length, Boolean(scopedTag))).all(
       ...patterns.flatMap((pattern) => [pattern, pattern]),
+      ...(scopedTag ? [scopedTag] : []),
       safeLimit
     ) as unknown as SearchRow[]
     return rows.map((row) => ({

@@ -6,6 +6,8 @@
  * 用法：WS_AGENT_CLI=<此文件路径>，应用会用它替代真实 claude。
  */
 const pendingPermissions = new Map()
+const userMessages = []
+const { writeFileSync } = require('node:fs')
 const { readFileSync } = require('node:fs')
 let buffer = ''
 let started = false
@@ -23,6 +25,20 @@ function promptFromMessage(message) {
     .join('\n')
 }
 
+/** 首条用户消息里的图片块；返回 MIME 列表，用于断言多模态输入。 */
+function promptImages() {
+  for (const message of userMessages) {
+    if (message?.type !== 'user') continue
+    const content = message?.message?.content
+    if (!Array.isArray(content)) continue
+    return content
+      .filter((block) => block?.type === 'image')
+      .map((block) => block?.source?.media_type)
+      .filter((mime) => typeof mime === 'string')
+  }
+  return []
+}
+
 async function runFlow(prompt) {
   // 冒烟用：验证失败时界面展示的是可读文案而不是原始报错
   if (prompt.includes('触发登录失败')) {
@@ -34,6 +50,34 @@ async function runFlow(prompt) {
       is_error: true,
       num_turns: 1,
       result: 'Not logged in · Please run /login'
+    })
+    return
+  }
+  // Provider / 模型错误：验证界面能说清是模型、上下文、额度还是协议问题。
+  const providerErrors = [
+    ['模型不存在', 'API Error: 400 Model Not Exist'],
+    ['上下文超长', "API Error: 400 This model's maximum context length is 65536 tokens"],
+    ['余额不足', 'API Error: 402 Insufficient Balance'],
+    [
+      '协议错配',
+      'unexpected status 404 Not Found: Unknown error, url: https://api.deepseek.com/anthropic/responses'
+    ]
+  ]
+  const providerError = providerErrors.find(([match]) => prompt.includes(match))
+  if (providerError) {
+    emit({
+      type: 'system',
+      subtype: 'init',
+      model: 'stub-model',
+      session_id: 'stub-provider-error'
+    })
+    await wait(60)
+    emit({
+      type: 'result',
+      subtype: 'error_during_execution',
+      is_error: true,
+      num_turns: 1,
+      result: providerError[1]
     })
     return
   }
@@ -166,6 +210,143 @@ async function runFlow(prompt) {
     return
   }
 
+  if (prompt.includes('检查点写入')) {
+    emit({ type: 'system', subtype: 'init', model: 'stub-model', session_id: 'stub-checkpoint' })
+    await wait(80)
+    emit({
+      type: 'control_request',
+      request_id: 'perm-checkpoint',
+      request: {
+        subtype: 'can_use_tool',
+        tool_name: 'Edit',
+        display_name: 'Edit',
+        input: {
+          file_path: 'checkpoint.txt',
+          old_string: '原始内容',
+          new_string: '改后内容'
+        },
+        tool_use_id: 'stub-checkpoint-tool',
+        description: '写入检查点样例'
+      }
+    })
+    const decision = await new Promise((resolve) =>
+      pendingPermissions.set('perm-checkpoint', resolve)
+    )
+    if (decision?.behavior !== 'allow') {
+      emit({
+        type: 'assistant',
+        message: { role: 'assistant', content: [{ type: 'text', text: '检查点写入被拒绝。' }] }
+      })
+      emit({ type: 'result', subtype: 'success', is_error: false, num_turns: 1 })
+      return
+    }
+    writeFileSync('checkpoint.txt', '改后内容', 'utf8')
+    emit({
+      type: 'assistant',
+      message: { role: 'assistant', content: [{ type: 'text', text: '检查点写入完成。' }] }
+    })
+    emit({
+      type: 'result',
+      subtype: 'success',
+      is_error: false,
+      total_cost_usd: 0,
+      duration_ms: 8,
+      num_turns: 1
+    })
+    return
+  }
+
+  if (prompt.includes('计划模式')) {
+    emit({ type: 'system', subtype: 'init', model: 'stub-model', session_id: 'stub-plan' })
+    await wait(80)
+    const plan = process.argv.includes('plan')
+    emit({
+      type: 'assistant',
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: plan ? '计划模式：只读。' : '计划模式：未启用。' }]
+      }
+    })
+    emit({ type: 'result', subtype: 'success', is_error: false, num_turns: 1 })
+    return
+  }
+
+  if (prompt.includes('图片上下文')) {
+    emit({ type: 'system', subtype: 'init', model: 'stub-model', session_id: 'stub-image' })
+    await wait(80)
+    const images = promptImages()
+    emit({
+      type: 'assistant',
+      message: {
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: images.length ? `图片：已收到 ${images.length} 张 ${images[0]}` : '图片：未注入'
+          }
+        ]
+      }
+    })
+    emit({
+      type: 'result',
+      subtype: 'success',
+      is_error: false,
+      total_cost_usd: 0,
+      duration_ms: 8,
+      num_turns: 1
+    })
+    return
+  }
+
+  if (prompt.includes('附件上下文')) {
+    emit({ type: 'system', subtype: 'init', model: 'stub-model', session_id: 'stub-context' })
+    await wait(80)
+    const hasBlock = prompt.includes('<workspace_file path="smoke-note.txt">')
+    const hasContent = prompt.includes('workspace smoke preview')
+    emit({
+      type: 'assistant',
+      message: {
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: hasBlock
+              ? `附件：已读取 smoke-note.txt（${hasContent ? '内容完整' : '内容缺失'}）`
+              : '附件：未注入'
+          }
+        ]
+      }
+    })
+    emit({
+      type: 'result',
+      subtype: 'success',
+      is_error: false,
+      total_cost_usd: 0,
+      duration_ms: 8,
+      num_turns: 1
+    })
+    return
+  }
+
+  if (prompt.includes('帮我拟一条周报提醒')) {
+    // 冒烟要在回合结束前验证命令面板的发送项处于禁用态，默认 640ms 会被界面操作追上
+    emit({ type: 'system', subtype: 'init', model: 'stub-model', session_id: 'stub-palette' })
+    await wait(1400)
+    emit({
+      type: 'assistant',
+      message: { role: 'assistant', content: [{ type: 'text', text: '周报提醒已拟好。' }] }
+    })
+    emit({
+      type: 'result',
+      subtype: 'success',
+      is_error: false,
+      total_cost_usd: 0.001,
+      duration_ms: 1400,
+      num_turns: 1
+    })
+    return
+  }
+
   if (prompt.includes('失败')) {
     emit({ type: 'system', subtype: 'init', model: 'stub-model', session_id: 'stub-fail' })
     await wait(120)
@@ -182,12 +363,34 @@ async function runFlow(prompt) {
       request: {
         subtype: 'can_use_tool',
         tool_name: 'AskUserQuestion',
-        input: { questions: [{ question: '选哪个？' }] },
+        input: {
+          questions: [
+            {
+              question: '部署到哪个环境？',
+              header: '环境',
+              multiSelect: false,
+              options: [
+                { label: 'Staging', description: '预发环境' },
+                { label: 'Production', description: '生产环境' }
+              ]
+            },
+            {
+              question: '需要启用哪些检查？',
+              header: '检查',
+              multiSelect: true,
+              options: [
+                { label: '类型检查', description: 'tsc --noEmit' },
+                { label: '单元测试', description: 'vitest run' }
+              ]
+            }
+          ]
+        },
         tool_use_id: 'stub-question-tool',
         description: '向用户提问'
       }
     })
     const decision = await new Promise((resolve) => pendingPermissions.set('question-1', resolve))
+    const answers = decision?.updatedInput?.answers ?? {}
     emit({
       type: 'assistant',
       message: {
@@ -195,7 +398,10 @@ async function runFlow(prompt) {
         content: [
           {
             type: 'text',
-            text: decision?.behavior === 'deny' ? '问答被拒绝，未继续。' : '不应允许宿主问答。'
+            text:
+              decision?.behavior === 'deny'
+                ? '问答被拒绝，未继续。'
+                : `问答完成：${answers['部署到哪个环境？'] ?? '?'} / ${answers['需要启用哪些检查？'] ?? '?'}`
           }
         ]
       }
@@ -366,7 +572,7 @@ async function runFlow(prompt) {
               type: 'tool_use',
               id: 'stub-perm-tool',
               name: 'Write',
-              input: { file_path: 'tmp/stub.txt' }
+              input: { file_path: 'tmp/stub.txt', content: 'ok' }
             }
           ]
         }
@@ -414,6 +620,16 @@ async function runFlow(prompt) {
     const mcpPath = mcpIndex >= 0 ? argv[mcpIndex + 1] : ''
     const promptToolIndex = argv.indexOf('--permission-prompt-tool')
     const promptTool = promptToolIndex >= 0 ? argv[promptToolIndex + 1] : ''
+    const deniedIndex = argv.indexOf('--disallowedTools')
+    const deniedTools = []
+    if (deniedIndex >= 0) {
+      for (let index = deniedIndex + 1; index < argv.length; index += 1) {
+        if (argv[index].startsWith('--')) break
+        deniedTools.push(argv[index])
+      }
+    }
+    const appendIndex = argv.indexOf('--append-system-prompt')
+    const appended = appendIndex >= 0 ? (argv[appendIndex + 1] ?? '') : ''
     let servers = []
     let serverTypes = []
     if (mcpPath) {
@@ -435,7 +651,7 @@ async function runFlow(prompt) {
         content: [
           {
             type: 'text',
-            text: `能力中心：插件 ${pluginDirs.join('|') || '无'}；MCP ${servers.join('|') || '无'}；类型 ${serverTypes.join('|') || '无'}；审批 ${promptTool || '无'}；严格 ${argv.includes('--strict-mcp-config')}`
+            text: `能力中心：插件 ${pluginDirs.join('|') || '无'}；MCP ${servers.join('|') || '无'}；类型 ${serverTypes.join('|') || '无'}；审批 ${promptTool || '无'}；严格 ${argv.includes('--strict-mcp-config')}；禁用 ${deniedTools.join('|') || '无'}；优先级 ${appended.includes('[工具优先级]') ? '有' : '无'}；首选 ${(appended.match(/首选：/)?.[0] ?? '无').trim()}`
           }
         ]
       }
@@ -483,7 +699,15 @@ async function runFlow(prompt) {
   await wait(160)
   emit({
     type: 'assistant',
-    message: { role: 'assistant', content: [{ type: 'text', text: '读完了，今天有 6 项待办。' }] }
+    message: {
+      role: 'assistant',
+      content: [
+        {
+          type: 'text',
+          text: '读完了，今天有 **6 项待办**。\n\n- 先处理 `重构 auth 模块`\n- 再看 [文档](https://example.com)\n\n```js\nconst done = 2\n```'
+        }
+      ]
+    }
   })
   await wait(160)
   emit({
@@ -508,6 +732,7 @@ function handleLine(line) {
 
   if (message.type === 'user' && !started) {
     started = true
+    userMessages.push(message)
     void runFlow(promptFromMessage(message))
     return
   }

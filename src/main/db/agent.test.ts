@@ -32,22 +32,26 @@ describe('迁移 v16', () => {
       .all()
       .map((row) => (row as { name: string }).name)
     expect(tables).toEqual([
+      'agent_checkpoints',
       'agent_messages',
       'agent_plugins',
       'agent_presets',
       'agent_runs',
-      'agent_sessions'
+      'agent_sessions',
+      'agent_tool_prefs'
     ])
     const columns = db
       .prepare('PRAGMA table_info(agent_sessions)')
       .all()
       .map((row) => (row as { name: string }).name)
     expect(columns).toContain('workspace')
+    expect(columns).toContain('plan_mode')
     const messageColumns = db
       .prepare('PRAGMA table_info(agent_messages)')
       .all()
       .map((row) => (row as { name: string }).name)
     expect(messageColumns).toContain('origin')
+    expect(messageColumns).toContain('context_files')
     db.close()
   })
 
@@ -197,6 +201,61 @@ describe('AgentRepository · 会话', () => {
     db.close()
   })
 
+  it('v37 升级到 v38 会话默认不开启计划模式', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wsfo-agent-plan-'))
+    dirs.push(dir)
+    const db = openDatabase(join(dir, 'workstation.db'))
+    migrate(
+      db,
+      MIGRATIONS.filter((migration) => migration.version <= 37)
+    )
+    db.prepare(
+      `INSERT INTO agent_sessions (id, agent, title, status, created_at, updated_at)
+       VALUES ('s1', 'claude', '旧会话', 'idle', 1, 1)`
+    ).run()
+
+    migrate(db)
+
+    const repo = new AgentRepository(db)
+    expect(repo.findSession('s1')?.planMode).toBeUndefined()
+    repo.updateSession('s1', { planMode: true })
+    expect(repo.findSession('s1')?.planMode).toBe(true)
+    repo.updateSession('s1', { planMode: false })
+    expect(repo.findSession('s1')?.planMode).toBeUndefined()
+    db.close()
+  })
+
+  it('v38 升级到 v39 建立检查点表并可按运行读取', () => {
+    const { db, repo } = seedDb()
+    repo.createSession({ id: 's1', agent: 'claude', title: '检查点' })
+    repo.saveCheckpoint({
+      id: 'c1',
+      sessionId: 's1',
+      runId: 'run-1',
+      summary: 'Write · src/a.ts',
+      files: [{ path: 'src/a.ts', existed: true, content: '旧内容' }],
+      createdAt: 10
+    })
+    repo.saveCheckpoint({
+      id: 'c2',
+      sessionId: 's1',
+      runId: 'run-2',
+      summary: 'Patch · src/b.ts',
+      files: [{ path: 'src/b.ts', existed: false, content: null }],
+      createdAt: 20
+    })
+
+    expect(repo.listCheckpoints('s1').map((item) => item.id)).toEqual(['c2', 'c1'])
+    expect(repo.listCheckpoints('s1')[1]?.files).toEqual([
+      { path: 'src/a.ts', existed: true, content: '旧内容' }
+    ])
+    repo.markCheckpointRestored('c1', 30)
+    expect(repo.listCheckpoints('s1').find((item) => item.id === 'c1')?.restoredAt).toBe(30)
+    expect(repo.removeSession('s1')).toBe(true)
+    expect(repo.listCheckpoints('s1')).toEqual([])
+    db.close()
+  })
+
   it('v35 升级到 v36 保存消息 turn id 与会话分叉回合', () => {
     const dir = mkdtempSync(join(tmpdir(), 'wsfo-agent-turn-'))
     dirs.push(dir)
@@ -229,6 +288,150 @@ describe('AgentRepository · 会话', () => {
     expect(repo.findSession('s1')?.forkTurnId).toBe('turn-1')
     repo.updateSession('s1', { forkTurnId: null })
     expect(repo.findSession('s1')?.forkTurnId).toBeUndefined()
+    db.close()
+  })
+
+  it('检查点超出字节预算时删除最旧记录，最新一条始终保留', () => {
+    const { db } = seedDb()
+    const repo = new AgentRepository(db, { maxCheckpointBytes: 1000 })
+    repo.createSession({ id: 's1', agent: 'claude', title: '检查点' })
+    for (let index = 0; index < 3; index += 1) {
+      repo.saveCheckpoint({
+        id: `c${index}`,
+        sessionId: 's1',
+        runId: `run-${index}`,
+        summary: 'Write',
+        files: [{ path: `f${index}.txt`, existed: true, content: 'x'.repeat(700) }],
+        createdAt: index
+      })
+    }
+
+    expect(repo.listCheckpoints('s1').map((item) => item.id)).toEqual(['c2'])
+
+    repo.saveCheckpoint({
+      id: 'c3',
+      sessionId: 's1',
+      runId: 'run-3',
+      summary: 'Write',
+      files: [{ path: 'big.txt', existed: true, content: 'x'.repeat(2000) }],
+      createdAt: 3
+    })
+    expect(repo.listCheckpoints('s1')[0]?.id).toBe('c3')
+    expect(repo.listCheckpoints('s1')).toHaveLength(1)
+    db.close()
+  })
+
+  it('按会话读取图片引用并去重', () => {
+    const { db, repo } = seedDb()
+    repo.createSession({ id: 's1', agent: 'claude', title: '一' })
+    repo.createSession({ id: 's2', agent: 'claude', title: '二' })
+    const image = { id: 'img-1', name: 'a.png', mime: 'image/png', size: 10 }
+    const other = { id: 'img-2', name: 'b.png', mime: 'image/png', size: 20 }
+    for (const [id, sessionId, images] of [
+      ['m1', 's1', [image]],
+      ['m2', 's1', [image, other]],
+      ['m3', 's2', [other]]
+    ] as const) {
+      repo.saveMessage({
+        id,
+        sessionId,
+        role: 'user',
+        text: id,
+        timeLabel: '刚刚',
+        images: [...images],
+        createdAt: 1
+      })
+    }
+
+    expect(repo.listImageRefsForSession('s1')).toEqual([image, other])
+    expect(repo.listImageRefs().map((item) => item.id)).toEqual(['img-1', 'img-2'])
+    db.close()
+  })
+
+  it('每个会话最多保留 50 个检查点', () => {
+    const { db, repo } = seedDb()
+    repo.createSession({ id: 's1', agent: 'claude', title: '检查点' })
+    for (let index = 0; index < 52; index += 1) {
+      repo.saveCheckpoint({
+        id: `c${index}`,
+        sessionId: 's1',
+        runId: `run-${index}`,
+        summary: 'Write',
+        files: [],
+        createdAt: index
+      })
+    }
+
+    const list = repo.listCheckpoints('s1')
+    expect(list).toHaveLength(50)
+    expect(list[0]?.id).toBe('c51')
+    expect(list.map((item) => item.id)).not.toContain('c0')
+    expect(list.map((item) => item.id)).not.toContain('c1')
+    expect(list.at(-1)?.id).toBe('c2')
+    db.close()
+  })
+
+  it('保存消息附件路径，并在分叉时一并复制', () => {
+    const { db, repo } = seedDb()
+    repo.createSession({ id: 's1', agent: 'claude', title: '源会话' })
+    repo.saveMessage({
+      id: 'm1',
+      sessionId: 's1',
+      role: 'user',
+      text: '看这两个文件',
+      timeLabel: '刚刚',
+      contextFiles: ['src/a.ts', 'docs/b.md'],
+      createdAt: 1
+    })
+    repo.saveMessage({
+      id: 'm2',
+      sessionId: 's1',
+      role: 'assistant',
+      text: '好',
+      timeLabel: '刚刚',
+      createdAt: 2
+    })
+
+    expect(repo.listMessagesForSession('s1')[0]?.contextFiles).toEqual(['src/a.ts', 'docs/b.md'])
+    const fork = repo.forkSession({
+      sourceId: 's1',
+      messageId: 'm2',
+      id: 's2',
+      title: '分叉'
+    })
+    expect(fork?.messages[0]?.contextFiles).toEqual(['src/a.ts', 'docs/b.md'])
+    expect(fork?.messages[1]?.contextFiles).toBeUndefined()
+    db.close()
+  })
+
+  it('保存消息图片引用并在分叉时复制', () => {
+    const { db, repo } = seedDb()
+    repo.createSession({ id: 's1', agent: 'claude', title: '源' })
+    repo.saveMessage({
+      id: 'm1',
+      sessionId: 's1',
+      role: 'user',
+      text: '看图',
+      timeLabel: '刚刚',
+      images: [{ id: 'img-1', name: 'shot.png', mime: 'image/png', size: 70 }],
+      createdAt: 1
+    })
+    repo.saveMessage({
+      id: 'm2',
+      sessionId: 's1',
+      role: 'assistant',
+      text: '好',
+      timeLabel: '刚刚',
+      createdAt: 2
+    })
+
+    expect(repo.listMessagesForSession('s1')[0]?.images).toEqual([
+      { id: 'img-1', name: 'shot.png', mime: 'image/png', size: 70 }
+    ])
+    const fork = repo.forkSession({ sourceId: 's1', messageId: 'm2', id: 's2', title: '分叉' })
+    expect(fork?.messages[0]?.images).toEqual([
+      { id: 'img-1', name: 'shot.png', mime: 'image/png', size: 70 }
+    ])
     db.close()
   })
 

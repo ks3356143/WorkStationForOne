@@ -37,6 +37,16 @@ export type McpExternalApprovalDecision =
   | { behavior: 'allow'; updatedInput: Record<string, unknown> }
   | { behavior: 'deny'; message: string }
 
+export interface McpQuestionInput {
+  sessionId: string
+  input: Record<string, unknown>
+  toolUseId: string
+}
+
+export type McpQuestionDecision =
+  | { behavior: 'allow'; answers: Record<string, string> }
+  | { behavior: 'deny'; message: string }
+
 export interface McpHooks {
   /** 当前域权限；缺省使用默认模式 */
   mode?: (domain: McpDomain) => McpMode
@@ -50,10 +60,14 @@ export interface McpHooks {
   requestExternalApproval?: (
     input: McpExternalApprovalInput
   ) => Promise<McpExternalApprovalDecision>
+  /** AskUserQuestion 中继：问题卡由 Agent IPC 弹出，返回用户答案 */
+  requestQuestion?: (input: McpQuestionInput) => Promise<McpQuestionDecision>
   /** 只有存在外部 MCP 的 Claude 会话才暴露 approval_request */
   hasApprovalRelay?: (sessionId: string) => boolean
   /** 内置工具开关；缺省视为全部启用 */
   isToolEnabled?: (name: string) => boolean
+  /** 计划模式等只读会话拒绝写入工具；返回原因时不发审批卡 */
+  writeDenial?: (sessionId: string) => string | null
 }
 
 export interface McpBridgeOptions {
@@ -363,11 +377,25 @@ export class McpBridge {
       })
     }
     if (toolName === 'AskUserQuestion') {
+      let decision: McpQuestionDecision
+      try {
+        decision = this.hooks.requestQuestion
+          ? await this.hooks.requestQuestion({ sessionId, input, toolUseId })
+          : { behavior: 'deny', message: '应用问答服务不可用' }
+      } catch (error) {
+        console.error('[mcp] 问答中继失败', error)
+        decision = { behavior: 'deny', message: '问答请求失败' }
+      }
       return toolResponse({
-        text: JSON.stringify({
-          behavior: 'deny',
-          message: 'WorkStationForOne 暂不支持交互问答'
-        })
+        text: JSON.stringify(
+          decision.behavior === 'allow'
+            ? {
+                behavior: 'allow',
+                updatedInput: { questions: input.questions, answers: decision.answers },
+                toolUseID: toolUseId
+              }
+            : decision
+        )
       })
     }
     let decision: McpExternalApprovalDecision
@@ -440,6 +468,19 @@ export class McpBridge {
       const args = asRecord(params.arguments)
       let cacheKey = ''
       if (def.write) {
+        const denial = this.hooks.writeDenial?.(sessionId)
+        if (denial) {
+          this.data.audit.record({
+            at: Date.now(),
+            domain: 'mcp',
+            action: 'deny',
+            targetId: sessionId,
+            title: name,
+            source: 'agent',
+            detail: 'denied_by_plan_mode'
+          })
+          return rpcResult(id, toolResponse({ text: denial, isError: true }))
+        }
         const mode = this.hooks.mode?.(def.domain) ?? MCP_DEFAULT_MODES[def.domain]
         let allowed = mode === 'write'
         if (mode === 'ask') {

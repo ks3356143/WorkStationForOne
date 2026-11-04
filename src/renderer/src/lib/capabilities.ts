@@ -66,6 +66,9 @@ export function marketLabel(value: string): string {
 export function mcpStatus(server: ExternalMcpServerRecord): string {
   if (!server.trusted) return '待信任'
   if (!server.enabled) return '已停用'
+  if (server.auth === 'oauth' && server.oauth?.state !== 'connected') {
+    return server.lastError ? '连接失败' : '待登录'
+  }
   if (server.lastError) return '连接失败'
   if (server.tools.length === 0) return '待测试'
   return `已连接 · ${server.tools.length} 工具`

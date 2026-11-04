@@ -9,6 +9,7 @@ import {
   providerEndpoint,
   type ProviderAuthScheme
 } from '../shared/provider-profile'
+import { classifyProviderError, classifyProviderStatus } from '../shared/provider-error'
 
 const DEFAULT_TIMEOUT_MS = 12_000
 const MAX_ERROR = 180
@@ -39,6 +40,19 @@ function asString(value: unknown): string | undefined {
 function clip(value: string): string {
   const flat = value.replace(/\s+/g, ' ').trim()
   return flat.length > MAX_ERROR ? `${flat.slice(0, MAX_ERROR - 1)}…` : flat
+}
+
+/** 设置页要同时显示原因和下一步，允许比详情更长。 */
+function clipMessage(value: string): string {
+  const flat = value.replace(/\s+/g, ' ').trim()
+  return flat.length > 360 ? `${flat.slice(0, 359)}…` : flat
+}
+
+function failureMessage(status: number, detail: string, target: ProviderTarget): string {
+  const copy = classifyProviderError(detail, target) ?? classifyProviderStatus(status, target)
+  const head = copy?.title ?? statusLabel(status)
+  const base = `${head}（${status}）${detail ? `：${detail}` : ''}`
+  return clipMessage(`${base}${copy?.hint ? `。${copy.hint}` : ''}`)
 }
 
 function errorDetail(text: string): string {
@@ -155,7 +169,12 @@ function parseModels(text: string): { models: string[]; message?: string } {
     if (id && !models.includes(id)) models.push(id)
     if (models.length >= 200) break
   }
-  if (models.length === 0) return { models: [], message: '端点没有返回模型列表' }
+  if (models.length === 0)
+    return {
+      models: [],
+      message:
+        '端点没有返回模型列表。确认 Base URL 是否指向兼容接口；有些端点不支持 /models，可手动填写模型名。'
+    }
   return { models }
 }
 
@@ -205,7 +224,7 @@ export async function listProviderModels(
             models: [],
             status: response.status,
             latencyMs,
-            message: `${statusLabel(response.status)}（${response.status}）${lastDetail ? `：${lastDetail}` : ''}`
+            message: failureMessage(response.status, lastDetail, input.target)
           }
         }
         const parsed = parseModels(text)
@@ -233,7 +252,7 @@ export async function listProviderModels(
       ...(lastStatus ? { status: lastStatus } : {}),
       latencyMs: Math.max(0, Date.now() - started),
       message: lastStatus
-        ? `${statusLabel(lastStatus)}（${lastStatus}）${lastDetail ? `：${lastDetail}` : ''}`
+        ? failureMessage(lastStatus, lastDetail, input.target)
         : '没有可用的模型端点'
     }
   } catch (error) {
@@ -312,7 +331,7 @@ export async function testProviderConnection(
           ok: false,
           status: response.status,
           latencyMs,
-          message: `${statusLabel(response.status)}（${response.status}）${lastDetail ? `：${lastDetail}` : ''}`
+          message: failureMessage(response.status, lastDetail, input.target)
         }
       }
 
@@ -341,9 +360,7 @@ export async function testProviderConnection(
       ok: false,
       ...(lastStatus ? { status: lastStatus } : {}),
       latencyMs: Math.max(0, Date.now() - started),
-      message: lastStatus
-        ? `${statusLabel(lastStatus)}（${lastStatus}）${lastDetail ? `：${lastDetail}` : ''}`
-        : '没有可用的端点'
+      message: lastStatus ? failureMessage(lastStatus, lastDetail, input.target) : '没有可用的端点'
     }
   } catch (error) {
     const latencyMs = Math.max(0, Date.now() - started)

@@ -2,6 +2,9 @@
  * 把底层报错翻译成「发生了什么 + 怎么办」。
  * 原则：不甩原始堆栈给用户，也不说「发生了错误」这种没有信息量的话。
  */
+import type { AgentKind } from '../../../shared/ipc'
+import { classifyProviderError } from '../../../shared/provider-error'
+
 export type ErrorKind =
   | 'auth'
   | 'network'
@@ -11,6 +14,14 @@ export type ErrorKind =
   | 'disk'
   | 'cli-missing'
   | 'rate-limit'
+  | 'model'
+  | 'context'
+  | 'quota'
+  | 'overload'
+  | 'protocol'
+  | 'vision'
+  | 'content'
+  | 'request'
   | 'unknown'
 
 export interface FriendlyError {
@@ -32,12 +43,6 @@ interface Rule {
 
 /** 顺序有意义：先匹配更具体的。 */
 const RULES: Rule[] = [
-  {
-    kind: 'auth',
-    test: /not logged in|authentication_failed|unauthorized|401|invalid api key|auth.*(fail|expire)|未登录|凭据被拒绝/i,
-    title: '还没登录或凭据已失效',
-    hint: '在终端运行一次 claude login（或 codex login），登录后重新发送即可。'
-  },
   {
     kind: 'cli-missing',
     test: /未找到\s*(Claude|Codex)?\s*CLI|ENOENT|not recognized as an internal|找不到.*命令/i,
@@ -76,6 +81,12 @@ const RULES: Rule[] = [
   },
   {
     kind: 'not-found',
+    test: /thread not found|no conversation found|session[^\n]{0,30}(not found|does not exist)|会话[^\n]{0,10}(不存在|找不到)/i,
+    title: 'CLI 会话已不存在',
+    hint: '新建一个会话，或在舰队控制台从本机导入原会话；不要继续在这条线程里发送。'
+  },
+  {
+    kind: 'not-found',
     test: /404|not found|不存在|没有找到/i,
     title: '要找的东西不在了',
     hint: '可能已被移动或删除。刷新列表后再试。'
@@ -96,10 +107,20 @@ function stripWrappers(message: string): string {
   return text
 }
 
-export function friendlyError(error: unknown, fallback = '操作没有完成'): FriendlyError {
+export function friendlyError(
+  error: unknown,
+  fallback = '操作没有完成',
+  target?: AgentKind
+): FriendlyError {
   const raw = error instanceof Error ? error.message : typeof error === 'string' ? error : ''
   const detail = raw.trim().slice(0, 600)
   const probe = stripWrappers(detail)
+
+  // 供应商 / 模型错误优先：同一句 404 在模型名、协议、地址上的处理完全不同。
+  const provider = classifyProviderError(probe, target) ?? classifyProviderError(detail, target)
+  if (provider) {
+    return { kind: provider.kind, title: provider.title, hint: provider.hint, detail }
+  }
 
   for (const rule of RULES) {
     if (rule.test.test(detail) || rule.test.test(probe)) {
@@ -109,13 +130,34 @@ export function friendlyError(error: unknown, fallback = '操作没有完成'): 
   return {
     kind: 'unknown',
     title: probe || fallback,
-    hint: '如果反复出现，把下面的详情复制出来便于排查。',
+    hint: '如果反复出现，点开下面的详情复制出来便于排查。',
     detail
   }
 }
 
 /** 单行版：适合提示条与卡片副标题。 */
-export function friendlyMessage(error: unknown, fallback?: string): string {
-  const friendly = friendlyError(error, fallback)
+export function friendlyMessage(error: unknown, fallback?: string, target?: AgentKind): string {
+  const friendly = friendlyError(error, fallback, target)
   return friendly.hint ? `${friendly.title}。${friendly.hint}` : friendly.title
+}
+
+/** 失败消息里保留原始详情，渲染层默认收起；分隔符只用于内部拆分。 */
+export const ERROR_DETAIL_SEPARATOR = '\n\n---\n'
+
+export function splitErrorText(text: string): { message: string; detail: string } {
+  const index = text.indexOf(ERROR_DETAIL_SEPARATOR)
+  if (index < 0) return { message: text, detail: '' }
+  return {
+    message: text.slice(0, index),
+    detail: text.slice(index + ERROR_DETAIL_SEPARATOR.length).trim()
+  }
+}
+
+/** 详情可能来自 CLI / 供应商；把常见密钥形状抹掉，避免回显到界面。 */
+export function redactErrorDetail(value: string): string {
+  return value
+    .replace(/\b(?:ctx7sk|sk)-[A-Za-z0-9_-]{8,}/g, '[已隐藏]')
+    .replace(/Bearer\s+[A-Za-z0-9._-]{8,}/gi, 'Bearer [已隐藏]')
+    .trim()
+    .slice(0, 600)
 }

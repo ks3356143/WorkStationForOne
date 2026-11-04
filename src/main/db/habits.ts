@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type { DatabaseSync, StatementSync } from 'node:sqlite'
 import type { AuditLog } from './audit'
 import { isDateKey } from '../../shared/date-key'
@@ -76,5 +77,44 @@ export class HabitRepository {
       targetId: id,
       detail: `${day} ${done ? '打卡' : '取消'}`
     })
+  }
+
+  create(name: string): HabitRecord {
+    const id = randomUUID()
+    const at = Date.now()
+    const order = this.statement(
+      'SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM habits'
+    ).get() as { next: number }
+    this.statement(INSERT_HABIT_SQL).run(id, name, Number(order.next), at)
+    this.audit?.record({ at, domain: 'habit', action: 'create', targetId: id, title: name })
+    return { id, name, checkins: [] }
+  }
+
+  rename(id: string, name: string): boolean {
+    const at = Date.now()
+    const result = this.statement('UPDATE habits SET name = ? WHERE id = ?').run(name, id)
+    if (Number(result.changes) === 0) return false
+    this.audit?.record({ at, domain: 'habit', action: 'update', targetId: id, title: name })
+    return true
+  }
+
+  remove(id: string): boolean {
+    const row = this.statement('SELECT name FROM habits WHERE id = ?').get(id) as
+      | { name: string }
+      | undefined
+    if (!row) return false
+    const at = Date.now()
+    runInTransaction(this.db, () => {
+      this.statement('DELETE FROM habit_checkins WHERE habit_id = ?').run(id)
+      this.statement('DELETE FROM habits WHERE id = ?').run(id)
+    })
+    this.audit?.record({
+      at,
+      domain: 'habit',
+      action: 'delete',
+      targetId: id,
+      title: row.name
+    })
+    return true
   }
 }

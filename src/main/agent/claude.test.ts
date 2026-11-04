@@ -1,3 +1,5 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { McpBridge } from '../mcp/server'
@@ -21,7 +23,8 @@ function run(
     prefixArgs: [STUB],
     viaNode: true
   },
-  autoApprove?: (toolName: string) => 'session' | 'workspace' | null
+  autoApprove?: (toolName: string) => 'session' | 'workspace' | null,
+  images?: { mime: string; data: string }[]
 ) {
   return new Promise<{
     events: AgentRunEvent[]
@@ -34,6 +37,7 @@ function run(
       cwd: process.cwd(),
       cli,
       ...(autoApprove ? { autoApprove } : {}),
+      ...(images ? { images } : {}),
       onEvent: (event) => events.push(event),
       onExit: (info) => done({ events, exit: { code: info.code, cancelled: info.cancelled } })
     })
@@ -119,6 +123,39 @@ describe('Provider 隔离', () => {
     expect(args).toContain('--strict-mcp-config')
     expect(args).not.toContain('--model')
     expect(providerEnv(undefined)).toBeUndefined()
+  })
+
+  it('计划模式把 permission-mode 切到 plan', () => {
+    const args = buildClaudeArgs(cli, undefined, undefined, undefined, undefined, {
+      planMode: true
+    })
+    expect(args).toEqual(expect.arrayContaining(['--permission-mode', 'plan']))
+    expect(args.join(' ')).not.toContain('--permission-mode manual')
+  })
+
+  it('工具面关闭项并入 --disallowedTools，并追加系统提示', () => {
+    const args = buildClaudeArgs(cli, undefined, undefined, undefined, undefined, {
+      disallowedTools: ['WebSearch'],
+      disabledTools: ['WebFetch', 'WebSearch', 'Bash'],
+      appendSystemPrompt: '[工具优先级]\n优先使用已启用的 MCP。'
+    })
+    const deniedIndex = args.indexOf('--disallowedTools')
+    expect(deniedIndex).toBeGreaterThan(-1)
+    const denied = args.slice(deniedIndex + 1, args.indexOf('--append-system-prompt'))
+    expect(denied).toEqual(expect.arrayContaining(['WebFetch', 'WebSearch', 'Bash']))
+    expect(denied.filter((name) => name === 'WebSearch')).toHaveLength(1)
+    expect(args).toEqual(
+      expect.arrayContaining(['--append-system-prompt', '[工具优先级]\n优先使用已启用的 MCP。'])
+    )
+  })
+
+  it('没有工具面设置时不加 --disallowedTools 与 --append-system-prompt', () => {
+    const args = buildClaudeArgs(cli, undefined, undefined, undefined, undefined, {
+      disabledTools: [],
+      appendSystemPrompt: '   '
+    })
+    expect(args).not.toContain('--disallowedTools')
+    expect(args).not.toContain('--append-system-prompt')
   })
 
   it('有外部 MCP 时把审批中继工具传给 CLI', () => {
@@ -283,13 +320,14 @@ describe('startClaudeRun · stub 链路', () => {
     expect(events.some((event) => event.kind === 'result')).toBe(false)
   })
 
-  it('转发 can_use_tool 请求，允许后继续本轮', async () => {
+  it('转发 can_use_tool 请求并附带改动预览，允许后继续本轮', async () => {
     const events: AgentRunEvent[] = []
     let handle: RunHandle | undefined
+    const cwd = mkdtempSync(join(tmpdir(), 'wsfo-claude-diff-'))
     const exit = await new Promise<{ code: number | null }>((done) => {
       handle = startClaudeRun({
         prompt: '需要审批',
-        cwd: process.cwd(),
+        cwd,
         cli: { bin: process.execPath, prefixArgs: [STUB], viaNode: true },
         onEvent: (event) => {
           events.push(event)
@@ -299,12 +337,16 @@ describe('startClaudeRun · stub 链路', () => {
         },
         onExit: (info) => done({ code: info.code })
       })
-    })
+    }).finally(() => rmSync(cwd, { recursive: true, force: true }))
 
     const permission = events.find((event) => event.kind === 'permission')
     expect(permission).toMatchObject({
       kind: 'permission',
-      request: { toolName: 'Write', detail: 'tmp/stub.txt' }
+      request: {
+        toolName: 'Write',
+        detail: 'tmp/stub.txt',
+        diffs: [{ path: 'tmp/stub.txt', oldText: '', newText: 'ok', kind: 'add' }]
+      }
     })
     expect(events.at(-1)).toMatchObject({
       kind: 'result',
@@ -331,12 +373,79 @@ describe('startClaudeRun · stub 链路', () => {
     expect(exit.code).toBe(0)
   })
 
-  it('自动批准不作用于 AskUserQuestion', async () => {
-    const { events } = await run('需要问答', undefined, undefined, () => 'workspace')
+  it('工具面关闭的原生工具即使命中规则也被拒绝', async () => {
+    const events: AgentRunEvent[] = []
+    let asked = 0
+    const exit = await new Promise<{ code: number | null }>((done) => {
+      startClaudeRun({
+        prompt: '需要审批',
+        cwd: process.cwd(),
+        cli: { bin: process.execPath, prefixArgs: [STUB], viaNode: true },
+        disabledTools: ['Write'],
+        autoApprove: () => {
+          asked += 1
+          return 'workspace'
+        },
+        onEvent: (event) => events.push(event),
+        onExit: (info) => done({ code: info.code })
+      })
+    })
+
+    expect(asked).toBe(0)
     expect(events.some((event) => event.kind === 'permission')).toBe(false)
-    expect(events.some((event) => event.kind === 'text' && event.text.includes('问答被拒绝'))).toBe(
+    expect(events.some((event) => event.kind === 'text' && event.text.includes('权限被拒绝'))).toBe(
       true
     )
+    expect(exit.code).toBe(0)
+  })
+
+  it('AskUserQuestion 发 question 事件，允许后回写答案', async () => {
+    const events: AgentRunEvent[] = []
+    const asked: string[] = []
+    let handle: RunHandle | undefined
+    const exit = await new Promise<{ code: number | null }>((done) => {
+      handle = startClaudeRun({
+        prompt: '需要问答',
+        cwd: process.cwd(),
+        cli: { bin: process.execPath, prefixArgs: [STUB], viaNode: true },
+        autoApprove: (toolName) => {
+          asked.push(toolName)
+          return 'workspace'
+        },
+        onEvent: (event) => {
+          events.push(event)
+          if (event.kind !== 'question') return
+          expect(event.request.questions).toHaveLength(2)
+          expect(event.request.questions[1]).toMatchObject({
+            header: '检查',
+            multiSelect: true
+          })
+          expect(
+            handle?.respondQuestion(event.request.requestId, {
+              部署到哪个环境: 'Staging',
+              需要启用哪些检查: '类型检查, 单元测试'
+            })
+          ).toBe(false)
+          expect(
+            handle?.respondQuestion(event.request.requestId, {
+              '部署到哪个环境？': 'Staging',
+              '需要启用哪些检查？': '类型检查, 单元测试'
+            })
+          ).toBe(true)
+        },
+        onExit: (info) => done({ code: info.code })
+      })
+    })
+
+    expect(asked).toEqual([])
+    expect(events.some((event) => event.kind === 'permission')).toBe(false)
+    expect(
+      events.some(
+        (event) =>
+          event.kind === 'text' && event.text.includes('问答完成：Staging / 类型检查, 单元测试')
+      )
+    ).toBe(true)
+    expect(exit.code).toBe(0)
   })
 
   it('拒绝后 CLI 收到 deny，不会继续写入', async () => {
@@ -367,12 +476,46 @@ describe('startClaudeRun · stub 链路', () => {
     )
   })
 
-  it('宿主内问答自动拒绝，不把问题当普通工具审批', async () => {
-    const { events } = await run('需要问答')
+  it('拒绝问答时回写 deny，不把问题当普通工具审批', async () => {
+    const events: AgentRunEvent[] = []
+    let handle: RunHandle | undefined
+    await new Promise<void>((done) => {
+      handle = startClaudeRun({
+        prompt: '需要问答',
+        cwd: process.cwd(),
+        cli: { bin: process.execPath, prefixArgs: [STUB], viaNode: true },
+        onEvent: (event) => {
+          events.push(event)
+          if (event.kind === 'question') {
+            expect(handle?.respondQuestion(event.request.requestId, undefined, true)).toBe(true)
+          }
+        },
+        onExit: () => done()
+      })
+    })
+
     expect(events.some((event) => event.kind === 'permission')).toBe(false)
     expect(events.some((event) => event.kind === 'text' && event.text.includes('问答被拒绝'))).toBe(
       true
     )
+  })
+
+  it('把图片以 base64 块写入首条用户消息', async () => {
+    const { events, exit } = await run(
+      '图片上下文',
+      undefined,
+      {
+        bin: process.execPath,
+        prefixArgs: [STUB],
+        viaNode: true
+      },
+      undefined,
+      [{ mime: 'image/png', data: 'iVBORw0KGgo=' }]
+    )
+    expect(exit.code).toBe(0)
+    expect(
+      events.some((event) => event.kind === 'text' && event.text.includes('已收到 1 张 image/png'))
+    ).toBe(true)
   })
 
   it('没有 CLI 时明确报错并立刻结束', async () => {

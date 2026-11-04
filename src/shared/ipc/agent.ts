@@ -1,4 +1,4 @@
-import type { AgentRunEvent } from '../agent-stream'
+import type { AgentFileDiff, AgentRunEvent } from '../agent-stream'
 import type { ApprovalAgent, ApprovalScope } from '../approval-rules'
 
 export type AgentKind = 'claude' | 'codex'
@@ -9,6 +9,8 @@ export interface AgentToolRecord {
   name: string
   meta: string
   status: string
+  /** 文件写入工具的改动预览；旧记录没有该字段 */
+  diffs?: AgentFileDiff[]
 }
 
 export interface AgentSessionRecord {
@@ -28,6 +30,8 @@ export interface AgentSessionRecord {
   pinned?: boolean
   /** 归档会话从会话栏隐藏，可在舰队控制台恢复 */
   archived?: boolean
+  /** 计划模式：只读调查并给方案，不执行写入 */
+  planMode?: boolean
   createdAt: number
   updatedAt: number
 }
@@ -45,11 +49,21 @@ export interface AgentMessageRecord {
   turnId?: string
   /** app = 应用内产生；import = 从本机 CLI JSONL 只读导入 */
   origin?: 'app' | 'import'
+  /** 用户 @ 附加的工作区相对路径；只存路径，文件内容不落库 */
+  contextFiles?: string[]
+  /** 用户输入的图片；只存私有目录里的引用，不存图片内容 */
+  images?: AgentImageRef[]
 }
 
 export interface AgentThreadBundle {
   sessions: AgentSessionRecord[]
   messages: AgentMessageRecord[]
+}
+
+/** 启动时只需要会话与消息数量；正文在切换会话时按需读取。 */
+export interface AgentSessionSummary {
+  sessions: AgentSessionRecord[]
+  counts: Record<string, number>
 }
 
 export interface AgentExportResult {
@@ -82,6 +96,21 @@ export interface AgentSessionPatch {
   workspace?: string
   pinned?: boolean
   archived?: boolean
+  planMode?: boolean
+}
+
+export interface AgentImageRef {
+  id: string
+  name: string
+  mime: string
+  size: number
+}
+
+export interface AgentImageInput {
+  mime: string
+  /** base64，不含 data URL 前缀 */
+  data: string
+  name?: string
 }
 
 export interface AgentSendInput {
@@ -92,6 +121,10 @@ export interface AgentSendInput {
   prompt: string
   /** 续接上一轮时传 CLI 自己的会话 id */
   resumeId?: string
+  /** 用户通过 @ 附加的工作区相对路径；主进程读取内容后再交给 CLI */
+  contextFiles?: string[]
+  /** 已保存到应用私有目录的图片；发送时按 CLI 能力注入 */
+  images?: AgentImageRef[]
 }
 
 export interface AgentRunStart {
@@ -244,6 +277,42 @@ export interface AgentPresetInput {
   workspace: string
 }
 
+export interface AgentCheckpointFile {
+  /** 工作区相对路径，统一用 / */
+  path: string
+  existed: boolean
+  /** 原文件内容；二进制、超大或读不到时为 null */
+  content: string | null
+  truncated?: boolean
+}
+
+export interface AgentCheckpointRecord {
+  id: string
+  sessionId: string
+  runId: string
+  summary: string
+  files: AgentCheckpointFile[]
+  createdAt: number
+  restoredAt?: number
+}
+
+/** 渲染层只需要路径与可回退状态；文件原内容不离开主进程。 */
+export interface AgentCheckpointFileView {
+  path: string
+  existed: boolean
+  truncated?: boolean
+}
+
+export interface AgentCheckpointView extends Omit<AgentCheckpointRecord, 'files'> {
+  files: AgentCheckpointFileView[]
+}
+
+export interface AgentRollbackResult {
+  restored: number
+  removed: number
+  failed: string[]
+}
+
 export interface AgentRunRecord {
   id: string
   sessionId: string
@@ -267,18 +336,43 @@ export interface WorkspaceFile {
   text: string
 }
 
+export interface AgentQuestionResponse {
+  requestId: string
+  /** 问题文本 → 用户答案；拒绝回答时省略 */
+  answers?: Record<string, string>
+  deny?: boolean
+}
+
+/** 点击后台通知后，渲染层据此切回对应会话。 */
+export interface AgentAttention {
+  sessionId: string
+  requestId: string
+  kind: 'permission' | 'question'
+}
+
 export interface AgentApi {
   send: (input: AgentSendInput) => Promise<AgentRunStart>
   cancel: (runId: string) => Promise<void>
   respondPermission: (response: AgentPermissionResponse) => Promise<boolean>
+  respondQuestion: (response: AgentQuestionResponse) => Promise<boolean>
   onEvent: (listener: (payload: AgentEventEnvelope) => void) => () => void
+  /** 后台审批 / 追问通知被点击；切回对应会话 */
+  onAttention: (listener: (payload: AgentAttention) => void) => () => void
   threads: () => Promise<AgentThreadBundle>
+  /** 只取会话列表与每会话消息数；启动时不再拉全部正文 */
+  sessions: () => Promise<AgentSessionSummary>
+  /** 按会话读取消息；切换会话时按需调用 */
+  thread: (sessionId: string) => Promise<AgentMessageRecord[]>
   searchSessions: (query: string) => Promise<AgentSessionSearchHit[]>
   createSession: (input: AgentCreateInput) => Promise<AgentSessionRecord>
   updateSession: (id: string, patch: AgentSessionPatch) => Promise<void>
   /** 只删应用内会话与消息；不触碰外部 CLI 的 JSONL。运行中拒绝。 */
   deleteSession: (id: string) => Promise<boolean>
   saveMessage: (message: AgentMessageRecord) => Promise<void>
+  /** 把剪贴板里的图片写进应用私有目录；只返回引用，不回显路径 */
+  saveImage: (input: AgentImageInput) => Promise<AgentImageRef>
+  /** 读取已保存图片的 data URL，供消息缩略图使用 */
+  imageData: (image: AgentImageRef) => Promise<string>
   exportSession: (id: string) => Promise<AgentExportResult>
   /** 打开原生目录选择器；取消返回 null */
   pickWorkspace: (current?: string) => Promise<string | null>
@@ -286,6 +380,8 @@ export interface AgentApi {
   readWorkspaceFile: (sessionId: string, path: string) => Promise<WorkspaceFile>
   openWorkspace: (sessionId: string) => Promise<void>
   presets: () => Promise<AgentPresetRecord[]>
+  checkpoints: (sessionId: string) => Promise<AgentCheckpointView[]>
+  rollback: (checkpointId: string) => Promise<AgentRollbackResult>
   savePreset: (input: AgentPresetInput) => Promise<AgentPresetRecord>
   removePreset: (id: string) => Promise<void>
   usage: (days: number) => Promise<AgentRunRecord[]>

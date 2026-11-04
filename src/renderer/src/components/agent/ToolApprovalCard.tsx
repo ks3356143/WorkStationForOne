@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { m } from 'motion/react'
 import { DURATION, EASE_OUT } from '../../lib/motion'
 import type { ToolPermission } from '../../types'
+import { FileDiffView } from './FileDiffView'
 
 type ToolDecision = 'once' | 'session' | 'workspace' | 'deny'
 
@@ -12,12 +13,14 @@ interface ToolApprovalCardProps {
 
 export function ToolApprovalCard({ request, onResolve }: ToolApprovalCardProps) {
   const [busy, setBusy] = useState(false)
+  const [showRaw, setShowRaw] = useState(false)
 
   // 回写失败时 AgentDock 会把请求重新塞回列表，AnimatePresence 会复用同一实例（key 相同），
   // 必须在新请求对象到达时解锁按钮，否则卡片永久处于 disabled 状态。
   // biome-ignore lint/correctness/useExhaustiveDependencies: request 只作触发条件，身份变化就表示这是一张新卡
   useEffect(() => {
     setBusy(false)
+    setShowRaw(false)
   }, [request])
 
   const resolve = (decision: ToolDecision) => {
@@ -53,7 +56,22 @@ export function ToolApprovalCard({ request, onResolve }: ToolApprovalCardProps) 
             <b>{request.detail}</b>
           </div>
         ) : null}
-        <pre>{request.inputPreview || '{}'}</pre>
+        {request.diffs?.length ? (
+          <>
+            <FileDiffView diffs={request.diffs} maxHeight={320} />
+            <button
+              type="button"
+              className="w1-rawtoggle"
+              aria-expanded={showRaw}
+              onClick={() => setShowRaw((value) => !value)}
+            >
+              {showRaw ? '隐藏原始参数' : '查看原始参数'}
+            </button>
+            {showRaw ? <pre>{request.inputPreview || '{}'}</pre> : null}
+          </>
+        ) : (
+          <pre>{request.inputPreview || '{}'}</pre>
+        )}
       </div>
       <p className="w1-toolhint">
         {request.workspaceScope

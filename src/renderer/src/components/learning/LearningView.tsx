@@ -38,6 +38,7 @@ interface LearningItemRowProps {
   jump?: boolean
   onExpand: () => void
   onSave: (patch: LearningPatch) => void
+  onDelete: () => void
   onCollapse: () => void
 }
 
@@ -49,6 +50,7 @@ function LearningItemRow({
   jump = false,
   onExpand,
   onSave,
+  onDelete,
   onCollapse
 }: LearningItemRowProps) {
   const [subject, setSubject] = useState(item.subject)
@@ -56,8 +58,29 @@ function LearningItemRow({
   const [source, setSource] = useState(item.source ?? '')
   const [notes, setNotes] = useState(item.notes ?? '')
   const [nextReviewOn, setNextReviewOn] = useState(item.nextReviewOn)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const deleteTimer = useRef<number | null>(null)
   const due = isDue(item, today)
   const editorId = `learn-edit-${item.id}`
+
+  useEffect(
+    () => () => {
+      if (deleteTimer.current) window.clearTimeout(deleteTimer.current)
+    },
+    []
+  )
+
+  const requestDelete = () => {
+    if (confirmingDelete) {
+      if (deleteTimer.current) window.clearTimeout(deleteTimer.current)
+      setConfirmingDelete(false)
+      onDelete()
+      return
+    }
+    setConfirmingDelete(true)
+    if (deleteTimer.current) window.clearTimeout(deleteTimer.current)
+    deleteTimer.current = window.setTimeout(() => setConfirmingDelete(false), 4000)
+  }
 
   const save = () => {
     if (!title.trim() || !subject.trim()) return
@@ -215,11 +238,22 @@ function LearningItemRow({
                   收起
                 </button>
                 <button
-                  className="w1-tododelete"
+                  className="w1-todocancel"
                   type="button"
                   onClick={() => onSave({ active: !item.active })}
                 >
                   {item.active ? '停用卡片' : '重新启用'}
+                </button>
+                <button
+                  className={`w1-tododelete${confirmingDelete ? ' confirming' : ''}`}
+                  type="button"
+                  onClick={requestDelete}
+                  onBlur={() => {
+                    if (deleteTimer.current) window.clearTimeout(deleteTimer.current)
+                    setConfirmingDelete(false)
+                  }}
+                >
+                  {confirmingDelete ? '再次点击确认删除' : '删除卡片'}
                 </button>
               </div>
             </form>
@@ -380,6 +414,7 @@ export function LearningLibrary({ onStartReview }: LearningLibraryProps) {
   const setScope = useWorkstation((state) => state.setLearningScope)
   const addItem = useWorkstation((state) => state.addLearningItem)
   const updateItem = useWorkstation((state) => state.updateLearningItem)
+  const removeItem = useWorkstation((state) => state.removeLearningItem)
   const now = useNow(60_000)
   const today = dateKey(now)
   const api = typeof window === 'undefined' ? undefined : window.ws?.learning
@@ -744,6 +779,11 @@ export function LearningLibrary({ onStartReview }: LearningLibraryProps) {
                 onSave={(patch) => {
                   updateItem(item.id, patch)
                   setExpandedId(null)
+                }}
+                onDelete={() => {
+                  removeItem(item.id)
+                  setExpandedId(null)
+                  setNotice('卡片已删除')
                 }}
                 onCollapse={() => setExpandedId(null)}
               />

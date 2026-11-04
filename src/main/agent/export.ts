@@ -31,6 +31,12 @@ export function buildSessionMarkdown(
   for (const message of messages) {
     const who = message.role === 'user' ? '我' : AGENT_LABEL[session.agent]
     lines.push(`## ${who} · ${message.timeLabel}`, '', message.text.trim() || '（空）', '')
+    if (message.contextFiles?.length) {
+      lines.push(`> 附件：${message.contextFiles.join('、')}`, '')
+    }
+    if (message.images?.length) {
+      lines.push(`> 图片：${message.images.map((image) => image.name).join('、')}`, '')
+    }
     for (const tool of message.tools ?? []) {
       const meta = tool.meta.replace(/\s+/g, ' ').trim().slice(0, 160)
       lines.push(`> 工具：${tool.name}${meta ? ` · ${meta}` : ''} · ${tool.status}`, '')

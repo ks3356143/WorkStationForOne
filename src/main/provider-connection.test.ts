@@ -445,6 +445,46 @@ describe('Provider 模型列表', () => {
     expect(denied.message).toContain('401')
   })
 
+  it('模型不存在时给出模型名与修改建议', async () => {
+    const baseUrl = await withServer(async (req, res) => {
+      await readBody(req)
+      res.writeHead(400, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ error: { message: 'Model Not Exist' } }))
+    })
+    const result = await testProviderConnection({
+      target: 'codex',
+      wireApi: 'responses',
+      baseUrl,
+      model: 'missing-model',
+      token: 'secret-token'
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.message).toContain('模型不可用')
+    expect(result.message).toContain('模型名')
+    expect(result.message).not.toContain('secret-token')
+  })
+
+  it('404 提示 Base URL 与协议不匹配', async () => {
+    const baseUrl = await withServer(async (req, res) => {
+      await readBody(req)
+      res.writeHead(404, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ error: { message: 'not found' } }))
+    })
+    const result = await testProviderConnection({
+      target: 'codex',
+      wireApi: 'responses',
+      baseUrl,
+      model: 'deepseek-flash',
+      token: 'secret-token'
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.message).toContain('接口地址或协议')
+    expect(result.message).toContain('Responses')
+    expect(result.message).toContain('/anthropic')
+  })
+
   it('模型列表请求超时返回超时原因', async () => {
     const baseUrl = await withServer((_req, res) => {
       setTimeout(() => {

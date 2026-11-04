@@ -52,4 +52,15 @@ export function registerHabitHandlers(repository: HabitRepository): void {
     if (typeof done !== 'boolean') throw new TypeError('打卡状态无效')
     repository.setCheckin(assertId(id), day, done)
   })
+
+  ipcMain.handle(IPC.habitsCreate, (_event, name: unknown) => {
+    if (repository.list().length >= MAX_HABITS) throw new TypeError('习惯数量过多')
+    return repository.create(assertName(name))
+  })
+
+  ipcMain.handle(IPC.habitsRename, (_event, id: unknown, name: unknown) =>
+    repository.rename(assertId(id), assertName(name))
+  )
+
+  ipcMain.handle(IPC.habitsRemove, (_event, id: unknown) => repository.remove(assertId(id)))
 }

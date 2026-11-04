@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { NotePatch, NoteRecord, NoteSearchHit } from '../../../shared/ipc'
+import type { NotePatch, NoteRecord, NoteSearchHit, NoteTags } from '../../../shared/ipc'
 import { useWorkstation } from '../store/useWorkstation'
 import { noteToCard } from '../lib/note-card'
 import { PlusIcon } from './Glyphs'
@@ -41,6 +41,7 @@ export function NotesView() {
   const noteJump = useWorkstation((state) => state.noteJump)
   const clearNoteJump = useWorkstation((state) => state.clearNoteJump)
   const openQuickNote = useWorkstation((state) => state.openQuickNote)
+  const toggleNotePin = useWorkstation((state) => state.toggleNotePin)
   const updateNote = useWorkstation((state) => state.updateNote)
   const removeNote = useWorkstation((state) => state.removeNote)
   const setView = useWorkstation((state) => state.setView)
@@ -56,6 +57,10 @@ export function NotesView() {
   const [error, setError] = useState<string | null>(null)
   const [detail, setDetail] = useState<NoteDetailValue | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [tags, setTags] = useState<NoteTags>({ total: 0, tags: [] })
+  const [tagsLoaded, setTagsLoaded] = useState(false)
+  const [activeTag, setActiveTag] = useState<string | null>(null)
+  const [pinningId, setPinningId] = useState<string | null>(null)
   const offsetRef = useRef(0)
   const searchSeq = useRef(0)
   const revisionRef = useRef(noteRevision)
@@ -85,7 +90,7 @@ export function NotesView() {
       setError(null)
       try {
         const offset = reset ? 0 : offsetRef.current
-        const page = await api.page(offset, PAGE_SIZE)
+        const page = await api.page(offset, PAGE_SIZE, activeTag ?? undefined)
         offsetRef.current = offset + page.items.length
         setRows((current) =>
           reset ? notesToRows(page.items) : [...current, ...notesToRows(page.items)]
@@ -100,8 +105,38 @@ export function NotesView() {
         setLoading(false)
       }
     },
-    [api]
+    [api, activeTag]
   )
+
+  const loadTags = useCallback(async () => {
+    if (!api) return
+    try {
+      setTags(await api.tags())
+    } catch (cause) {
+      console.error('[notes] 读取标签失败', cause)
+    } finally {
+      setTagsLoaded(true)
+    }
+  }, [api])
+
+  useEffect(() => {
+    void loadTags()
+  }, [loadTags])
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: noteRevision 是刷新标签计数的触发器
+  useEffect(() => {
+    if (!loading) void loadTags()
+  }, [loading, loadTags, noteRevision])
+
+  useEffect(() => {
+    if (!tagsLoaded) return
+    if (activeTag && !tags.tags.some((item) => item.tag === activeTag)) setActiveTag(null)
+  }, [activeTag, tags, tagsLoaded])
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: noteRevision 是清空置顶 busy 状态的触发器
+  useEffect(() => {
+    setPinningId(null)
+  }, [noteRevision])
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: api 与 loadPage 在挂载后不变，只在挂载时拉第一页
   useEffect(() => {
@@ -125,7 +160,7 @@ export function NotesView() {
     void loadPage(true)
   }, [api, loading, noteRevision, query, loadPage])
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: 依赖刻意收窄到 query/searchRefresh；loadPage 依赖 loading，展开会重复触发搜索
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 依赖刻意收窄到 query/searchRefresh/activeTag；loadPage 依赖 loading，展开会重复触发搜索
   useEffect(() => {
     const trimmed = query.trim()
 
@@ -158,7 +193,7 @@ export function NotesView() {
     setError(null)
     const timer = window.setTimeout(() => {
       void api
-        .search(trimmed, SEARCH_LIMIT)
+        .search(trimmed, SEARCH_LIMIT, activeTag ?? undefined)
         .then((hits) => {
           if (seq !== searchSeq.current) return
           setRows(hitsToRows(hits))
@@ -186,7 +221,7 @@ export function NotesView() {
         setLoading(false)
       }
     }
-  }, [query, searchRefresh])
+  }, [query, searchRefresh, activeTag])
 
   useEffect(() => {
     if (!noteJump) return
@@ -207,6 +242,16 @@ export function NotesView() {
   }
 
   const closeDetail = () => setDetail(null)
+
+  const togglePin = (row: NoteListRow) => {
+    if (pinningId) return
+    setPinningId(row.id)
+    setRows((current) =>
+      current.map((item) => (item.id === row.id ? { ...item, pinned: !item.pinned } : item))
+    )
+    toggleNotePin(row.id)
+    flash(row.pinned ? '已取消置顶' : '已置顶')
+  }
 
   const saveDetail = (patch: NotePatch) => {
     if (!detail) return
@@ -302,6 +347,30 @@ export function NotesView() {
           </div>
         )}
 
+        {!graphOpen && tags.tags.length > 0 ? (
+          <div className="w1-nvtagbar" role="group" aria-label="按标签筛选">
+            <button
+              className={`w1-nvfilter${activeTag === null ? ' on' : ''}`}
+              type="button"
+              aria-pressed={activeTag === null}
+              onClick={() => setActiveTag(null)}
+            >
+              全部 <i>{tags.total}</i>
+            </button>
+            {tags.tags.map((item) => (
+              <button
+                key={item.tag}
+                className={`w1-nvfilter${activeTag === item.tag ? ' on' : ''}`}
+                type="button"
+                aria-pressed={activeTag === item.tag}
+                onClick={() => setActiveTag(activeTag === item.tag ? null : item.tag)}
+              >
+                #{item.tag} <i>{item.count}</i>
+              </button>
+            ))}
+          </div>
+        ) : null}
+
         {error ? <div className="w1-nverror">{error}</div> : null}
         {notice ? <div className="w1-nvnotice">{notice}</div> : null}
 
@@ -319,8 +388,11 @@ export function NotesView() {
               rows={rows}
               loading={loading}
               mode={mode}
-              resetKey={`${mode}:${query}`}
+              resetKey={`${mode}:${query}:${activeTag ?? ''}`}
               onOpen={openDetail}
+              onTogglePin={togglePin}
+              pinningId={pinningId}
+              emptyLabel={activeTag ? `标签 #${activeTag} 下还没有笔记。` : undefined}
               endLabel={
                 !hasMore && rows.length > 0
                   ? `// END · ${mode === 'search' ? '命中' : '共'} ${total} 条`
@@ -346,7 +418,9 @@ export function NotesView() {
               ? '滚轮缩放 · 拖拽平移 · 点击打开笔记'
               : mode === 'search'
                 ? '两字以内自动回退模糊匹配'
-                : '置顶优先 · 按更新时间排序'}
+                : activeTag
+                  ? `标签 #${activeTag} · 置顶优先`
+                  : '置顶优先 · 按更新时间排序'}
           </span>
         </div>
       </div>

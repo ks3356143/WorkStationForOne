@@ -21,7 +21,13 @@ function apply(event: AgentRunEvent, sessionId: string): void {
     case 'tool':
       store.upsertAgentTool(
         sessionId,
-        { id: event.id, name: event.name, meta: event.detail, status: '运行中' },
+        {
+          id: event.id,
+          name: event.name,
+          meta: event.detail,
+          status: '运行中',
+          ...(event.diffs?.length ? { diffs: event.diffs } : {})
+        },
         '运行中'
       )
       break
@@ -31,10 +37,14 @@ function apply(event: AgentRunEvent, sessionId: string): void {
     case 'permission':
       store.setToolPermission(sessionId, event.request)
       break
+    case 'question':
+      store.setAgentQuestion(sessionId, event.request)
+      break
     case 'error':
       store.finishAgentReply(sessionId, event.message)
       break
-    case 'result':
+    case 'done':
+      // result 只表示模型回合结束；CLI 进程退出后主进程才发 done，避免立刻发送撞上运行锁。
       store.finishAgentReply(sessionId)
       break
     default:
@@ -68,11 +78,19 @@ export function useAgentRun(): void {
         return
       }
       apply(envelope.event, sessionId)
-      if (envelope.event.kind === 'result' || envelope.event.kind === 'error') {
+      if (envelope.event.kind === 'done' || envelope.event.kind === 'error') {
         runSessions.current.delete(envelope.runId)
         finishedRuns.current.add(envelope.runId)
         buffered.current = buffered.current.filter((item) => item.runId !== envelope.runId)
       }
+    })
+  }, [bridge])
+
+  // 后台通知点击：切回对应会话，并让 AgentDock 把审批 / 追问卡滚进视野
+  useEffect(() => {
+    if (!bridge?.onAttention) return
+    return bridge.onAttention((attention) => {
+      useWorkstation.getState().focusAgentAttention(attention.sessionId, attention.requestId)
     })
   }, [bridge])
 
@@ -124,7 +142,9 @@ export function useAgentRun(): void {
         sessionId: session.id,
         agent: session.agent,
         prompt: next.prompt,
-        ...(resumeId ? { resumeId } : {})
+        ...(resumeId ? { resumeId } : {}),
+        ...(next.contextFiles ? { contextFiles: next.contextFiles } : {}),
+        ...(next.images ? { images: next.images } : {})
       })
       .then(({ runId }) => {
         useWorkstation.getState().bindAgentRun(session.id, runId)

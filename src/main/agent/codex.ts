@@ -6,6 +6,7 @@ import type { AgentRunEvent } from '../../shared/agent-stream'
 import type { CodexMcpRuntime } from '../capabilities/codex-mcp'
 import type { ProviderRuntime } from '../providers'
 import { resolveCodexCli, type AgentCli } from './cli'
+import { buildCodexFileDiffs } from './file-diff'
 
 const RUN_TIMEOUT_MS = 10 * 60 * 1000
 const MAX_DETAIL = 120
@@ -32,14 +33,15 @@ function itemStatus(item: Record<string, unknown>): string {
  * 与其加 --dangerously-* 或私自放行写入，不如让它在 read-only 沙箱里跑。
  * `-c` 只作用于这一轮子进程，不写 ~/.codex/config.toml。
  */
-export function buildCodexArgs(cli: AgentCli, resumeId?: string): string[] {
+export function buildCodexArgs(cli: AgentCli, resumeId?: string, flags: string[] = []): string[] {
   const common = [
     '--json',
     '--skip-git-repo-check',
     '-c',
     'sandbox_mode="read-only"',
     '-c',
-    'approval_policy="never"'
+    'approval_policy="never"',
+    ...flags.flatMap((flag) => ['-c', flag])
   ]
   if (resumeId) {
     return [...cli.prefixArgs, 'exec', 'resume', ...common, resumeId, '-']
@@ -158,7 +160,10 @@ export function parseCodexLine(line: string): AgentRunEvent[] {
 
   const name = toolName(item, itemType)
   if (!name) return []
-  const events: AgentRunEvent[] = [{ kind: 'tool', id, name, detail: toolDetail(item, itemType) }]
+  const diffs = itemType === 'file_change' ? buildCodexFileDiffs(item.changes) : undefined
+  const events: AgentRunEvent[] = [
+    { kind: 'tool', id, name, detail: toolDetail(item, itemType), ...(diffs ? { diffs } : {}) }
+  ]
   if (type === 'item.completed') {
     events.push({
       kind: 'tool-result',
@@ -179,6 +184,8 @@ export interface CodexRunOptions {
   provider?: ProviderRuntime
   /** 工具维护的 Codex home；provider 存在时必须提供 */
   home?: string
+  /** 工具面关闭项生成的进程级 -c 参数 */
+  flags?: string[]
   onEvent: (event: AgentRunEvent) => void
   onExit: (info: { code: number | null; stderr: string; cancelled: boolean }) => void
   /** 省略时按环境解析；显式传 null 表示「没有可用的 CLI」 */
@@ -307,7 +314,7 @@ export function startCodexRun(options: CodexRunOptions): CodexRunHandle {
     writeCodexProviderConfig(options.home, options.provider)
   }
 
-  const args = buildCodexArgs(cli, options.resumeId)
+  const args = buildCodexArgs(cli, options.resumeId, options.flags)
   const child: ChildProcessWithoutNullStreams = spawn(cli.bin, args, {
     cwd: options.cwd,
     env: {

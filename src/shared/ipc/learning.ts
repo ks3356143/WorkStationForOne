@@ -75,6 +75,7 @@ export interface LearningApi {
   bootstrap: (items: LearningItemRecord[]) => Promise<void>
   create: (draft: LearningDraft) => Promise<LearningItemRecord>
   update: (id: string, patch: LearningPatch) => Promise<void>
+  remove: (id: string) => Promise<boolean>
   review: (id: string, rating: LearningRating) => Promise<LearningItemRecord>
   createMany: (drafts: LearningDraft[]) => Promise<LearningImportResult>
   exportCards: (subject?: string) => Promise<LearningExportResult>

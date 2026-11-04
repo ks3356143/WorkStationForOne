@@ -84,6 +84,25 @@ describe('parseAgentLine · 基础事件', () => {
     ])
   })
 
+  it('只给 subtype 时翻译成可读原因', () => {
+    expect(
+      parseAgentLine(line({ type: 'result', subtype: 'error_max_turns', is_error: true }))
+    ).toEqual([{ kind: 'error', message: '达到最大轮次限制' }])
+    const unknown = parseAgentLine(
+      line({ type: 'result', subtype: 'error_during_execution', is_error: true })
+    )
+    expect(unknown).toEqual([{ kind: 'error', message: 'CLI 执行失败，但没有返回具体原因' }])
+  })
+
+  it('长错误保留足够详情供排查，不被工具摘要长度截断', () => {
+    const detail = 'API Error: 400 maximum context length is 65536 tokens; '.repeat(10)
+    const events = parseAgentLine(
+      line({ type: 'result', subtype: 'error_during_execution', is_error: true, result: detail })
+    )
+    expect(events[0]).toMatchObject({ kind: 'error' })
+    expect(String((events[0] as { message: string }).message).length).toBeGreaterThan(400)
+  })
+
   it('失败结果转成 error 事件', () => {
     const events = parseAgentLine(
       line({

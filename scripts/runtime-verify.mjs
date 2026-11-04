@@ -245,32 +245,6 @@ async function launch(phase) {
     console.error('[focus window]', error.message)
   }
 
-  // Electron 45 没有 getTitleBarOverlay()，用原型探针记录真实的 setTitleBarOverlay 调用。
-  try {
-    await evaluate(
-      main,
-      `(() => {
-        let req
-        try { req = require } catch { req = process.mainModule && process.mainModule.require.bind(process.mainModule) }
-        const { BrowserWindow } = req('electron')
-        if (!globalThis.__overlayCalls) {
-          globalThis.__overlayCalls = []
-          const prototype = BrowserWindow.prototype
-          const original = prototype.setTitleBarOverlay
-          if (typeof original !== 'function') return { patched: false }
-          prototype.setTitleBarOverlay = function (options) {
-            globalThis.__overlayCalls.push({ options, at: Date.now() })
-            return original.call(this, options)
-          }
-        }
-        return { patched: true }
-      })()`,
-      'overlay probe'
-    )
-  } catch (error) {
-    console.error('[overlay probe]', error.message)
-  }
-
   await waitFor(
     async () => (await evaluate(page, 'document.readyState', 'readyState')) === 'complete',
     { timeout: 30000, label: 'readyState complete' }
@@ -431,8 +405,8 @@ const clickThemeExpr = `(async () => {
 })()`
 
 const expectedWindow = {
-  dark: { bg: '#070812', symbol: '#b7c9dc' },
-  light: { bg: '#eef2fb', symbol: '#35415c' }
+  dark: { bg: '#070812' },
+  light: { bg: '#eef2fb' }
 }
 
 const VIEW_EXPECTATIONS = {
@@ -1119,21 +1093,6 @@ async function assertWindow(theme, label) {
   return snapshot
 }
 
-async function assertOverlayCall(theme, label) {
-  const calls = await mainEval('globalThis.__overlayCalls || []', 'overlay calls')
-  const last = calls.at(-1)
-  const expected = expectedWindow[theme]
-  record(
-    `${label}：标题栏 overlay 调用`,
-    Boolean(last) &&
-      normalizeColor(last.options?.color) === expected.bg &&
-      normalizeColor(last.options?.symbolColor) === expected.symbol &&
-      last.options?.height === 52,
-    last ? last.options : '无调用记录'
-  )
-  return last
-}
-
 async function assertState(theme, label, { toast = null } = {}) {
   const state = await pageEval(stateExpr, `${label} state`)
   const expected =
@@ -1758,16 +1717,46 @@ async function main() {
   record('渲染进程无 Node require', security.require === 'undefined', security.require)
   record('渲染进程无 process', security.process === 'undefined', security.process)
   record(
-    'preload 桥仅暴露窄接口（tasks/reminders/notes/capture/learning/habits/agent/mcp/capability/provider/audit/app.setTheme+backupRestore+info+storage）',
+    'preload 桥仅暴露窄接口（tasks/reminders/notes/capture/learning/habits/agent/mcp/capability/provider/audit/app.setTheme+windowControls+backupRestore+info+storage）',
     security.invoke === 'function' &&
       !security.dbAccess &&
       [...security.wsKeys].sort().join() ===
         'agent,app,audit,capability,capture,habits,learning,mcp,notes,provider,reminders,tasks' &&
       security.appKeys.join() ===
-        'setTheme,backupNow,listBackups,restoreBackup,restoreStatus,relaunch,info,storage,pickStorage,cancelStorage',
+        'setTheme,windowMinimize,windowToggleMaximize,windowClose,windowState,onWindowState,backupNow,listBackups,restoreBackup,restoreStatus,relaunch,info,storage,pickStorage,cancelStorage',
     security
   )
   phases[0].security = security
+
+  const windowControls = await pageEval(
+    `(() => ({
+      count: document.querySelectorAll('.w1-wcbtn').length,
+      labels: [...document.querySelectorAll('.w1-wcbtn')].map((b) => b.getAttribute('aria-label') || ''),
+      overlayVisible: navigator.windowControlsOverlay?.visible === true,
+      minimize: typeof window.ws?.app?.windowMinimize,
+      toggle: typeof window.ws?.app?.windowToggleMaximize,
+      close: typeof window.ws?.app?.windowClose
+    }))()`,
+    'window controls'
+  )
+  record(
+    '窗口控制为三枚自绘按钮',
+    windowControls.count === 3 && windowControls.labels.join('/') === '最小化/最大化/关闭',
+    windowControls.labels
+  )
+  record(
+    '原生窗口按钮覆盖层已关闭',
+    windowControls.overlayVisible === false,
+    windowControls.overlayVisible
+  )
+  record(
+    '窗口控制 IPC 可用',
+    windowControls.minimize === 'function' &&
+      windowControls.toggle === 'function' &&
+      windowControls.close === 'function',
+    windowControls
+  )
+  phases[0].windowControls = windowControls
 
   const reminderMute = await pageEval(
     `(async () => {
@@ -1827,7 +1816,6 @@ async function main() {
   )
   await assertState('light', '白天基线', { toast: '已切换到白天模式' })
   await assertWindow('light', '切到白天后')
-  await assertOverlayCall('light', '切到白天后')
 
   const ipcLight = await pageEval(
     `(async () => { const t0 = performance.now(); const value = await window.ws.app.setTheme('light'); return { ms: +(performance.now() - t0).toFixed(2), value: value ?? null } })()`,
@@ -1839,7 +1827,6 @@ async function main() {
     'ipc dark'
   )
   await assertWindow('dark', 'IPC 同步到夜间')
-  await assertOverlayCall('dark', 'IPC 同步到夜间')
   const invalid = await pageEval(
     `(async () => { try { await window.ws.app.setTheme('sepia'); return { rejected: false } } catch (error) { return { rejected: true, message: String(error && error.message ? error.message : error) } } })()`,
     'ipc invalid'
@@ -1979,14 +1966,12 @@ async function main() {
     `${persistedUi.theme} / ${persistedUi.stored}`
   )
   await assertWindow('light', '持久化前')
-  await assertOverlayCall('light', 'IPC 恢复白天')
 
   const reload = await themeReloadInstrumentation()
   phases[0].reload = reload
   const reloadState = await assertState('light', '重载后')
   phases[0].reloadState = reloadState
   await assertWindow('light', '重载后')
-  await assertOverlayCall('light', '重载后')
 
   // Skin persists across reload, and the pre-paint script applies it before stylesheets.
   const classicBeforeReload = await pageEval(
@@ -2052,7 +2037,6 @@ async function main() {
     restoredAfterMetrics.after
   )
   await assertWindow('light', '性能测量后')
-  await assertOverlayCall('light', '性能测量后')
   const viewPerformance = await measureViewPerformance()
   phases[0].performance = themeToggleMetrics
   phases[0].viewPerformance = viewPerformance
@@ -2146,7 +2130,6 @@ async function main() {
   )
   await assertState('dark', '切回夜间后', { toast: '已切换到夜间模式' })
   await assertWindow('dark', '切回夜间后')
-  await assertOverlayCall('dark', '切回夜间后')
   const darkTokens = await tokenSnapshot()
   const contrastDark = auditContrast('dark', darkTokens)
   phases[1].tokens = { dark: darkTokens }

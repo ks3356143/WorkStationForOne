@@ -291,6 +291,7 @@ export function registerPluginHandlers(
       removeSyncedSkills(center.codexHome, id)
     }
     center.repository.removePlugin(id, agent)
+    center.toolSurface.remove(agent, `skill:${id}`)
     record('plugin.remove', `${agent} · ${id}`)
   })
 }

@@ -8,7 +8,8 @@ const { version } = JSON.parse(readFileSync(resolve('package.json'), 'utf8')) as
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()]
+    // diff 只在主进程用于生成审批预览；便携包不带 node_modules，必须内联。
+    plugins: [externalizeDepsPlugin({ exclude: ['diff'] })]
   },
   preload: {
     plugins: [externalizeDepsPlugin()]

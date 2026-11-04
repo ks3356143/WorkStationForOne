@@ -232,6 +232,46 @@ describe('发送请求', () => {
       })
     ).toThrow(TypeError)
   })
+
+  it('接受去重后的附件路径，并限制数量与形状', () => {
+    expect(
+      registerAgentHandlersIPC.assertAgentSendInput({
+        sessionId: 's-1',
+        agent: 'claude',
+        prompt: '看看这两个文件',
+        contextFiles: [' src/a.ts ', 'src/a.ts', 'docs/b.md']
+      })
+    ).toEqual({
+      sessionId: 's-1',
+      agent: 'claude',
+      prompt: '看看这两个文件',
+      contextFiles: ['src/a.ts', 'docs/b.md']
+    })
+    expect(() =>
+      registerAgentHandlersIPC.assertAgentSendInput({
+        sessionId: 's-1',
+        agent: 'claude',
+        prompt: 'x',
+        contextFiles: Array.from({ length: 9 }, (_, index) => `f${index}.ts`)
+      })
+    ).toThrow(TypeError)
+    expect(() =>
+      registerAgentHandlersIPC.assertAgentSendInput({
+        sessionId: 's-1',
+        agent: 'claude',
+        prompt: 'x',
+        contextFiles: 'src/a.ts'
+      })
+    ).toThrow(TypeError)
+    expect(() =>
+      registerAgentHandlersIPC.assertAgentSendInput({
+        sessionId: 's-1',
+        agent: 'claude',
+        prompt: 'x',
+        contextFiles: ['']
+      })
+    ).toThrow(TypeError)
+  })
 })
 
 describe('智能体消息参数', () => {
@@ -247,6 +287,39 @@ describe('智能体消息参数', () => {
 
   it('接受带工具卡的助手消息', () => {
     expect(registerAgentHandlersIPC.assertAgentMessage(message)).toEqual(message)
+  })
+
+  it('保留用户消息的附件路径并限制形状', () => {
+    const withContext = { ...message, contextFiles: ['src/a.ts', 'docs/b.md'] }
+    expect(registerAgentHandlersIPC.assertAgentMessage(withContext)).toEqual(withContext)
+    expect(() =>
+      registerAgentHandlersIPC.assertAgentMessage({ ...message, contextFiles: [''] })
+    ).toThrow(TypeError)
+    expect(() =>
+      registerAgentHandlersIPC.assertAgentMessage({
+        ...message,
+        contextFiles: Array.from({ length: 9 }, (_, index) => `f${index}.ts`)
+      })
+    ).toThrow(TypeError)
+  })
+
+  it('保留工具卡的文件改动，非法形状直接拒绝', () => {
+    const withDiff = {
+      ...message,
+      tools: [
+        {
+          ...message.tools[0],
+          diffs: [{ path: 'src/a.ts', oldText: 'a', newText: 'b', kind: 'update', partial: true }]
+        }
+      ]
+    }
+    expect(registerAgentHandlersIPC.assertAgentMessage(withDiff)).toEqual(withDiff)
+    expect(() =>
+      registerAgentHandlersIPC.assertAgentMessage({
+        ...withDiff,
+        tools: [{ ...withDiff.tools[0], diffs: [{ path: 'src/a.ts', oldText: 1, newText: '' }] }]
+      })
+    ).toThrow(TypeError)
   })
 
   it('拒绝非法角色、工具结构与超长文本', () => {

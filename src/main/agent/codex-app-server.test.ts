@@ -39,7 +39,11 @@ function run(
     resumeId?: string
     forkThread?: boolean
     forkTurnId?: string
+    planMode?: boolean
+    images?: string[]
     externalMcp?: CodexMcpRuntime
+    flags?: string[]
+    developerInstructions?: string
     autoApprove?: (toolName: string) => 'session' | 'workspace' | null
     onPermission?: (handle: ReturnType<typeof startCodexAppServerRun>) => void
   } = {}
@@ -52,7 +56,13 @@ function run(
       ...(options.resumeId ? { resumeId: options.resumeId } : {}),
       ...(options.forkThread ? { forkThread: true } : {}),
       ...(options.forkTurnId ? { forkTurnId: options.forkTurnId } : {}),
+      ...(options.planMode ? { planMode: true } : {}),
+      ...(options.images ? { images: options.images } : {}),
       ...(options.externalMcp ? { externalMcp: options.externalMcp } : {}),
+      ...(options.flags ? { flags: options.flags } : {}),
+      ...(options.developerInstructions
+        ? { developerInstructions: options.developerInstructions }
+        : {}),
       ...(options.autoApprove ? { autoApprove: options.autoApprove } : {}),
       cwd: process.cwd(),
       provider,
@@ -338,6 +348,35 @@ describe('Codex app-server 事件解析', () => {
     expect(parser.parse('not-json')).toEqual([])
   })
 
+  it('patchUpdated 把最新 diff 合并进工具卡', () => {
+    const parser = createCodexAppServerParser()
+    const events = parser.parse({
+      method: 'item/fileChange/patchUpdated',
+      params: {
+        threadId: 't1',
+        turnId: 'u1',
+        itemId: 'f1',
+        changes: [
+          {
+            path: 'src/a.ts',
+            kind: { type: 'update' },
+            diff: '@@ -1,2 +1,2 @@\n a\n-b\n+B\n'
+          }
+        ]
+      }
+    })
+
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({
+      kind: 'tool',
+      id: 'f1',
+      name: 'Patch',
+      detail: 'src/a.ts',
+      diffs: [{ path: 'src/a.ts', oldText: 'a\nb', newText: 'a\nB', partial: true }]
+    })
+    expect(parser.item('f1')).toMatchObject({ changes: [{ path: 'src/a.ts' }] })
+  })
+
   it('保存文件改动条目，供审批卡显示目标路径', () => {
     const parser = createCodexAppServerParser()
     parser.parse({
@@ -389,6 +428,38 @@ describe('startCodexAppServerRun · stub 链路', () => {
     expect(streamText(events)).toBe('Codex 工作区回复：入口文件已读取。')
     expect(events).toContainEqual({ kind: 'result', ok: true })
     expect(events.filter((event) => event.kind === 'init')).toHaveLength(1)
+  })
+
+  it('图片以 localImage 输入发送', async () => {
+    const { events, done } = run('图片上下文', {
+      images: [join(process.cwd(), 'resources', 'icon.png')]
+    })
+    const exit = await done
+
+    expect(exit).toMatchObject({ code: 0, cancelled: false })
+    expect(streamText(events)).toBe('图片：已收到 1 张 localImage。')
+  })
+
+  it('计划模式使用只读线程且不放行写入', async () => {
+    const { events, done } = run('计划模式 写一个文件', { planMode: true })
+    const exit = await done
+
+    expect(exit).toMatchObject({ code: 0, cancelled: false })
+    expect(streamText(events)).toBe('计划模式：只读线程。')
+    expect(events.some((event) => event.kind === 'permission')).toBe(false)
+  })
+
+  it('工具面 flags 与优先级提示进入线程', async () => {
+    const { events, done } = run('工具面检查', {
+      flags: ['features.computer_use=false', 'web_search="disabled"'],
+      developerInstructions: '[工具优先级]\n优先使用已启用的 MCP。'
+    })
+    const exit = await done
+
+    expect(exit).toMatchObject({ code: 0, cancelled: false })
+    expect(streamText(events)).toBe(
+      '工具面：features.computer_use=false|web_search="disabled"；优先级 有；首选 无'
+    )
   })
 
   it('允许一次后把 accept 回传给 app-server 并继续本轮', async () => {
@@ -452,7 +523,8 @@ describe('startCodexAppServerRun · stub 链路', () => {
           toolName: 'Patch',
           detail: 'note.txt',
           toolUseId: 'file_write',
-          description: 'Codex 想新增 note.txt'
+          description: 'Codex 想新增 note.txt',
+          diffs: [{ path: 'note.txt', oldText: '', newText: 'hello', kind: 'add', partial: true }]
         })
         expect(active.respondPermission(request.request.requestId, 'allow')).toBe(true)
       }

@@ -47,4 +47,22 @@ describe('会话导出 Markdown', () => {
     expect(text).not.toContain('s-1')
     expect(text).not.toContain('m-1')
   })
+
+  it('导出用户消息附带的文件路径', () => {
+    const text = buildSessionMarkdown(session, [
+      { ...user, contextFiles: ['src/a.ts', 'docs/b.md'] }
+    ])
+    expect(text).toContain('> 附件：src/a.ts、docs/b.md')
+  })
+
+  it('导出用户消息附带的图片名称', () => {
+    const text = buildSessionMarkdown(session, [
+      {
+        ...user,
+        images: [{ id: 'img-1', name: 'shot.png', mime: 'image/png', size: 70 }]
+      }
+    ])
+    expect(text).toContain('> 图片：shot.png')
+    expect(text).not.toContain('img-1')
+  })
 })

@@ -6,6 +6,11 @@ import type { WsApi } from './ipc/ws-api'
 
 export { APPROVAL_SCOPES } from './approval-rules'
 export type { ApprovalAgent, ApprovalScope } from './approval-rules'
+export type {
+  AgentQuestion,
+  AgentQuestionOption,
+  AgentQuestionRequest
+} from './agent-stream'
 export type { RepeatRule } from './repeat'
 
 export type { Theme, Skin } from './ipc/app'
@@ -23,6 +28,8 @@ export type {
   NoteRecord,
   NotePage,
   NoteSearchHit,
+  NoteTagCount,
+  NoteTags,
   NotePatch,
   NoteLinkStatus,
   NoteLinkRef,
@@ -52,6 +59,7 @@ export type {
   AgentSessionRecord,
   AgentMessageRecord,
   AgentThreadBundle,
+  AgentSessionSummary,
   AgentSessionSearchHit,
   AgentExportResult,
   AgentCreateInput,
@@ -69,6 +77,8 @@ export type {
   ProviderApi,
   ApprovalRuleRecord,
   AgentPermissionResponse,
+  AgentQuestionResponse,
+  AgentAttention,
   AgentEventEnvelope,
   DiscoveredAgentSession,
   AgentImportInput,
@@ -77,6 +87,13 @@ export type {
   AgentForkResult,
   AgentPresetRecord,
   AgentPresetInput,
+  AgentCheckpointFile,
+  AgentCheckpointRecord,
+  AgentCheckpointFileView,
+  AgentCheckpointView,
+  AgentRollbackResult,
+  AgentImageRef,
+  AgentImageInput,
   AgentRunRecord,
   WorkspaceEntry,
   WorkspaceFile,
@@ -95,6 +112,11 @@ export type {
 export { EXTERNAL_MCP_TARGETS } from './ipc/capability'
 export type {
   BuiltinToolRecord,
+  ToolSurfaceNativeRecord,
+  ToolSurfaceMcpRecord,
+  ToolSurfaceSkillRecord,
+  ToolSurfaceRecord,
+  ToolSurfaceBundle,
   SkillRecord,
   PluginAgent,
   PluginSourceKind,

@@ -210,6 +210,21 @@ describe('LearningRepository · 写入', () => {
     expect(repo.find('l1')?.title).toBe('analyze')
     db.close()
   })
+
+  it('删除卡片同时清掉复习记录，重复删除返回 false', () => {
+    const { db, repo } = seedDb()
+    repo.bootstrap([item(), item({ id: 'l2', title: 'significant' })])
+    repo.review('l1', 3, '2026-10-27')
+    expect(repo.reviewCount('l1')).toBe(1)
+
+    expect(repo.remove('l1')).toBe(true)
+    expect(repo.find('l1')).toBeUndefined()
+    expect(repo.list().map((card) => card.id)).toEqual(['l2'])
+    expect(repo.reviewCount('l1')).toBe(0)
+    expect(repo.reviewHistory(7)).toEqual([])
+    expect(repo.remove('l1')).toBe(false)
+    db.close()
+  })
 })
 
 describe('LearningRepository · 批量导入', () => {

@@ -60,8 +60,17 @@ export interface StorageInfo {
   locked: boolean
 }
 
+export interface WindowStateInfo {
+  maximized: boolean
+}
+
 export interface AppApi {
   setTheme: (theme: Theme) => Promise<void>
+  windowMinimize: () => Promise<void>
+  windowToggleMaximize: () => Promise<void>
+  windowClose: () => Promise<void>
+  windowState: () => Promise<WindowStateInfo>
+  onWindowState: (listener: (state: WindowStateInfo) => void) => () => void
   backupNow: () => Promise<BackupResult>
   listBackups: () => Promise<BackupList>
   restoreBackup: (name: string) => Promise<RestoreRequestResult>

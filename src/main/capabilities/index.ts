@@ -8,7 +8,9 @@ import { MCP_TOOLS } from '../mcp/tools'
 import { ClaudePluginService } from './claude-plugins'
 import type { CodexMcpRuntime } from './codex-mcp'
 import { McpServerService, type McpOAuthDeps, type McpServerRuntime } from './mcp-servers'
+import type { ToolPrefRepository } from '../db/tool-prefs'
 import { checkEnvironment } from './environment'
+import { ToolSurfaceService } from './tool-surface'
 
 export interface CapabilityCenter {
   plugins: ClaudePluginService
@@ -21,6 +23,8 @@ export interface CapabilityCenter {
   builtinTools: () => BuiltinToolRecord[]
   /** 切换内置工具开关，返回最新清单；未知工具名抛错 */
   setBuiltinTool: (name: string, enabled: boolean) => BuiltinToolRecord[]
+  /** 按 Agent 的统一工具面（原生 / MCP / 技能 / 数据桥） */
+  toolSurface: ToolSurfaceService
   environment: (force?: boolean) => Promise<EnvironmentCheckRecord[]>
 }
 
@@ -29,6 +33,7 @@ export interface AgentCapabilityRuntime {
   mcpServers: () => Promise<McpServerRuntime[]>
   toolPolicy: () => { allowed: string[]; denied: string[] }
   codexMcp: () => Promise<CodexMcpRuntime>
+  toolSurface: ToolSurfaceService
 }
 
 export function createCapabilityCenter(options: {
@@ -40,6 +45,8 @@ export function createCapabilityCenter(options: {
   oauth?: McpOAuthDeps
   /** 内置工具开关的仓储；省略时全部视为启用 */
   policy?: McpPolicyRepository
+  /** 工具面偏好仓储；省略时原生全部启用、MCP / 技能按名称排序 */
+  toolPrefs: ToolPrefRepository
 }): CapabilityCenter {
   const plugins = new ClaudePluginService(options.repository, options.appDataDir, options.pluginCli)
   const mcp = new McpServerService(options.repository, options.version, options.oauth)
@@ -65,6 +72,7 @@ export function createCapabilityCenter(options: {
       options.policy.setToolEnabled(name, enabled)
       return listBuiltin()
     },
+    toolSurface: new ToolSurfaceService(options.toolPrefs, options.repository, listBuiltin),
     environment: (force = false) => checkEnvironment(force)
   }
 }
@@ -74,6 +82,7 @@ export function agentCapabilityRuntime(center: CapabilityCenter): AgentCapabilit
     pluginDirs: () => center.plugins.pluginDirs(),
     mcpServers: () => center.mcp.runtimeServers('claude'),
     toolPolicy: () => center.mcp.claudeToolPolicy(),
-    codexMcp: () => center.mcp.codexRuntime()
+    codexMcp: () => center.mcp.codexRuntime(),
+    toolSurface: center.toolSurface
   }
 }

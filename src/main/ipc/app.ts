@@ -13,12 +13,10 @@ import {
   writeLocation
 } from '../storage/location'
 
-export const WINDOW_PALETTE: Record<Theme, { background: string; symbol: string }> = {
-  dark: { background: '#070812', symbol: '#B7C9DC' },
-  light: { background: '#EEF2FB', symbol: '#35415C' }
+export const WINDOW_PALETTE: Record<Theme, string> = {
+  dark: '#070812',
+  light: '#EEF2FB'
 }
-
-export const TITLE_BAR_HEIGHT = 52
 
 function assertTheme(value: unknown): Theme {
   if (value !== 'dark' && value !== 'light') throw new TypeError('主题无效')
@@ -143,20 +141,34 @@ export function registerAppHandlers(backup: BackupTarget): void {
     return storageInfo()
   })
 
+  const windowFrom = (event: Electron.IpcMainInvokeEvent): BrowserWindow | null => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    return win && !win.isDestroyed() ? win : null
+  }
+
   ipcMain.handle(IPC_CHANNELS.appSetTheme, (event, value: unknown) => {
     const theme = assertTheme(value)
-    const win = BrowserWindow.fromWebContents(event.sender)
-    if (!win || win.isDestroyed()) return
-    const palette = WINDOW_PALETTE[theme]
-    win.setBackgroundColor(palette.background)
-    try {
-      win.setTitleBarOverlay({
-        color: palette.background,
-        symbolColor: palette.symbol,
-        height: TITLE_BAR_HEIGHT
-      })
-    } catch {
-      // 无边框窗口（快速捕获窗）没有标题栏叠加层，只同步背景色即可。
-    }
+    const win = windowFrom(event)
+    if (!win) return
+    win.setBackgroundColor(WINDOW_PALETTE[theme])
   })
+
+  ipcMain.handle(IPC_CHANNELS.appWindowMinimize, (event) => {
+    windowFrom(event)?.minimize()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.appWindowToggleMaximize, (event) => {
+    const win = windowFrom(event)
+    if (!win) return
+    if (win.isMaximized()) win.unmaximize()
+    else win.maximize()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.appWindowClose, (event) => {
+    windowFrom(event)?.close()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.appWindowGetState, (event) => ({
+    maximized: windowFrom(event)?.isMaximized() ?? false
+  }))
 }

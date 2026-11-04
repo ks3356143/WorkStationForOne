@@ -147,7 +147,9 @@ button {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  /* clip 而不是 hidden：hidden 仍是滚动容器，scrollIntoView 会把整个外壳上移，
+     顶栏被窗口边缘裁掉（扫光元素超出高度让 scrollHeight > clientHeight）。 */
+  overflow: clip;
   background:
     radial-gradient(640px 540px at 78% -6%, rgb(var(--prism-1-rgb) / 0.16), transparent 62%),
     radial-gradient(560px 480px at 6% 88%, rgb(var(--prism-2-rgb) / 0.15), transparent 64%),
@@ -254,7 +256,8 @@ button {
 .w1-todorail,
 .w1-todoscroll,
 .w1-nvlist,
-.w1-palettelist {
+.w1-palettelist,
+.w1-diffview-body {
   scrollbar-width: thin;
   scrollbar-color: rgb(var(--ac-rgb) / 0.3) transparent;
 }
@@ -265,7 +268,8 @@ button {
 .w1-todorail::-webkit-scrollbar,
 .w1-todoscroll::-webkit-scrollbar,
 .w1-nvlist::-webkit-scrollbar,
-.w1-palettelist::-webkit-scrollbar {
+.w1-palettelist::-webkit-scrollbar,
+.w1-diffview-body::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
@@ -276,7 +280,8 @@ button {
 .w1-todorail::-webkit-scrollbar-thumb,
 .w1-todoscroll::-webkit-scrollbar-thumb,
 .w1-nvlist::-webkit-scrollbar-thumb,
-.w1-palettelist::-webkit-scrollbar-thumb {
+.w1-palettelist::-webkit-scrollbar-thumb,
+.w1-diffview-body::-webkit-scrollbar-thumb {
   background: rgb(var(--ac-rgb) / 0.26);
 }
 
@@ -286,7 +291,8 @@ button {
 .w1-todorail::-webkit-scrollbar-thumb:hover,
 .w1-todoscroll::-webkit-scrollbar-thumb:hover,
 .w1-nvlist::-webkit-scrollbar-thumb:hover,
-.w1-palettelist::-webkit-scrollbar-thumb:hover {
+.w1-palettelist::-webkit-scrollbar-thumb:hover,
+.w1-diffview-body::-webkit-scrollbar-thumb:hover {
   background: rgb(var(--ac-rgb) / 0.46);
 }
 
@@ -300,6 +306,7 @@ button {
 .w1-pb.pri:active,
 .w1-rbtn:active,
 .w1-send:active:not(:disabled),
+.w1-stop:active:not(:disabled),
 .w1-todosave:active:not(:disabled) {
   transform: translateY(0) scale(0.99);
 }

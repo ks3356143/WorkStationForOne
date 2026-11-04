@@ -1,4 +1,5 @@
 import type { AgentRunEvent } from '../../shared/agent-stream'
+import { buildCodexFileDiffs } from './file-diff'
 
 export const MAX_DETAIL = 120
 export const MAX_PREVIEW = 1200
@@ -153,16 +154,42 @@ export function createCodexAppServerParser(): CodexAppServerParser {
 
       const name = toolName(item, type)
       if (!name) return []
+      const diffs = type === 'fileChange' ? buildCodexFileDiffs(item.changes) : undefined
       if (method === 'item/started') {
-        return [{ kind: 'tool', id, name, detail: toolDetail(item, type) }]
+        return [
+          { kind: 'tool', id, name, detail: toolDetail(item, type), ...(diffs ? { diffs } : {}) }
+        ]
       }
       return [
+        ...(diffs?.length
+          ? [{ kind: 'tool' as const, id, name, detail: toolDetail(item, type), diffs }]
+          : []),
         {
           kind: 'tool-result',
           id,
           ok: resultOk(item, type),
           detail: resultDetail(item, type)
         }
+      ]
+    }
+
+    if (method === 'item/fileChange/patchUpdated') {
+      const itemId = asString(params.itemId)
+      if (!itemId) return []
+      const previous = items.get(itemId) ?? {
+        id: itemId,
+        type: 'fileChange',
+        status: 'inProgress'
+      }
+      const item = {
+        ...previous,
+        changes: Array.isArray(params.changes) ? params.changes : []
+      }
+      items.set(itemId, item)
+      const diffs = buildCodexFileDiffs(item.changes)
+      if (!diffs?.length) return []
+      return [
+        { kind: 'tool', id: itemId, name: 'Patch', detail: toolDetail(item, 'fileChange'), diffs }
       ]
     }
 

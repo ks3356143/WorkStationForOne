@@ -17,6 +17,16 @@ export interface NoteSearchHit extends NoteRecord {
   snippet: string
 }
 
+export interface NoteTagCount {
+  tag: string
+  count: number
+}
+
+export interface NoteTags {
+  total: number
+  tags: NoteTagCount[]
+}
+
 /** 笔记编辑补丁：字段缺省表示不改；tag 传空字符串表示清除。 */
 export interface NotePatch {
   text?: string
@@ -60,8 +70,9 @@ export interface NoteGraph {
 
 export interface NoteApi {
   bootstrap: (notes: NoteRecord[]) => Promise<void>
-  page: (offset: number, limit: number) => Promise<NotePage>
-  search: (query: string, limit: number) => Promise<NoteSearchHit[]>
+  page: (offset: number, limit: number, tag?: string) => Promise<NotePage>
+  search: (query: string, limit: number, tag?: string) => Promise<NoteSearchHit[]>
+  tags: () => Promise<NoteTags>
   create: (text: string, tag?: string) => Promise<NoteRecord>
   togglePin: (id: string) => Promise<void>
   update: (id: string, patch: NotePatch) => Promise<NoteRecord | undefined>

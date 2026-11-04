@@ -1,3 +1,17 @@
+/** 一处文件改动的预览；内容已按主进程上限截断。 */
+export interface AgentFileDiff {
+  path: string
+  /** 改动前内容；新增文件为空 */
+  oldText: string
+  /** 改动后内容；删除文件为空 */
+  newText: string
+  kind?: 'add' | 'update' | 'delete'
+  /** 任一侧因大小限制被截断 */
+  truncated?: boolean
+  /** 只包含改动附近的片段，不是完整文件 */
+  partial?: boolean
+}
+
 export interface AgentPermissionRequest {
   requestId: string
   toolName: string
@@ -7,8 +21,29 @@ export interface AgentPermissionRequest {
   description?: string
   /** 输入 JSON 的截断预览，供审批卡展开查看 */
   inputPreview: string
+  /** 文件写入类工具的改动预览；没有可读内容时省略 */
+  diffs?: AgentFileDiff[]
   /** 主进程判定该工具是否可「此工作区允许」；渲染层只用于决定按钮是否显示 */
   workspaceScope?: boolean
+}
+
+export interface AgentQuestionOption {
+  label: string
+  description?: string
+  preview?: string
+}
+
+export interface AgentQuestion {
+  question: string
+  header: string
+  options: AgentQuestionOption[]
+  multiSelect?: boolean
+}
+
+export interface AgentQuestionRequest {
+  requestId: string
+  toolUseId: string
+  questions: AgentQuestion[]
 }
 
 /** 一次 Agent 运行推给渲染层的事件。kind 是判别式，渲染层按它分支。 */
@@ -16,9 +51,17 @@ export type AgentRunEvent =
   | { kind: 'init'; model?: string; sessionId?: string }
   | { kind: 'turn'; turnId: string }
   | { kind: 'text'; text: string; turnId?: string }
-  | { kind: 'tool'; id: string; name: string; detail: string; turnId?: string }
+  | {
+      kind: 'tool'
+      id: string
+      name: string
+      detail: string
+      diffs?: AgentFileDiff[]
+      turnId?: string
+    }
   | { kind: 'tool-result'; id: string; ok: boolean; detail: string; turnId?: string }
   | { kind: 'permission'; request: AgentPermissionRequest }
+  | { kind: 'question'; request: AgentQuestionRequest }
   | {
       kind: 'result'
       ok: boolean
@@ -28,12 +71,28 @@ export type AgentRunEvent =
       turnId?: string
     }
   | { kind: 'error'; message: string }
+  /** CLI 进程已退出且成功结束；此时才允许同一会话开始下一轮 */
+  | { kind: 'done' }
 
 const MAX_DETAIL = 120
+const MAX_ERROR = 900
+
+/** CLI 只给 subtype 时也要说人话，不能把内部字段甩给用户。 */
+const RESULT_SUBTYPE_MESSAGES: Record<string, string> = {
+  error_during_execution: 'CLI 执行失败，但没有返回具体原因',
+  error_max_turns: '达到最大轮次限制',
+  error_max_budget_usd: '达到本轮预算上限',
+  error_max_structured_output_retries: '结构化输出重试次数用尽'
+}
 
 function clip(value: string): string {
   const flat = value.replace(/\s+/g, ' ').trim()
   return flat.length > MAX_DETAIL ? `${flat.slice(0, MAX_DETAIL - 1)}…` : flat
+}
+
+function clipError(value: string): string {
+  const flat = value.trim()
+  return flat.length > MAX_ERROR ? `${flat.slice(0, MAX_ERROR - 1)}…` : flat
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -90,12 +149,18 @@ function toolResultText(content: unknown): string {
   return ''
 }
 
+/** 工具事件的可选补充信息；主进程用它带上文件 diff，解析器本身保持纯函数。 */
+export type AgentToolEnricher = (
+  name: string,
+  input: unknown
+) => { diffs?: AgentFileDiff[] } | undefined
+
 /**
  * 解析 `claude -p --output-format stream-json --verbose` 的一行。
  * 一行可能带多个内容块（文本 + 并行工具调用），所以返回数组。
  * 空行、非 JSON、不认识的事件都返回空数组：流里混进无关输出不该中断整轮。
  */
-export function parseAgentLine(line: string): AgentRunEvent[] {
+export function parseAgentLine(line: string, enrichTool?: AgentToolEnricher): AgentRunEvent[] {
   const trimmed = line.trim()
   if (!trimmed.startsWith('{')) return []
 
@@ -130,7 +195,14 @@ export function parseAgentLine(line: string): AgentRunEvent[] {
         const id = asString(item.id)
         const name = asString(item.name)
         if (!id || !name) continue
-        events.push({ kind: 'tool', id, name, detail: summarizeToolInput(name, item.input) })
+        const extra = enrichTool?.(name, item.input)
+        events.push({
+          kind: 'tool',
+          id,
+          name,
+          detail: summarizeToolInput(name, item.input),
+          ...(extra?.diffs?.length ? { diffs: extra.diffs } : {})
+        })
       }
     }
     return events
@@ -156,8 +228,12 @@ export function parseAgentLine(line: string): AgentRunEvent[] {
   if (type === 'result') {
     const failed = record.is_error === true || record.subtype !== 'success'
     if (failed) {
-      const message = asString(record.result) ?? asString(record.subtype) ?? '执行失败'
-      return [{ kind: 'error', message: clip(message) }]
+      const subtype = asString(record.subtype)
+      const message =
+        asString(record.result) ??
+        (subtype ? (RESULT_SUBTYPE_MESSAGES[subtype] ?? subtype) : undefined) ??
+        '执行失败'
+      return [{ kind: 'error', message: clipError(message) }]
     }
     return [
       {

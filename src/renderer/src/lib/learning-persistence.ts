@@ -12,6 +12,7 @@ export interface HydrateLearningDeps {
   bootstrap: (items: LearningItemRecord[]) => Promise<void>
   create: (draft: LearningDraft) => Promise<LearningItemRecord>
   update: (id: string, patch: LearningPatch) => Promise<void>
+  remove?: (id: string) => Promise<boolean>
   review: (id: string, rating: LearningRating) => Promise<LearningItemRecord>
 }
 
@@ -23,7 +24,13 @@ export async function hydrateLearning(
     return
   }
 
-  bindLearningPersistence({ create: deps.create, update: deps.update, review: deps.review })
+  const remove = deps.remove
+  bindLearningPersistence({
+    create: deps.create,
+    update: deps.update,
+    ...(remove ? { remove: (id: string) => remove(id) } : {}),
+    review: deps.review
+  })
 
   try {
     const stored = await deps.list()

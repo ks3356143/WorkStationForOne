@@ -9,4 +9,7 @@ export interface HabitApi {
   list: () => Promise<HabitRecord[]>
   bootstrap: (habits: HabitRecord[]) => Promise<void>
   setCheckin: (id: string, day: string, done: boolean) => Promise<void>
+  create: (name: string) => Promise<HabitRecord>
+  rename: (id: string, name: string) => Promise<boolean>
+  remove: (id: string) => Promise<boolean>
 }

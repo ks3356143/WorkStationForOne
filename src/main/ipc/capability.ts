@@ -48,6 +48,16 @@ function describe(input: ExternalMcpSaveInput): string {
   return input.targets && input.targets !== 'both' ? `${base} for=${input.targets}` : base
 }
 
+function assertAgentKind(value: unknown): 'claude' | 'codex' {
+  if (value !== 'claude' && value !== 'codex') throw new TypeError('Agent 类型无效')
+  return value
+}
+
+function assertDirection(value: unknown): 'up' | 'down' {
+  if (value !== 'up' && value !== 'down') throw new TypeError('排序方向无效')
+  return value
+}
+
 /**
  * 能力中心 IPC：只操作应用私有库与应用私有插件目录；
  * 审计只记录标题与配置摘要，不记录 env / header 的值。
@@ -56,6 +66,43 @@ export function registerCapabilityHandlers(center: CapabilityCenter, audit?: Aud
   const record = (title: string, detail: string) => recordSettings(audit, title, detail)
 
   ipcMain.handle(IPC.capabilityBuiltinTools, () => center.builtinTools())
+
+  ipcMain.handle(IPC.capabilityToolSurface, () => center.toolSurface.bundle())
+
+  ipcMain.handle(IPC.capabilityToolSet, (_event, agent: unknown, id: unknown, enabled: unknown) => {
+    const target = assertAgentKind(agent)
+    const toolId = assertId(id, '工具 id', 120)
+    const next = center.toolSurface.setNative(target, toolId, assertBoolean(enabled, '开关'))
+    record('工具面 · 原生工具', `${target}:${toolId} → ${enabled ? '启用' : '停用'}`)
+    return next
+  })
+
+  ipcMain.handle(
+    IPC.capabilityToolMove,
+    (_event, agent: unknown, key: unknown, direction: unknown) => {
+      const target = assertAgentKind(agent)
+      const toolKey = assertId(key, '工具键', 240)
+      const move = assertDirection(direction)
+      const next = center.toolSurface.move(target, toolKey, move)
+      record('工具面 · 排序', `${target}:${toolKey} ${move}`)
+      return next
+    }
+  )
+
+  ipcMain.handle(
+    IPC.capabilityToolPrefer,
+    (_event, agent: unknown, key: unknown, preferred: unknown) => {
+      const target = assertAgentKind(agent)
+      const toolKey = assertId(key, '工具键', 240)
+      const next = center.toolSurface.setPreferred(
+        target,
+        toolKey,
+        assertBoolean(preferred, '首选')
+      )
+      record('工具面 · 首选', `${target}:${toolKey} → ${preferred === true ? '首选' : '普通'}`)
+      return next
+    }
+  )
 
   ipcMain.handle(IPC.capabilityBuiltinToolSet, (_event, name: unknown, enabled: unknown) => {
     const tool = assertLongId(name, '工具名')
@@ -92,6 +139,7 @@ export function registerCapabilityHandlers(center: CapabilityCenter, audit?: Aud
   ipcMain.handle(IPC.capabilitySkillsRemove, async (_event, pluginId: unknown) => {
     const id = assertLongId(pluginId, '插件 id')
     await center.plugins.remove(id)
+    center.toolSurface.remove('claude', `skill:${id}`)
     record('skill.remove', id)
   })
 
@@ -153,6 +201,9 @@ export function registerCapabilityHandlers(center: CapabilityCenter, audit?: Aud
   ipcMain.handle(IPC.capabilityMcpRemove, (_event, id: unknown) => {
     const target = assertLongId(id, 'MCP Server id')
     center.mcp.remove(target)
+    // 排序行不依赖外键：显式清掉，避免同名新 Server 继承旧顺序
+    center.toolSurface.remove('claude', `mcp:${target}`)
+    center.toolSurface.remove('codex', `mcp:${target}`)
     record('mcp.remove', target)
   })
 

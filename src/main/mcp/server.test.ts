@@ -411,20 +411,32 @@ describe('MCP HTTP 桥', () => {
     )
   })
 
-  it('中继自动拒绝 AskUserQuestion，不弹卡', async () => {
+  it('AskUserQuestion 交给问答服务并按答案回写', async () => {
     const source = data()
     const requestExternalApproval = vi.fn(async () => ({
       behavior: 'allow' as const,
       updatedInput: {}
     }))
+    const requestQuestion = vi.fn(async () => ({
+      behavior: 'allow' as const,
+      answers: { '继续吗？': '继续' }
+    }))
     bridge = new McpBridge(source, 'test', {
       hasApprovalRelay: () => true,
-      requestExternalApproval
+      requestExternalApproval,
+      requestQuestion
     })
     await bridge.start()
     const endpoint = bridge.issue('s-question')
     if (!endpoint) throw new Error('没有 issue token')
 
+    const questions = [
+      {
+        question: '继续吗？',
+        header: '确认',
+        options: [{ label: '继续' }, { label: '停止' }]
+      }
+    ]
     const response = await rpc(endpoint.url, endpoint.token, {
       jsonrpc: '2.0',
       id: 36,
@@ -433,7 +445,7 @@ describe('MCP HTTP 桥', () => {
         name: 'approval_request',
         arguments: {
           tool_name: 'AskUserQuestion',
-          input: { question: '继续吗？' },
+          input: { questions },
           tool_use_id: 'tu-4'
         }
       }
@@ -442,11 +454,48 @@ describe('MCP HTTP 桥', () => {
       result: { content: { text: string }[]; isError?: boolean }
     }
     expect(body.result.isError).toBeUndefined()
-    expect(JSON.parse(body.result.content[0].text)).toMatchObject({
-      behavior: 'deny',
-      message: expect.stringContaining('暂不支持交互问答')
+    expect(JSON.parse(body.result.content[0].text)).toEqual({
+      behavior: 'allow',
+      updatedInput: { questions, answers: { '继续吗？': '继续' } },
+      toolUseID: 'tu-4'
     })
     expect(requestExternalApproval).not.toHaveBeenCalled()
+    expect(requestQuestion).toHaveBeenCalledWith({
+      sessionId: 's-question',
+      input: { questions },
+      toolUseId: 'tu-4'
+    })
+  })
+
+  it('没有问答服务时明确拒绝 AskUserQuestion', async () => {
+    const source = data()
+    bridge = new McpBridge(source, 'test', {
+      hasApprovalRelay: () => true
+    })
+    await bridge.start()
+    const endpoint = bridge.issue('s-question-missing')
+    if (!endpoint) throw new Error('没有 issue token')
+
+    const response = await rpc(endpoint.url, endpoint.token, {
+      jsonrpc: '2.0',
+      id: 37,
+      method: 'tools/call',
+      params: {
+        name: 'approval_request',
+        arguments: {
+          tool_name: 'AskUserQuestion',
+          input: { questions: [] },
+          tool_use_id: 'tu-5'
+        }
+      }
+    })
+    const body = (await response.json()) as {
+      result: { content: { text: string }[]; isError?: boolean }
+    }
+    expect(JSON.parse(body.result.content[0].text)).toMatchObject({
+      behavior: 'deny',
+      message: expect.stringContaining('问答服务不可用')
+    })
   })
 
   it('没有外部 MCP 的会话不暴露也不接受 approval_request', async () => {

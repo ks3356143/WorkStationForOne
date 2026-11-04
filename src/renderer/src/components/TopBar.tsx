@@ -1,5 +1,6 @@
 import { formatClock } from '../lib/date'
 import { useNow } from '../lib/useNow'
+import { WindowControls } from './WindowControls'
 
 interface TopBarProps {
   onCommand: () => void
@@ -34,6 +35,8 @@ export function TopBar({ onCommand }: TopBarProps) {
         <i />
         SYS {formatClock(now)}
       </div>
+
+      <WindowControls />
     </header>
   )
 }

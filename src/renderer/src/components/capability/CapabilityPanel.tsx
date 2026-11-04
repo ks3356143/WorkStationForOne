@@ -1,10 +1,12 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import type {
+  AgentKind,
   BuiltinToolRecord,
   ExternalMcpServerRecord,
   InstalledPluginRecord,
   LocalScanRecord,
   PluginSourceRecord,
+  ToolSurfaceBundle,
   UpdateCandidateRecord,
   SkillInspection,
   SkillMarketSnapshot,
@@ -12,6 +14,7 @@ import type {
 } from '../../../../shared/ipc'
 import { friendlyMessage } from '../../lib/errors'
 import { replaceById } from '../../lib/collections'
+import { buildToolPriorityPrompt } from '../../../../shared/tool-surface'
 import { StatePlaceholder } from '../StatePlaceholder'
 import { ToolsTab } from './ToolsTab'
 import { McpTab } from './McpTab'
@@ -47,8 +50,11 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
   const [skillInspection, setSkillInspection] = useState<SkillInspection | null>(null)
   const [detailBusy, setDetailBusy] = useState(false)
   const [mcp, setMcp] = useState<ExternalMcpServerRecord[]>([])
-  const [tools, setTools] = useState<BuiltinToolRecord[]>([])
   const [builtinBusy, setBuiltinBusy] = useState<string | null>(null)
+  const [surface, setSurface] = useState<ToolSurfaceBundle | null>(null)
+  const [surfaceAgent, setSurfaceAgent] = useState<AgentKind>('claude')
+  const [surfaceBusy, setSurfaceBusy] = useState<string | null>(null)
+  const [toolConfirmKey, setToolConfirmKey] = useState('')
   const [sources, setSources] = useState<PluginSourceRecord[]>([])
   const [sourceBusy, setSourceBusy] = useState<string | null>(null)
   const [sourceForm, setSourceForm] = useState<{ name: string; url: string; ref: string } | null>(
@@ -75,11 +81,11 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
     if (!api) return
     setLoading(true)
     setError(null)
-    void Promise.all([api.skills.list(), api.mcp.list(), api.builtinTools()])
-      .then(([nextSkills, nextMcp, nextTools]) => {
+    void Promise.all([api.skills.list(), api.mcp.list(), api.toolSurface()])
+      .then(([nextSkills, nextMcp, nextSurface]) => {
         setSkills(nextSkills)
         setMcp(nextMcp)
-        setTools(nextTools)
+        setSurface(nextSurface)
       })
       .catch((reason: unknown) => setError(friendlyMessage(reason, '能力中心读取失败')))
       .finally(() => setLoading(false))
@@ -92,12 +98,12 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
     }
     let alive = true
     setLoading(true)
-    void Promise.all([api.skills.list(), api.mcp.list(), api.builtinTools()])
-      .then(([nextSkills, nextMcp, nextTools]) => {
+    void Promise.all([api.skills.list(), api.mcp.list(), api.toolSurface()])
+      .then(([nextSkills, nextMcp, nextSurface]) => {
         if (!alive) return
         setSkills(nextSkills)
         setMcp(nextMcp)
-        setTools(nextTools)
+        setSurface(nextSurface)
       })
       .catch((reason: unknown) => {
         if (alive) setError(friendlyMessage(reason, '能力中心读取失败'))
@@ -136,6 +142,24 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
     [market, marketQuery, marketSort]
   )
   const visibleMarket = filteredMarket.slice(0, marketLimit)
+
+  /** 预览与实际注入走同一个纯函数，避免界面承诺和会话里收到的文本不一致。 */
+  const promptPreview = useMemo(() => {
+    if (!surface) return ''
+    const current = surface[surfaceAgent]
+    return buildToolPriorityPrompt(surfaceAgent, {
+      mcp: current.mcp
+        .filter((server) => server.enabled)
+        .map((server) => ({
+          name: server.name,
+          tools: server.tools,
+          preferred: server.preferred
+        })),
+      skills: current.skills
+        .filter((skill) => skill.enabled)
+        .map((skill) => ({ name: skill.name, preferred: skill.preferred }))
+    })
+  }, [surface, surfaceAgent])
 
   const loadMarket = (force: boolean) => {
     if (!api || marketBusy) return
@@ -431,11 +455,99 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
     void api
       .setBuiltinTool(tool.name, !tool.enabled)
       .then((next) => {
-        setTools(next)
+        setSurface((current) =>
+          current
+            ? {
+                claude: { ...current.claude, builtin: next },
+                codex: { ...current.codex, builtin: next }
+              }
+            : current
+        )
         notify(`${tool.name} 已${tool.enabled ? '关闭' : '启用'} · 下一次会话生效`)
       })
       .catch((reason: unknown) => notify(friendlyMessage(reason, '内置工具开关失败')))
       .finally(() => setBuiltinBusy(null))
+  }
+
+  const toggleNativeTool = (id: string, enabled: boolean) => {
+    if (!api?.setNativeTool || surfaceBusy) return
+    setSurfaceBusy(`native:${id}`)
+    void api
+      .setNativeTool(surfaceAgent, id, enabled)
+      .then((next) => {
+        setSurface(next)
+        notify(`原生工具已${enabled ? '启用' : '关闭'} · 下一次会话生效`)
+      })
+      .catch((reason: unknown) => notify(friendlyMessage(reason, '原生工具开关失败')))
+      .finally(() => setSurfaceBusy(null))
+  }
+
+  const moveTool = (key: string, direction: 'up' | 'down') => {
+    if (!api?.moveTool || surfaceBusy) return
+    setSurfaceBusy(`move:${key}`)
+    void api
+      .moveTool(surfaceAgent, key, direction)
+      .then(setSurface)
+      .catch((reason: unknown) => notify(friendlyMessage(reason, '工具排序失败')))
+      .finally(() => setSurfaceBusy(null))
+  }
+
+  const togglePreferred = (key: string, preferred: boolean) => {
+    if (!api?.setPreferredTool || surfaceBusy) return
+    setSurfaceBusy(`prefer:${key}`)
+    void api
+      .setPreferredTool(surfaceAgent, key, preferred)
+      .then((next) => {
+        setSurface(next)
+        notify(preferred ? '已设为首选 · 下一次会话优先调用它' : '已取消首选 · 下一次会话生效')
+      })
+      .catch((reason: unknown) => notify(friendlyMessage(reason, '首选设置失败')))
+      .finally(() => setSurfaceBusy(null))
+  }
+
+  /** 工具面里的 MCP / 技能开关复用同一个信任流程，成功后刷新两侧状态。 */
+  const toggleSurfaceMcp = (server: ExternalMcpServerRecord, enable: boolean) => {
+    if (!api || surfaceBusy) return
+    const risky = enable && !server.trusted
+    if (risky && toolConfirmKey !== `trust:mcp:${server.id}`) {
+      setToolConfirmKey(`trust:mcp:${server.id}`)
+      notify(`再次点击确认信任 ${server.name} 的命令与参数`)
+      return
+    }
+    setToolConfirmKey('')
+    setSurfaceBusy(`mcp:${server.id}`)
+    void api.mcp
+      .setEnabled(server.id, enable, risky)
+      .then((updated) => {
+        setMcp((list) => replaceById(list, updated))
+        notify(`${updated.name} 已${enable ? '启用' : '停用'} · 下一次会话生效`)
+        return api.toolSurface()
+      })
+      .then(setSurface)
+      .catch((reason: unknown) => notify(friendlyMessage(reason, 'MCP 状态更新失败')))
+      .finally(() => setSurfaceBusy(null))
+  }
+
+  const toggleSurfaceSkill = (skill: SkillRecord, enable: boolean) => {
+    if (!api || surfaceBusy) return
+    const risky = enable && (skill.hasHooks || skill.hasMcp) && !skill.trusted
+    if (risky && toolConfirmKey !== `trust:skill:${skill.id}`) {
+      setToolConfirmKey(`trust:skill:${skill.id}`)
+      notify(`再次点击确认信任 ${skill.name} 的 hooks / MCP 组件`)
+      return
+    }
+    setToolConfirmKey('')
+    setSurfaceBusy(`skill:${skill.id}`)
+    void api.skills
+      .setEnabled(skill.id, enable, risky)
+      .then((updated) => {
+        setSkills((list) => replaceById(list, updated))
+        notify(`${updated.name} 已${enable ? '启用' : '停用'} · 下一次会话生效`)
+        return api.toolSurface()
+      })
+      .then(setSurface)
+      .catch((reason: unknown) => notify(friendlyMessage(reason, '插件状态更新失败')))
+      .finally(() => setSurfaceBusy(null))
   }
 
   /** 全部更新：成功后从候选里剔除，失败的留在横幅里并显示原因。 */
@@ -534,7 +646,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
           [
             ['skills', '技能 / 插件'],
             ['mcp', 'MCP 服务'],
-            ['tools', '内置工具']
+            ['tools', '工具面']
           ] as const
         ).map(([value, label]) => (
           <button
@@ -1103,7 +1215,22 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
       {tab === 'mcp' ? <McpTab notify={notify} /> : null}
 
       {tab === 'tools' ? (
-        <ToolsTab tools={tools} mcp={mcp} builtinBusy={builtinBusy} onToggle={toggleBuiltin} />
+        <ToolsTab
+          agent={surfaceAgent}
+          surface={surface ? surface[surfaceAgent] : null}
+          mcp={mcp}
+          skills={skills}
+          busy={surfaceBusy ?? (builtinBusy ? `builtin:${builtinBusy}` : null)}
+          onAgent={setSurfaceAgent}
+          onToggleNative={toggleNativeTool}
+          onMove={moveTool}
+          onToggleMcp={toggleSurfaceMcp}
+          onToggleSkill={toggleSurfaceSkill}
+          onToggleBuiltin={toggleBuiltin}
+          onPreferred={togglePreferred}
+          promptPreview={promptPreview}
+          onOpenMcp={() => setTab('mcp')}
+        />
       ) : null}
     </div>
   )

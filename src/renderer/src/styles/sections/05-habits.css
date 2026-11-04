@@ -7,6 +7,123 @@
   margin-top: 4px;
 }
 
+.w1-hmanage {
+  height: 22px;
+  padding: 0 7px;
+  border: 1px solid rgb(var(--ac-rgb) / 0.24);
+  background: rgb(var(--vio-rgb) / 0.06);
+  color: var(--mu);
+  font: 10px / 1 var(--mono);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui),
+    color var(--dur-ui);
+}
+
+.w1-hmanage:hover {
+  border-color: rgb(var(--ac-rgb) / 0.48);
+  background: rgb(var(--vio-rgb) / 0.12);
+  color: var(--fg);
+}
+
+.w1-habitmanage {
+  width: 520px;
+  max-width: calc(100vw - 32px);
+}
+
+.w1-habitmanage-add {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.w1-habitmanage-add input,
+.w1-habitmanage-row input {
+  min-width: 0;
+  flex: 1;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid rgb(var(--ac-rgb) / 0.24);
+  background: rgb(var(--field-rgb) / 0.62);
+  color: var(--fg);
+  font: 13.5px / 1.2 var(--sans);
+  outline: none;
+}
+
+.w1-habitmanage-add input:focus,
+.w1-habitmanage-row input:focus {
+  border-color: rgb(var(--ac2-rgb) / 0.56);
+  box-shadow: 0 0 0 1px rgb(var(--ac2-rgb) / 0.12);
+}
+
+.w1-habitmanage-addbtn,
+.w1-habitmanage-del {
+  flex: none;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgb(var(--ac-rgb) / 0.38);
+  background: rgb(var(--vio-rgb) / 0.16);
+  color: var(--ac-fg);
+  font: 500 11.5px / 1 var(--mono);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui),
+    color var(--dur-ui);
+}
+
+.w1-habitmanage-addbtn:hover:not(:disabled) {
+  border-color: rgb(var(--ac-rgb) / 0.62);
+  background: rgb(var(--vio-rgb) / 0.24);
+}
+
+.w1-habitmanage-addbtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.w1-habitmanage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  max-height: 46vh;
+  margin-top: 14px;
+  padding-right: 2px;
+  overflow-y: auto;
+}
+
+.w1-habitmanage-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.w1-habitmanage-del {
+  border-color: rgb(var(--dg-rgb) / 0.34);
+  background: rgb(var(--dg-rgb) / 0.06);
+  color: var(--dg-fg);
+}
+
+.w1-habitmanage-del:hover,
+.w1-habitmanage-del.confirming {
+  border-color: rgb(var(--dg-rgb) / 0.62);
+  background: rgb(var(--dg-rgb) / 0.14);
+}
+
+.w1-habitmanage-empty {
+  padding: 18px 0;
+  color: var(--mu);
+  font-size: 13px;
+  text-align: center;
+}
+
+.w1-habitmanage-foot {
+  margin-top: 14px;
+  color: var(--su);
+  font: 10.5px / 1.4 var(--mono);
+}
+
 .w1-hrow {
   display: grid;
   grid-template-columns: 84px repeat(7, 1fr);

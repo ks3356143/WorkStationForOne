@@ -12,6 +12,8 @@ export function toChatMessage(record: AgentMessageRecord): ChatMessage {
     ...(record.error ? { error: true } : {}),
     ...(record.origin === 'import' ? { imported: true } : {}),
     ...(record.turnId ? { turnId: record.turnId } : {}),
-    ...(tools ? { tools } : {})
+    ...(tools ? { tools } : {}),
+    ...(record.contextFiles?.length ? { contextFiles: record.contextFiles } : {}),
+    ...(record.images?.length ? { images: record.images } : {})
   }
 }

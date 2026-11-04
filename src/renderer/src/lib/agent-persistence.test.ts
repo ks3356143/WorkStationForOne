@@ -1,19 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AgentThreadBundle } from '../../../shared/ipc'
+import type { AgentSessionSummary } from '../../../shared/ipc'
 import { createInitialData } from '../data/mock'
 import { useWorkstation } from '../store/useWorkstation'
 import { hydrateAgent, type AgentHydrateDeps } from './agent-persistence'
 
-function deps(bundle: AgentThreadBundle): AgentHydrateDeps {
+function deps(summary: AgentSessionSummary): AgentHydrateDeps {
   return {
-    threads: vi.fn().mockResolvedValue(bundle),
+    sessions: vi.fn().mockResolvedValue(summary),
     createSession: vi.fn(),
     updateSession: vi.fn().mockResolvedValue(undefined),
     saveMessage: vi.fn().mockResolvedValue(undefined)
   }
 }
 
-const bundle: AgentThreadBundle = {
+const summary: AgentSessionSummary = {
   sessions: [
     {
       id: 's-1',
@@ -26,25 +26,7 @@ const bundle: AgentThreadBundle = {
       updatedAt: Date.now()
     }
   ],
-  messages: [
-    {
-      id: 'u1',
-      sessionId: 's-1',
-      role: 'user',
-      text: '定位登录 500',
-      timeLabel: '14:20',
-      createdAt: 1
-    },
-    {
-      id: 'a1',
-      sessionId: 's-1',
-      role: 'assistant',
-      text: '定位到了。',
-      timeLabel: '14:21',
-      createdAt: 2,
-      tools: [{ name: 'Read', meta: 'auth.ts', status: '完成' }]
-    }
-  ]
+  counts: { 's-1': 2 }
 }
 
 beforeEach(() => {
@@ -52,8 +34,8 @@ beforeEach(() => {
 })
 
 describe('hydrateAgent', () => {
-  it('用数据库会话替换演示种子，并恢复消息与 resume id', async () => {
-    await hydrateAgent(deps(bundle))
+  it('用数据库会话替换演示种子，并只带消息数量', async () => {
+    await hydrateAgent(deps(summary))
     const state = useWorkstation.getState()
 
     expect(state.sessions).toHaveLength(1)
@@ -65,18 +47,19 @@ describe('hydrateAgent', () => {
       status: 'idle'
     })
     expect(state.sessions[0].meta).toContain('2 条')
-    expect(state.threads['s-1']).toHaveLength(2)
-    expect(state.threads['s-1'][1].tools?.[0]?.name).toBe('Read')
+    expect(state.threads).toEqual({})
+    expect(state.threadsLoaded).toEqual({})
     expect(state.activeSessionId).toBe('s-1')
     expect(state.permission).toBeNull()
   })
 
   it('空库不写入演示会话，保持空态', async () => {
-    await hydrateAgent(deps({ sessions: [], messages: [] }))
+    await hydrateAgent(deps({ sessions: [], counts: {} }))
     const state = useWorkstation.getState()
 
     expect(state.sessions).toEqual([])
     expect(state.threads).toEqual({})
+    expect(state.threadsLoaded).toEqual({})
     expect(state.activeSessionId).toBe('')
     expect(state.permission).toBeNull()
   })
@@ -84,8 +67,8 @@ describe('hydrateAgent', () => {
   it('恢复置顶标记', async () => {
     await hydrateAgent(
       deps({
-        sessions: [{ ...bundle.sessions[0], pinned: true }],
-        messages: []
+        sessions: [{ ...summary.sessions[0], pinned: true }],
+        counts: {}
       })
     )
     expect(useWorkstation.getState().sessions[0]?.pinned).toBe(true)
@@ -94,22 +77,22 @@ describe('hydrateAgent', () => {
   it('恢复待真分叉标记', async () => {
     await hydrateAgent(
       deps({
-        sessions: [{ ...bundle.sessions[0], pendingFork: true }],
-        messages: []
+        sessions: [{ ...summary.sessions[0], pendingFork: true }],
+        counts: {}
       })
     )
     expect(useWorkstation.getState().sessions[0]?.pendingFork).toBe(true)
   })
 
   it('恢复归档标记，且不把归档会话选为当前', async () => {
-    const base = bundle.sessions[0]
+    const base = summary.sessions[0]
     await hydrateAgent(
       deps({
         sessions: [
           { ...base, id: 's-archived', archived: true },
           { ...base, id: 's-live' }
         ],
-        messages: []
+        counts: {}
       })
     )
     const state = useWorkstation.getState()

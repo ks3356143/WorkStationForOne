@@ -35,6 +35,14 @@ function assertNoteId(value: unknown): string {
   return value
 }
 
+function assertNoteTag(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined
+  if (typeof value !== 'string') throw new TypeError('笔记标签无效')
+  const tag = value.trim()
+  if (tag.length > MAX_NOTE_TAG) throw new TypeError('笔记标签过长')
+  return tag || undefined
+}
+
 function assertTitlesArgs(
   query: unknown,
   limit: unknown,
@@ -83,6 +91,7 @@ export const noteValidators = {
   assertPageArgs,
   assertNotePatch,
   assertNoteId,
+  assertNoteTag,
   assertTitlesArgs
 }
 
@@ -91,16 +100,24 @@ export function registerNoteHandlers(repository: NoteRepository): void {
     repository.bootstrap((Array.isArray(value) ? value : []).map(assertNote))
   })
 
-  ipcMain.handle(IPC_CHANNELS.notesPage, (_event, offset: unknown, limit: unknown) => {
-    const args = assertPageArgs(offset, limit)
-    return repository.page(args.offset, args.limit)
-  })
+  ipcMain.handle(
+    IPC_CHANNELS.notesPage,
+    (_event, offset: unknown, limit: unknown, tag: unknown) => {
+      const args = assertPageArgs(offset, limit)
+      return repository.page(args.offset, args.limit, assertNoteTag(tag))
+    }
+  )
 
-  ipcMain.handle(IPC_CHANNELS.notesSearch, (_event, query: unknown, limit: unknown) => {
-    if (typeof query !== 'string') throw new TypeError('查询必须是字符串')
-    if (typeof limit !== 'number' || !Number.isFinite(limit)) throw new TypeError('结果数量无效')
-    return repository.search(query, limit)
-  })
+  ipcMain.handle(
+    IPC_CHANNELS.notesSearch,
+    (_event, query: unknown, limit: unknown, tag: unknown) => {
+      if (typeof query !== 'string') throw new TypeError('查询必须是字符串')
+      if (typeof limit !== 'number' || !Number.isFinite(limit)) throw new TypeError('结果数量无效')
+      return repository.search(query, limit, assertNoteTag(tag))
+    }
+  )
+
+  ipcMain.handle(IPC_CHANNELS.notesTags, () => repository.tags())
 
   ipcMain.handle(IPC_CHANNELS.notesCreate, (_event, text: unknown, tag: unknown) => {
     if (typeof text !== 'string' || text.trim().length === 0) throw new TypeError('笔记正文无效')

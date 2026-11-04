@@ -221,6 +221,10 @@ export function registerLearningHandlers(repository: LearningRepository): void {
     repository.review(assertLearningId(id), assertRating(rating))
   )
 
+  ipcMain.handle(IPC.learningRemove, (_event, id: unknown) =>
+    repository.remove(assertLearningId(id))
+  )
+
   ipcMain.handle(IPC.learningCreateMany, (_event, value: unknown): LearningImportResult => {
     const { drafts, errors } = collectLearningDrafts(value)
     const seen = new Set(repository.list().map((card) => cardKey(card.subject, card.title)))

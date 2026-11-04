@@ -1,7 +1,13 @@
 // Codex CLI 的冒烟替身：exec 回放 JSONL，app-server 回放 JSON-RPC。
 // 只实现测试需要的协议，不调用模型、不读写用户配置。
 const THREAD_ID = 'codex-stub-thread'
-const isAppServer = process.argv[2] === 'app-server'
+// 工具面的 -c 参数插在子命令之前，不能只看 argv[2]
+const isAppServer = process.argv.includes('app-server')
+/** 工具面断言缝：把本进程的 -c 参数回报给测试与冒烟 */
+const CONFIG_FLAGS = process.argv.reduce((flags, value, index) => {
+  if (value === '-c' && process.argv[index + 1]) flags.push(process.argv[index + 1])
+  return flags
+}, [])
 
 function runExec() {
   let input = ''
@@ -76,6 +82,9 @@ function runAppServer() {
   let threadId = ''
   let turnSeq = 0
   let approval = null
+  let planThread = false
+  let imageInput = 0
+  let developerText = ''
 
   const reply = (id, result) => emit({ id, result })
   const fail = (id, message) => emit({ id, error: { code: -32000, message } })
@@ -345,6 +354,20 @@ function runAppServer() {
     })
 
     setTimeout(() => {
+      if (prompt.includes('工具面检查')) {
+        finishTurn(
+          `工具面：${CONFIG_FLAGS.join('|') || '无'}；优先级 ${developerText.includes('[工具优先级]') ? '有' : '无'}；首选 ${developerText.includes('首选：') ? '有' : '无'}`
+        )
+        return
+      }
+      if (prompt.includes('图片上下文')) {
+        finishTurn(imageInput > 0 ? '图片：已收到 1 张 localImage。' : '图片：未注入')
+        return
+      }
+      if (prompt.includes('计划模式')) {
+        finishTurn(planThread ? '计划模式：只读线程。' : '计划模式：线程不是只读。')
+        return
+      }
       if (prompt.includes('失败')) {
         emit({
           method: 'turn/completed',
@@ -413,6 +436,8 @@ function runAppServer() {
           // no-op
         } else if (message.method === 'thread/start') {
           threadId = THREAD_ID
+          planThread = message.params?.sandbox === 'read-only'
+          developerText = message.params?.developerInstructions ?? ''
           reply(message.id, {
             thread: { id: threadId },
             model: 'stub-model',
@@ -426,6 +451,8 @@ function runAppServer() {
             continue
           }
           threadId = 'codex-stub-resumed'
+          planThread = message.params?.sandbox === 'read-only'
+          developerText = message.params?.developerInstructions ?? ''
           reply(message.id, {
             thread: { id: threadId },
             model: 'stub-model',
@@ -439,6 +466,8 @@ function runAppServer() {
             continue
           }
           threadId = message.params.lastTurnId ? 'codex-stub-forked-turn' : 'codex-stub-forked'
+          planThread = message.params?.sandbox === 'read-only'
+          developerText = message.params?.developerInstructions ?? ''
           reply(message.id, {
             thread: { id: threadId },
             model: 'stub-model',
@@ -447,11 +476,16 @@ function runAppServer() {
             sandbox: { type: 'workspaceWrite' }
           })
         } else if (message.method === 'turn/start') {
-          const prompt = message.params?.input?.find((item) => item.type === 'text')?.text ?? ''
+          const input = Array.isArray(message.params?.input) ? message.params.input : []
+          const prompt = input.find((item) => item.type === 'text')?.text ?? ''
+          const imageCount = input.filter((item) => item.type === 'localImage').length
           const resumed = prompt.includes('继续上次')
           reply(message.id, {
             turn: { id: `turn-${turnSeq + 1}`, status: 'inProgress', items: [] }
           })
+          if (prompt.includes('图片上下文')) {
+            imageInput = imageCount
+          }
           startTurn(prompt, resumed)
         } else {
           fail(message.id, `unsupported method ${message.method}`)

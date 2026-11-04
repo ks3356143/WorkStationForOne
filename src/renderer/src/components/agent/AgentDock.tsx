@@ -1,20 +1,31 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, m } from 'motion/react'
 import { AGENT_META, agentCommandPreview, workspaceName } from '../../lib/agent'
 import { DURATION, EASE_OUT } from '../../lib/motion'
 import { selectActiveSession, selectActiveThread, useWorkstation } from '../../store/useWorkstation'
 import type { AgentId, Task } from '../../types'
-import type { McpPermissionDecision } from '../../../../shared/ipc'
+import type { McpPermissionDecision, ProviderProfileRecord } from '../../../../shared/ipc'
 import { FolderIcon } from '../Glyphs'
 import { Composer } from './Composer'
 import { DockHeader } from './DockHeader'
 import { McpApprovalCard } from './McpApprovalCard'
 import { MessageRow } from './MessageRow'
 import { PermissionCard } from './PermissionCard'
+import { QuestionCard } from './QuestionCard'
 import { ToolApprovalCard } from './ToolApprovalCard'
 import { WorkspaceSheet } from './WorkspaceSheet'
+import { CheckpointSheet } from './CheckpointSheet'
 import { friendlyMessage } from '../../lib/errors'
+import { activeProviderLabel } from '../../lib/provider-label'
+import { toChatMessage } from '../../lib/chat-message'
+import { StatePlaceholder } from '../StatePlaceholder'
 import { canForkWithCli } from '../../../../shared/fork'
+import {
+  INITIAL_THREAD_WINDOW,
+  THREAD_WINDOW_STEP,
+  threadWindowForMessage,
+  threadWindowStart
+} from '../../lib/thread-window'
 
 const EMPTY_TASKS: Task[] = []
 
@@ -27,6 +38,7 @@ export function AgentDock({ notify }: AgentDockProps) {
   const setActiveSession = useWorkstation((state) => state.setActiveSession)
   const createAgentSession = useWorkstation((state) => state.createAgentSession)
   const removeAgentSession = useWorkstation((state) => state.removeAgentSession)
+  const toggleAgentPlanMode = useWorkstation((state) => state.toggleAgentPlanMode)
   const addForkedSession = useWorkstation((state) => state.addForkedSession)
   const activeSession = useWorkstation(selectActiveSession)
   const activeId = activeSession?.id ?? ''
@@ -41,8 +53,14 @@ export function AgentDock({ notify }: AgentDockProps) {
   const clearToolPermission = useWorkstation((state) => state.clearToolPermission)
   const mcpPermission = useWorkstation((state) => state.mcpPermissions[state.activeSessionId])
   const clearMcpPermission = useWorkstation((state) => state.clearMcpPermission)
+  const agentQuestion = useWorkstation((state) => state.agentQuestions[state.activeSessionId])
+  const clearAgentQuestion = useWorkstation((state) => state.clearAgentQuestion)
   const agentJumpMessageId = useWorkstation((state) => state.agentJumpMessageId)
   const clearAgentJump = useWorkstation((state) => state.clearAgentJump)
+  const threadLoaded = useWorkstation((state) =>
+    Boolean(state.threadsLoaded[state.activeSessionId])
+  )
+  const agentAttentionRequestId = useWorkstation((state) => state.agentAttentionRequestId)
   // 后台会话的审批不抢占当前聊天，但要在输入栏上方留一个入口
   const pendingElsewhereId = useWorkstation((state) => {
     const pending = state.sessions.find(
@@ -51,6 +69,7 @@ export function AgentDock({ notify }: AgentDockProps) {
         Boolean(
           state.toolPermissions[session.id] ||
             state.mcpPermissions[session.id] ||
+            state.agentQuestions[session.id] ||
             state.permission?.sessionId === session.id
         )
     )
@@ -64,6 +83,7 @@ export function AgentDock({ notify }: AgentDockProps) {
           Boolean(
             state.toolPermissions[session.id] ||
               state.mcpPermissions[session.id] ||
+              state.agentQuestions[session.id] ||
               state.permission?.sessionId === session.id
           )
       ).length
@@ -80,17 +100,23 @@ export function AgentDock({ notify }: AgentDockProps) {
   const resolvePermission = useWorkstation((state) => state.resolvePermission)
   const setAgentWorkspace = useWorkstation((state) => state.setAgentWorkspace)
   const [codexApproval, setCodexApproval] = useState(false)
+  const [providers, setProviders] = useState<ProviderProfileRecord[]>([])
   const [workspaceBusy, setWorkspaceBusy] = useState(false)
   const [workspaceError, setWorkspaceError] = useState<string | null>(null)
   const [workspaceOpen, setWorkspaceOpen] = useState(false)
+  const [checkpointsOpen, setCheckpointsOpen] = useState(false)
   const [exportState, setExportState] = useState<'idle' | 'busy' | 'done' | 'error'>('idle')
   const [forkingId, setForkingId] = useState<string | null>(null)
   const [deleteState, setDeleteState] = useState<'idle' | 'armed' | 'busy' | 'error'>('idle')
+  const [stopRequested, setStopRequested] = useState(false)
   const deleteTimer = useRef<number | null>(null)
+  const notifyRef = useRef(notify)
+  notifyRef.current = notify
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: 切换会话时收起删除二次确认
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 切换会话时收起删除二次确认并复位停止状态
   useEffect(() => {
     setDeleteState('idle')
+    setStopRequested(false)
     if (deleteTimer.current) window.clearTimeout(deleteTimer.current)
   }, [activeId])
 
@@ -102,16 +128,46 @@ export function AgentDock({ notify }: AgentDockProps) {
   )
 
   useEffect(() => {
+    if (!activeId || threadLoaded) return
+    const api = typeof window === 'undefined' ? undefined : window.ws?.agent
+    if (!api?.thread) {
+      useWorkstation.getState().setAgentThread(activeId, [])
+      return
+    }
+    let alive = true
+    void api
+      .thread(activeId)
+      .then((records) => {
+        if (!alive) return
+        // 会话可能在读取期间被删除，别把线程写回一个已不存在的会话。
+        if (!useWorkstation.getState().sessions.some((session) => session.id === activeId)) return
+        useWorkstation.getState().setAgentThread(activeId, records.map(toChatMessage))
+      })
+      .catch((error: unknown) => {
+        if (!alive) return
+        // 不标记为已加载：切回这个会话时会再次尝试。
+        notifyRef.current(friendlyMessage(error, '读取会话失败'))
+      })
+    return () => {
+      alive = false
+    }
+  }, [activeId, threadLoaded])
+
+  useEffect(() => {
     let alive = true
     const load = () => {
       void window.ws?.provider
         .list()
         .then((list) => {
-          if (alive)
-            setCodexApproval(list.some((profile) => profile.target === 'codex' && profile.active))
+          if (!alive) return
+          setProviders(list)
+          setCodexApproval(list.some((profile) => profile.target === 'codex' && profile.active))
         })
         .catch(() => {
-          if (alive) setCodexApproval(false)
+          if (alive) {
+            setProviders([])
+            setCodexApproval(false)
+          }
         })
     }
     load()
@@ -131,10 +187,70 @@ export function AgentDock({ notify }: AgentDockProps) {
     length: thread.length,
     initialized: false
   })
+  const [threadWindow, setThreadWindow] = useState({
+    sessionId: activeId,
+    count: INITIAL_THREAD_WINDOW
+  })
+  const visibleCount =
+    threadWindow.sessionId === activeId ? threadWindow.count : INITIAL_THREAD_WINDOW
+  const windowStart = threadWindowStart(thread.length, visibleCount)
+  const visibleThread = windowStart > 0 ? thread.slice(windowStart) : thread
+  const earlierRef = useRef<HTMLDivElement>(null)
+  const scrollAdjustRef = useRef<{ sessionId: string; height: number; top: number } | null>(null)
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: 消息加载后线程长度变化要重试定位
+  const loadEarlier = useCallback(() => {
+    if (windowStart <= 0) return
+    const node = threadRef.current
+    if (node) {
+      // 记下加载前的滚动高度；渲染后把 scrollTop 补回去，画面不跳。
+      scrollAdjustRef.current = {
+        sessionId: activeId,
+        height: node.scrollHeight,
+        top: node.scrollTop
+      }
+      nearBottomRef.current = false
+    }
+    setThreadWindow({
+      sessionId: activeId,
+      count: Math.min(thread.length, visibleCount + THREAD_WINDOW_STEP)
+    })
+  }, [activeId, thread.length, visibleCount, windowStart])
+
+  useLayoutEffect(() => {
+    if (threadWindow.sessionId !== activeId) return
+    const adjust = scrollAdjustRef.current
+    if (!adjust || adjust.sessionId !== activeId) return
+    const node = threadRef.current
+    if (!node) return
+    scrollAdjustRef.current = null
+    node.scrollTop = adjust.top + (node.scrollHeight - adjust.height)
+    nearBottomRef.current = node.scrollHeight - node.scrollTop - node.clientHeight < 96
+  }, [threadWindow, activeId])
+
+  useEffect(() => {
+    if (windowStart <= 0) return
+    const root = threadRef.current
+    const target = earlierRef.current
+    if (!root || !target || typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) loadEarlier()
+      },
+      { root, rootMargin: '320px 0px 0px 0px' }
+    )
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [windowStart, loadEarlier])
+
   useEffect(() => {
     if (!agentJumpMessageId || !activeId) return
+    const index = thread.findIndex((message) => message.id === agentJumpMessageId)
+    if (index < 0) return
+    const needed = threadWindowForMessage(thread.length, visibleCount, index)
+    if (needed > visibleCount) {
+      setThreadWindow({ sessionId: activeId, count: needed })
+      return
+    }
     const root = threadRef.current
     if (!root) return
     const node = root.querySelector<HTMLElement>(
@@ -146,7 +262,7 @@ export function AgentDock({ notify }: AgentDockProps) {
     node.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' })
     node.classList.add('w1-msg-jump')
     window.setTimeout(() => node.classList.remove('w1-msg-jump'), 1800)
-  }, [agentJumpMessageId, activeId, thread.length, clearAgentJump])
+  }, [agentJumpMessageId, activeId, thread, visibleCount, clearAgentJump])
   const artifacts = useMemo(() => {
     const root = activeSession?.workspace?.replaceAll('\\', '/').replace(/\/+$/, '')
     const seen = new Set<string>()
@@ -174,6 +290,11 @@ export function AgentDock({ notify }: AgentDockProps) {
   }
   // 只看当前会话：别的会话在跑不该锁住这里的输入
   const typingHere = Boolean(activeId) && (Boolean(streamHere) || queuedHere)
+
+  useEffect(() => {
+    if (!typingHere) setStopRequested(false)
+  }, [typingHere])
+
   const animateId =
     threadMeta.current.initialized &&
     threadMeta.current.sessionId === activeId &&
@@ -196,7 +317,12 @@ export function AgentDock({ notify }: AgentDockProps) {
     return () => window.clearTimeout(timer)
   }, [mcpPermission, clearMcpPermission])
 
-  const approvalKey = toolPermission?.requestId ?? mcpPermission?.requestId ?? permission?.id ?? ''
+  const approvalKey =
+    toolPermission?.requestId ??
+    mcpPermission?.requestId ??
+    agentQuestion?.requestId ??
+    permission?.id ??
+    ''
 
   // 有审批卡时窗口变窄也要把卡贴到可见区域，避免被输入栏盖住。
   useEffect(() => {
@@ -227,11 +353,27 @@ export function AgentDock({ notify }: AgentDockProps) {
     }
   }, [thread.length, typingHere, approvalKey, activeId])
 
+  // diff 展开、代码高亮等子内容会在挂载后改变高度；用户原本贴底时继续跟随。
+  useEffect(() => {
+    if (!activeId) return
+    const node = threadRef.current
+    const content = node?.querySelector<HTMLElement>('.w1-threadpad')
+    if (!node || !content || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => {
+      // content-visibility 会在滚动时改变离屏高度；用户已经滚到顶部时不要把他拉回底部。
+      if (nearBottomRef.current && node.scrollTop > 0) node.scrollTop = node.scrollHeight
+    })
+    observer.observe(content)
+    return () => observer.disconnect()
+  }, [activeId])
+
   const onThreadScroll = () => {
     const node = threadRef.current
     if (!node) return
     const near = node.scrollHeight - node.scrollTop - node.clientHeight < 96
     nearBottomRef.current = near
+    // IntersectionObserver 在部分合成帧里会漏掉程序化滚动；滚到顶部时直接补一批。
+    if (node.scrollTop < 240 && windowStart > 0) loadEarlier()
     if (near && approvalAway) setApprovalAway(false)
   }
 
@@ -241,10 +383,27 @@ export function AgentDock({ notify }: AgentDockProps) {
     setApprovalAway(false)
   }
 
+  // 通知点击后即使线程此前停在更早的消息，也要把待处理卡带回视野。
+  useEffect(() => {
+    if (!agentAttentionRequestId) return
+    const frame = requestAnimationFrame(() => {
+      const card = threadRef.current?.querySelector('.w1-perm')
+      card?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      setApprovalAway(false)
+      useWorkstation.getState().clearAgentAttention()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [agentAttentionRequestId])
+
   const switchAgent = (next: AgentId) => {
     if (agent === next) return
     const session = sessions.find((item) => item.agent === next && !item.archived)
-    if (session) setActiveSession(session.id)
+    if (session) {
+      setActiveSession(session.id)
+      return
+    }
+    // 没有该 Agent 的会话时直接新建：标签页不能点了没反应
+    createAgentSession(next)
   }
 
   if (!activeSession) {
@@ -297,6 +456,24 @@ export function AgentDock({ notify }: AgentDockProps) {
         console.error('[agent] 导出会话失败', error)
         setExportState('error')
         window.setTimeout(() => setExportState('idle'), 2200)
+      })
+  }
+
+  const stopHere = () => {
+    const runId = streamHere?.runId
+    if (!runId || stopRequested) return
+    const bridge = typeof window === 'undefined' ? undefined : window.ws?.agent
+    if (!bridge?.cancel) {
+      notify('当前环境不支持停止运行')
+      return
+    }
+    setStopRequested(true)
+    void bridge
+      .cancel(runId)
+      .then(() => notify(queuedHere ? '已请求停止；排队的提示词会继续发送' : '已请求停止'))
+      .catch((error: unknown) => {
+        setStopRequested(false)
+        notify(error instanceof Error ? error.message : '停止失败')
       })
   }
 
@@ -370,6 +547,24 @@ export function AgentDock({ notify }: AgentDockProps) {
       .catch((error) => console.error('[agent] MCP 审批回写失败', error))
   }
 
+  const resolveQuestion = (answers: Record<string, string> | null) => {
+    if (!agentQuestion || !activeSession) return
+    const { requestId } = agentQuestion
+    const sessionId = activeSession.id
+    clearAgentQuestion(sessionId)
+    void window.ws?.agent
+      ?.respondQuestion({ requestId, ...(answers ? { answers } : { deny: true }) })
+      .then((ok) => {
+        if (!ok) console.error('[agent] 问答请求已失效')
+      })
+      .catch((error) => {
+        console.error('[agent] 回写问答失败', error)
+        if (!useWorkstation.getState().agentQuestions[sessionId]) {
+          useWorkstation.getState().setAgentQuestion(sessionId, { ...agentQuestion })
+        }
+      })
+  }
+
   const resolveToolPermission = (decision: 'once' | 'session' | 'workspace' | 'deny') => {
     if (!toolPermission) return
     const { requestId, sessionId } = toolPermission
@@ -429,6 +624,15 @@ export function AgentDock({ notify }: AgentDockProps) {
         <button
           className="w1-aworkspacefiles"
           type="button"
+          title="查看并回退文件检查点"
+          disabled={!activeSession.workspace}
+          onClick={() => setCheckpointsOpen(true)}
+        >
+          检查点
+        </button>
+        <button
+          className="w1-aworkspacefiles"
+          type="button"
           title="导出当前会话为 Markdown"
           disabled={exportState === 'busy'}
           onClick={exportSession}
@@ -476,7 +680,7 @@ export function AgentDock({ notify }: AgentDockProps) {
             <i>任务 {taskCount}</i>
             <i>笔记 {noteCount}</i>
             <i>习惯 {habitCount}</i>
-            <b>{writeApproval ? '审批' : '只读'}</b>
+            <b>{activeSession.planMode ? '计划' : writeApproval ? '审批' : '只读'}</b>
           </div>
 
           {!activeSession.workspace ? (
@@ -499,47 +703,69 @@ export function AgentDock({ notify }: AgentDockProps) {
             </div>
           ) : null}
 
-          {thread.some((message) => message.imported) ? (
-            <div className="w1-importnote" role="status">
-              <b>历史</b>
-              导入自本机 CLI 的只读历史 · 新消息继续由 CLI 续接
-            </div>
-          ) : null}
+          {!threadLoaded ? (
+            <StatePlaceholder kind="loading" title="正在读取会话…" rows={4} />
+          ) : (
+            <>
+              {windowStart > 0 ? (
+                <div className="w1-threadmore" ref={earlierRef}>
+                  <button type="button" onClick={loadEarlier}>
+                    加载更早的 {Math.min(THREAD_WINDOW_STEP, windowStart)} 条 · 还有 {windowStart}{' '}
+                    条
+                  </button>
+                </div>
+              ) : null}
 
-          {thread.map((message, index) => (
-            <MessageRow
-              key={message.id}
-              message={message}
-              agent={agent}
-              animate={message.id === animateId}
-              onFork={
-                message.role === 'assistant' && !typingHere
-                  ? () => forkMessage(message.id)
-                  : undefined
-              }
-              forkTitle={
-                canForkWithCli({ agent, resumeId: activeSession.resumeId }, thread, message.id)
-                  ? '从这条回复真分叉：下一条消息延续 CLI 上下文'
-                  : '复制到此消息；只有最新回复能真分叉'
-              }
-              forking={forkingId === message.id}
-              onRetry={
-                message.error && !message.imported && !typingHere
-                  ? () => {
-                      for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
-                        const previous = thread[cursor]
-                        if (previous?.role === 'user') {
-                          retryMessage(previous.text)
-                          break
-                        }
-                      }
+              {thread.some((message) => message.imported) ? (
+                <div className="w1-importnote" role="status">
+                  <b>历史</b>
+                  导入自本机 CLI 的只读历史 · 新消息继续由 CLI 续接
+                </div>
+              ) : null}
+
+              {visibleThread.map((message, visibleIndex) => {
+                const index = windowStart + visibleIndex
+                return (
+                  <MessageRow
+                    key={message.id}
+                    message={message}
+                    agent={agent}
+                    animate={message.id === animateId}
+                    onFork={
+                      message.role === 'assistant' && !typingHere
+                        ? () => forkMessage(message.id)
+                        : undefined
                     }
-                  : undefined
-              }
-            />
-          ))}
+                    forkTitle={
+                      canForkWithCli(
+                        { agent, resumeId: activeSession.resumeId },
+                        thread,
+                        message.id
+                      )
+                        ? '从这条回复真分叉：下一条消息延续 CLI 上下文'
+                        : '复制到此消息；只有最新回复能真分叉'
+                    }
+                    forking={forkingId === message.id}
+                    onRetry={
+                      message.error && !message.imported && !typingHere
+                        ? () => {
+                            for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+                              const previous = thread[cursor]
+                              if (previous?.role === 'user') {
+                                retryMessage(previous.text, previous.contextFiles, previous.images)
+                                break
+                              }
+                            }
+                          }
+                        : undefined
+                    }
+                  />
+                )
+              })}
+            </>
+          )}
 
-          {typingHere ? (
+          {threadLoaded && typingHere && !agentQuestion ? (
             <div className="w1-typing" role="status" aria-label={`${meta.name} 正在处理`}>
               <span className="w1-av">{meta.badge}</span>
               <span className="w1-typing-dots">
@@ -564,6 +790,13 @@ export function AgentDock({ notify }: AgentDockProps) {
                 key={toolPermission.requestId}
                 request={toolPermission}
                 onResolve={resolveToolPermission}
+              />
+            ) : null}
+            {agentQuestion ? (
+              <QuestionCard
+                key={agentQuestion.requestId}
+                request={agentQuestion}
+                onResolve={resolveQuestion}
               />
             ) : null}
             {permission && permission.sessionId === activeSession.id ? (
@@ -618,15 +851,32 @@ export function AgentDock({ notify }: AgentDockProps) {
             onClose={() => setWorkspaceOpen(false)}
           />
         ) : null}
+        {checkpointsOpen && activeSession.workspace ? (
+          <CheckpointSheet
+            sessionId={activeSession.id}
+            running={typingHere}
+            onClose={() => setCheckpointsOpen(false)}
+            notify={notify}
+          />
+        ) : null}
       </AnimatePresence>
 
       <Composer
-        key={activeSession.id}
+        key={`${activeSession.id}:${activeSession.workspace ?? ''}`}
+        sessionId={activeSession.id}
         agent={agent}
         typing={typingHere}
         writeApproval={writeApproval}
+        planMode={activeSession.planMode === true}
+        onTogglePlanMode={() => toggleAgentPlanMode(activeSession.id)}
+        providerLabel={activeProviderLabel(providers, agent)}
+        threadReady={threadLoaded}
         workspace={activeSession.workspace}
+        runId={streamHere?.runId ?? null}
+        queued={queuedHere}
+        stopping={stopRequested}
         onSend={sendMessage}
+        onStop={stopHere}
       />
     </aside>
   )

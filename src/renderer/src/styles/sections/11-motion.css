@@ -204,8 +204,10 @@
   }
 }
 
+/* 没有 delay，不需要 backwards：窗口未绘制时动画会停在 pending，backwards 会把
+   顶栏按 from 状态钉在 translateY(-6px)，看起来像被窗口上缘裁掉。 */
 .w1.is-booted .w1-bar {
-  animation: shellInDown 0.5s var(--ease-out) backwards;
+  animation: shellInDown 0.5s var(--ease-out);
 }
 
 .w1.is-booted .w1-nav {

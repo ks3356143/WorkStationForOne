@@ -7,11 +7,14 @@ import {
   parseAgentLine,
   summarizeToolInput,
   type AgentPermissionRequest,
+  type AgentQuestion,
   type AgentRunEvent
 } from '../../shared/agent-stream'
 import { providerAuthScheme } from '../../shared/provider-profile'
+import { toolSurfaceDenial } from '../../shared/tool-surface'
 import type { ProviderRuntime } from '../providers'
 import { resolveAgentCli, type AgentCli } from './cli'
+import { buildClaudeFileDiffs } from './file-diff'
 
 export { resolveAgentCli, type AgentCli } from './cli'
 
@@ -83,6 +86,12 @@ export function buildClaudeArgs(
     forkSession?: boolean
     /** 外部 MCP 的 ask 工具经本机桥中继到审批卡 */
     permissionPromptTool?: string
+    /** 计划模式：CLI 只读调查，写入类工具直接拒绝 */
+    planMode?: boolean
+    /** 工具面关闭的原生工具，并入 --disallowedTools */
+    disabledTools?: string[]
+    /** 工具优先级说明；只含名称，不含路径、命令或密钥 */
+    appendSystemPrompt?: string
   }
 ): string[] {
   const args = [
@@ -94,7 +103,7 @@ export function buildClaudeArgs(
     'stream-json',
     '--verbose',
     '--permission-mode',
-    'manual',
+    options?.planMode ? 'plan' : 'manual',
     '--permission-prompts',
     'host',
     // 外部 MCP 的 ask 工具不会被 CLI 发给 host；显式指定桥内中继工具接管。
@@ -108,8 +117,15 @@ export function buildClaudeArgs(
     '--allowedTools',
     ...new Set([...CLAUDE_ALLOWED_TOOLS, ...(options?.allowedTools ?? [])])
   ]
-  if (options?.disallowedTools?.length) {
-    args.push('--disallowedTools', ...new Set(options.disallowedTools))
+  // 工具面关闭项与外部 MCP deny 合并，去重后一次下发
+  const denied = [
+    ...new Set([...(options?.disallowedTools ?? []), ...(options?.disabledTools ?? [])])
+  ]
+  if (denied.length) {
+    args.push('--disallowedTools', ...denied)
+  }
+  if (options?.appendSystemPrompt?.trim()) {
+    args.push('--append-system-prompt', options.appendSystemPrompt.trim())
   }
   if (provider) args.push('--model', provider.model)
   if (mcpConfigPath) args.push('--mcp-config', mcpConfigPath)
@@ -140,6 +156,8 @@ export interface McpServerConfig {
 
 export interface ClaudeRunOptions {
   prompt: string
+  /** 图片以 base64 块随首条用户消息发送；只来自应用私有目录 */
+  images?: { mime: string; data: string }[]
   /** 续接上一轮时传 Claude 自己的 session id */
   resumeId?: string
   /** 续接时用 --fork-session 创建新 CLI 会话，不写回源会话 */
@@ -156,10 +174,18 @@ export interface ClaudeRunOptions {
   allowedTools?: string[]
   /** 外部 MCP 工具拒绝列表（deny），只影响本次会话 */
   disallowedTools?: string[]
+  /** 工具面关闭的 CLI 原生工具；除 --disallowedTools 外本进程也拒绝 */
+  disabledTools?: string[]
+  /** 工具优先级说明，追加到系统提示 */
+  appendSystemPrompt?: string
   /** 规则命中时在发卡前直接放行；返回命中作用域或 null */
   autoApprove?: (toolName: string) => 'session' | 'workspace' | null
+  /** 规则直接放行写入前通知快照；审批卡路径由主进程在允许时抓取 */
+  onWriteIntent?: (paths: string[], toolName: string) => void
   /** 外部 MCP 的 ask 工具由 CLI 调用的审批中继工具 */
   permissionPromptTool?: string
+  /** 计划模式：只读调查并给方案；写入审批与 MCP 写入一律拒绝 */
+  planMode?: boolean
   onEvent: (event: AgentRunEvent) => void
   onExit: (info: { code: number | null; stderr: string; cancelled: boolean }) => void
   /** 省略时按环境解析；显式传 null 表示「没有可用的 CLI」 */
@@ -228,6 +254,64 @@ export interface RunHandle {
   cancel: () => void
   /** 回写 can_use_tool 的裁决；requestId 不存在时返回 false */
   respondPermission: (requestId: string, behavior: 'allow' | 'deny', message?: string) => boolean
+  /** 回写 AskUserQuestion 的答案；deny 为 true 时按用户拒绝处理 */
+  respondQuestion: (
+    requestId: string,
+    answers: Record<string, string> | undefined,
+    deny?: boolean
+  ) => boolean
+}
+
+const MAX_QUESTION_TEXT = 1000
+const MAX_QUESTION_OPTION = 120
+const MAX_QUESTION_DESCRIPTION = 1000
+const MAX_QUESTION_PREVIEW = 4000
+
+function trimmed(value: unknown, max: number): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const text = value.trim()
+  return text ? text.slice(0, max) : undefined
+}
+
+/** 校验并收窄 CLI 的 questions；形状不对就不发卡，直接拒绝这一问。 */
+export function parseQuestions(input: unknown): AgentQuestion[] | null {
+  if (typeof input !== 'object' || input === null) return null
+  const questions = (input as Record<string, unknown>).questions
+  if (!Array.isArray(questions) || questions.length === 0 || questions.length > 4) return null
+
+  const parsed: AgentQuestion[] = []
+  for (const raw of questions) {
+    if (typeof raw !== 'object' || raw === null) return null
+    const source = raw as Record<string, unknown>
+    const question = trimmed(source.question, MAX_QUESTION_TEXT)
+    if (!question) return null
+    const header = trimmed(source.header, 12) ?? '问题'
+    const optionsRaw = source.options
+    if (!Array.isArray(optionsRaw) || optionsRaw.length < 2 || optionsRaw.length > 4) return null
+    const options: AgentQuestion['options'] = []
+    for (const optionRaw of optionsRaw) {
+      if (typeof optionRaw !== 'object' || optionRaw === null) return null
+      const option = optionRaw as Record<string, unknown>
+      const label = trimmed(option.label, MAX_QUESTION_OPTION)
+      if (!label) return null
+      options.push({
+        label,
+        ...(trimmed(option.description, MAX_QUESTION_DESCRIPTION)
+          ? { description: trimmed(option.description, MAX_QUESTION_DESCRIPTION) }
+          : {}),
+        ...(trimmed(option.preview, MAX_QUESTION_PREVIEW)
+          ? { preview: trimmed(option.preview, MAX_QUESTION_PREVIEW) }
+          : {})
+      })
+    }
+    parsed.push({
+      question,
+      header,
+      options,
+      ...(source.multiSelect === true ? { multiSelect: true } : {})
+    })
+  }
+  return parsed
 }
 
 /**
@@ -244,7 +328,12 @@ export function startClaudeRun(options: ClaudeRunOptions): RunHandle {
   if (!cli) {
     options.onEvent({ kind: 'error', message: '未找到 Claude CLI，请先安装并登录 claude' })
     options.onExit({ code: null, stderr: '', cancelled: false })
-    return { sessionId, cancel: () => {}, respondPermission: () => false }
+    return {
+      sessionId,
+      cancel: () => {},
+      respondPermission: () => false,
+      respondQuestion: () => false
+    }
   }
 
   const mcpConfig = writeMcpConfig(options.mcp, options.mcpServers)
@@ -261,7 +350,10 @@ export function startClaudeRun(options: ClaudeRunOptions): RunHandle {
       ...(options.plugins ? { plugins: options.plugins } : {}),
       ...(options.allowedTools ? { allowedTools: options.allowedTools } : {}),
       ...(options.disallowedTools ? { disallowedTools: options.disallowedTools } : {}),
+      ...(options.disabledTools ? { disabledTools: options.disabledTools } : {}),
+      ...(options.appendSystemPrompt ? { appendSystemPrompt: options.appendSystemPrompt } : {}),
       ...(options.forkSession ? { forkSession: true } : {}),
+      ...(options.planMode ? { planMode: true } : {}),
       ...(options.permissionPromptTool
         ? { permissionPromptTool: options.permissionPromptTool }
         : {})
@@ -288,6 +380,7 @@ export function startClaudeRun(options: ClaudeRunOptions): RunHandle {
     string,
     { input: Record<string, unknown>; toolUseId: string }
   >()
+  const pendingQuestions = new Map<string, { questions: AgentQuestion[]; toolUseId: string }>()
   let inputClosed = false
   const closeInput = () => {
     if (inputClosed) return
@@ -317,11 +410,19 @@ export function startClaudeRun(options: ClaudeRunOptions): RunHandle {
     const toolUseId = typeof entry.tool_use_id === 'string' ? entry.tool_use_id : ''
     if (!requestId || !toolName) return true
     if (toolName === 'AskUserQuestion') {
-      // v1 的审批卡只处理工具权限，不实现宿主内问答。
-      writeControlResponse(requestId, {
-        behavior: 'deny',
-        message: 'WorkStationForOne 暂不支持交互问答',
-        toolUseID: toolUseId
+      const questions = parseQuestions(entry.input)
+      if (!questions) {
+        writeControlResponse(requestId, {
+          behavior: 'deny',
+          message: 'AskUserQuestion 参数无效',
+          toolUseID: toolUseId
+        })
+        return true
+      }
+      pendingQuestions.set(requestId, { questions, toolUseId })
+      options.onEvent({
+        kind: 'question',
+        request: { requestId, toolUseId, questions }
       })
       return true
     }
@@ -329,8 +430,22 @@ export function startClaudeRun(options: ClaudeRunOptions): RunHandle {
       typeof entry.input === 'object' && entry.input !== null
         ? (entry.input as Record<string, unknown>)
         : {}
+    const disabledDenial = toolSurfaceDenial(toolName, options.disabledTools ?? [])
+    if (disabledDenial) {
+      // 已在 --disallowedTools 里；这里再兜一层，防止规则或桥把已关闭的工具放回来
+      writeControlResponse(requestId, {
+        behavior: 'deny',
+        message: disabledDenial,
+        toolUseID: toolUseId
+      })
+      return true
+    }
     if (options.autoApprove?.(toolName)) {
       // 规则命中时不发卡也不登记 pending：本轮直接放行，审批链接不到它
+      options.onWriteIntent?.(
+        buildClaudeFileDiffs(toolName, input, options.cwd)?.map((diff) => diff.path) ?? [],
+        toolName
+      )
       writeControlResponse(requestId, {
         behavior: 'allow',
         updatedInput: input,
@@ -339,12 +454,14 @@ export function startClaudeRun(options: ClaudeRunOptions): RunHandle {
       return true
     }
     const inputJson = JSON.stringify(input)
+    const diffs = buildClaudeFileDiffs(toolName, input, options.cwd)
     const permissionRequest: AgentPermissionRequest = {
       requestId,
       toolName,
       toolUseId,
       detail: summarizeToolInput(toolName, input),
-      inputPreview: inputJson.length > 1200 ? `${inputJson.slice(0, 1199)}…` : inputJson
+      inputPreview: inputJson.length > 1200 ? `${inputJson.slice(0, 1199)}…` : inputJson,
+      ...(diffs?.length ? { diffs } : {})
     }
     if (typeof entry.description === 'string' && entry.description.trim()) {
       permissionRequest.description = entry.description.trim()
@@ -366,7 +483,10 @@ export function startClaudeRun(options: ClaudeRunOptions): RunHandle {
     if (typeof payload === 'object' && payload !== null) {
       if (handleControlRequest(payload as Record<string, unknown>)) return
     }
-    for (const event of parseAgentLine(trimmed)) {
+    for (const event of parseAgentLine(trimmed, (name, input) => {
+      const diffs = buildClaudeFileDiffs(name, input, options.cwd)
+      return diffs?.length ? { diffs } : undefined
+    })) {
       options.onEvent(event)
       if (event.kind === 'result' || event.kind === 'error') closeInput()
     }
@@ -394,6 +514,7 @@ export function startClaudeRun(options: ClaudeRunOptions): RunHandle {
     settled = true
     clearTimeout(timer)
     pendingPermissions.clear()
+    pendingQuestions.clear()
     inputClosed = true
     flush('', true)
     mcpConfig?.cleanup()
@@ -418,7 +539,16 @@ export function startClaudeRun(options: ClaudeRunOptions): RunHandle {
   child.stdin.write(
     `${JSON.stringify({
       type: 'user',
-      message: { role: 'user', content: [{ type: 'text', text: options.prompt }] },
+      message: {
+        role: 'user',
+        content: [
+          ...(options.images ?? []).map((image) => ({
+            type: 'image',
+            source: { type: 'base64', media_type: image.mime, data: image.data }
+          })),
+          { type: 'text', text: options.prompt }
+        ]
+      },
       parent_tool_use_id: null
     })}\n`
   )
@@ -450,6 +580,33 @@ export function startClaudeRun(options: ClaudeRunOptions): RunHandle {
             }
       const ok = writeControlResponse(requestId, response as unknown as Record<string, unknown>)
       pendingPermissions.delete(requestId)
+      return ok
+    },
+    respondQuestion: (requestId, answers, deny = false) => {
+      const pending = pendingQuestions.get(requestId)
+      if (!pending || inputClosed) return false
+      const response = deny
+        ? {
+            behavior: 'deny',
+            message: '用户拒绝回答',
+            toolUseID: pending.toolUseId
+          }
+        : (() => {
+            const scoped: Record<string, string> = {}
+            for (const item of pending.questions) {
+              const answer = answers?.[item.question]?.trim()
+              if (!answer) return null
+              scoped[item.question] = answer
+            }
+            return {
+              behavior: 'allow',
+              updatedInput: { questions: pending.questions, answers: scoped },
+              toolUseID: pending.toolUseId
+            }
+          })()
+      if (!response) return false
+      const ok = writeControlResponse(requestId, response as unknown as Record<string, unknown>)
+      if (ok) pendingQuestions.delete(requestId)
       return ok
     }
   }

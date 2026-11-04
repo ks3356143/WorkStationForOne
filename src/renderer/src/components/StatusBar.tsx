@@ -22,7 +22,8 @@ export function StatusBar({ notify, onShortcuts, onFleet, onReminders }: StatusB
         count +
         (state.permission?.sessionId === item.id ? 1 : 0) +
         (state.toolPermissions[item.id] ? 1 : 0) +
-        (state.mcpPermissions[item.id] ? 1 : 0),
+        (state.mcpPermissions[item.id] ? 1 : 0) +
+        (state.agentQuestions[item.id] ? 1 : 0),
       0
     )
   )
@@ -30,7 +31,11 @@ export function StatusBar({ notify, onShortcuts, onFleet, onReminders }: StatusB
     const pending = state.sessions.find(
       (item) =>
         state.permission?.sessionId === item.id ||
-        Boolean(state.toolPermissions[item.id] || state.mcpPermissions[item.id])
+        Boolean(
+          state.toolPermissions[item.id] ||
+            state.mcpPermissions[item.id] ||
+            state.agentQuestions[item.id]
+        )
     )
     return pending?.id ?? ''
   })

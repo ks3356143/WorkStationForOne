@@ -244,6 +244,94 @@
   font: 9px / 1.3 var(--mono);
 }
 
+.w1-cplist {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 2px 8px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--ac-rgb) / 0.3) transparent;
+}
+
+.w1-cprow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.6);
+  background: rgb(var(--panel-2-rgb) / 0.35);
+}
+
+.w1-cprow.restored {
+  opacity: 0.72;
+  border-style: dashed;
+}
+
+.w1-cpmain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.w1-cpmain b {
+  overflow: hidden;
+  color: var(--fg-strong);
+  font: 600 12.5px / 1.3 var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.w1-cpmain > span {
+  color: var(--su);
+  font: 10.5px / 1.3 var(--mono);
+}
+
+.w1-cpfiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.w1-cpfiles i {
+  padding: 2px 5px;
+  border: 1px solid rgb(var(--ac-rgb) / 0.18);
+  background: rgb(var(--ac-rgb) / 0.06);
+  color: var(--ac-fg);
+  font: 10px / 1.3 var(--mono);
+  font-style: normal;
+}
+
+.w1-cprollback {
+  flex: none;
+  padding: 7px 11px;
+  border: 1px solid var(--bd);
+  background: transparent;
+  color: var(--fs);
+  font: 11.5px / 1 var(--mono);
+  cursor: pointer;
+}
+
+.w1-cprollback:hover:not(:disabled) {
+  border-color: var(--wn);
+  color: var(--wn-fg-strong);
+}
+
+.w1-cprollback.armed {
+  border-color: rgb(var(--dg-rgb) / 0.55);
+  background: rgb(var(--dg-rgb) / 0.1);
+  color: var(--dg-fg);
+}
+
+.w1-cprollback:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 @media (max-width: 900px) {
   .w1-wssheet {
     width: calc(100vw - 48px);

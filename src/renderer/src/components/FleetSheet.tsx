@@ -49,6 +49,7 @@ export function FleetSheet({ onClose, notify }: FleetSheetProps) {
   const pendingPrompts = useWorkstation((state) => state.pendingPrompts)
   const toolPermissions = useWorkstation((state) => state.toolPermissions)
   const mcpPermissions = useWorkstation((state) => state.mcpPermissions)
+  const agentQuestions = useWorkstation((state) => state.agentQuestions)
   const permission = useWorkstation((state) => state.permission)
   const openAgentSession = useWorkstation((state) => state.openAgentSession)
   const toggleAgentSessionArchive = useWorkstation((state) => state.toggleAgentSessionArchive)
@@ -106,6 +107,7 @@ export function FleetSheet({ onClose, notify }: FleetSheetProps) {
   const pendingFor = (session: Session) =>
     (toolPermissions[session.id] ? 1 : 0) +
     (mcpPermissions[session.id] ? 1 : 0) +
+    (agentQuestions[session.id] ? 1 : 0) +
     (permission?.sessionId === session.id ? 1 : 0)
 
   const ordered = sortPinnedFirst(activeSessions)

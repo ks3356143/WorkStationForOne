@@ -1,5 +1,10 @@
-import type { AgentPermissionRequest } from '../../shared/agent-stream'
 import type {
+  AgentFileDiff,
+  AgentPermissionRequest,
+  AgentQuestionRequest
+} from '../../shared/agent-stream'
+import type {
+  AgentImageRef,
   LearningItemRecord,
   McpPermissionRequest,
   Skin,
@@ -57,6 +62,8 @@ export interface Session {
   pinned?: boolean
   /** 归档会话从会话栏隐藏，可在舰队控制台恢复 */
   archived?: boolean
+  /** 计划模式：只读调查并给方案，不执行写入 */
+  planMode?: boolean
 }
 
 export interface AgentStream {
@@ -68,6 +75,10 @@ export interface AgentStream {
 export interface PendingAgentPrompt {
   sessionId: string
   prompt: string
+  /** 用户 @ 附加的工作区相对路径；发送时由主进程读取内容 */
+  contextFiles?: string[]
+  /** 用户输入的图片引用；图片本体在应用私有目录 */
+  images?: AgentImageRef[]
 }
 
 export interface ToolCall {
@@ -76,6 +87,8 @@ export interface ToolCall {
   name: string
   meta: string
   status: string
+  /** 文件写入工具的改动预览 */
+  diffs?: AgentFileDiff[]
 }
 
 export interface ToolPermission extends AgentPermissionRequest {
@@ -94,6 +107,10 @@ export interface ChatMessage {
   imported?: boolean
   /** Codex 回合 id，用于从该条回复真分叉 */
   turnId?: string
+  /** 用户 @ 附加的工作区相对路径；只存路径，文件内容不落库 */
+  contextFiles?: string[]
+  /** 用户输入的图片引用；图片本体在应用私有目录 */
+  images?: AgentImageRef[]
 }
 
 export interface PermissionChange {
@@ -181,7 +198,11 @@ export interface WorkstationData {
   activeSessionId: string
   /** 会话搜索点进去后要定位的消息；滚动完成后清空 */
   agentJumpMessageId: string | null
+  /** 点击后台通知后要聚焦的审批 / 追问卡；滚动完成后清空 */
+  agentAttentionRequestId: string | null
   threads: Record<string, ChatMessage[]>
+  /** 会话线程是否已从数据库按需读取；未加载时显示骨架 */
+  threadsLoaded: Record<string, boolean>
   /** 每个会话各自的流；同一会话串行，不同会话可并行 */
   streams: Record<string, AgentStream>
   /** 待启动的提示词按发起会话排队 */
@@ -193,6 +214,8 @@ export interface WorkstationData {
   toolPermissions: Record<string, ToolPermission>
   /** MCP 审批按会话保存 */
   mcpPermissions: Record<string, McpPermissionRequest>
+  /** Agent 追问按会话保存；问答卡与工具审批互斥但各自独立 */
+  agentQuestions: Record<string, AgentQuestionRequest>
   resolution: ResolutionRecord | null
   motionOn: boolean
   theme: Theme

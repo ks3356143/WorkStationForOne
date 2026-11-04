@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type {
   AgentCreateInput,
   AgentForkResult,
+  AgentImageRef,
   AgentImportResult,
   AgentMessageRecord,
   AgentSessionPatch,
@@ -16,7 +17,11 @@ import type {
   TaskDraft,
   TaskPatch
 } from '../../../shared/ipc'
-import { appendStreamText, type AgentPermissionRequest } from '../../../shared/agent-stream'
+import {
+  appendStreamText,
+  type AgentPermissionRequest,
+  type AgentQuestionRequest
+} from '../../../shared/agent-stream'
 import { clozeFrontText } from '../../../shared/cloze'
 import { createInitialData } from '../data/mock'
 import { dateKey } from '../../../shared/date-key'
@@ -34,11 +39,12 @@ import {
   readStoredSkin,
   readStoredTheme
 } from '../lib/theme'
-import { friendlyMessage } from '../lib/errors'
+import { ERROR_DETAIL_SEPARATOR, friendlyMessage, redactErrorDetail } from '../lib/errors'
 import type {
   AgentId,
   ChatMessage,
   FocusSession,
+  Habit,
   LearningItem,
   LearningScope,
   Note,
@@ -72,6 +78,7 @@ interface TaskPersistence {
 
 interface NotePersistence {
   create: (text: string, tag?: string) => Promise<Note>
+  togglePin?: (id: string) => Promise<void>
   update?: (id: string, patch: NotePatch) => Promise<Note | undefined>
   remove?: (id: string) => Promise<boolean>
 }
@@ -79,6 +86,7 @@ interface NotePersistence {
 interface LearningPersistence {
   create: (draft: LearningDraft) => Promise<LearningItemRecord>
   update: (id: string, patch: LearningPatch) => Promise<void>
+  remove?: (id: string) => Promise<boolean>
   review: (id: string, rating: LearningRating) => Promise<LearningItemRecord>
 }
 
@@ -95,9 +103,13 @@ export interface ReminderPersistence {
 }
 
 let persistence: TaskPersistence | null = null
-let habitPersistence: {
+interface HabitPersistence {
   setCheckin: (id: string, day: string, done: boolean) => Promise<void>
-} | null = null
+  create?: (name: string) => Promise<Habit>
+  rename?: (id: string, name: string) => Promise<boolean>
+  remove?: (id: string) => Promise<boolean>
+}
+let habitPersistence: HabitPersistence | null = null
 let notePersistence: NotePersistence | null = null
 let learningPersistence: LearningPersistence | null = null
 let agentPersistence: AgentPersistence | null = null
@@ -105,9 +117,7 @@ let reminderPersistence: ReminderPersistence | null = null
 
 export const ACTIVE_AGENT_KEY = 'workstation.agentActive'
 
-export function bindHabitPersistence(
-  next: { setCheckin: (id: string, day: string, done: boolean) => Promise<void> } | null
-): void {
+export function bindHabitPersistence(next: HabitPersistence | null): void {
   habitPersistence = next
 }
 
@@ -164,15 +174,23 @@ interface WorkstationActions {
   composeTask: () => void
   clearLastAddedTask: () => void
   toggleHabitToday: (habitId: string) => void
+  toggleHabitDay: (habitId: string, day: string) => void
+  addHabit: (name: string) => void
+  renameHabit: (habitId: string, name: string) => void
+  removeHabit: (habitId: string) => void
   setActiveSession: (sessionId: string) => void
   openAgentSession: (sessionId: string) => void
   openAgentMessage: (sessionId: string, messageId: string | null) => void
+  focusAgentAttention: (sessionId: string, requestId: string) => void
+  clearAgentAttention: () => void
   clearAgentJump: () => void
+  setAgentThread: (sessionId: string, messages: ChatMessage[]) => void
   createAgentSession: (agent?: AgentId) => void
   setAgentResume: (sessionId: string, resumeId: string) => void
   renameAgentSession: (sessionId: string, title: string) => void
   toggleAgentSessionPin: (sessionId: string) => void
   toggleAgentSessionArchive: (sessionId: string) => void
+  toggleAgentPlanMode: (sessionId: string) => void
   removeAgentSession: (sessionId: string) => void
   setAgentWorkspace: (sessionId: string, workspace: string) => void
   importAgentSession: (result: AgentImportResult) => void
@@ -181,9 +199,16 @@ interface WorkstationActions {
   clearToolPermission: (sessionId: string) => void
   setMcpPermission: (request: McpPermissionRequest) => void
   clearMcpPermission: (sessionId: string) => void
-  sendMessage: (text: string) => void
-  retryMessage: (text: string) => void
-  takePendingPrompt: (sessionId?: string) => { sessionId: string; prompt: string } | null
+  setAgentQuestion: (sessionId: string, request: AgentQuestionRequest) => void
+  clearAgentQuestion: (sessionId: string) => void
+  sendMessage: (text: string, contextFiles?: string[], images?: AgentImageRef[]) => void
+  retryMessage: (text: string, contextFiles?: string[], images?: AgentImageRef[]) => void
+  takePendingPrompt: (sessionId?: string) => {
+    sessionId: string
+    prompt: string
+    contextFiles?: string[]
+    images?: AgentImageRef[]
+  } | null
   beginAgentReply: (sessionId: string, runId: string | null) => void
   bindAgentRun: (sessionId: string, runId: string) => void
   setAgentTurnId: (sessionId: string, turnId: string) => void
@@ -201,12 +226,14 @@ interface WorkstationActions {
   openQuickNote: () => void
   closeQuickNote: () => void
   addNote: (text: string) => void
+  toggleNotePin: (noteId: string) => void
   updateNote: (noteId: string, patch: NotePatch) => void
   removeNote: (noteId: string) => void
   openNotesView: () => void
   setLearningScope: (scope: LearningScope) => void
   addLearningItem: (draft: LearningDraft) => void
   updateLearningItem: (itemId: string, patch: LearningPatch) => void
+  removeLearningItem: (itemId: string) => void
   reviewLearningItem: (itemId: string, rating: LearningRating) => void
   startLearningReview: () => void
   exitLearningReview: () => void
@@ -218,6 +245,7 @@ export type WorkstationState = WorkstationData & WorkstationActions
 let messageSeq = 0
 let taskSeq = 0
 let learningSeq = 0
+let habitSeq = 0
 
 function nextMessageId(prefix: string): string {
   messageSeq += 1
@@ -232,6 +260,11 @@ function nextTaskId(): string {
 function nextLearningId(): string {
   learningSeq += 1
   return `learn-${Date.now()}-${learningSeq}`
+}
+
+function nextHabitId(): string {
+  habitSeq += 1
+  return `habit-${Date.now()}-${habitSeq}`
 }
 
 function messageTimeLabel(): string {
@@ -256,7 +289,8 @@ function agentTools(tools?: ToolCall[]): AgentToolRecord[] | undefined {
     ...(tool.id ? { id: tool.id } : {}),
     name: tool.name,
     meta: tool.meta,
-    status: tool.status
+    status: tool.status,
+    ...(tool.diffs?.length ? { diffs: tool.diffs } : {})
   }))
 }
 
@@ -279,6 +313,8 @@ function persistAgentMessage(sessionId: string, message: ChatMessage): void {
   }
   if (message.error) record.error = true
   if (message.turnId) record.turnId = message.turnId
+  if (message.contextFiles?.length) record.contextFiles = message.contextFiles
+  if (message.images?.length) record.images = message.images
   const tools = agentTools(message.tools)
   if (tools) record.tools = tools
   persistQuietly(() => persistence.saveMessage(record))
@@ -506,15 +542,91 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
   },
 
   toggleHabitToday: (habitId) => {
+    get().toggleHabitDay(habitId, dateKey())
+  },
+
+  toggleHabitDay: (habitId, day) => {
     const today = dateKey()
+    if (day > today) return
     const current = get().habits.find((habit) => habit.id === habitId)
     if (!current) return
-    const next = toggleCheckin(current, today, today)
-    const checked = !current.checkins.includes(today)
+    const next = toggleCheckin(current, day, today)
+    const checked = !current.checkins.includes(day)
     set((state) => ({
       habits: state.habits.map((habit) => (habit.id === habitId ? next : habit))
     }))
-    persistQuietly(() => habitPersistence?.setCheckin(habitId, today, checked) ?? Promise.resolve())
+    persistQuietly(() => habitPersistence?.setCheckin(habitId, day, checked) ?? Promise.resolve())
+  },
+
+  addHabit: (name) => {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    const local: Habit = { id: nextHabitId(), name: trimmed, checkins: [] }
+    set((state) => ({ habits: [...state.habits, local] }))
+    const create = habitPersistence?.create
+    if (!create) return
+    void create(trimmed)
+      .then((saved) => {
+        set((state) => ({
+          habits: state.habits.map((habit) =>
+            habit.id === local.id ? { ...saved, checkins: habit.checkins } : habit
+          )
+        }))
+      })
+      .catch((error) => {
+        set((state) => ({ habits: state.habits.filter((habit) => habit.id !== local.id) }))
+        reportPersistenceError(error)
+      })
+  },
+
+  renameHabit: (habitId, name) => {
+    const trimmed = name.trim()
+    const current = get().habits.find((habit) => habit.id === habitId)
+    if (!current || !trimmed || trimmed === current.name) return
+    set((state) => ({
+      habits: state.habits.map((habit) =>
+        habit.id === habitId ? { ...habit, name: trimmed } : habit
+      )
+    }))
+    const rename = habitPersistence?.rename
+    if (!rename) return
+    const restore = () =>
+      set((state) => ({
+        habits: state.habits.map((habit) =>
+          habit.id === habitId ? { ...habit, name: current.name } : habit
+        )
+      }))
+    void rename(habitId, trimmed)
+      .then((ok) => {
+        if (!ok) restore()
+      })
+      .catch((error) => {
+        restore()
+        reportPersistenceError(error)
+      })
+  },
+
+  removeHabit: (habitId) => {
+    const index = get().habits.findIndex((habit) => habit.id === habitId)
+    if (index < 0) return
+    const removed = get().habits[index]
+    set((state) => ({ habits: state.habits.filter((habit) => habit.id !== habitId) }))
+    const remove = habitPersistence?.remove
+    if (!remove) return
+    const restore = () =>
+      set((state) => {
+        const habits = [...state.habits]
+        habits.splice(Math.min(index, habits.length), 0, removed)
+        return { habits }
+      })
+    void remove(habitId)
+      .then((ok) => {
+        if (!ok) restore()
+      })
+      .catch((error) => {
+        restore()
+        reportPersistenceError(error)
+      })
   },
 
   setActiveSession: (sessionId) => {
@@ -538,7 +650,28 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     browserStorage()?.setItem(ACTIVE_AGENT_KEY, sessionId)
   },
 
+  focusAgentAttention: (sessionId, requestId) => {
+    const exists = get().sessions.some((session) => session.id === sessionId)
+    if (!exists) return
+    set({
+      activeSessionId: sessionId,
+      activeView: 'agent',
+      agentJumpMessageId: null,
+      agentAttentionRequestId: requestId
+    })
+    browserStorage()?.setItem(ACTIVE_AGENT_KEY, sessionId)
+  },
+
+  clearAgentAttention: () => set({ agentAttentionRequestId: null }),
+
   clearAgentJump: () => set({ agentJumpMessageId: null }),
+
+  setAgentThread: (sessionId, messages) => {
+    set((state) => ({
+      threads: { ...state.threads, [sessionId]: messages },
+      threadsLoaded: { ...state.threadsLoaded, [sessionId]: true }
+    }))
+  },
 
   createAgentSession: (agent = 'claude') => {
     const now = Date.now()
@@ -554,6 +687,7 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     set((state) => ({
       sessions: [session, ...state.sessions],
       threads: { ...state.threads, [id]: [] },
+      threadsLoaded: { ...state.threadsLoaded, [id]: true },
       activeSessionId: id,
       activeView: 'agent',
       permission: null,
@@ -617,9 +751,11 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     }
     const toolPermissions = { ...state.toolPermissions }
     const mcpPermissions = { ...state.mcpPermissions }
+    const agentQuestions = { ...state.agentQuestions }
     if (archived) {
       delete toolPermissions[sessionId]
       delete mcpPermissions[sessionId]
+      delete agentQuestions[sessionId]
     }
     set({
       sessions: state.sessions.map((item) => {
@@ -632,13 +768,32 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       activeSessionId,
       toolPermissions,
       mcpPermissions,
+      agentQuestions,
       permission: archived && state.permission?.sessionId === sessionId ? null : state.permission,
       resolution: archived && state.resolution?.sessionId === sessionId ? null : state.resolution,
       pendingReplyTo: archived && state.pendingReplyTo === sessionId ? null : state.pendingReplyTo,
       agentJumpMessageId:
-        archived && state.activeSessionId === sessionId ? null : state.agentJumpMessageId
+        archived && state.activeSessionId === sessionId ? null : state.agentJumpMessageId,
+      agentAttentionRequestId:
+        archived && state.activeSessionId === sessionId ? null : state.agentAttentionRequestId
     })
     persistAgentSession(sessionId, { archived })
+  },
+
+  toggleAgentPlanMode: (sessionId) => {
+    const session = get().sessions.find((item) => item.id === sessionId)
+    if (!session) return
+    const planMode = !session.planMode
+    set((state) => ({
+      sessions: state.sessions.map((item) => {
+        if (item.id !== sessionId) return item
+        const next = { ...item }
+        if (planMode) next.planMode = true
+        else delete next.planMode
+        return next
+      })
+    }))
+    persistAgentSession(sessionId, { planMode })
   },
 
   removeAgentSession: (sessionId) => {
@@ -648,12 +803,16 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     const sessions = state.sessions.filter((session) => session.id !== sessionId)
     const threads = { ...state.threads }
     delete threads[sessionId]
+    const threadsLoaded = { ...state.threadsLoaded }
+    delete threadsLoaded[sessionId]
     const streams = { ...state.streams }
     delete streams[sessionId]
     const toolPermissions = { ...state.toolPermissions }
     delete toolPermissions[sessionId]
     const mcpPermissions = { ...state.mcpPermissions }
     delete mcpPermissions[sessionId]
+    const agentQuestions = { ...state.agentQuestions }
+    delete agentQuestions[sessionId]
     const pendingPrompts = state.pendingPrompts.filter((prompt) => prompt.sessionId !== sessionId)
     const removedActive = state.activeSessionId === sessionId
     const nextActive = removedActive
@@ -667,16 +826,19 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     set({
       sessions,
       threads,
+      threadsLoaded,
       streams,
       toolPermissions,
       mcpPermissions,
+      agentQuestions,
       pendingPrompts,
       activeSessionId: nextActive,
       permission: state.permission?.sessionId === sessionId ? null : state.permission,
       resolution: state.resolution?.sessionId === sessionId ? null : state.resolution,
       pendingReplyTo: state.pendingReplyTo === sessionId ? null : state.pendingReplyTo,
       typing: Object.keys(streams).length > 0 || pendingPrompts.length > 0,
-      agentJumpMessageId: removedActive ? null : state.agentJumpMessageId
+      agentJumpMessageId: removedActive ? null : state.agentJumpMessageId,
+      agentAttentionRequestId: removedActive ? null : state.agentAttentionRequestId
     })
   },
 
@@ -717,6 +879,7 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     set((state) => ({
       sessions: [session, ...state.sessions.filter((item) => item.id !== record.id)],
       threads: { ...state.threads, [record.id]: messages.map(toChatMessage) },
+      threadsLoaded: { ...state.threadsLoaded, [record.id]: true },
       activeSessionId: record.id,
       activeView: 'agent',
       permission: null,
@@ -742,6 +905,7 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     set((state) => ({
       sessions: [session, ...state.sessions.filter((item) => item.id !== record.id)],
       threads: { ...state.threads, [record.id]: messages.map(toChatMessage) },
+      threadsLoaded: { ...state.threadsLoaded, [record.id]: true },
       activeSessionId: record.id,
       activeView: 'agent',
       permission: null,
@@ -765,7 +929,7 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     set((state) => {
       const toolPermissions = { ...state.toolPermissions }
       delete toolPermissions[sessionId]
-      const waiting = Boolean(state.mcpPermissions[sessionId])
+      const waiting = Boolean(state.mcpPermissions[sessionId] || state.agentQuestions[sessionId])
       return {
         toolPermissions,
         sessions: state.sessions.map((session) =>
@@ -788,7 +952,7 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     set((state) => {
       const mcpPermissions = { ...state.mcpPermissions }
       delete mcpPermissions[sessionId]
-      const waiting = Boolean(state.toolPermissions[sessionId])
+      const waiting = Boolean(state.toolPermissions[sessionId] || state.agentQuestions[sessionId])
       return {
         mcpPermissions,
         sessions: state.sessions.map((session) =>
@@ -799,9 +963,36 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       }
     }),
 
-  sendMessage: (text) => {
+  setAgentQuestion: (sessionId, request) =>
+    set((state) => ({
+      agentQuestions: { ...state.agentQuestions, [sessionId]: request },
+      sessions: state.sessions.map((session) =>
+        session.id === sessionId ? { ...session, status: 'wait' as const } : session
+      )
+    })),
+
+  clearAgentQuestion: (sessionId) =>
+    set((state) => {
+      const agentQuestions = { ...state.agentQuestions }
+      delete agentQuestions[sessionId]
+      const waiting = Boolean(state.toolPermissions[sessionId] || state.mcpPermissions[sessionId])
+      return {
+        agentQuestions,
+        sessions: state.sessions.map((session) =>
+          session.id === sessionId && session.status === 'wait' && !waiting
+            ? { ...session, status: 'run' as const }
+            : session
+        )
+      }
+    }),
+
+  sendMessage: (text, contextFiles, images) => {
     const trimmed = text.trim()
     if (!trimmed) return
+    const files = contextFiles
+      ? Array.from(new Set(contextFiles.map((path) => path.trim()).filter(Boolean)))
+      : []
+    const attachments = files.length > 0 ? files : undefined
     const state = get()
     const session = state.sessions.find((item) => item.id === state.activeSessionId)
     if (!session) return
@@ -811,7 +1002,9 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       id: nextMessageId('u'),
       role: 'user',
       text: trimmed,
-      time: messageTimeLabel()
+      time: messageTimeLabel(),
+      ...(attachments ? { contextFiles: attachments } : {}),
+      ...(images?.length ? { images } : {})
     }
     const count = (state.threads[sessionId]?.length ?? 0) + 1
     const title = session.title === '新会话' ? trimmed.slice(0, 40) : session.title
@@ -824,7 +1017,15 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
         ...current.threads,
         [sessionId]: [...(current.threads[sessionId] ?? []), message]
       },
-      pendingPrompts: [...current.pendingPrompts, { sessionId, prompt: trimmed }],
+      pendingPrompts: [
+        ...current.pendingPrompts,
+        {
+          sessionId,
+          prompt: trimmed,
+          ...(attachments ? { contextFiles: attachments } : {}),
+          ...(images?.length ? { images } : {})
+        }
+      ],
       typing: true,
       pendingReplyTo: sessionId
     }))
@@ -832,9 +1033,13 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     persistAgentSession(sessionId, { status: 'run', ...(title !== session.title ? { title } : {}) })
   },
 
-  retryMessage: (text) => {
+  retryMessage: (text, contextFiles, images) => {
     const trimmed = text.trim()
     if (!trimmed) return
+    const files = contextFiles
+      ? Array.from(new Set(contextFiles.map((path) => path.trim()).filter(Boolean)))
+      : []
+    const attachments = files.length > 0 ? files : undefined
     const state = get()
     const session = state.sessions.find((item) => item.id === state.activeSessionId)
     if (!session) return
@@ -844,7 +1049,15 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       sessions: current.sessions.map((item) =>
         item.id === session.id ? { ...item, status: 'run' as const } : item
       ),
-      pendingPrompts: [...current.pendingPrompts, { sessionId: session.id, prompt: trimmed }],
+      pendingPrompts: [
+        ...current.pendingPrompts,
+        {
+          sessionId: session.id,
+          prompt: trimmed,
+          ...(attachments ? { contextFiles: attachments } : {}),
+          ...(images?.length ? { images } : {})
+        }
+      ],
       typing: true,
       pendingReplyTo: session.id
     }))
@@ -860,7 +1073,12 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     const next = state.pendingPrompts[index]
     if (!next) return null
     set({ pendingPrompts: state.pendingPrompts.filter((_, itemIndex) => itemIndex !== index) })
-    return { sessionId: next.sessionId, prompt: next.prompt }
+    return {
+      sessionId: next.sessionId,
+      prompt: next.prompt,
+      ...(next.contextFiles ? { contextFiles: next.contextFiles } : {}),
+      ...(next.images ? { images: next.images } : {})
+    }
   },
 
   beginAgentReply: (sessionId, runId) => {
@@ -964,6 +1182,8 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     delete toolPermissions[sessionId]
     const mcpPermissions = { ...get().mcpPermissions }
     delete mcpPermissions[sessionId]
+    const agentQuestions = { ...get().agentQuestions }
+    delete agentQuestions[sessionId]
     set((state) => {
       const streams = { ...state.streams }
       delete streams[sessionId]
@@ -989,10 +1209,17 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
             // 原始报错对用户没有指导意义，先翻译成「发生了什么 + 怎么办」。
             // 已有正文不能被吞掉：半截回复 + 失败原因才说得清发生了什么。
             if (error) {
-              const friendly = friendlyMessage(error)
+              const agent = get().sessions.find((item) => item.id === sessionId)?.agent
+              const friendly = friendlyMessage(error, undefined, agent)
+              const raw = redactErrorDetail(error)
+              // 原文留在分隔符后面，界面默认收起；未知错误标题已包含原文，避免重复。
+              const text =
+                raw && !friendly.includes(raw)
+                  ? `${friendly}${ERROR_DETAIL_SEPARATOR}${raw}`
+                  : friendly
               return {
                 ...entry,
-                text: entry.text ? `${entry.text}\n\n${friendly}` : friendly,
+                text: entry.text ? `${entry.text}\n\n${text}` : text,
                 ...(turnId ? { turnId } : {}),
                 error: true
               }
@@ -1008,6 +1235,7 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
         streams,
         toolPermissions,
         mcpPermissions,
+        agentQuestions,
         typing: remaining.length > 0 || state.pendingPrompts.length > 0,
         pendingReplyTo: nextActive ?? nextPending
       }
@@ -1158,6 +1386,32 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
 
   openNotesView: () => set({ activeView: 'notes' }),
 
+  toggleNotePin: (noteId) => {
+    const note = get().notes.find((item) => item.id === noteId)
+    if (!note) return
+    const pinned = !note.pinned
+    set((state) => ({
+      notes: state.notes.map((item) => (item.id === noteId ? { ...item, pinned } : item))
+    }))
+
+    const togglePin = notePersistence?.togglePin
+    if (!togglePin) {
+      set((state) => ({ noteRevision: state.noteRevision + 1 }))
+      return
+    }
+    void togglePin(noteId)
+      .then(() => set((state) => ({ noteRevision: state.noteRevision + 1 })))
+      .catch((error) => {
+        set((state) => ({
+          notes: state.notes.map((item) =>
+            item.id === noteId ? { ...item, pinned: note.pinned } : item
+          ),
+          noteRevision: state.noteRevision + 1
+        }))
+        reportPersistenceError(error)
+      })
+  },
+
   updateNote: (noteId, patch) => {
     const next: NotePatch = {}
     if (patch.text !== undefined) {
@@ -1288,6 +1542,33 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       )
     }))
     persistQuietly(() => learningPersistence?.update(itemId, next) ?? Promise.resolve())
+  },
+
+  removeLearningItem: (itemId) => {
+    const index = get().learningItems.findIndex((item) => item.id === itemId)
+    if (index < 0) return
+    const removed = get().learningItems[index]
+    set((state) => ({
+      learningItems: state.learningItems.filter((item) => item.id !== itemId)
+    }))
+
+    const restore = () =>
+      set((state) => {
+        const items = [...state.learningItems]
+        items.splice(Math.min(index, items.length), 0, removed)
+        return { learningItems: items }
+      })
+
+    const remove = learningPersistence?.remove
+    if (!remove) return
+    void remove(itemId)
+      .then((ok) => {
+        if (!ok) restore()
+      })
+      .catch((error) => {
+        restore()
+        reportPersistenceError(error)
+      })
   },
 
   reviewLearningItem: (itemId, rating) => {

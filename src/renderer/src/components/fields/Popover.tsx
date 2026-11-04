@@ -9,6 +9,8 @@ interface PopoverProps {
   onClose: () => void
   label: string
   width: number
+  /** Esc 关闭后要还回焦点的元素；默认用 anchor */
+  focusTarget?: HTMLElement | null
   children: ReactNode
 }
 
@@ -24,7 +26,15 @@ interface Position {
  * 挂在 `.w1` 根节点上的弹层：锚点下方优先，空间不足翻到上方，两侧夹在视口内。
  * 视图层带 transform，直接 fixed 会被当作相对祖先定位，所以走 portal。
  */
-export function Popover({ anchor, open, onClose, label, width, children }: PopoverProps) {
+export function Popover({
+  anchor,
+  open,
+  onClose,
+  label,
+  width,
+  focusTarget,
+  children
+}: PopoverProps) {
   const panelRef = useRef<HTMLDivElement | null>(null)
   const [position, setPosition] = useState<Position | null>(null)
   const [host] = useState<HTMLElement | null>(() =>
@@ -47,6 +57,16 @@ export function Popover({ anchor, open, onClose, label, width, children }: Popov
     if (open) place()
   }, [open, place])
 
+  // 内容异步变高（例如文件列表读取完成）时要重新定位，否则会压住锚点。
+  useLayoutEffect(() => {
+    if (!open) return
+    const panel = panelRef.current
+    if (!panel || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => place())
+    observer.observe(panel)
+    return () => observer.disconnect()
+  }, [open, place])
+
   useEffect(() => {
     if (!open) return
     const onPointerDown = (event: PointerEvent) => {
@@ -61,7 +81,7 @@ export function Popover({ anchor, open, onClose, label, width, children }: Popov
         // Esc 属于最上层弹层：截断到本层，不要让外层表单同时收起
         event.stopImmediatePropagation()
         onClose()
-        anchor?.focus()
+        ;(focusTarget ?? anchor)?.focus()
       }
     }
     const onReflow = () => place()
@@ -75,7 +95,7 @@ export function Popover({ anchor, open, onClose, label, width, children }: Popov
       window.removeEventListener('resize', onReflow)
       window.removeEventListener('scroll', onReflow, true)
     }
-  }, [anchor, onClose, open, place])
+  }, [anchor, onClose, open, place, focusTarget])
 
   const panel = (
     <AnimatePresence>

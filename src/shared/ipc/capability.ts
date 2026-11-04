@@ -1,4 +1,5 @@
 import type { McpDomain } from './mcp'
+import type { AgentKind } from './agent'
 
 export interface BuiltinToolRecord {
   name: string
@@ -6,6 +7,44 @@ export interface BuiltinToolRecord {
   domain: McpDomain
   write: boolean
   enabled: boolean
+}
+
+export interface ToolSurfaceNativeRecord {
+  id: string
+  name: string
+  description: string
+  enabled: boolean
+  warning?: string
+}
+
+export interface ToolSurfaceMcpRecord {
+  id: string
+  name: string
+  enabled: boolean
+  /** 首选：提示词里单独成组，并要求优先于 CLI 原生工具 */
+  preferred: boolean
+  tools: string[]
+}
+
+export interface ToolSurfaceSkillRecord {
+  id: string
+  name: string
+  enabled: boolean
+  preferred: boolean
+}
+
+export interface ToolSurfaceRecord {
+  agent: AgentKind
+  native: ToolSurfaceNativeRecord[]
+  mcp: ToolSurfaceMcpRecord[]
+  skills: ToolSurfaceSkillRecord[]
+  /** 应用内置数据桥工具，不是 CLI 原生工具 */
+  builtin: BuiltinToolRecord[]
+}
+
+export interface ToolSurfaceBundle {
+  claude: ToolSurfaceRecord
+  codex: ToolSurfaceRecord
 }
 
 export interface SkillRecord {
@@ -269,6 +308,16 @@ export interface CapabilityApi {
   builtinTools: () => Promise<BuiltinToolRecord[]>
   /** 切换单个内置工具；关闭后桥不再列出也不执行它 */
   setBuiltinTool: (name: string, enabled: boolean) => Promise<BuiltinToolRecord[]>
+  /** 按 Agent 的统一工具面：原生工具、MCP、技能与数据桥工具 */
+  toolSurface: () => Promise<ToolSurfaceBundle>
+  setNativeTool: (agent: AgentKind, id: string, enabled: boolean) => Promise<ToolSurfaceBundle>
+  moveTool: (agent: AgentKind, key: string, direction: 'up' | 'down') => Promise<ToolSurfaceBundle>
+  /** 标记首选：提示词里单独成组并要求优先于 CLI 原生工具 */
+  setPreferredTool: (
+    agent: AgentKind,
+    key: string,
+    preferred: boolean
+  ) => Promise<ToolSurfaceBundle>
   environment: (force?: boolean) => Promise<EnvironmentCheckRecord[]>
   skills: SkillApi
   mcp: ExternalMcpApi

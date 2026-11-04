@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { PinIcon } from './Glyphs'
 import { StatePlaceholder } from './StatePlaceholder'
 
 export interface NoteListRow {
@@ -16,7 +17,10 @@ interface NoteListProps {
   mode: 'browse' | 'search'
   endLabel?: string
   resetKey?: string
+  emptyLabel?: string
+  pinningId?: string | null
   onOpen: (row: NoteListRow) => void
+  onTogglePin: (row: NoteListRow) => void
 }
 
 export const ROW_HEIGHT = 68
@@ -49,7 +53,17 @@ function highlight(text: string, snippet?: string): string {
   return snippet && snippet.length > 0 ? snippet : text
 }
 
-export function NoteList({ rows, loading, mode, endLabel, resetKey, onOpen }: NoteListProps) {
+export function NoteList({
+  rows,
+  loading,
+  mode,
+  endLabel,
+  resetKey,
+  emptyLabel,
+  pinningId,
+  onOpen,
+  onTogglePin
+}: NoteListProps) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [height, setHeight] = useState(420)
@@ -87,7 +101,9 @@ export function NoteList({ rows, loading, mode, endLabel, resetKey, onOpen }: No
   if (rows.length === 0) {
     return (
       <div className="w1-nvempty">
-        {mode === 'search' ? '没有匹配的笔记。换个关键词试试。' : '还没有笔记。按 ^N 记下第一条。'}
+        {mode === 'search'
+          ? '没有匹配的笔记。换个关键词试试。'
+          : (emptyLabel ?? '还没有笔记。按 ^N 记下第一条。')}
       </div>
     )
   }
@@ -121,6 +137,17 @@ export function NoteList({ rows, loading, mode, endLabel, resetKey, onOpen }: No
                   <time>{row.time}</time>
                 </span>
                 <p className="w1-nvtext">{highlight(row.text, row.snippet)}</p>
+              </button>
+              <button
+                className={`w1-nvrowpin${row.pinned ? ' on' : ''}`}
+                type="button"
+                aria-label={row.pinned ? '取消置顶' : '置顶笔记'}
+                aria-pressed={row.pinned}
+                title={row.pinned ? '取消置顶' : '置顶'}
+                disabled={pinningId != null}
+                onClick={() => onTogglePin(row)}
+              >
+                <PinIcon width={12} height={12} />
               </button>
             </article>
           ))}

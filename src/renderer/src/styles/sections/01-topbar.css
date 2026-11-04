@@ -9,7 +9,7 @@
   align-items: center;
   gap: 12px;
   padding-left: 16px;
-  padding-right: 148px;
+  padding-right: 10px;
   border-bottom: 1px solid rgb(var(--prism-1-rgb) / 0.16);
   background-image:
     var(--glass-spec),
@@ -156,4 +156,55 @@
   background: var(--ok);
   box-shadow: 0 0 7px rgb(var(--ok-rgb) / 0.6);
   animation: ledPulse 2.4s ease-in-out infinite;
+}
+
+.w1-winctl {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  margin-left: 2px;
+  -webkit-app-region: no-drag;
+}
+
+.w1-wcbtn {
+  width: 34px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--mu);
+  cursor: pointer;
+  transition:
+    color var(--dur-ui),
+    background-color var(--dur-ui),
+    border-color var(--dur-ui),
+    transform var(--dur-base) var(--ease-out);
+}
+
+.w1-wcbtn svg {
+  display: block;
+}
+
+.w1-wcbtn:hover {
+  border-color: rgb(var(--ac-rgb) / 0.28);
+  background: rgb(var(--ac-rgb) / 0.1);
+  color: var(--fg);
+}
+
+.w1-wcbtn:focus-visible {
+  outline: 1px solid var(--ac);
+  outline-offset: 2px;
+}
+
+.w1-wcbtn:active {
+  transform: translateY(0) scale(0.96);
+}
+
+.w1-wcbtn.close:hover {
+  border-color: rgb(var(--dg-rgb) / 0.45);
+  background: rgb(var(--dg-rgb) / 0.14);
+  color: var(--dg-fg);
 }

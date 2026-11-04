@@ -5,9 +5,10 @@ import { initDatabase, type DatabaseContext } from './db'
 import { disposeCaptureShortcut, registerCaptureHandlers, registerCaptureShortcut } from './capture'
 import { registerAgentHandlers } from './ipc/agent'
 import { registerProviderHandlers } from './ipc/providers'
-import { registerAppHandlers, TITLE_BAR_HEIGHT, WINDOW_PALETTE } from './ipc/app'
+import { registerAppHandlers, WINDOW_PALETTE } from './ipc/app'
 import { ProviderService } from './providers'
 import { ApprovalRuleService } from './agent/approval-rules'
+import { buildMcpAttentionNotice, createAgentNotifier } from './agent/attention'
 import { ensureDailyBackup } from './db/backup'
 import { startReminderLoop } from './reminders'
 import { registerHabitHandlers } from './ipc/habits'
@@ -120,15 +121,10 @@ function createWindow(): void {
     minWidth: 1180,
     minHeight: 720,
     show: false,
-    backgroundColor: WINDOW_PALETTE.dark.background,
+    backgroundColor: WINDOW_PALETTE.dark,
     title: 'WorkStationForOne',
     icon: join(__dirname, '../../resources/icon.ico'),
     titleBarStyle: 'hidden',
-    titleBarOverlay: {
-      color: WINDOW_PALETTE.dark.background,
-      symbolColor: WINDOW_PALETTE.dark.symbol,
-      height: TITLE_BAR_HEIGHT
-    },
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -142,6 +138,12 @@ function createWindow(): void {
   win.on('closed', () => {
     if (mainWindow === win) mainWindow = null
   })
+  const sendWindowState = () => {
+    if (win.isDestroyed()) return
+    win.webContents.send(IPC_CHANNELS.appWindowState, { maximized: win.isMaximized() })
+  }
+  win.on('maximize', sendWindowState)
+  win.on('unmaximize', sendWindowState)
   win.once('ready-to-show', () => win.show())
 
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -183,6 +185,7 @@ if (!gotTheLock) {
     runPendingMigration()
 
     database = initDatabase()
+    const agentRepository = database.agent
     const providers = new ProviderService(database.providers)
     const capabilities = createCapabilityCenter({
       repository: new CapabilityRepository(database.db),
@@ -193,7 +196,8 @@ if (!gotTheLock) {
         fetch: globalThis.fetch.bind(globalThis),
         openExternal: (url) => shell.openExternal(url)
       },
-      policy: database.mcp
+      policy: database.mcp,
+      toolPrefs: database.toolPrefs
     })
     // 插件源与更新检查：只操作应用私有目录，用私有 CODEX_HOME / CLAUDE_CONFIG_DIR
     const pluginSources = new PluginSourceService({
@@ -239,11 +243,20 @@ if (!gotTheLock) {
       sessions: database.agent,
       audit: database.audit
     })
+    const attentionLog = process.env.WS_ATTENTION_LOG?.trim()
+    const notifyAttention = createAgentNotifier({
+      getWindow: () => mainWindow,
+      ...(attentionLog ? { logFile: attentionLog } : {}),
+      ...(attentionLog && process.env.WS_ATTENTION_FORCE === '1' ? { force: true } : {}),
+      ...(attentionLog ? { deliver: () => {} } : {})
+    })
     const permissions = new McpPermissionBroker({
       send: (request) => {
         const win = mainWindow
         if (!win || win.isDestroyed()) return false
         win.webContents.send(IPC_CHANNELS.mcpPermission, request)
+        const session = agentRepository.findSession(request.sessionId)
+        if (session) notifyAttention(buildMcpAttentionNotice(session, request))
         return true
       },
       audit: database.audit,
@@ -276,8 +289,15 @@ if (!gotTheLock) {
         requestExternalApproval: (input) =>
           agentHandlers?.requestBridgeApproval(input) ??
           Promise.resolve({ behavior: 'deny', message: '审批服务未就绪' }),
+        requestQuestion: (input) =>
+          agentHandlers?.requestBridgeQuestion(input) ??
+          Promise.resolve({ behavior: 'deny', message: '问答服务未就绪' }),
         hasApprovalRelay: (sessionId) => agentHandlers?.hasApprovalRelay(sessionId) ?? false,
-        isToolEnabled: (name) => database?.mcp.isToolEnabled(name) ?? true
+        isToolEnabled: (name) => database?.mcp.isToolEnabled(name) ?? true,
+        writeDenial: (sessionId) =>
+          database?.agent.findSession(sessionId)?.planMode === true
+            ? '计划模式只读：切到执行模式后再写入。'
+            : null
       }
     )
     try {
@@ -298,7 +318,10 @@ if (!gotTheLock) {
       cancelPermissions: (sessionId) => mcpPermissions?.cancelSession(sessionId),
       codexHome: database.layout.codexHome,
       capabilities: agentCapabilityRuntime(capabilities),
-      approvalRules
+      approvalRules,
+      audit: database.audit,
+      imagesDir: join(database.layout.dataDir, 'agent', 'images'),
+      notifyAttention
     })
     // 到点提醒：轮询数据库，命中「今天 + 正好到点 + 没提醒过」就弹系统通知
     stopReminders = startReminderLoop(database.tasks, database.reminders, {

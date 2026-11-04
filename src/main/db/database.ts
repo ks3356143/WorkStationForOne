@@ -664,6 +664,66 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE agent_sessions ADD COLUMN fork_turn_id TEXT;
       ALTER TABLE agent_messages ADD COLUMN turn_id TEXT;
     `
+  },
+  {
+    // @ 文件上下文：消息只存工作区相对路径，文件内容不落库。
+    version: 37,
+    sql: `
+      ALTER TABLE agent_messages ADD COLUMN context_files TEXT;
+    `
+  },
+  {
+    // 计划模式：只读调查并给出方案，执行前不写文件。
+    version: 38,
+    sql: `
+      ALTER TABLE agent_sessions ADD COLUMN plan_mode INTEGER NOT NULL DEFAULT 0;
+    `
+  },
+  {
+    // 检查点：回合前文件快照；files 只存工作区相对路径与原内容。
+    version: 39,
+    sql: `
+      CREATE TABLE agent_checkpoints (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES agent_sessions(id) ON DELETE CASCADE,
+        run_id TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        files_json TEXT NOT NULL,
+        restored_at INTEGER,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX idx_agent_checkpoints_session
+        ON agent_checkpoints(session_id, created_at DESC);
+    `
+  },
+  {
+    // 图片输入：消息只存私有目录里的引用，图片本体不落库。
+    version: 40,
+    sql: `
+      ALTER TABLE agent_messages ADD COLUMN images_json TEXT;
+    `
+  },
+  {
+    // 工具面：按 Agent 保存原生工具开关与 MCP / 技能排序。
+    version: 41,
+    sql: `
+      CREATE TABLE agent_tool_prefs (
+        agent TEXT NOT NULL CHECK (agent IN ('claude', 'codex')),
+        tool_key TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (agent, tool_key)
+      );
+    `
+  },
+  {
+    // 首选标记：提示词里分成「首选 / 其它启用」，首选优先于 CLI 原生工具。
+    version: 42,
+    sql: `
+      ALTER TABLE agent_tool_prefs
+        ADD COLUMN preferred INTEGER NOT NULL DEFAULT 0 CHECK (preferred IN (0, 1));
+    `
   }
 ]
 

@@ -1,17 +1,16 @@
-import type { AgentSessionRecord, AgentThreadBundle } from '../../../shared/ipc'
+import type { AgentSessionRecord, AgentSessionSummary } from '../../../shared/ipc'
 import {
   ACTIVE_AGENT_KEY,
   bindAgentPersistence,
   useWorkstation,
   type AgentPersistence
 } from '../store/useWorkstation'
-import type { ChatMessage, Session } from '../types'
+import type { Session } from '../types'
 import { agentSessionDate, agentSessionMeta } from './agent'
-import { toChatMessage } from './chat-message'
 import { browserStorage } from './theme'
 
 export interface AgentHydrateDeps extends AgentPersistence {
-  threads: () => Promise<AgentThreadBundle>
+  sessions: () => Promise<AgentSessionSummary>
 }
 
 function toSession(record: AgentSessionRecord, messageCount: number, now: number): Session {
@@ -27,7 +26,8 @@ function toSession(record: AgentSessionRecord, messageCount: number, now: number
     ...(record.pendingFork ? { pendingFork: true } : {}),
     ...(record.forkTurnId ? { forkTurnId: record.forkTurnId } : {}),
     ...(record.pinned ? { pinned: true } : {}),
-    ...(record.archived ? { archived: true } : {})
+    ...(record.archived ? { archived: true } : {}),
+    ...(record.planMode ? { planMode: true } : {})
   }
 }
 
@@ -44,23 +44,11 @@ export async function hydrateAgent(deps = bridgeAgent()): Promise<void> {
   })
 
   try {
-    const bundle = await deps.threads()
+    // 启动只读会话摘要与消息数量；正文在打开会话时按需读取，避免把所有历史一次性装进内存。
+    const summary = await deps.sessions()
     const now = Date.now()
-    const threads: Record<string, ChatMessage[]> = {}
-    const counts = new Map<string, number>()
-    for (const session of bundle.sessions) {
-      threads[session.id] = []
-      counts.set(session.id, 0)
-    }
-    for (const message of bundle.messages) {
-      const thread = threads[message.sessionId]
-      if (!thread) continue
-      thread.push(toChatMessage(message))
-      counts.set(message.sessionId, (counts.get(message.sessionId) ?? 0) + 1)
-    }
-
-    const sessions = bundle.sessions.map((session) =>
-      toSession(session, counts.get(session.id) ?? 0, now)
+    const sessions = summary.sessions.map((session) =>
+      toSession(session, summary.counts[session.id] ?? 0, now)
     )
     const stored = browserStorage()?.getItem(ACTIVE_AGENT_KEY)
     const activeSessionId =
@@ -70,11 +58,13 @@ export async function hydrateAgent(deps = bridgeAgent()): Promise<void> {
 
     useWorkstation.setState({
       sessions,
-      threads,
+      threads: {},
+      threadsLoaded: {},
       activeSessionId,
       permission: null,
       toolPermissions: {},
       mcpPermissions: {},
+      agentQuestions: {},
       resolution: null,
       typing: false,
       pendingPrompts: [],
@@ -87,10 +77,12 @@ export async function hydrateAgent(deps = bridgeAgent()): Promise<void> {
     useWorkstation.setState({
       sessions: [],
       threads: {},
+      threadsLoaded: {},
       activeSessionId: '',
       permission: null,
       toolPermissions: {},
       mcpPermissions: {},
+      agentQuestions: {},
       resolution: null,
       typing: false,
       pendingPrompts: [],
@@ -102,5 +94,12 @@ export async function hydrateAgent(deps = bridgeAgent()): Promise<void> {
 }
 
 function bridgeAgent(): AgentHydrateDeps | undefined {
-  return typeof window === 'undefined' ? undefined : window.ws?.agent
+  const api = typeof window === 'undefined' ? undefined : window.ws?.agent
+  if (!api) return undefined
+  return {
+    sessions: api.sessions,
+    createSession: api.createSession,
+    updateSession: api.updateSession,
+    saveMessage: api.saveMessage
+  }
 }

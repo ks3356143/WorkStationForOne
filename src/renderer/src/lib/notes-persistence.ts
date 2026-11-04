@@ -23,8 +23,10 @@ export async function hydrateNotes(
   // 老桥没有这两个方法时不要绑定空实现，否则 store 会以为写入成功了
   const update = deps.update
   const remove = deps.remove
+  const togglePin = deps.togglePin
   bindNotePersistence({
     create: (text, tag) => deps.create(text, tag),
+    ...(togglePin ? { togglePin: (id: string) => togglePin(id) } : {}),
     ...(update ? { update: (id: string, patch: NotePatch) => update(id, patch) } : {}),
     ...(remove ? { remove: (id: string) => remove(id) } : {})
   })

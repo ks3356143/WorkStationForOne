@@ -214,6 +214,25 @@ export class LearningRepository {
     )
   }
 
+  /** 删除卡片；复习记录随卡片一起清掉，避免历史统计留下孤儿。 */
+  remove(id: string): boolean {
+    const existing = this.find(id)
+    if (!existing) return false
+    const at = Date.now()
+    this.transaction(() => {
+      this.sql('DELETE FROM learning_reviews WHERE item_id = ?').run(id)
+      this.sql('DELETE FROM learning_items WHERE id = ?').run(id)
+    })
+    this.audit?.record({
+      at,
+      domain: 'learning',
+      action: 'delete',
+      targetId: id,
+      title: existing.title
+    })
+    return true
+  }
+
   /** 评分落库：调度结果与复习记录必须同时写入，否则统计与队列会互相矛盾。 */
   review(id: string, rating: LearningRating, today = dateKey()): LearningItemRecord {
     const current = this.find(id)

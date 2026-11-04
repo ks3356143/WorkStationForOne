@@ -337,6 +337,60 @@
   cursor: default;
 }
 
+/* ---------- tool surface：首选标记与注入预览 ---------- */
+
+.w1-capprefbtn {
+  min-width: 26px;
+  padding: 4px 0;
+  border: 1px solid rgb(var(--bd-rgb) / 0.6);
+  background: rgb(var(--field-rgb) / 0.16);
+  color: var(--su);
+  font: 12px / 1 var(--sans);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-ui),
+    color var(--dur-ui),
+    background-color var(--dur-ui);
+}
+
+.w1-capprefbtn:hover:not(:disabled) {
+  border-color: rgb(var(--wn-rgb) / 0.5);
+  color: var(--wn-fg);
+}
+
+.w1-capprefbtn.on {
+  border-color: rgb(var(--wn-rgb) / 0.6);
+  background: rgb(var(--wn-rgb) / 0.12);
+  color: var(--wn-fg-strong);
+}
+
+.w1-capprefbtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.w1-capprefer {
+  padding: 1px 5px;
+  border: 1px solid rgb(var(--wn-rgb) / 0.45);
+  background: rgb(var(--wn-rgb) / 0.1);
+  color: var(--wn-fg);
+  font: 10px / 1.2 var(--mono);
+  font-style: normal;
+  letter-spacing: 0.04em;
+}
+
+.w1-capprompt {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.42);
+  background: rgb(var(--field-rgb) / 0.12);
+  color: var(--fs);
+  font: 12px / 1.6 var(--sans);
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+}
+
 .w1-capbadge {
   padding: 3px 6px;
   border: 1px solid rgb(var(--ok-rgb) / 0.3);

@@ -2,8 +2,57 @@ import { memo, useEffect, useRef, useState } from 'react'
 import { m } from 'motion/react'
 import { DURATION, EASE_OUT } from '../../lib/motion'
 import { AGENT_META } from '../../lib/agent'
+import { fallbackCopy } from '../../lib/clipboard'
 import type { AgentId, ChatMessage } from '../../types'
-import { ArrowIcon } from '../Glyphs'
+import { AgentMarkdown } from './AgentMarkdown'
+import { AgentImageThumb } from './AgentImageThumb'
+import { ToolCardRow } from './ToolCardRow'
+import { splitErrorText } from '../../lib/errors'
+
+function ErrorDetail({ raw }: { raw: string }) {
+  const [open, setOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const copyTimer = useRef<number | null>(null)
+
+  useEffect(
+    () => () => {
+      if (copyTimer.current) window.clearTimeout(copyTimer.current)
+    },
+    []
+  )
+
+  const copy = () => {
+    const done = () => {
+      setCopied(true)
+      if (copyTimer.current) window.clearTimeout(copyTimer.current)
+      copyTimer.current = window.setTimeout(() => setCopied(false), 1600)
+    }
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(raw).then(done, () => fallbackCopy(raw, done))
+      return
+    }
+    fallbackCopy(raw, done)
+  }
+
+  return (
+    <div className="w1-errdetail">
+      <div className="w1-errdetailactions">
+        <button
+          type="button"
+          className="w1-errdetailbtn"
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+        >
+          {open ? '收起详情' : '查看详情'}
+        </button>
+        <button type="button" className="w1-errdetailbtn" onClick={copy}>
+          {copied ? '已复制' : '复制详情'}
+        </button>
+      </div>
+      {open ? <pre>{raw}</pre> : null}
+    </div>
+  )
+}
 
 interface MessageRowProps {
   message: ChatMessage
@@ -13,21 +62,6 @@ interface MessageRowProps {
   onFork?: () => void
   forkTitle?: string
   forking?: boolean
-}
-
-function fallbackCopy(text: string, done: () => void) {
-  const area = document.createElement('textarea')
-  area.value = text
-  area.style.position = 'fixed'
-  area.style.opacity = '0'
-  document.body.appendChild(area)
-  area.select()
-  try {
-    document.execCommand('copy')
-  } finally {
-    area.remove()
-  }
-  done()
 }
 
 export const MessageRow = memo(function MessageRow({
@@ -68,6 +102,22 @@ export const MessageRow = memo(function MessageRow({
       <div className="w1-umsg" data-message-id={message.id}>
         <span className="w1-ulabel">我 · {message.time}</span>
         {message.text}
+        {message.images?.length ? (
+          <div className="w1-umsgimages">
+            {message.images.map((image) => (
+              <AgentImageThumb key={image.id} image={image} className="w1-umsgimage" />
+            ))}
+          </div>
+        ) : null}
+        {message.contextFiles?.length ? (
+          <div className="w1-uctx">
+            {message.contextFiles.map((path) => (
+              <span className="w1-uctxchip" key={path}>
+                @{path}
+              </span>
+            ))}
+          </div>
+        ) : null}
       </div>
     )
   }
@@ -97,36 +147,28 @@ export const MessageRow = memo(function MessageRow({
             </button>
           ) : null}
         </div>
-        <div className={`w1-atext${message.error ? ' error' : ''}`}>{message.text}</div>
+        {message.error ? (
+          (() => {
+            const errorText = splitErrorText(message.text)
+            return (
+              <>
+                <div className="w1-atext error">{errorText.message}</div>
+                {errorText.detail ? <ErrorDetail raw={errorText.detail} /> : null}
+              </>
+            )
+          })()
+        ) : (
+          <div className="w1-atext">
+            <AgentMarkdown text={message.text} />
+          </div>
+        )}
         {message.error && onRetry ? (
           <button type="button" className="w1-retry" onClick={onRetry}>
             重试
           </button>
         ) : null}
         {message.tools?.map((tool, index) => (
-          <m.div
-            className="w1-tool"
-            key={tool.id ?? tool.name}
-            initial={{ opacity: 0, transform: 'translateY(6px)' }}
-            animate={{ opacity: 1, transform: 'translateY(0px)' }}
-            transition={{
-              duration: DURATION.reveal,
-              delay: Math.min(index, 6) * 0.04,
-              ease: EASE_OUT
-            }}
-          >
-            <ArrowIcon width={9} height={9} />
-            <b>{tool.name}</b>
-            <span>{tool.meta}</span>
-            <m.em
-              key={tool.status}
-              initial={{ opacity: 0.45, scale: 0.92 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: DURATION.fast, ease: EASE_OUT }}
-            >
-              {tool.status}
-            </m.em>
-          </m.div>
+          <ToolCardRow tool={tool} index={index} key={tool.id ?? tool.name} />
         ))}
       </div>
     </>

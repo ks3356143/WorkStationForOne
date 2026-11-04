@@ -326,7 +326,61 @@
   position: relative;
 }
 
+.w1-nvtagbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.w1-nvtagbar::-webkit-scrollbar {
+  display: none;
+}
+
+.w1-nvfilter {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.55);
+  background: rgb(var(--field-rgb) / 0.35);
+  color: var(--mu);
+  font: 10.5px / 1 var(--mono);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui),
+    color var(--dur-ui);
+}
+
+.w1-nvfilter i {
+  font-style: normal;
+  color: var(--su);
+  font-variant-numeric: tabular-nums;
+}
+
+.w1-nvfilter:hover {
+  border-color: rgb(var(--ac-rgb) / 0.4);
+  color: var(--fg);
+}
+
+.w1-nvfilter.on {
+  border-color: rgb(var(--ac2-rgb) / 0.5);
+  background: rgb(var(--ac2-rgb) / 0.1);
+  color: var(--ac2-fg);
+}
+
+.w1-nvfilter.on i {
+  color: var(--ac2);
+}
+
 .w1-nvrow {
+  position: relative;
   height: 68px;
 }
 
@@ -338,7 +392,7 @@
   flex-direction: column;
   justify-content: center;
   gap: 5px;
-  padding: 8px 8px;
+  padding: 8px 42px 8px 8px;
   border: 0;
   border-bottom: 1px solid rgb(var(--ac-rgb) / 0.1);
   background: transparent;
@@ -357,6 +411,58 @@
 .w1-nvrowbtn:focus-visible {
   outline: 1px solid rgb(var(--ac2-rgb) / 0.75);
   outline-offset: -2px;
+}
+
+.w1-nvrowpin {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--su);
+  opacity: 0;
+  pointer-events: none;
+  cursor: pointer;
+  transition:
+    opacity var(--dur-ui),
+    border-color var(--dur-ui),
+    background-color var(--dur-ui),
+    color var(--dur-ui);
+}
+
+.w1-nvrow:hover .w1-nvrowpin,
+.w1-nvrowpin.on,
+.w1-nvrowpin:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.w1-nvrowpin:hover:not(:disabled) {
+  border-color: rgb(var(--ac2-rgb) / 0.4);
+  background: rgb(var(--ac2-rgb) / 0.08);
+  color: var(--ac2);
+}
+
+.w1-nvrowpin.on {
+  border-color: rgb(var(--ac2-rgb) / 0.34);
+  color: var(--ac2);
+}
+
+.w1-nvrowpin:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+@media (hover: none) {
+  .w1-nvrowpin {
+    opacity: 0.55;
+    pointer-events: auto;
+  }
 }
 
 .w1-nvrowtop {

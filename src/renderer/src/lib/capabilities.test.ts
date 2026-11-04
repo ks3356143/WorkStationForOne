@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import type { ExternalMcpServerRecord, SkillMarketEntry } from '../../../shared/ipc'
+import type {
+  ExternalMcpServerRecord,
+  ExternalMcpToolRecord,
+  SkillMarketEntry
+} from '../../../shared/ipc'
 import {
   filterMarket,
   formatCount,
   installedCatalogIds,
   keyPlaceholders,
   marketLabel,
+  mcpStatus,
   mcpTarget,
   parseKeyValueLines,
   sortMarket
@@ -24,6 +29,21 @@ const entry = (
   source: './x',
   installed: false,
   installCount
+})
+
+const tool = (name: string): ExternalMcpToolRecord => ({
+  name,
+  description: '',
+  readOnly: true,
+  approval: 'ask'
+})
+
+const oauthInfo = (state: 'connected' | 'expired' | 'error') => ({
+  state,
+  issuer: 'https://mcp.example.com',
+  scopes: 'default',
+  expiresAt: null,
+  lastError: ''
 })
 
 const server = (over: Partial<ExternalMcpServerRecord>): ExternalMcpServerRecord => ({
@@ -89,6 +109,47 @@ describe('能力中心表单工具', () => {
     ).toEqual(new Set(['memory', 'fetch']))
     expect(mcpTarget(server({}))).toBe('npx -y pkg')
     expect(mcpTarget(server({ transport: 'http', url: 'https://x/mcp' }))).toBe('https://x/mcp')
+  })
+
+  it('OAuth 未登录时不把缓存的工具显示为已连接', () => {
+    const cached = { tools: [tool('notion-search')], toolNames: ['notion-search'] }
+    expect(
+      mcpStatus(
+        server({
+          auth: 'oauth',
+          oauth: oauthInfo('connected'),
+          trusted: true,
+          enabled: true,
+          ...cached
+        })
+      )
+    ).toBe('已连接 · 1 工具')
+    expect(
+      mcpStatus(server({ auth: 'oauth', oauth: null, trusted: true, enabled: true, ...cached }))
+    ).toBe('待登录')
+    expect(
+      mcpStatus(
+        server({
+          auth: 'oauth',
+          oauth: oauthInfo('expired'),
+          trusted: true,
+          enabled: true,
+          ...cached
+        })
+      )
+    ).toBe('待登录')
+    expect(
+      mcpStatus(
+        server({
+          auth: 'oauth',
+          oauth: null,
+          trusted: true,
+          enabled: true,
+          lastError: '还没有完成 OAuth 登录',
+          ...cached
+        })
+      )
+    ).toBe('连接失败')
   })
 
   it('应用镜像名显示为 Claude 官方', () => {

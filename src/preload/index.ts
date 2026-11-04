@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import {
+  type AgentAttention,
   type AgentEventEnvelope,
   IPC_CHANNELS,
   type TaskScheduleChange,
@@ -41,8 +42,9 @@ const api: WsApi = {
   },
   notes: {
     bootstrap: (notes) => ipcRenderer.invoke(IPC_CHANNELS.notesBootstrap, notes),
-    page: (offset, limit) => ipcRenderer.invoke(IPC_CHANNELS.notesPage, offset, limit),
-    search: (query, limit) => ipcRenderer.invoke(IPC_CHANNELS.notesSearch, query, limit),
+    page: (offset, limit, tag) => ipcRenderer.invoke(IPC_CHANNELS.notesPage, offset, limit, tag),
+    search: (query, limit, tag) => ipcRenderer.invoke(IPC_CHANNELS.notesSearch, query, limit, tag),
+    tags: () => ipcRenderer.invoke(IPC_CHANNELS.notesTags),
     create: (text, tag) => ipcRenderer.invoke(IPC_CHANNELS.notesCreate, text, tag),
     togglePin: (id) => ipcRenderer.invoke(IPC_CHANNELS.notesTogglePin, id),
     update: (id, patch) => ipcRenderer.invoke(IPC_CHANNELS.notesUpdate, id, patch),
@@ -63,6 +65,7 @@ const api: WsApi = {
     bootstrap: (items) => ipcRenderer.invoke(IPC_CHANNELS.learningBootstrap, items),
     create: (draft) => ipcRenderer.invoke(IPC_CHANNELS.learningCreate, draft),
     update: (id, patch) => ipcRenderer.invoke(IPC_CHANNELS.learningUpdate, id, patch),
+    remove: (id) => ipcRenderer.invoke(IPC_CHANNELS.learningRemove, id),
     review: (id, rating) => ipcRenderer.invoke(IPC_CHANNELS.learningReview, id, rating),
     createMany: (drafts) => ipcRenderer.invoke(IPC_CHANNELS.learningCreateMany, drafts),
     exportCards: (subject) => ipcRenderer.invoke(IPC_CHANNELS.learningExport, subject),
@@ -71,20 +74,32 @@ const api: WsApi = {
   habits: {
     list: () => ipcRenderer.invoke(IPC_CHANNELS.habitsList),
     bootstrap: (habits) => ipcRenderer.invoke(IPC_CHANNELS.habitsBootstrap, habits),
-    setCheckin: (id, day, done) => ipcRenderer.invoke(IPC_CHANNELS.habitsSetCheckin, id, day, done)
+    setCheckin: (id, day, done) => ipcRenderer.invoke(IPC_CHANNELS.habitsSetCheckin, id, day, done),
+    create: (name) => ipcRenderer.invoke(IPC_CHANNELS.habitsCreate, name),
+    rename: (id, name) => ipcRenderer.invoke(IPC_CHANNELS.habitsRename, id, name),
+    remove: (id) => ipcRenderer.invoke(IPC_CHANNELS.habitsRemove, id)
   },
   agent: {
     send: (input) => ipcRenderer.invoke(IPC_CHANNELS.agentSend, input),
     cancel: (runId) => ipcRenderer.invoke(IPC_CHANNELS.agentCancel, runId),
     respondPermission: (response) =>
       ipcRenderer.invoke(IPC_CHANNELS.agentPermissionResponse, response),
+    respondQuestion: (response) => ipcRenderer.invoke(IPC_CHANNELS.agentQuestionResponse, response),
     onEvent: (listener) => {
       const handler = (_event: Electron.IpcRendererEvent, payload: AgentEventEnvelope) =>
         listener(payload)
       ipcRenderer.on(IPC_CHANNELS.agentEvent, handler)
       return () => ipcRenderer.removeListener(IPC_CHANNELS.agentEvent, handler)
     },
+    onAttention: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, payload: AgentAttention) =>
+        listener(payload)
+      ipcRenderer.on(IPC_CHANNELS.agentAttention, handler)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.agentAttention, handler)
+    },
     threads: () => ipcRenderer.invoke(IPC_CHANNELS.agentThreads),
+    sessions: () => ipcRenderer.invoke(IPC_CHANNELS.agentSessions),
+    thread: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.agentThread, sessionId),
     searchSessions: (query) => ipcRenderer.invoke(IPC_CHANNELS.agentSearchSessions, query),
     exportSession: (id) => ipcRenderer.invoke(IPC_CHANNELS.agentExportSession, id),
     createSession: (input) => ipcRenderer.invoke(IPC_CHANNELS.agentCreateSession, input),
@@ -97,6 +112,10 @@ const api: WsApi = {
       ipcRenderer.invoke(IPC_CHANNELS.agentWorkspaceFile, sessionId, path),
     openWorkspace: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.agentOpenWorkspace, sessionId),
     presets: () => ipcRenderer.invoke(IPC_CHANNELS.agentPresets),
+    checkpoints: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.agentCheckpoints, sessionId),
+    rollback: (checkpointId) => ipcRenderer.invoke(IPC_CHANNELS.agentRollback, checkpointId),
+    saveImage: (input) => ipcRenderer.invoke(IPC_CHANNELS.agentSaveImage, input),
+    imageData: (image) => ipcRenderer.invoke(IPC_CHANNELS.agentImageData, image),
     savePreset: (input) => ipcRenderer.invoke(IPC_CHANNELS.agentSavePreset, input),
     removePreset: (id) => ipcRenderer.invoke(IPC_CHANNELS.agentRemovePreset, id),
     usage: (days) => ipcRenderer.invoke(IPC_CHANNELS.agentUsage, days),
@@ -132,6 +151,13 @@ const api: WsApi = {
     builtinTools: () => ipcRenderer.invoke(IPC_CHANNELS.capabilityBuiltinTools),
     setBuiltinTool: (name, enabled) =>
       ipcRenderer.invoke(IPC_CHANNELS.capabilityBuiltinToolSet, name, enabled),
+    toolSurface: () => ipcRenderer.invoke(IPC_CHANNELS.capabilityToolSurface),
+    setNativeTool: (agent, id, enabled) =>
+      ipcRenderer.invoke(IPC_CHANNELS.capabilityToolSet, agent, id, enabled),
+    moveTool: (agent, key, direction) =>
+      ipcRenderer.invoke(IPC_CHANNELS.capabilityToolMove, agent, key, direction),
+    setPreferredTool: (agent, key, preferred) =>
+      ipcRenderer.invoke(IPC_CHANNELS.capabilityToolPrefer, agent, key, preferred),
     pluginSources: () => ipcRenderer.invoke(IPC_CHANNELS.capabilityPluginSources),
     addPluginSource: (input) => ipcRenderer.invoke(IPC_CHANNELS.capabilityPluginSourceAdd, input),
     refreshPluginSource: (id) => ipcRenderer.invoke(IPC_CHANNELS.capabilityPluginSourceRefresh, id),
@@ -188,6 +214,16 @@ const api: WsApi = {
   },
   app: {
     setTheme: (theme) => ipcRenderer.invoke(IPC_CHANNELS.appSetTheme, theme),
+    windowMinimize: () => ipcRenderer.invoke(IPC_CHANNELS.appWindowMinimize),
+    windowToggleMaximize: () => ipcRenderer.invoke(IPC_CHANNELS.appWindowToggleMaximize),
+    windowClose: () => ipcRenderer.invoke(IPC_CHANNELS.appWindowClose),
+    windowState: () => ipcRenderer.invoke(IPC_CHANNELS.appWindowGetState),
+    onWindowState: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, state: Parameters<typeof listener>[0]) =>
+        listener(state)
+      ipcRenderer.on(IPC_CHANNELS.appWindowState, handler)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.appWindowState, handler)
+    },
     backupNow: () => ipcRenderer.invoke(IPC_CHANNELS.appBackupNow),
     listBackups: () => ipcRenderer.invoke(IPC_CHANNELS.appBackupList),
     restoreBackup: (name) => ipcRenderer.invoke(IPC_CHANNELS.appRestoreBackup, name),

@@ -97,6 +97,49 @@ describe('NoteRepository 列表', () => {
   })
 })
 
+describe('NoteRepository 标签', () => {
+  it('统计标签数量、排除空标签并返回全部笔记数', () => {
+    const { db, repo } = seedDb()
+    repo.bootstrap(notes)
+    repo.create('甲想法', '想法')
+    repo.create('乙想法', '想法')
+    repo.create('丙学习', '学习')
+
+    const summary = repo.tags()
+    expect(summary.total).toBe(7)
+    expect(summary.tags.find((item) => item.tag === '想法')?.count).toBe(2)
+    expect(summary.tags.find((item) => item.tag === '学习')?.count).toBe(1)
+    expect(summary.tags.find((item) => item.tag === '产品思考')?.count).toBe(1)
+    expect(summary.tags.every((item) => item.tag.length > 0)).toBe(true)
+    db.close()
+  })
+
+  it('分页按标签过滤并同步总数', () => {
+    const { db, repo } = seedDb()
+    repo.bootstrap(notes)
+    repo.create('甲想法', '想法')
+    repo.create('乙想法', '想法')
+
+    const page = repo.page(0, 10, '想法')
+    expect(page.total).toBe(2)
+    expect(page.items.map((note) => note.text)).toEqual(['乙想法', '甲想法'])
+    expect(repo.page(0, 10, '不存在')).toEqual({ items: [], total: 0 })
+    db.close()
+  })
+
+  it('搜索按标签过滤，长词与短词回退都生效', () => {
+    const { db, repo } = seedDb()
+    repo.bootstrap(notes)
+    repo.create('标签筛选测试甲', '甲')
+    repo.create('标签筛选测试乙', '乙')
+
+    expect(repo.search('标签筛选', 10, '甲').map((hit) => hit.text)).toEqual(['标签筛选测试甲'])
+    expect(repo.search('标签', 10, '乙').map((hit) => hit.text)).toEqual(['标签筛选测试乙'])
+    expect(repo.search('标签筛选', 10, '丙')).toEqual([])
+    db.close()
+  })
+})
+
 describe('NoteRepository 搜索', () => {
   it('三字及以上中文走 FTS 并能命中', () => {
     const { db, repo } = seedDb()

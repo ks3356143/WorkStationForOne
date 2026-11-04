@@ -49,6 +49,24 @@ describe('buildCodexArgs', () => {
     expect(args.join(' ')).not.toContain('--dangerously')
   })
 
+  it('工具面关闭项作为进程级 -c 参数追加，不改沙箱与审批', () => {
+    const args = buildCodexArgs(CLI, undefined, [
+      'features.computer_use=false',
+      'web_search="disabled"'
+    ])
+    expect(args).toEqual(
+      expect.arrayContaining([
+        '-c',
+        'features.computer_use=false',
+        '-c',
+        'web_search="disabled"',
+        '-c',
+        'approval_policy="never"'
+      ])
+    )
+    expect(args.join(' ')).not.toContain('--dangerously')
+  })
+
   it('续接会话用 exec resume，并继续在进程级固定只读', () => {
     const args = buildCodexArgs(CLI, 'thread-123')
 
