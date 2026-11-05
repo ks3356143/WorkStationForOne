@@ -6416,6 +6416,8 @@ async function run() {
       )
       taskNav?.click()
       await waitFor(() => all('.w1-todorowwrap').length > 0, 3000)
+      // 懒加载的 Agent 视图可能还在退场；等它卸载后再读任务行，避免把手交接到旧 Composer。
+      await waitFor(() => !document.querySelector('#composer-input'), 3000)
       const firstTaskRow = all('.w1-todorowwrap')[0]
       const firstTaskTitle =
         firstTaskRow?.querySelector('.w1-todotitletext')?.textContent?.trim() ?? ''
@@ -6426,8 +6428,11 @@ async function run() {
         const input = document.querySelector('#composer-input')
         return Boolean(input) && (input.value ?? '').includes('标题：' + firstTaskTitle)
       }, 3000)
-      const agentViewAfterTask =
-        document.querySelector('.w1-navitem.on .w1-navtext b')?.textContent?.trim() === 'Agent'
+      const agentViewAfterTask = await waitFor(
+        () =>
+          document.querySelector('.w1-navitem.on .w1-navtext b')?.textContent?.trim() === 'Agent',
+        3000
+      )
       // 选工作区会让 Composer 重挂载；提示词要能重新填回来
       const workspaceGate = document.querySelector('.w1-aworkspacegate .w1-pb')
       if (workspaceGate) workspaceGate.click()
