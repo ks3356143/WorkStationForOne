@@ -25,7 +25,7 @@ describe('工具面偏好', () => {
   it('迁移到最新版本并默认启用原生工具', () => {
     const { db, repo } = setup()
     expect(userVersion(db)).toBe(MIGRATIONS.at(-1)!.version)
-    expect(MIGRATIONS.at(-1)!.version).toBe(42)
+    expect(MIGRATIONS.at(-1)!.version).toBe(45)
     expect(repo.disabledNative('claude')).toEqual([])
     repo.setNative('claude', 'web', false)
     expect(repo.disabledNative('claude')).toEqual(['web'])
@@ -74,6 +74,20 @@ describe('工具面偏好', () => {
     db.close()
   })
 
+  it('用途说明可保存与清空，不影响首选、排序与开关', () => {
+    const { db, repo } = setup()
+    repo.setPreferred('claude', 'mcp:s1', true)
+    repo.setOrder('claude', ['mcp:s1'])
+    repo.setNote('claude', 'mcp:s1', '窗口截图')
+    expect(repo.notes('claude').get('mcp:s1')).toBe('窗口截图')
+    expect(repo.preferred('claude').has('mcp:s1')).toBe(true)
+    expect(repo.order('claude').get('mcp:s1')).toBe(0)
+    repo.setNote('claude', 'mcp:s1', '')
+    expect(repo.notes('claude').has('mcp:s1')).toBe(false)
+    expect(repo.preferred('claude').has('mcp:s1')).toBe(true)
+    db.close()
+  })
+
   it('删除 MCP / 插件时清理对应偏好', () => {
     const { db, repo } = setup()
     repo.setOrder('claude', ['mcp:s1', 'skill:p1'])
@@ -87,8 +101,8 @@ describe('工具面偏好', () => {
   })
 })
 
-describe('v41 → v42 迁移', () => {
-  it('保留旧开关与排序，首选一律默认为 false', () => {
+describe('v41 → 最新迁移', () => {
+  it('保留旧开关与排序，首选默认 false、说明默认空', () => {
     const dir = mkdtempSync(join(tmpdir(), 'wsfo-tool-prefs-upgrade-'))
     dirs.push(dir)
     const db = openDatabase(join(dir, 'workstation.db'))
@@ -118,6 +132,7 @@ describe('v41 → v42 迁移', () => {
     // 旧库没有首选概念，升级后不能凭空标一个
     expect(repo.preferred('claude').size).toBe(0)
     expect(repo.list('claude').every((row) => row.preferred === false)).toBe(true)
+    expect(repo.list('claude').every((row) => row.note === '')).toBe(true)
 
     // 升级后新写入的首选必须能落库
     repo.setPreferred('claude', 'mcp:desktop', true)

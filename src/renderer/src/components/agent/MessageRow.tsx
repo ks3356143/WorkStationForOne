@@ -3,10 +3,12 @@ import { m } from 'motion/react'
 import { DURATION, EASE_OUT } from '../../lib/motion'
 import { AGENT_META } from '../../lib/agent'
 import { fallbackCopy } from '../../lib/clipboard'
+import type { AgentCheckpointView, AgentRollbackResult } from '../../../../shared/ipc'
 import type { AgentId, ChatMessage } from '../../types'
 import { AgentMarkdown } from './AgentMarkdown'
 import { AgentImageThumb } from './AgentImageThumb'
 import { ToolCardRow } from './ToolCardRow'
+import { TurnChanges } from './TurnChanges'
 import { splitErrorText } from '../../lib/errors'
 
 function ErrorDetail({ raw }: { raw: string }) {
@@ -60,6 +62,13 @@ interface MessageRowProps {
   animate?: boolean
   onRetry?: () => void
   onFork?: () => void
+  onSaveNote?: () => void
+  onSaveTask?: () => void
+  turnCheckpoint?: AgentCheckpointView
+  turnRollbackEnabled?: boolean
+  onRollbackTurn?: (checkpoint: AgentCheckpointView) => Promise<AgentRollbackResult>
+  running?: boolean
+  notify?: (text: string) => void
   forkTitle?: string
   forking?: boolean
 }
@@ -70,6 +79,13 @@ export const MessageRow = memo(function MessageRow({
   animate = false,
   onRetry,
   onFork,
+  onSaveNote,
+  onSaveTask,
+  turnCheckpoint,
+  turnRollbackEnabled = false,
+  onRollbackTurn,
+  running = false,
+  notify = () => {},
   forkTitle = '复制到此消息为止的对话；模型上下文从新会话开始',
   forking = false
 }: MessageRowProps) {
@@ -134,6 +150,26 @@ export const MessageRow = memo(function MessageRow({
           <button type="button" className="w1-copy" aria-label="复制这条回复" onClick={copy}>
             {copied ? '已复制' : '复制'}
           </button>
+          {onSaveNote ? (
+            <button
+              type="button"
+              className="w1-copy w1-capture"
+              aria-label="把这条回复存为笔记"
+              onClick={onSaveNote}
+            >
+              存为笔记
+            </button>
+          ) : null}
+          {onSaveTask ? (
+            <button
+              type="button"
+              className="w1-copy w1-capture"
+              aria-label="用这条回复建一个任务"
+              onClick={onSaveTask}
+            >
+              建任务
+            </button>
+          ) : null}
           {onFork ? (
             <button
               type="button"
@@ -167,6 +203,14 @@ export const MessageRow = memo(function MessageRow({
             重试
           </button>
         ) : null}
+        <TurnChanges
+          tools={message.tools}
+          checkpoint={turnCheckpoint}
+          rollbackEnabled={turnRollbackEnabled}
+          running={running}
+          notify={notify}
+          onRollback={onRollbackTurn}
+        />
         {message.tools?.map((tool, index) => (
           <ToolCardRow tool={tool} index={index} key={tool.id ?? tool.name} />
         ))}

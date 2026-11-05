@@ -24,26 +24,46 @@ function prefs(rows: ToolPrefRow[] = []): ToolPrefRepository {
           .filter((row) => row.agent === agent && row.preferred && !row.key.startsWith('native:'))
           .map((row) => row.key)
       ),
+    notes: (agent: AgentKind) =>
+      new Map(
+        [...store.values()]
+          .filter((row) => row.agent === agent && row.note && !row.key.startsWith('native:'))
+          .map((row) => [row.key, row.note])
+      ),
     setNative: (agent: AgentKind, id: string, enabled: boolean) => {
       store.set(`${agent}:native:${id}`, {
         agent,
         key: `native:${id}`,
         enabled,
         sortOrder: 0,
-        preferred: false
+        preferred: false,
+        note: ''
       })
     },
     setPreferred: (agent: AgentKind, key: string, preferred: boolean) => {
       const existing =
         store.get(`${agent}:${key}`) ??
-        ({ agent, key, enabled: true, sortOrder: 0, preferred } as ToolPrefRow)
+        ({ agent, key, enabled: true, sortOrder: 0, preferred, note: '' } as ToolPrefRow)
       store.set(`${agent}:${key}`, { ...existing, preferred })
+    },
+    setNote: (agent: AgentKind, key: string, note: string) => {
+      const existing =
+        store.get(`${agent}:${key}`) ??
+        ({ agent, key, enabled: true, sortOrder: 0, preferred: false, note: '' } as ToolPrefRow)
+      store.set(`${agent}:${key}`, { ...existing, note })
     },
     setOrder: (agent: AgentKind, keys: string[]) => {
       keys.forEach((key, index) => {
         const existing =
           store.get(`${agent}:${key}`) ??
-          ({ agent, key, enabled: true, sortOrder: index, preferred: false } as ToolPrefRow)
+          ({
+            agent,
+            key,
+            enabled: true,
+            sortOrder: index,
+            preferred: false,
+            note: ''
+          } as ToolPrefRow)
         store.set(`${agent}:${key}`, { ...existing, sortOrder: index })
       })
     },
@@ -173,6 +193,20 @@ describe('ToolSurfaceService', () => {
     service.setPreferred('claude', 'mcp:s2', false)
     expect(service.forAgent('claude').mcp[0]?.preferred).toBe(false)
     expect(service.priorityPrompt('claude')).not.toContain('首选：')
+  })
+
+  it('用途说明只进入首选分组，并随 Agent 隔离', () => {
+    const store = prefs()
+    const service = new ToolSurfaceService(store, repository(), builtin)
+    service.setPreferred('claude', 'mcp:s2', true)
+    service.setNote('claude', 'mcp:s2', '  窗口截图\n与浏览器操作  ')
+    const surface = service.forAgent('claude')
+    expect(surface.mcp.find((server) => server.name === 'zeta')?.note).toBe('窗口截图 与浏览器操作')
+    const text = service.priorityPrompt('claude')
+    expect(text).toContain('zeta（z1） · 用途：窗口截图 与浏览器操作')
+    expect(service.forAgent('codex').mcp.find((server) => server.name === 'zeta')?.note).toBe('')
+    expect(service.priorityPrompt('codex')).not.toContain('窗口截图')
+    expect(() => service.setNote('claude', 'native:web', 'x')).toThrow('只有 MCP 与技能')
   })
 
   it('首选只接受 MCP / 技能键', () => {

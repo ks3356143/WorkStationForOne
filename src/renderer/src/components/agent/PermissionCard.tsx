@@ -1,3 +1,4 @@
+import { BeamLayer } from '../effects/BeamLayer'
 import { useState } from 'react'
 import { AnimatePresence, m } from 'motion/react'
 import { DURATION, EASE_OUT } from '../../lib/motion'
@@ -23,6 +24,7 @@ export function PermissionCard({ permission, tasks, onResolve }: PermissionCardP
       transition={{ duration: DURATION.permissionIn, ease: EASE_OUT }}
     >
       <span className="w1-permglow" aria-hidden="true" />
+      <BeamLayer />
       <div className="w1-ph">
         <span className="w1-pi">!</span>
         <span>// 权限请求</span>

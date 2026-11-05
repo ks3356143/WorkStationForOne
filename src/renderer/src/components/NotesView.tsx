@@ -46,6 +46,7 @@ export function NotesView() {
   const removeNote = useWorkstation((state) => state.removeNote)
   const setView = useWorkstation((state) => state.setView)
   const addLearningItem = useWorkstation((state) => state.addLearningItem)
+  const composeAgent = useWorkstation((state) => state.composeAgent)
 
   const [query, setQuery] = useState('')
   const [mode, setMode] = useState<Mode>('browse')
@@ -434,6 +435,7 @@ export function NotesView() {
           onClose={closeDetail}
           onMakeCard={makeCard}
           onOpenNote={setDetail}
+          onHandoff={composeAgent}
         />
       ) : null}
     </section>

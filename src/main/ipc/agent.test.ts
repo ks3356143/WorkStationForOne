@@ -303,6 +303,14 @@ describe('智能体消息参数', () => {
     ).toThrow(TypeError)
   })
 
+  it('保留消息所属运行 id，非法 id 直接拒绝', () => {
+    const withRun = { ...message, runId: 'run-1' }
+    expect(registerAgentHandlersIPC.assertAgentMessage(withRun)).toEqual(withRun)
+    expect(() => registerAgentHandlersIPC.assertAgentMessage({ ...message, runId: '' })).toThrow(
+      TypeError
+    )
+  })
+
   it('保留工具卡的文件改动，非法形状直接拒绝', () => {
     const withDiff = {
       ...message,

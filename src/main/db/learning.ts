@@ -301,6 +301,24 @@ export class LearningRepository {
     }))
   }
 
+  /** 当天首次复习的卡片数；同一天多次评分只算一张。 */
+  newIntroduced(day: string): number {
+    const [year, month, date] = day.split('-').map(Number)
+    if (!year || !month || !date) return 0
+    const start = new Date(year, month - 1, date).getTime()
+    const end = new Date(year, month - 1, date + 1).getTime()
+    const row = this.sql(
+      `SELECT COUNT(DISTINCT r.item_id) AS n
+       FROM learning_reviews r
+       WHERE r.reviewed_at >= ? AND r.reviewed_at < ?
+         AND NOT EXISTS (
+           SELECT 1 FROM learning_reviews earlier
+           WHERE earlier.item_id = r.item_id AND earlier.reviewed_at < ?
+         )`
+    ).get(start, end, start) as { n: number }
+    return Number(row.n)
+  }
+
   reviewCount(id: string): number {
     const row = this.sql('SELECT COUNT(*) AS n FROM learning_reviews WHERE item_id = ?').get(
       id

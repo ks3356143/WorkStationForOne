@@ -1,4 +1,5 @@
 import { selectActiveSession, useWorkstation } from '../store/useWorkstation'
+import { Ticker } from './effects/Ticker'
 import { useNow } from '../lib/useNow'
 import { formatHM } from '../lib/date'
 import { reminderBuckets } from '../lib/reminder-center'
@@ -87,7 +88,7 @@ export function StatusBar({ notify, onShortcuts, onFleet, onReminders }: StatusB
         title="打开舰队控制台"
         onClick={onFleet}
       >
-        舰队 {sessionCount}
+        舰队 <Ticker value={sessionCount} />
       </button>
       <button
         className={`w1-sbtn w1-st-reminders${reminders.missed.length > 0 ? ' pending' : ''}`}
@@ -95,7 +96,7 @@ export function StatusBar({ notify, onShortcuts, onFleet, onReminders }: StatusB
         title="提醒中心：今天已错过与稍后"
         onClick={onReminders}
       >
-        提醒 {reminders.missed.length > 0 ? reminders.missed.length : ''}
+        提醒 {reminders.missed.length > 0 ? <Ticker value={reminders.missed.length} /> : ''}
       </button>
       {approvalCount > 0 ? (
         <button

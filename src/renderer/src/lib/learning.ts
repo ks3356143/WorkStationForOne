@@ -9,9 +9,39 @@ export interface SubjectDue {
   count: number
 }
 
+export interface NewCardLimit {
+  /** 0 表示不限。 */
+  perDay: number
+  /** 今天已经学过的全新卡片数。 */
+  introducedToday: number
+}
+
+/** 从未建立 FSRS 状态且一次都没复习过，才算新卡。 */
+export function isNewCard(item: LearningItem): boolean {
+  return item.stability === undefined && item.repetitions === 0
+}
+
+/** 因每日新卡上限留到明天的新卡数；0 表示不限。 */
+export function deferredNewCount(
+  items: LearningItem[],
+  today: string,
+  limit?: NewCardLimit
+): number {
+  if (!limit || limit.perDay <= 0) return 0
+  const newDue = items.filter(
+    (item) => item.active && item.nextReviewOn <= today && isNewCard(item)
+  ).length
+  const remaining = Math.max(0, limit.perDay - Math.max(0, limit.introducedToday))
+  return Math.max(0, newDue - remaining)
+}
+
 /** 到期队列：启用且复习日不晚于今天；难的（ease 低）先来。 */
-export function dueQueue(items: LearningItem[], today: string): LearningItem[] {
-  return items
+export function dueQueue(
+  items: LearningItem[],
+  today: string,
+  limit?: NewCardLimit
+): LearningItem[] {
+  const sorted = items
     .filter((item) => item.active && item.nextReviewOn <= today)
     .sort(
       (a, b) =>
@@ -19,6 +49,20 @@ export function dueQueue(items: LearningItem[], today: string): LearningItem[] {
         a.ease - b.ease ||
         a.title.localeCompare(b.title, 'zh-CN')
     )
+
+  if (!limit || limit.perDay <= 0) return sorted.slice(0, REVIEW_QUEUE_LIMIT)
+
+  const remaining = Math.max(0, limit.perDay - Math.max(0, limit.introducedToday))
+  let allowedNew = 0
+  return sorted
+    .filter((item) => {
+      if (!isNewCard(item)) return true
+      if (allowedNew < remaining) {
+        allowedNew += 1
+        return true
+      }
+      return false
+    })
     .slice(0, REVIEW_QUEUE_LIMIT)
 }
 

@@ -57,9 +57,10 @@ async function run() {
   const reloaded = new Promise((done) => win.webContents.once('did-finish-load', done))
   win.webContents.reload()
   await reloaded
-  win.setAlwaysOnTop(true, 'screen-saver')
-  win.show()
-  win.focus()
+  // 截图不需要抢前台：透明显示让页面照常渲染，capturePage 仍能取到内容。
+  win.setSkipTaskbar(true)
+  win.setOpacity(0)
+  win.showInactive()
   await sleep(2600)
 
   if (view === 'settings') {

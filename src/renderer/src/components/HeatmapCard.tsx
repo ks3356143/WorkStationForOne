@@ -1,3 +1,4 @@
+import { SpotlightLayer } from './effects/SpotlightLayer'
 import { dateKey } from '../../../shared/date-key'
 import { completionHeatmap, heatLevel } from '../lib/heatmap'
 import { useNow } from '../lib/useNow'
@@ -11,7 +12,8 @@ export function HeatmapCard() {
   const heatmap = completionHeatmap(tasks, dateKey(now), WEEKS)
 
   return (
-    <section className="w1-card w1-heat" aria-label="完成记录">
+    <section className="w1-card w1-heat" aria-label="完成记录" data-spotlight>
+      <SpotlightLayer />
       <div className="w1-heathead">
         <div>
           <div className="w1-date">

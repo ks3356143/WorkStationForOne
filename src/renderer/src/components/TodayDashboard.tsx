@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { AnimatePresence } from 'motion/react'
 import { dateKey } from '../../../shared/date-key'
 import { TASK_DRAG_TYPE, timeFromRatio } from '../lib/dnd'
 import { withViewTransition } from '../lib/view-transition'
@@ -8,10 +9,11 @@ import { blockMinutes, findNextBlock, findNextTask } from '../lib/schedule'
 import { tasksForTodayCard } from '../lib/todo'
 import { useNow } from '../lib/useNow'
 import { useWorkstation } from '../store/useWorkstation'
+import { DailyReviewSheet } from './DailyReviewSheet'
 import { HabitCard } from './HabitCard'
 import { HeatmapCard } from './HeatmapCard'
 import { NoteCard } from './NoteCard'
-import { PlayIcon, PlusIcon } from './Glyphs'
+import { CheckIcon, PlayIcon, PlusIcon } from './Glyphs'
 import { ReviewCard } from './ReviewCard'
 import { TaskCard } from './TaskCard'
 
@@ -30,6 +32,8 @@ export function TodayDashboard() {
   const startFocus = useWorkstation((state) => state.startFocus)
   const updateTask = useWorkstation((state) => state.updateTask)
   const [dropActive, setDropActive] = useState(false)
+  const [reviewOpen, setReviewOpen] = useState(false)
+  const reviewButtonRef = useRef<HTMLButtonElement>(null)
   const now = useNow(30_000)
 
   const fleet = summarizeFleet(sessions)
@@ -65,6 +69,15 @@ export function TodayDashboard() {
           </div>
         </div>
         <div className="w1-acts">
+          <button
+            ref={reviewButtonRef}
+            className="w1-btn"
+            type="button"
+            onClick={() => setReviewOpen(true)}
+          >
+            <CheckIcon width={11} height={11} />
+            今日收尾
+          </button>
           <button className="w1-btn" type="button" onClick={openQuickNote}>
             <PlusIcon width={12} height={12} />
             快速笔记 <kbd>^N</kbd>
@@ -144,6 +157,10 @@ export function TodayDashboard() {
         <ReviewCard />
         <HeatmapCard />
       </div>
+
+      <AnimatePresence onExitComplete={() => reviewButtonRef.current?.focus()}>
+        {reviewOpen ? <DailyReviewSheet onClose={() => setReviewOpen(false)} /> : null}
+      </AnimatePresence>
     </div>
   )
 }

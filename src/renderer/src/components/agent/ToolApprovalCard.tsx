@@ -1,3 +1,4 @@
+import { BeamLayer } from '../effects/BeamLayer'
 import { useEffect, useState } from 'react'
 import { m } from 'motion/react'
 import { DURATION, EASE_OUT } from '../../lib/motion'
@@ -39,6 +40,7 @@ export function ToolApprovalCard({ request, onResolve }: ToolApprovalCardProps) 
       transition={{ duration: DURATION.permissionIn, ease: EASE_OUT }}
     >
       <span className="w1-permglow" aria-hidden="true" />
+      <BeamLayer />
       <div className="w1-ph">
         <span className="w1-pi">!</span>
         <span>// 工具审批</span>

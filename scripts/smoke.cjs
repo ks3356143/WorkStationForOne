@@ -333,6 +333,12 @@ const threadShot = process.env.WS_SMOKE_THREAD_SHOT?.trim()
 const errorShot = process.env.WS_SMOKE_ERROR_SHOT?.trim()
 const toolsShot = process.env.WS_SMOKE_TOOLS_SHOT?.trim()
 const toolsShot2 = process.env.WS_SMOKE_TOOLS_SHOT2?.trim()
+const reviewShot = process.env.WS_SMOKE_REVIEW_SHOT?.trim()
+const reviewSize = process.env.WS_SMOKE_REVIEW_SIZE?.trim()
+const reviewTheme = process.env.WS_SMOKE_REVIEW_THEME?.trim()
+const turnShot = process.env.WS_SMOKE_TURN_SHOT?.trim()
+const turnSize = process.env.WS_SMOKE_TURN_SIZE?.trim()
+const turnTheme = process.env.WS_SMOKE_TURN_THEME?.trim()
 // 工具面截图可指定窗口尺寸（如 1180x720），用于最小尺寸检查
 const toolsSize = (process.env.WS_SMOKE_TOOLS_SIZE?.trim() ?? '')
   .split('x')
@@ -376,6 +382,34 @@ app.on('browser-window-created', (_event, created) => {
         .then((image) => writeFileSync(toolsShot2, image.toPNG()))
         .catch(() => {})
     }
+    if (reviewShot && String(event.message ?? '').includes('SMOKE_REVIEW_SHOT')) {
+      if (reviewSize) {
+        const [shotWidth, shotHeight] = reviewSize.split('x').map(Number)
+        if (shotWidth >= 1180 && shotHeight >= 720) {
+          created.setContentSize(shotWidth, shotHeight)
+        }
+      }
+      setTimeout(() => {
+        void created.webContents
+          .capturePage()
+          .then((image) => writeFileSync(reviewShot, image.toPNG()))
+          .catch(() => {})
+      }, 900)
+    }
+    if (turnShot && String(event.message ?? '').includes('SMOKE_TURN_SHOT')) {
+      if (turnSize) {
+        const [shotWidth, shotHeight] = turnSize.split('x').map(Number)
+        if (shotWidth >= 1180 && shotHeight >= 720) {
+          created.setContentSize(shotWidth, shotHeight)
+        }
+      }
+      setTimeout(() => {
+        void created.webContents
+          .capturePage()
+          .then((image) => writeFileSync(turnShot, image.toPNG()))
+          .catch(() => {})
+      }, 900)
+    }
     if (
       toolsShot &&
       // SHOT2 的文本包含 SHOT，必须互斥判断，否则第一张会被拍两次
@@ -418,13 +452,14 @@ async function run() {
   if (win.webContents.isLoading()) {
     await new Promise((resolve) => win.webContents.once('did-finish-load', resolve))
   }
-  win.setAlwaysOnTop(true, 'screen-saver')
-  win.show()
-  win.focus()
+  // 测试不抢前台：窗口保持渲染但完全透明、不进任务栏、不激活。
+  win.setSkipTaskbar(true)
+  win.setOpacity(0)
+  win.showInactive()
   await sleep(1800)
 
   await win.webContents.executeJavaScript(
-    `window.__WS_MCP_STUB__ = ${JSON.stringify(stubMcpServer)}; window.__WS_AGENT_WORKSPACE__ = ${JSON.stringify(agentWorkspace)}; window.__WS_UPDATE_SOURCE__ = ${JSON.stringify(updateSourceDir)}; window.__WS_SMOKE_SHOT__ = ${Boolean(contextShot)}; window.__WS_SMOKE_CHECKPOINT_SHOT__ = ${Boolean(checkpointShot)}; window.__WS_SMOKE_ERROR_SHOT__ = ${Boolean(errorShot)}; window.__WS_SMOKE_TOOLS_SHOT__ = ${Boolean(toolsShot)}; window.__WS_SMOKE_TOOLS_SHOT2__ = ${Boolean(toolsShot2)}`
+    `window.__WS_MCP_STUB__ = ${JSON.stringify(stubMcpServer)}; window.__WS_AGENT_WORKSPACE__ = ${JSON.stringify(agentWorkspace)}; window.__WS_UPDATE_SOURCE__ = ${JSON.stringify(updateSourceDir)}; window.__WS_SMOKE_SHOT__ = ${Boolean(contextShot)}; window.__WS_SMOKE_CHECKPOINT_SHOT__ = ${Boolean(checkpointShot)}; window.__WS_SMOKE_ERROR_SHOT__ = ${Boolean(errorShot)}; window.__WS_SMOKE_TOOLS_SHOT__ = ${Boolean(toolsShot)}; window.__WS_SMOKE_TOOLS_SHOT2__ = ${Boolean(toolsShot2)}; window.__WS_SMOKE_REVIEW_SHOT__ = ${Boolean(reviewShot)}; window.__WS_SMOKE_REVIEW_THEME__ = ${JSON.stringify(reviewTheme ?? '')}; window.__WS_SMOKE_TURN_SHOT__ = ${Boolean(turnShot)}; window.__WS_SMOKE_TURN_THEME__ = ${JSON.stringify(turnTheme ?? '')}`
   )
   // Injected as a template literal: regex backslashes need double escaping.
   let results
@@ -520,7 +555,8 @@ async function run() {
       'preload 桥可用（真实 IPC 路径）',
       typeof window.ws?.tasks?.list === 'function' &&
         typeof window.ws?.notes?.page === 'function' &&
-        typeof window.ws?.learning?.list === 'function',
+        typeof window.ws?.learning?.list === 'function' &&
+        typeof window.ws?.learning?.newIntroduced === 'function',
       typeof window.ws
     )
     check(
@@ -961,6 +997,122 @@ async function run() {
     )
     byText('.w1-todorow', '今天')?.click()
     await sleep(400)
+
+    // 每 N 天：默认 3 天，保存后在行上显示「↻ 每 3 天」，完成后下一次落在 +3 天
+    const expectedEvery = new Date(Date.now() + 3 * 86_400_000).toLocaleDateString('sv-SE')
+    const everyInput = one('.w1-todoinput')
+    setValue(everyInput, '每三天复盘')
+    await sleep(120)
+    everyInput.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    await waitFor(() => taskRow('每三天复盘') !== undefined, 3000)
+    await sleep(120)
+    taskRow('每三天复盘')?.querySelector('.w1-todobody')?.click()
+    if (!(await waitFor(() => !!one('.w1-todoedit'), 2000))) {
+      taskRow('每三天复盘')?.querySelector('.w1-todobody')?.click()
+      await waitFor(() => !!one('.w1-todoedit'), 1500)
+    }
+    byText('.w1-todoedit .w1-todopriopt', '每 N 天')?.click()
+    await waitFor(() => Boolean(one('.w1-todorepeatnum')), 1500)
+    const everyValue = one('.w1-todorepeatnum')?.value ?? ''
+    const everyPreview = await waitFor(
+      () => (one('.w1-todorepeatnext')?.textContent ?? '').includes(expectedEvery),
+      1500
+    )
+    byText('.w1-todoedit .w1-todosave', '保存')?.click()
+    const everySaved = await waitFor(async () => {
+      const list = await window.ws.tasks.list()
+      return list.find((task) => task.title === '每三天复盘')?.repeat === 'every:3'
+    }, 3000)
+    const everyBadge = await waitFor(
+      () =>
+        all('.w1-todorowwrap')
+          .find((row) => row.textContent?.includes('每三天复盘'))
+          ?.querySelector('.w1-todorepeat')?.textContent === '↻ 每 3 天',
+      3000
+    )
+    check(
+      '每 N 天规则可保存并预览下次日期',
+      everyValue === '3' && everyPreview && everySaved && everyBadge,
+      everyValue + '|' + everyPreview + '|' + everySaved + '|' + everyBadge
+    )
+    await waitFor(() => !one('.w1-todoedit'), 2000)
+    taskRow('每三天复盘')?.querySelector('.w1-todocb')?.click()
+    const everyCreated = await waitFor(async () => {
+      const list = await window.ws.tasks.list()
+      return list.filter((task) => task.title === '每三天复盘').length === 2
+    }, 3000)
+    const everyCopies = (await window.ws.tasks.list()).filter(
+      (task) => task.title === '每三天复盘'
+    )
+    const nextEvery = everyCopies.find((task) => !task.done)
+    check(
+      '完成后下一实例按每 3 天推进',
+      everyCreated && nextEvery?.dueDate === expectedEvery,
+      (nextEvery?.dueDate ?? '-') + ' vs ' + expectedEvery
+    )
+    byText('.w1-todorow', '已完成')?.click()
+    await sleep(400)
+    await removeRow(all('.w1-todorowwrap').find((item) => item.textContent?.includes('每三天复盘')))
+    byText('.w1-todorow', '即将到来')?.click()
+    await sleep(400)
+    await removeRow(all('.w1-todorowwrap').find((item) => item.textContent?.includes('每三天复盘')))
+    byText('.w1-todorow', '今天')?.click()
+    await sleep(400)
+
+    // 每月第 N 个周几：参数行可选第 2 个 + 周二，保存为 monthly-nth:2:2
+    const monthlyInput = one('.w1-todoinput')
+    setValue(monthlyInput, '每月复盘二')
+    await sleep(120)
+    monthlyInput.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    await waitFor(() => taskRow('每月复盘二') !== undefined, 3000)
+    await sleep(120)
+    taskRow('每月复盘二')?.querySelector('.w1-todobody')?.click()
+    if (!(await waitFor(() => !!one('.w1-todoedit'), 2000))) {
+      taskRow('每月复盘二')?.querySelector('.w1-todobody')?.click()
+      await waitFor(() => !!one('.w1-todoedit'), 1500)
+    }
+    byText('.w1-todoedit .w1-todopriopt', '每月第 N 个')?.click()
+    await waitFor(
+      () => Boolean(byText('.w1-todoedit .w1-todopriopt', '第 2 个')),
+      1500
+    )
+    byText('.w1-todoedit .w1-todopriopt', '第 2 个')?.click()
+    await waitFor(
+      () =>
+        byText('.w1-todoedit .w1-todopriopt', '第 2 个')?.getAttribute('aria-pressed') === 'true',
+      1500
+    )
+    byText('.w1-todoedit .w1-todopriopt', '周二')?.click()
+    await waitFor(
+      () => byText('.w1-todoedit .w1-todopriopt', '周二')?.getAttribute('aria-pressed') === 'true',
+      1500
+    )
+    byText('.w1-todoedit .w1-todosave', '保存')?.click()
+    const monthlySaved = await waitFor(async () => {
+      const list = await window.ws.tasks.list()
+      return list.find((task) => task.title === '每月复盘二')?.repeat === 'monthly-nth:2:2'
+    }, 3000)
+    const monthlyActual =
+      (await window.ws.tasks.list()).find((task) => task.title === '每月复盘二')?.repeat ?? 'missing'
+    const monthlyBadge = await waitFor(
+      () =>
+        all('.w1-todorowwrap')
+          .find((row) => row.textContent?.includes('每月复盘二'))
+          ?.querySelector('.w1-todorepeat')?.textContent === '↻ 每月第 2 个周二',
+      3000
+    )
+    check(
+      '每月第 N 个周几可保存并显示标签',
+      monthlySaved && monthlyBadge,
+      monthlyActual + '|' + monthlyBadge
+    )
+    byText('.w1-todorow', '今天')?.click()
+    await sleep(300)
+    await removeRow(all('.w1-todorowwrap').find((item) => item.textContent?.includes('每月复盘二')))
     // 到点提醒：建一条时间为「当前时刻」的今日任务，等主进程轮询命中。
     // 轮询按分钟精确匹配；这 1.4 秒内若跨过分钟边界就可能错过，此时删掉重建一次。
     const addReminderTask = async () => {
@@ -1587,7 +1739,7 @@ async function run() {
     )
     check('真实回复不是演示文案', !streamedText.includes('我先读取今天的看板'), streamedText)
 
-    const copyButton = all('.w1-amsg .w1-copy:not(.w1-fork)').at(-1)
+    const copyButton = all('.w1-amsg .w1-copy[aria-label="复制这条回复"]').at(-1)
     check('助手消息有复制按钮', Boolean(copyButton))
     copyButton?.click()
     await sleep(250)
@@ -1900,6 +2052,51 @@ async function run() {
         }, 3000)
       : false
     check('检查点已落库', checkpointStored)
+    const checkpointTurnText = () =>
+      all('.w1-turnchanges').find((el) => el.textContent?.includes('checkpoint.txt'))
+        ?.textContent ?? ''
+    const turnSummary = await waitFor(
+      () =>
+        checkpointTurnText().includes('1 个文件') &&
+        checkpointTurnText().includes('+1') &&
+        checkpointTurnText().includes('−1'),
+      3000
+    )
+    check(
+      '回合改动摘要显示文件与行数',
+      turnSummary && checkpointTurnText().includes('checkpoint.txt'),
+      checkpointTurnText().slice(0, 160) || 'missing'
+    )
+    const turnRollback = await waitFor(() => Boolean(one('.w1-tc-rollback')), 3000)
+    check('最新回合有回退入口', turnRollback, one('.w1-tc-rollback')?.textContent ?? 'missing')
+    if (window.__WS_SMOKE_TURN_SHOT__) {
+      const previousTheme = document.documentElement.dataset.theme
+      const previousStoredTheme = localStorage.getItem('workstation.theme')
+      if (window.__WS_SMOKE_TURN_THEME__ === 'light') {
+        document.documentElement.dataset.theme = 'light'
+        localStorage.setItem('workstation.theme', 'light')
+        await sleep(400)
+      }
+      const turnThread = one('.w1-thread')
+      if (turnThread) turnThread.scrollTop = turnThread.scrollHeight
+      await sleep(200)
+      console.log('SMOKE_TURN_SHOT')
+      await sleep(1200)
+      if (window.__WS_SMOKE_TURN_THEME__ === 'light') {
+        if (previousTheme) document.documentElement.dataset.theme = previousTheme
+        else document.documentElement.removeAttribute('data-theme')
+        if (previousStoredTheme === null) localStorage.removeItem('workstation.theme')
+        else localStorage.setItem('workstation.theme', previousStoredTheme)
+        await sleep(300)
+      }
+    }
+    one('.w1-tc-rollback')?.click()
+    await sleep(120)
+    check(
+      '回合回退需要二次确认',
+      (one('.w1-tc-rollback')?.textContent ?? '').includes('再次点击确认'),
+      one('.w1-tc-rollback')?.textContent ?? 'missing'
+    )
     byText('.w1-aworkspacefiles', '检查点')?.click()
     const checkpointRow = await waitFor(() => Boolean(one('.w1-cprow')), 3000)
     check('检查点面板列出快照', checkpointRow, one('.w1-cprow')?.textContent ?? 'missing')
@@ -1943,6 +2140,15 @@ async function run() {
     )
     one('.w1-wssheet .w1-fleetclose')?.click()
     await sleep(200)
+    const turnRestored = await waitFor(
+      () => checkpointTurnText().includes('已回退'),
+      4000
+    )
+    check(
+      '回合摘要同步已回退状态',
+      turnRestored && !one('.w1-tc-rollback'),
+      checkpointTurnText().slice(0, 160) || 'missing'
+    )
 
     const planInput = one('#composer-input')
     byText('.w1-planmode', '计划模式')?.click()
@@ -3764,6 +3970,22 @@ async function run() {
       byText('.w1-caprow', 'notes_create')?.className ?? 'missing'
     )
 
+    // 工具面反馈：未启用的 Server 点 ☆、跨首选组的 ↑↓ 都要有可见说明，不能静默无反应
+    await window.ws.capability.mcp.add({
+      name: '未启用 MCP',
+      transport: 'http',
+      url: 'http://127.0.0.1:9/mcp',
+      auth: 'headers',
+      headers: {}
+    })
+    // 工具面读的是面板挂载时的快照；切走再回来让它重新读库
+    byText('.w1-settabs button', '基础')?.click()
+    await sleep(150)
+    byText('.w1-settabs button', '能力中心')?.click()
+    await waitFor(() => !!one('.w1-cap'), 3000)
+    byText('.w1-capnav button', '工具面')?.click()
+    await waitFor(() => Boolean(byText('.w1-caprow', '未启用 MCP')), 3000)
+
     // 工具面：按 Agent 切换原生开关，落库后进入下一次会话的注入参数
     const surfaceInitial = await window.ws.capability.toolSurface()
     check(
@@ -3815,6 +4037,103 @@ async function run() {
       promptPreview.slice(0, 160)
     )
 
+    // 用途说明：首选行出现输入框，失焦保存后同时进入注入预览
+    const findNoteInput = () =>
+      [...document.querySelectorAll('.w1-capnoteedit input')].find((input) =>
+        (input.closest('.w1-caprow')?.textContent ?? '').includes('HTTP MCP')
+      )
+    const fillNote = async () => {
+      const input = findNoteInput()
+      if (!input) return ''
+      input.focus()
+      input.value = '需要窗口截图时先调用'
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      await sleep(60)
+      const live = findNoteInput() ?? input
+      live.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
+      return live.value
+    }
+    const noteReady = await waitFor(() => Boolean(findNoteInput()), 3000)
+    // 首选刚触发过一次 surface 重渲染；等它提交完再输入，避免撞上节点替换
+    if (noteReady) await sleep(250)
+    let noteSaved = false
+    let noteDraft = ''
+    for (let attempt = 0; attempt < 2 && !noteSaved; attempt += 1) {
+      noteDraft = await fillNote()
+      noteSaved = await waitFor(async () => {
+        const bundle = await window.ws.capability.toolSurface()
+        const server = bundle.claude.mcp.find((item) => item.name === 'HTTP MCP')
+        const preview = one('.w1-capprompt')?.textContent ?? ''
+        return (
+          server?.note === '需要窗口截图时先调用' &&
+          preview.includes('用途：需要窗口截图时先调用')
+        )
+      }, 2500)
+    }
+    check(
+      '首选用途说明落库并进入注入文本',
+      noteReady && noteSaved,
+      String(noteReady) +
+        '/' +
+        String(noteDraft) +
+        ' | ' +
+        (one('.w1-capprompt')?.textContent ?? 'missing').slice(0, 180)
+    )
+
+    // 未启用：☆ 仍可点击，点击后说明原因（禁用按钮不会显示 title）
+    const disabledRow = byText('.w1-caprow', '未启用 MCP')
+    const disabledStar = disabledRow?.querySelector('.w1-capprefbtn')
+    const starClickable =
+      Boolean(disabledStar) &&
+      disabledStar.disabled === false &&
+      disabledStar.getAttribute('aria-disabled') === 'true'
+    disabledStar?.click()
+    const starBlocked = await waitFor(
+      () => (one('.w1-toast')?.textContent ?? '').includes('先启用并信任'),
+      2000
+    )
+    // 设置页开着时 toast 不能被遮罩盖住：用命中测试确认它真的在可见层
+    const toastHit = (() => {
+      const toast = one('.w1-toast')
+      if (!toast) return false
+      const rect = toast.getBoundingClientRect()
+      const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)
+      return Boolean(hit && (hit === toast || toast.contains(hit)))
+    })()
+    check(
+      '未启用的 MCP 点 ☆ 会说明原因',
+      starClickable && starBlocked && toastHit,
+      String(starClickable) + ' / ' + (one('.w1-toast')?.textContent ?? 'missing') + ' / 可见 ' + toastHit
+    )
+
+    // 首选行与非首选行之间不能换位；↓ 仍可点击，点击后说明原因
+    const preferredRow = byText('.w1-caprow', 'HTTP MCP')
+    const blockedDown = [...(preferredRow?.querySelectorAll('.w1-capmini') ?? [])].find(
+      (button) => button.textContent === '↓'
+    )
+    const orderBeforeBlocked = (await window.ws.capability.toolSurface()).claude.mcp.map(
+      (server) => server.name
+    )
+    const downClickable = Boolean(blockedDown) && blockedDown.disabled === false
+    blockedDown?.click()
+    const moveBlocked = await waitFor(
+      () => (one('.w1-toast')?.textContent ?? '').includes('首选分组固定置顶'),
+      2000
+    )
+    const orderAfterBlocked = (await window.ws.capability.toolSurface()).claude.mcp.map(
+      (server) => server.name
+    )
+    check(
+      '跨首选组的 ↓ 不再静默禁用',
+      downClickable && moveBlocked && orderAfterBlocked.join('|') === orderBeforeBlocked.join('|'),
+      orderBeforeBlocked.join('|') + ' -> ' + orderAfterBlocked.join('|')
+    )
+    // 反馈用例的临时 Server 用完即删，后续「落库数量」断言仍按原基线
+    const transientMcp = (await window.ws.capability.mcp.list()).find(
+      (server) => server.name === '未启用 MCP'
+    )
+    if (transientMcp) await window.ws.capability.mcp.remove(transientMcp.id)
+
     byText('.w1-capseg button', 'Codex')?.click()
     await waitFor(() => Boolean(byText('.w1-caprow', 'Computer Use')), 2000)
     const mcpOrderBefore = (await window.ws.capability.toolSurface()).codex.mcp.map(
@@ -3858,10 +4177,15 @@ async function run() {
     )
 
     // Codex 也要能标首选，并进入它的 developerInstructions
-    const codexFirst = (await window.ws.capability.toolSurface()).codex.mcp[0]
+    const codexFirst = (await window.ws.capability.toolSurface()).codex.mcp.find(
+      (server) => server.enabled
+    )
     const codexPreferredBundle = codexFirst
       ? await window.ws.capability.setPreferredTool('codex', codexFirst.id, true)
       : null
+    if (codexFirst) {
+      await window.ws.capability.setToolNote('codex', codexFirst.id, '窗口操作时')
+    }
     check(
       'Codex MCP 可设为首选',
       Boolean(codexPreferredBundle) &&
@@ -3922,7 +4246,8 @@ async function run() {
         capabilityText.includes('WebFetch') &&
         capabilityText.includes('WebSearch') &&
         capabilityText.includes('优先级 有') &&
-        capabilityText.includes('首选 首选'),
+        capabilityText.includes('首选 首选') &&
+        capabilityText.includes('说明 有'),
       capabilityText.slice(-260)
     )
 
@@ -4114,7 +4439,8 @@ async function run() {
       codexSurfaceReply &&
         codexSurfaceText.includes('features.computer_use=false') &&
         codexSurfaceText.includes('优先级 有') &&
-        codexSurfaceText.includes('首选 有'),
+        codexSurfaceText.includes('首选 有') &&
+        codexSurfaceText.includes('说明 有'),
       codexSurfaceText.slice(-200)
     )
 
@@ -4716,6 +5042,67 @@ async function run() {
     one('.w1-modalx')?.click()
     await sleep(300)
 
+    // 笔记预览：复用 Markdown 渲染，双链可点，缺失链接只提示
+    const sourceRow = all('.w1-nvrowbtn').find((row) =>
+      (row.textContent ?? '').includes('冒烟来源')
+    )
+    sourceRow?.click()
+    await sleep(400)
+    const previewInput = one('.w1-notedetail-text')
+    setValue(
+      previewInput,
+      (previewInput?.value ?? '') +
+        '\\n\\n**加粗重点**\\n\\n- 列表甲\\n- 列表乙\\n\\n另见 [[冒烟目标笔记]] 与 [[缺失笔记]]'
+    )
+    await sleep(150)
+    byText('.w1-nlpreviewbtn', '预览')?.click()
+    const previewReady = await waitFor(() => Boolean(one('.w1-npreview .w1-md')), 2000)
+    const previewStrong = one('.w1-npreview strong')?.textContent ?? ''
+    const previewItems = all('.w1-npreview li').length
+    const previewLink = all('.w1-nlink').find(
+      (node) => (node.textContent ?? '') === '冒烟目标笔记'
+    )
+    const previewMissing = one('.w1-nlink.missing')
+    check(
+      '笔记预览渲染 Markdown 与双链',
+      previewReady && previewStrong === '加粗重点' && previewItems === 2 && Boolean(previewLink),
+      previewStrong + '|' + previewItems + '|' + Boolean(previewLink)
+    )
+    check(
+      '笔记预览标注缺失双链',
+      (previewMissing?.textContent ?? '') === '缺失笔记' &&
+        (previewMissing?.getAttribute('title') ?? '').includes('找不到'),
+      previewMissing?.getAttribute('title') ?? 'missing'
+    )
+    byText('.w1-nlpreviewbtn', '编辑')?.click()
+    const backToEdit = await waitFor(
+      () =>
+        Boolean(one('.w1-notedetail-text')) &&
+        (one('.w1-notedetail-text')?.value ?? '').includes('加粗重点'),
+      2000
+    )
+    check(
+      '笔记预览可切回编辑且保留草稿',
+      backToEdit,
+      one('.w1-notedetail-text')?.value?.slice(-20) ?? 'missing'
+    )
+    byText('.w1-nlpreviewbtn', '预览')?.click()
+    await waitFor(() => Boolean(one('.w1-npreview')), 2000)
+    all('.w1-nlink')
+      .find((node) => (node.textContent ?? '') === '冒烟目标笔记')
+      ?.click()
+    const previewJumped = await waitFor(
+      () => (one('.w1-notedetail-text')?.value ?? '').startsWith('冒烟目标笔记'),
+      2500
+    )
+    check(
+      '预览里的双链可打开目标笔记',
+      previewJumped,
+      one('.w1-notedetail-text')?.value?.slice(0, 20) ?? 'missing'
+    )
+    one('.w1-modalx')?.click()
+    await sleep(300)
+
     // ---------- 学习域 ----------
     await navTo('学习')
     check('导航切换到学习', activeNav() === '学习' && !!one('.w1-learn'), activeNav())
@@ -4747,6 +5134,11 @@ async function run() {
       '学习顶部显示到期数与时长',
       one('.w1-learnmain .w1-todosub')?.textContent?.includes('分钟') ?? false,
       one('.w1-learnmain .w1-todosub')?.textContent ?? ''
+    )
+    check(
+      '学习页有每日新卡上限',
+      one('.w1-lnewlimit select')?.value === '20',
+      one('.w1-lnewlimit select')?.value ?? 'missing'
     )
 
     byText('.w1-lfilebtn', '统计')?.click()
@@ -4852,6 +5244,51 @@ async function run() {
       clozeRow?.textContent?.slice(0, 40) ?? ''
     )
 
+    byText('.w1-learnrail button', '新建')?.click()
+    await waitFor(() => Boolean(one('#learn-new-title')), 2000)
+    byText('.w1-lkindtabs button', '基础')?.click()
+    setValue(one('#learn-new-subject'), '管综逻辑')
+    setValue(one('#learn-new-title'), '限额补卡')
+    byText('.w1-lnew button', '保存卡片')?.click()
+    const limitFixture = await waitFor(
+      () => Number(one('.w1-learnmain .w1-todosub b')?.textContent) === 11,
+      2500
+    )
+    check('限额用例补一张新卡', limitFixture, one('.w1-learnmain .w1-todosub')?.textContent ?? '')
+    const dueBeforeCap = Number(one('.w1-learnmain .w1-todosub b')?.textContent ?? -1)
+    const limitSelect = one('.w1-lnewlimit select')
+    if (limitSelect) setValue(limitSelect, '10')
+    const cappedCount = await waitFor(
+      () => Number(one('.w1-learnmain .w1-todosub b')?.textContent) === 10,
+      2500
+    )
+    check(
+      '每日新卡上限立即收窄队列',
+      cappedCount && dueBeforeCap > 10,
+      dueBeforeCap + ' -> ' + (one('.w1-learnmain .w1-todosub b')?.textContent ?? 'missing')
+    )
+    const deferredHint = one('.w1-lnewdefer')?.textContent ?? ''
+    check(
+      '超出上限的新卡提示留到明天',
+      cappedCount && deferredHint.includes('留到明天'),
+      deferredHint || 'missing'
+    )
+    const learningNavMeta =
+      all('.w1-navitem')
+        .find((el) => el.querySelector('.w1-navtext b')?.textContent?.trim() === '学习')
+        ?.querySelector('small')?.textContent ?? ''
+    check(
+      '导航同步新卡上限后的到期数',
+      learningNavMeta.includes('10 张到期'),
+      learningNavMeta || 'missing'
+    )
+    const restoreLimit = one('.w1-lnewlimit select')
+    if (restoreLimit) setValue(restoreLimit, '20')
+    const restoredCount = await waitFor(
+      () => Number(one('.w1-learnmain .w1-todosub b')?.textContent) === dueBeforeCap,
+      2500
+    )
+    check('恢复新卡上限后队列恢复', restoredCount, String(restoredCount))
     const dueBefore = Number(one('.w1-learnmain .w1-todosub b')?.textContent ?? -1)
     const reviewBtn = one('.w1-lrevbtn')
     check('卡片库有开始复习入口', Boolean(reviewBtn))
@@ -4901,6 +5338,13 @@ async function run() {
     await sleep(700)
     const advanced = one('.w1-lrevcount')?.textContent ?? ''
     check('评分后进入下一张', queueSizeBefore === 4 && advanced.length > 0, advanced)
+    const limitTodayKey = (() => {
+      const d = new Date()
+      const pad = (n) => String(n).padStart(2, '0')
+      return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+    })()
+    const introducedToday = await window.ws.learning.newIntroduced(limitTodayKey)
+    check('今日首次复习计数落库', introducedToday === 1, String(introducedToday))
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
     await sleep(500)
@@ -5122,6 +5566,13 @@ async function run() {
     await navTo('Agent')
     byText('.w1-sess', '测一下多会话回复')?.click()
     await sleep(300)
+    // 前面的并发用例可能刚收尾；等目标会话空闲再发，避免撞上运行锁
+    await waitFor(async () => {
+      const bundle = await window.ws.agent.sessions()
+      const target = bundle.sessions.find((item) => item.title === '测一下多会话回复')
+      return Boolean(target) && target.status === 'idle'
+    }, 6000)
+    await waitFor(() => one('#composer-input')?.disabled === false, 3000)
     const loginFailInput = one('#composer-input')
     if (loginFailInput) {
       setValue(loginFailInput, '触发登录失败')
@@ -5194,6 +5645,239 @@ async function run() {
     } else {
       check('会话失败时给出可读原因与办法', false, '找不到输入框')
     }
+
+    // v0.64.0 交互与样式特效：真实 DOM 上验证聚光坐标、状态流光、波纹与动效总闸
+    document.querySelector('[aria-label="新建 Claude 会话"]')?.click()
+    await waitFor(() => Boolean(one('.w1-aworkspacegate')), 2000)
+    one('.w1-aworkspacegate .w1-pb')?.click()
+    const effectsComposerReady = await waitFor(
+      () => one('#composer-input')?.disabled === false,
+      3000
+    )
+    check('特效用例新会话就绪', effectsComposerReady, '')
+    const composer = one('#composer-input')
+    if (composer) {
+      setValue(composer, '运行流光')
+      await sleep(80)
+      composer.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+      )
+      const runningBeam = await waitFor(
+        () => Boolean(one('.w1-sess.run .w1-beamlayer')),
+        5000
+      )
+      check('运行中会话显示流光层', runningBeam, one('.w1-sess.run')?.className ?? 'missing')
+      await waitFor(() => !one('.w1-sess.run'), 8000)
+      await waitFor(() => one('#composer-input')?.disabled === false, 3000)
+
+      setValue(one('#composer-input'), '需要审批')
+      await sleep(80)
+      one('#composer-input')?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+      )
+      const approvalBeam = await waitFor(
+        () => Boolean(one('.w1-perm .w1-beamlayer')),
+        6000
+      )
+      check('审批卡显示流光层', approvalBeam, one('.w1-perm')?.className ?? 'missing')
+      const approvalLayer = one('.w1-perm .w1-beamlayer')
+      const shell = one('.w1')
+      if (approvalLayer && shell) {
+        shell.classList.add('motion-off')
+        const beamHidden = getComputedStyle(approvalLayer).display === 'none'
+        shell.classList.remove('motion-off')
+        check('动效总闸关闭流光', beamHidden, getComputedStyle(approvalLayer).display)
+      } else {
+        check('动效总闸关闭流光', false, '找不到审批流光层')
+      }
+      const denyButton = [...(one('.w1-perm')?.querySelectorAll('button') ?? [])].find((button) =>
+        (button.textContent ?? '').includes('拒绝')
+      )
+      denyButton?.click()
+      await waitFor(() => !one('.w1-perm'), 3000)
+
+      const fleetText = one('.w1-st-fleet')?.textContent ?? ''
+      check('舰队计数由滚动数字渲染', /^舰队\\s*\\d+$/.test(fleetText.trim()), fleetText)
+
+      const goToView = (label) =>
+        [...document.querySelectorAll('.w1-navitem')]
+          .find((node) => node.querySelector('.w1-navtext b')?.textContent?.trim() === label)
+          ?.click()
+      goToView('今日')
+      await sleep(400)
+      const spotHost = one('[data-spotlight]')
+      const spotLayer = spotHost?.querySelector('.w1-spot')
+      const spotBox = spotHost?.getBoundingClientRect()
+      spotHost?.dispatchEvent(
+        new PointerEvent('pointerover', {
+          bubbles: true,
+          clientX: (spotBox?.left ?? 0) + 40,
+          clientY: (spotBox?.top ?? 0) + 30
+        })
+      )
+      document.dispatchEvent(
+        new PointerEvent('pointermove', {
+          bubbles: true,
+          clientX: (spotBox?.left ?? 0) + 52,
+          clientY: (spotBox?.top ?? 0) + 44
+        })
+      )
+      const spotMoved = await waitFor(
+        () => (spotHost?.style.getPropertyValue('--spot-x') ?? '').endsWith('px'),
+        1500
+      )
+      check(
+        '卡片聚光写入指针坐标',
+        spotMoved && Boolean(spotLayer),
+        spotHost?.style.getPropertyValue('--spot-x') ?? 'missing'
+      )
+      const spotWidth = spotLayer?.getBoundingClientRect().width ?? 0
+      check(
+        '聚光层与卡片同尺寸',
+        Math.abs(spotWidth - (spotBox?.width ?? 0)) <= 2,
+        String(Math.round(spotWidth)) + '/' + String(Math.round(spotBox?.width ?? 0))
+      )
+
+      navTo('任务')
+      await sleep(400)
+      const quickInput = one('.w1-todoinput')
+      if (quickInput) {
+        setValue(quickInput, '波纹冒烟')
+        await waitFor(() => one('.w1-todoadd')?.disabled === false, 1500)
+        const addButton = one('.w1-todoadd')
+        const addRect = addButton?.getBoundingClientRect()
+        addButton?.dispatchEvent(
+          new PointerEvent('pointerdown', {
+            bubbles: true,
+            clientX: (addRect?.left ?? 0) + 8,
+            clientY: (addRect?.top ?? 0) + 8
+          })
+        )
+        const rippleShown = await waitFor(
+          () => Boolean(one('.w1-todoadd .w1-ripple')),
+          1200
+        )
+        check(
+          '主按钮按下生成水波纹',
+          rippleShown && getComputedStyle(addButton).overflow === 'hidden',
+          addButton ? getComputedStyle(addButton).overflow : 'missing'
+        )
+        setValue(quickInput, '')
+      }
+    }
+
+    // 今日收尾：真实打开面板、顺延一条任务并生成复盘笔记
+    await navTo('任务')
+    await waitFor(() => Boolean(one('.w1-todoinput')), 3000)
+    const reviewSearch = one('.w1-todosearch input')
+    if (reviewSearch?.value) setValue(reviewSearch, '')
+    await taskScopeTo('全部任务')
+    const reviewSeedInput = one('.w1-todoinput')
+    setValue(reviewSeedInput, '今天 收尾冒烟任务')
+    await waitFor(() => one('.w1-todoadd')?.disabled === false, 1500)
+    reviewSeedInput?.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    await waitFor(() => taskRow('收尾冒烟任务') !== undefined, 3000)
+    await navTo('今日')
+    await waitFor(() => Boolean(byText('.w1-acts .w1-btn', '今日收尾')), 2500)
+    const reviewButton = byText('.w1-acts .w1-btn', '今日收尾')
+    reviewButton?.click()
+    const reviewOpened = await waitFor(() => Boolean(one('.w1-dreview')), 2500)
+    check('今日收尾面板可打开', reviewOpened, reviewOpened ? 'ok' : 'missing')
+    const reviewFocused = await waitFor(() => document.activeElement === one('.w1-dreview'), 1200)
+    check('收尾面板打开后焦点在对话框', reviewFocused, document.activeElement?.className ?? '')
+    if (window.__WS_SMOKE_REVIEW_SHOT__) {
+      if (window.__WS_SMOKE_REVIEW_THEME__ === 'light') {
+        document.documentElement.dataset.theme = 'light'
+        localStorage.setItem('workstation.theme', 'light')
+        await sleep(400)
+      }
+      console.log('SMOKE_REVIEW_SHOT')
+      await sleep(1200)
+    }
+    const reviewRows = all('.w1-dreviewopen')
+    const reviewTaskRow = reviewRows.find((row) => row.textContent?.includes('收尾冒烟任务'))
+    const openStat = all('.w1-dreviewstat').find(
+      (el) => el.querySelector('span')?.textContent?.trim() === '未完成'
+    )
+    check(
+      '收尾未完成统计与列表一致',
+      Boolean(openStat) &&
+        Number(openStat.querySelector('b')?.textContent) === reviewRows.length &&
+        Boolean(reviewTaskRow),
+      String(reviewRows.length) + ' | ' + (openStat?.textContent ?? '')
+    )
+    check(
+      '收尾显示原因、习惯与学习',
+      reviewTaskRow?.querySelector('.w1-dreviewbadge')?.textContent?.trim() === '今天到期' &&
+        all('.w1-dreviewhabit').length > 0 &&
+        (one('.w1-dreviewbody')?.textContent?.includes('学习') ?? false),
+      reviewTaskRow?.querySelector('.w1-dreviewbadge')?.textContent ?? 'missing'
+    )
+    for (const row of reviewRows) {
+      if (row === reviewTaskRow) continue
+      const box = row.querySelector('input[type="checkbox"]')
+      if (box?.checked) box.click()
+    }
+    await waitFor(
+      () => Boolean(byText('.w1-dreviewactions .w1-btn', '顺延 1 项到明天')),
+      1200
+    )
+    byText('.w1-dreviewactions .w1-btn', '顺延 1 项到明天')?.click()
+    await waitFor(
+      () => (byText('.w1-dreviewopen', '收尾冒烟任务')?.textContent ?? '').includes('已顺延'),
+      2000
+    )
+    const tomorrowKey = (() => {
+      const d = new Date()
+      d.setDate(d.getDate() + 1)
+      const pad = (n) => String(n).padStart(2, '0')
+      return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+    })()
+    const carriedTask = await (async () => {
+      let target = null
+      await waitFor(async () => {
+        target = (await window.ws.tasks.list()).find(
+          (task) => task.title === '收尾冒烟任务'
+        )
+        return target?.dueDate === tomorrowKey && target?.plannedFor === tomorrowKey
+      }, 3000)
+      return target
+    })()
+    check(
+      '收尾顺延写入明天的计划与截止',
+      carriedTask?.dueDate === tomorrowKey && carriedTask?.plannedFor === tomorrowKey,
+      String(carriedTask?.dueDate) + ' | ' + String(carriedTask?.plannedFor)
+    )
+    byText('.w1-dreviewactions .w1-btn', '存为复盘笔记')?.click()
+    const reviewClosed = await waitFor(() => !one('.w1-dreview'), 2500)
+    const reviewNoteSaved = await waitFor(async () => {
+      const page = await window.ws.notes.page(0, 50, '复盘')
+      return page.items.some((note) => note.text.includes('收尾冒烟任务'))
+    }, 3000)
+    const reviewNote = reviewNoteSaved
+      ? (await window.ws.notes.page(0, 50, '复盘')).items.find((note) =>
+          note.text.includes('收尾冒烟任务')
+        )
+      : undefined
+    check(
+      '复盘笔记落库并带顺延标记',
+      reviewClosed &&
+        Boolean(reviewNote) &&
+        reviewNote.tag === '复盘' &&
+        reviewNote.text.includes('收尾冒烟任务（今天到期 · 顺延到明天）'),
+      reviewNote ? reviewNote.text.split('\\n')[0] : 'missing'
+    )
+    const focusBack = await waitFor(() => document.activeElement === reviewButton, 2500)
+    check('收尾关闭后焦点回到入口', focusBack, document.activeElement?.textContent ?? '')
+    reviewButton?.click()
+    await waitFor(() => Boolean(one('.w1-dreview')), 2000)
+    one('.w1-dreview')?.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true })
+    )
+    const reviewEscClosed = await waitFor(() => !one('.w1-dreview'), 2000)
+    check('收尾面板 Esc 可关闭', reviewEscClosed, String(reviewEscClosed))
 
     return { checks, title: document.title, size: [innerWidth, innerHeight], activeView: activeNav() }
   })()`)
@@ -5569,6 +6253,72 @@ async function run() {
       await sleep(250)
       const loaderAfterScroll = all('.w1-threadmore').length > 0
       const loadedMore = await waitFor(() => countMessages() === 80)
+      // 回复收进笔记 / 任务：按钮在助手消息的 meta 行
+      const agentTagCount = async () => {
+        const tags = await window.ws.notes.tags()
+        return tags.tags.find((row) => row.tag === 'Agent')?.count ?? 0
+      }
+      const noteBefore = await agentTagCount()
+      const tasksBefore = await window.ws.tasks.list()
+      const beforeTaskIds = new Set(tasksBefore.map((task) => task.id))
+      const noteButton = all('.w1-amsg .w1-capture').find((button) =>
+        (button.textContent ?? '').includes('存为笔记')
+      )
+      noteButton?.click()
+      const noteSaved = await waitFor(async () => (await agentTagCount()) === noteBefore + 1, 3000)
+      const noteToast = document.querySelector('.w1-toast')?.textContent ?? ''
+      const taskButton = all('.w1-amsg .w1-capture').find((button) =>
+        (button.textContent ?? '').includes('建任务')
+      )
+      taskButton?.click()
+      const taskSaved = await waitFor(
+        async () => (await window.ws.tasks.list()).length === tasksBefore.length + 1,
+        3000
+      )
+      const capturedTask = (await window.ws.tasks.list()).find((task) => !beforeTaskIds.has(task.id))
+      // 任务 / 笔记交给 Agent：只预填输入栏，不自动发送
+      const taskNav = all('.w1-navitem').find(
+        (el) => el.querySelector('.w1-navtext b')?.textContent?.trim() === '任务'
+      )
+      taskNav?.click()
+      await waitFor(() => all('.w1-todorowwrap').length > 0, 3000)
+      const firstTaskRow = all('.w1-todorowwrap')[0]
+      const firstTaskTitle =
+        firstTaskRow?.querySelector('.w1-todotitletext')?.textContent?.trim() ?? ''
+      firstTaskRow?.querySelector('.w1-todobody')?.click()
+      await waitFor(() => Boolean(document.querySelector('.w1-todohand')), 2500)
+      document.querySelector('.w1-todohand')?.click()
+      const taskHandoff = await waitFor(() => {
+        const input = document.querySelector('#composer-input')
+        return Boolean(input) && (input.value ?? '').includes('标题：' + firstTaskTitle)
+      }, 3000)
+      const agentViewAfterTask =
+        document.querySelector('.w1-navitem.on .w1-navtext b')?.textContent?.trim() === 'Agent'
+      // 选工作区会让 Composer 重挂载；提示词要能重新填回来
+      const workspaceGate = document.querySelector('.w1-aworkspacegate .w1-pb')
+      if (workspaceGate) workspaceGate.click()
+      await waitFor(() => document.querySelector('#composer-input')?.disabled === false, 5000)
+      const taskHandoffKept = await waitFor(() => {
+        const input = document.querySelector('#composer-input')
+        return Boolean(input) && (input.value ?? '').includes('标题：' + firstTaskTitle)
+      }, 3000)
+      const notesNav = all('.w1-navitem').find(
+        (el) => el.querySelector('.w1-navtext b')?.textContent?.trim() === '笔记'
+      )
+      notesNav?.click()
+      await waitFor(() => all('.w1-nvrowbtn').length > 0, 4000)
+      all('.w1-nvrowbtn')[0]?.click()
+      await waitFor(() => Boolean(document.querySelector('.w1-notedetail')), 2500)
+      const handoffButton = [...document.querySelectorAll('.w1-notedetail .w1-pb')].find((b) =>
+        (b.textContent ?? '').includes('交给 Agent')
+      )
+      handoffButton?.click()
+      await waitFor(() => Boolean(byText('.w1-nlhandoff .w1-pb', '总结')), 1500)
+      byText('.w1-nlhandoff .w1-pb', '总结')?.click()
+      const noteHandoff = await waitFor(() => {
+        const input = document.querySelector('#composer-input')
+        return Boolean(input) && (input.value ?? '').includes('请总结下面这篇笔记')
+      }, 3000)
       return {
         checks: [
           { name: '长会话只渲染最近窗口', ok: before === 60, detail: String(before) },
@@ -5590,6 +6340,30 @@ async function run() {
               String(thread?.clientHeight) +
               ' loader=' +
               String(loaderAfterScroll)
+          },
+          {
+            name: '回复可存为笔记',
+            ok: noteSaved && noteToast.includes('已存为笔记'),
+            detail: noteToast
+          },
+          {
+            name: '回复可建任务',
+            ok:
+              taskSaved &&
+              Boolean(capturedTask) &&
+              capturedTask.title.length > 0 &&
+              capturedTask.notes.length > 0,
+            detail: capturedTask ? capturedTask.title.slice(0, 40) : 'missing'
+          },
+          {
+            name: '任务可交给 Agent（只预填）',
+            ok: taskHandoff && agentViewAfterTask && taskHandoffKept,
+            detail: firstTaskTitle + ' | ' + agentViewAfterTask + ' | 保留 ' + taskHandoffKept
+          },
+          {
+            name: '笔记可交给 Agent（总结）',
+            ok: noteHandoff,
+            detail: noteHandoff ? '预填成功' : 'missing'
           }
         ]
       }

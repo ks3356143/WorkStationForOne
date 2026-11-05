@@ -240,10 +240,32 @@ async function runFlow(prompt) {
       emit({ type: 'result', subtype: 'success', is_error: false, num_turns: 1 })
       return
     }
-    writeFileSync('checkpoint.txt', '改后内容', 'utf8')
     emit({
       type: 'assistant',
-      message: { role: 'assistant', content: [{ type: 'text', text: '检查点写入完成。' }] }
+      message: {
+        role: 'assistant',
+        content: [
+          {
+            type: 'tool_use',
+            id: 'stub-checkpoint-tool',
+            name: 'Edit',
+            input: {
+              file_path: 'checkpoint.txt',
+              old_string: '原始内容',
+              new_string: '改后内容'
+            }
+          },
+          { type: 'text', text: '检查点写入完成。' }
+        ]
+      }
+    })
+    writeFileSync('checkpoint.txt', '改后内容', 'utf8')
+    emit({
+      type: 'user',
+      message: {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: 'stub-checkpoint-tool', content: 'ok' }]
+      }
     })
     emit({
       type: 'result',
@@ -651,7 +673,7 @@ async function runFlow(prompt) {
         content: [
           {
             type: 'text',
-            text: `能力中心：插件 ${pluginDirs.join('|') || '无'}；MCP ${servers.join('|') || '无'}；类型 ${serverTypes.join('|') || '无'}；审批 ${promptTool || '无'}；严格 ${argv.includes('--strict-mcp-config')}；禁用 ${deniedTools.join('|') || '无'}；优先级 ${appended.includes('[工具优先级]') ? '有' : '无'}；首选 ${(appended.match(/首选：/)?.[0] ?? '无').trim()}`
+            text: `能力中心：插件 ${pluginDirs.join('|') || '无'}；MCP ${servers.join('|') || '无'}；类型 ${serverTypes.join('|') || '无'}；审批 ${promptTool || '无'}；严格 ${argv.includes('--strict-mcp-config')}；禁用 ${deniedTools.join('|') || '无'}；优先级 ${appended.includes('[工具优先级]') ? '有' : '无'}；首选 ${(appended.match(/首选：/)?.[0] ?? '无').trim()}；说明 ${appended.includes('用途：') ? '有' : '无'}`
           }
         ]
       }

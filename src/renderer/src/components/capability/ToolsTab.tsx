@@ -1,3 +1,6 @@
+import { useEffect, useRef, useState } from 'react'
+import { BeamLayer } from '../effects/BeamLayer'
+import { MAX_TOOL_NOTE } from '../../../../shared/tool-surface'
 import type {
   AgentKind,
   BuiltinToolRecord,
@@ -20,12 +23,70 @@ interface ToolsTabProps {
   onToggleSkill: (skill: SkillRecord, enable: boolean) => void
   onToggleBuiltin: (tool: BuiltinToolRecord) => void
   onPreferred: (key: string, preferred: boolean) => void
+  onNote: (key: string, note: string) => void
   /** 当前 Agent 的真实注入文本，只读预览 */
   promptPreview: string
   onOpenMcp: () => void
 }
 
 const AGENT_LABELS: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex' }
+
+/** 首选行的用途说明：Enter / 失焦保存，Esc 撤销；空值表示清空。 */
+function ToolNoteInput({
+  value,
+  disabled,
+  onSave
+}: {
+  value: string
+  disabled: boolean
+  onSave: (note: string) => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const cancel = useRef(false)
+  const [count, setCount] = useState(value.length)
+
+  useEffect(() => {
+    if (inputRef.current) inputRef.current.value = value
+    setCount(value.length)
+  }, [value])
+
+  return (
+    <div className="w1-capnoteedit">
+      <span>用途</span>
+      <input
+        ref={inputRef}
+        type="text"
+        defaultValue={value}
+        maxLength={MAX_TOOL_NOTE}
+        disabled={disabled}
+        placeholder="何时优先用它？例如：桌面窗口截图、浏览器操作（可留空）"
+        aria-label="首选用途说明"
+        onChange={(event) => setCount(event.target.value.length)}
+        onBlur={() => {
+          if (cancel.current) {
+            cancel.current = false
+            if (inputRef.current) inputRef.current.value = value
+            setCount(value.length)
+            return
+          }
+          const next = inputRef.current?.value.trim() ?? ''
+          if (next !== value) onSave(next)
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') event.currentTarget.blur()
+          if (event.key === 'Escape') {
+            event.stopPropagation()
+            cancel.current = true
+            event.currentTarget.blur()
+          }
+        }}
+      />
+      <small>
+        {count}/{MAX_TOOL_NOTE}
+      </small>
+    </div>
+  )
+}
 
 /**
  * 统一工具面：CLI 原生工具开关、按 Agent 归属的 MCP / 技能排序，以及数据桥工具。
@@ -44,6 +105,7 @@ export function ToolsTab({
   onToggleSkill,
   onToggleBuiltin,
   onPreferred,
+  onNote,
   promptPreview,
   onOpenMcp
 }: ToolsTabProps) {
@@ -139,6 +201,7 @@ export function ToolsTab({
                       className={`w1-caprow with-toggle${item.enabled ? '' : ' off'}`}
                       key={item.id}
                     >
+                      {item.preferred ? <BeamLayer /> : null}
                       <span className="w1-capglyph">MC</span>
                       <span className="w1-capcopy">
                         <b>
@@ -158,8 +221,9 @@ export function ToolsTab({
                       <span className="w1-capactions">
                         <button
                           type="button"
-                          className={`w1-capprefbtn${item.preferred ? ' on' : ''}`}
-                          disabled={!item.enabled || busy === `prefer:${item.id}`}
+                          className={`w1-capprefbtn${item.preferred ? ' on' : ''}${item.enabled ? '' : ' muted'}`}
+                          disabled={busy === `prefer:${item.id}`}
+                          aria-disabled={!item.enabled}
                           aria-pressed={item.preferred}
                           aria-label={`${item.name} ${item.preferred ? '取消首选' : '设为首选'}`}
                           title={
@@ -174,12 +238,13 @@ export function ToolsTab({
                         <button
                           type="button"
                           className="w1-capmini"
-                          disabled={
-                            index === 0 ||
-                            busy === `move:${item.id}` ||
-                            item.preferred !== surface.mcp[index - 1]?.preferred
-                          }
+                          disabled={index === 0 || busy === `move:${item.id}`}
                           aria-label={`${item.name} 上移`}
+                          title={
+                            index > 0 && item.preferred !== surface.mcp[index - 1]?.preferred
+                              ? '首选分组固定置顶；先取消 ★ 再和其它项换位'
+                              : undefined
+                          }
                           onClick={() => onMove(item.id, 'up')}
                         >
                           ↑
@@ -187,12 +252,14 @@ export function ToolsTab({
                         <button
                           type="button"
                           className="w1-capmini"
-                          disabled={
-                            index === surface.mcp.length - 1 ||
-                            busy === `move:${item.id}` ||
-                            item.preferred !== surface.mcp[index + 1]?.preferred
-                          }
+                          disabled={index === surface.mcp.length - 1 || busy === `move:${item.id}`}
                           aria-label={`${item.name} 下移`}
+                          title={
+                            index < surface.mcp.length - 1 &&
+                            item.preferred !== surface.mcp[index + 1]?.preferred
+                              ? '首选分组固定置顶；先取消 ★ 再和其它项换位'
+                              : undefined
+                          }
                           onClick={() => onMove(item.id, 'down')}
                         >
                           ↓
@@ -206,6 +273,13 @@ export function ToolsTab({
                           {item.enabled ? '已启用' : '启用'}
                         </button>
                       </span>
+                      {item.preferred && item.enabled ? (
+                        <ToolNoteInput
+                          value={item.note}
+                          disabled={busy === `note:${item.id}`}
+                          onSave={(note) => onNote(item.id, note)}
+                        />
+                      ) : null}
                     </div>
                   )
                 })
@@ -233,6 +307,7 @@ export function ToolsTab({
                       className={`w1-caprow with-toggle${item.enabled ? '' : ' off'}`}
                       key={item.id}
                     >
+                      {item.preferred ? <BeamLayer /> : null}
                       <span className="w1-capglyph">SK</span>
                       <span className="w1-capcopy">
                         <b>
@@ -244,8 +319,9 @@ export function ToolsTab({
                       <span className="w1-capactions">
                         <button
                           type="button"
-                          className={`w1-capprefbtn${item.preferred ? ' on' : ''}`}
-                          disabled={!item.enabled || busy === `prefer:${item.id}`}
+                          className={`w1-capprefbtn${item.preferred ? ' on' : ''}${item.enabled ? '' : ' muted'}`}
+                          disabled={busy === `prefer:${item.id}`}
+                          aria-disabled={!item.enabled}
                           aria-pressed={item.preferred}
                           aria-label={`${item.name} ${item.preferred ? '取消首选' : '设为首选'}`}
                           title={
@@ -260,12 +336,13 @@ export function ToolsTab({
                         <button
                           type="button"
                           className="w1-capmini"
-                          disabled={
-                            index === 0 ||
-                            busy === `move:${item.id}` ||
-                            item.preferred !== surface.skills[index - 1]?.preferred
-                          }
+                          disabled={index === 0 || busy === `move:${item.id}`}
                           aria-label={`${item.name} 上移`}
+                          title={
+                            index > 0 && item.preferred !== surface.skills[index - 1]?.preferred
+                              ? '首选分组固定置顶；先取消 ★ 再和其它项换位'
+                              : undefined
+                          }
                           onClick={() => onMove(item.id, 'up')}
                         >
                           ↑
@@ -274,11 +351,15 @@ export function ToolsTab({
                           type="button"
                           className="w1-capmini"
                           disabled={
-                            index === surface.skills.length - 1 ||
-                            busy === `move:${item.id}` ||
-                            item.preferred !== surface.skills[index + 1]?.preferred
+                            index === surface.skills.length - 1 || busy === `move:${item.id}`
                           }
                           aria-label={`${item.name} 下移`}
+                          title={
+                            index < surface.skills.length - 1 &&
+                            item.preferred !== surface.skills[index + 1]?.preferred
+                              ? '首选分组固定置顶；先取消 ★ 再和其它项换位'
+                              : undefined
+                          }
                           onClick={() => onMove(item.id, 'down')}
                         >
                           ↓
@@ -292,6 +373,13 @@ export function ToolsTab({
                           {item.enabled ? '已启用' : '启用'}
                         </button>
                       </span>
+                      {item.preferred && item.enabled ? (
+                        <ToolNoteInput
+                          value={item.note}
+                          disabled={busy === `note:${item.id}`}
+                          onSave={(note) => onNote(item.id, note)}
+                        />
+                      ) : null}
                     </div>
                   )
                 })
@@ -356,8 +444,9 @@ export function ToolsTab({
           <div className="w1-capdomain">
             <h4>注入到系统提示</h4>
             <p className="w1-capnote">
-              下一次会话开始时追加给 {AGENT_LABELS[agent]} 的原文，只含名称，不含路径、命令、URL
-              或密钥。标 ★ 的首选会单独成组，并要求能做同一件事时不改用 CLI 原生工具。
+              下一次会话开始时追加给 {AGENT_LABELS[agent]} 的原文，只含名称与你写的用途说明；URL
+              与密钥会自动脱敏，说明最多 {MAX_TOOL_NOTE} 字。标 ★
+              的首选会单独成组，并要求能做同一件事时不改用 CLI 原生工具。
             </p>
             {promptPreview ? (
               <pre className="w1-capprompt">{promptPreview}</pre>

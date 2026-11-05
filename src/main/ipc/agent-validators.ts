@@ -316,6 +316,7 @@ export function assertAgentMessage(value: unknown): AgentMessageRecord {
   }
   if (message.error === true) result.error = true
   if (message.turnId !== undefined) result.turnId = assertAgentId(message.turnId, '回合 id')
+  if (message.runId !== undefined) result.runId = assertAgentId(message.runId, '运行 id')
   if (message.contextFiles !== undefined) {
     result.contextFiles = assertContextFiles(message.contextFiles)
   }

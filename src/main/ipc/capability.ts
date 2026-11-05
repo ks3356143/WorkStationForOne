@@ -3,7 +3,7 @@ import type { CapabilityCenter } from '../capabilities'
 import type { AuditLog } from '../db/audit'
 import type { ExternalMcpSaveInput, McpToolApproval } from '../../shared/ipc'
 import { EXTERNAL_MCP_TARGETS, IPC_CHANNELS } from '../../shared/ipc'
-import { assertBoolean, assertId, assertRecord } from '../validate'
+import { assertBoolean, assertId, assertRecord, assertText } from '../validate'
 import { recordSettings } from './settings-audit'
 
 const IPC = IPC_CHANNELS
@@ -103,6 +103,16 @@ export function registerCapabilityHandlers(center: CapabilityCenter, audit?: Aud
       return next
     }
   )
+
+  ipcMain.handle(IPC.capabilityToolNote, (_event, agent: unknown, key: unknown, note: unknown) => {
+    const target = assertAgentKind(agent)
+    const toolKey = assertId(key, '工具键', 240)
+    const text = assertText(note, '用途说明', 200)
+    const next = center.toolSurface.setNote(target, toolKey, text)
+    // 说明正文可能含用户隐私，审计只记是否有内容。
+    record('工具面 · 用途', `${target}:${toolKey} → ${text.trim() ? '有说明' : '已清空'}`)
+    return next
+  })
 
   ipcMain.handle(IPC.capabilityBuiltinToolSet, (_event, name: unknown, enabled: unknown) => {
     const tool = assertLongId(name, '工具名')

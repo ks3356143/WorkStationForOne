@@ -1,15 +1,20 @@
 import type { RepeatRule } from '../../../shared/ipc'
+import { describeRepeat } from '../../../shared/repeat'
 
-export type { RepeatRule }
-export { isRepeatRule, nextDueDate } from '../../../shared/repeat'
+export type { RepeatKind, RepeatRule, RepeatSpec } from '../../../shared/repeat'
+export {
+  buildRepeatRule,
+  describeRepeat,
+  EVERY_MAX,
+  EVERY_MIN,
+  isRepeatRule,
+  nextDueDate,
+  parseRepeat,
+  WEEKDAY_NAMES
+} from '../../../shared/repeat'
 
-export const REPEAT_LABELS: Record<RepeatRule, string> = {
-  daily: '每天',
-  weekly: '每周',
-  monthly: '每月'
-}
-
-/** 行内小标记：↻ 每天 / ↻ 每周 / ↻ 每月。 */
+/** 行内小标记：↻ 每天 / ↻ 工作日 / ↻ 每 3 天 / ↻ 每月第 2 个周二。 */
 export function repeatLabel(rule: RepeatRule): string {
-  return `↻ ${REPEAT_LABELS[rule]}`
+  const text = describeRepeat(rule)
+  return text ? `↻ ${text}` : ''
 }

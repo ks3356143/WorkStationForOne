@@ -1,6 +1,7 @@
+import { useEffect, useRef } from 'react'
 import { dateKey } from '../../../shared/date-key'
 import { summarizeFleet } from '../lib/fleet'
-import { dueQueue } from '../lib/learning'
+import { deferredNewCount, dueQueue } from '../lib/learning'
 import { useNow } from '../lib/useNow'
 import { useWorkstation } from '../store/useWorkstation'
 import type { View } from '../types'
@@ -27,15 +28,32 @@ export function WorkspaceNav({ notify, onOpenSettings, onOpenFleet }: WorkspaceN
   const sessions = useWorkstation((state) => state.sessions)
   const tasks = useWorkstation((state) => state.tasks)
   const learningItems = useWorkstation((state) => state.learningItems)
+  const learningNewPerDay = useWorkstation((state) => state.learningNewPerDay)
+  const learningNewIntroduced = useWorkstation((state) => state.learningNewIntroduced)
+  const refreshLearningNewIntroduced = useWorkstation((state) => state.refreshLearningNewIntroduced)
   const noteCount = useWorkstation((state) => state.noteTotal)
   const now = useNow(60_000)
   const today = dateKey(now)
+  const lastLearningDay = useRef(today)
   const todoCount = tasks.reduce((count, task) => count + (task.done ? 0 : 1), 0)
   const todayCount = tasks.reduce(
     (count, task) => count + (!task.done && task.dueDate && task.dueDate <= today ? 1 : 0),
     0
   )
-  const dueCount = dueQueue(learningItems, today).length
+  const dueCount = dueQueue(learningItems, today, {
+    perDay: learningNewPerDay,
+    introducedToday: learningNewIntroduced
+  }).length
+  const deferredNew = deferredNewCount(learningItems, today, {
+    perDay: learningNewPerDay,
+    introducedToday: learningNewIntroduced
+  })
+
+  useEffect(() => {
+    if (lastLearningDay.current === today) return
+    lastLearningDay.current = today
+    refreshLearningNewIntroduced()
+  }, [today, refreshLearningNewIntroduced])
 
   const fleet = summarizeFleet(sessions)
   const meta: Record<View, string> = {
@@ -43,7 +61,12 @@ export function WorkspaceNav({ notify, onOpenSettings, onOpenFleet }: WorkspaceN
     tasks: `${todoCount} 项待办`,
     agent: fleet.waiting > 0 ? `${fleet.waiting} 个待确认` : `${sessions.length} 个会话`,
     notes: `${noteCount} 条记录`,
-    learning: dueCount > 0 ? `${dueCount} 张到期` : '今日已完成'
+    learning:
+      dueCount > 0
+        ? `${dueCount} 张到期`
+        : deferredNew > 0
+          ? `${deferredNew} 张留到明天`
+          : '今日已完成'
   }
 
   return (

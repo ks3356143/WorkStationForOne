@@ -8,6 +8,8 @@ export interface ToolPrefRow {
   sortOrder: number
   /** 首选：提示词里单独成组，并要求优先于 CLI 原生工具 */
   preferred: boolean
+  /** 首选工具的使用场景说明；只进入首选分组 */
+  note: string
 }
 
 interface Row {
@@ -16,6 +18,7 @@ interface Row {
   enabled: number
   sort_order: number
   preferred: number
+  note: string
 }
 
 const NATIVE_PREFIX = 'native:'
@@ -26,7 +29,7 @@ export class ToolPrefRepository {
   list(agent: AgentKind): ToolPrefRow[] {
     const rows = this.db
       .prepare(
-        `SELECT agent, tool_key, enabled, sort_order, preferred
+        `SELECT agent, tool_key, enabled, sort_order, preferred, note
            FROM agent_tool_prefs WHERE agent = ? ORDER BY sort_order ASC`
       )
       .all(agent) as unknown as Row[]
@@ -35,7 +38,8 @@ export class ToolPrefRepository {
       key: row.tool_key,
       enabled: row.enabled === 1,
       sortOrder: row.sort_order,
-      preferred: row.preferred === 1
+      preferred: row.preferred === 1,
+      note: row.note
     }))
   }
 
@@ -91,6 +95,29 @@ export class ToolPrefRepository {
            updated_at = excluded.updated_at`
       )
       .run(agent, key, preferred ? 1 : 0, now)
+  }
+
+  /** 只保存 MCP / 技能的用途说明，不碰启用状态、排序与首选标记。 */
+  notes(agent: AgentKind): Map<string, string> {
+    const rows = this.db
+      .prepare(
+        `SELECT tool_key, note FROM agent_tool_prefs
+          WHERE agent = ? AND tool_key NOT LIKE ? AND note <> ''`
+      )
+      .all(agent, `${NATIVE_PREFIX}%`) as unknown as { tool_key: string; note: string }[]
+    return new Map(rows.map((row) => [row.tool_key, row.note]))
+  }
+
+  setNote(agent: AgentKind, key: string, note: string): void {
+    const now = Date.now()
+    this.db
+      .prepare(
+        `INSERT INTO agent_tool_prefs (agent, tool_key, enabled, sort_order, note, updated_at)
+         VALUES (?, ?, 1, 0, ?, ?)
+         ON CONFLICT(agent, tool_key) DO UPDATE SET note = excluded.note,
+           updated_at = excluded.updated_at`
+      )
+      .run(agent, key, note, now)
   }
 
   /** 只改顺序：保留已有 enabled / preferred，不要把首选顺手清掉。 */

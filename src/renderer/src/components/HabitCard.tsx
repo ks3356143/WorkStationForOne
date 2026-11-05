@@ -1,3 +1,4 @@
+import { SpotlightLayer } from './effects/SpotlightLayer'
 import { useState } from 'react'
 import { AnimatePresence } from 'motion/react'
 import { dateKey } from '../../../shared/date-key'
@@ -26,7 +27,8 @@ export function HabitCard() {
 
   return (
     <>
-      <section className="w1-card">
+      <section className="w1-card" data-spotlight>
+        <SpotlightLayer />
         <div className="w1-ct">
           <b>
             <em>//</em>习惯打卡

@@ -14,7 +14,7 @@ export function TopBar({ onCommand }: TopBarProps) {
       <div className="w1-brand">
         <span className="w1-mark">W/1</span>
         <div className="w1-ws">
-          WorkStationForOne
+          <b className="w1-wsname">WorkStationForOne</b>
           <small>// 个人 AGENT 工作站</small>
         </div>
       </div>

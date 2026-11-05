@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   CLAUDE_NATIVE_TOOLS,
   CODEX_NATIVE_TOOLS,
+  MAX_TOOL_NOTE,
   buildToolPriorityPrompt,
+  cleanToolNote,
   claudeDisabledTools,
   codexDeniedTools,
   codexFlags,
@@ -144,5 +146,54 @@ describe('工具优先级提示', () => {
     expect(text).not.toContain('/')
     expect(text).not.toContain('Bearer')
     expect(text).not.toContain('sk-')
+  })
+
+  it('首选附上用途说明，换行折叠且只作用于首选分组', () => {
+    const text = buildToolPriorityPrompt('claude', {
+      mcp: [
+        {
+          name: 'desktop',
+          tools: ['computer'],
+          preferred: true,
+          note: '  窗口截图\n与浏览器操作  '
+        },
+        { name: 'memory', tools: ['search'], note: '只在记忆类任务使用' }
+      ],
+      skills: [{ name: 'pdf', preferred: true, note: '读写 PDF 时' }]
+    })
+    expect(text).toContain('desktop（computer） · 用途：窗口截图 与浏览器操作')
+    expect(text).toContain('技能 pdf · 用途：读写 PDF 时')
+    expect(text).not.toContain('只在记忆类任务使用')
+  })
+
+  it('部分技能带说明时拆开写，其余保持合并格式', () => {
+    const text = buildToolPriorityPrompt('claude', {
+      mcp: [],
+      skills: [
+        { name: 'pdf', preferred: true, note: '读 PDF' },
+        { name: 'weekly-review', preferred: true }
+      ]
+    })
+    expect(text).toContain('首选：技能 pdf · 用途：读 PDF；技能 weekly-review')
+    expect(text).not.toContain('技能 pdf、weekly-review')
+  })
+
+  it('说明里的 URL 与密钥脱敏，长度封顶', () => {
+    const text = buildToolPriorityPrompt('claude', {
+      mcp: [
+        {
+          name: 'desktop',
+          tools: [],
+          preferred: true,
+          note: '看 https://x.test/a 与 sk-abcdefgh12345678'
+        }
+      ],
+      skills: []
+    })
+    expect(text).toContain('[已隐藏]')
+    expect(text).not.toContain('https://')
+    expect(text).not.toContain('sk-abcdefgh')
+    expect(cleanToolNote('a'.repeat(200))).toHaveLength(MAX_TOOL_NOTE)
+    expect(cleanToolNote('  前后空白  ')).toBe('前后空白')
   })
 })

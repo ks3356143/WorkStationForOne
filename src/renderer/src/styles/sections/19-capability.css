@@ -198,6 +198,7 @@
   grid-template-columns: 30px minmax(0, 1fr) auto;
   align-items: center;
   gap: 9px;
+  row-gap: 6px;
   padding: 8px 10px;
   border-bottom: 1px solid rgb(var(--bd-rgb) / 0.26);
 }
@@ -369,6 +370,17 @@
   cursor: default;
 }
 
+/* 未启用 / 未信任：按钮仍可点击，点击后说明为什么不能设为首选。 */
+.w1-capprefbtn.muted {
+  opacity: 0.45;
+  cursor: help;
+}
+
+.w1-capprefbtn.muted:hover {
+  border-color: rgb(var(--bd-rgb) / 0.6);
+  color: var(--su);
+}
+
 .w1-capprefer {
   padding: 1px 5px;
   border: 1px solid rgb(var(--wn-rgb) / 0.45);
@@ -377,6 +389,56 @@
   font: 10px / 1.2 var(--mono);
   font-style: normal;
   letter-spacing: 0.04em;
+}
+
+/* 首选行的用途说明：独占一行，只有 ★ 且启用时才出现 */
+.w1-capnoteedit {
+  grid-column: 1 / -1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.w1-capnoteedit > span {
+  color: var(--su);
+  font: 10px / 1 var(--mono);
+  letter-spacing: 0.05em;
+}
+
+.w1-capnoteedit input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.46);
+  background: rgb(var(--field-rgb) / 0.12);
+  color: var(--fg);
+  font: 12px / 1 var(--sans);
+  outline: none;
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui);
+}
+
+.w1-capnoteedit input::placeholder {
+  color: var(--su);
+  opacity: 0.72;
+}
+
+.w1-capnoteedit input:focus {
+  border-color: rgb(var(--ac-rgb) / 0.5);
+  background: rgb(var(--field-rgb) / 0.18);
+}
+
+.w1-capnoteedit input:disabled {
+  opacity: 0.6;
+}
+
+.w1-capnoteedit small {
+  flex: none;
+  color: var(--su);
+  font: 10px / 1 var(--mono);
 }
 
 .w1-capprompt {

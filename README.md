@@ -2,7 +2,7 @@
 
 Windows 上的个人 AI 工作站。把「今日看板 + 任务清单 + Agent 工作区 + 笔记库 + 闪卡复习」收进一个窗口：左侧导航一次只打开一个全宽工作区，Agent 视图里驱动本机 Claude Code CLI 对话，任务、笔记、学习与习惯全部落在本机 SQLite。
 
-> 当前版本 v0.59.2（2026-11-05），数据库 v42。逐项实现状态、数据库版本与最近验证结论以 [docs/status.md](docs/status.md) 为准；这里只保留用户视角的功能概览。
+> 当前版本 v0.68.0（2026-11-05），数据库 v45。逐项实现状态、数据库版本与最近验证结论以 [docs/status.md](docs/status.md) 为准；这里只保留用户视角的功能概览。
 
 ## 特点
 
@@ -21,11 +21,11 @@ Windows 上的个人 AI 工作站。把「今日看板 + 任务清单 + Agent �
 - **Agent 是独立工作区**：默认空态，可新建 Claude 或 Codex 会话；每个会话先选择自己的项目目录，未选择时输入框禁用，选择后 Claude 与 Codex 都只在该目录里运行。Claude 走本机 `claude` CLI（stream-json），流式文本与工具调用卡直接进线程；会话标题取自首条消息，消息与工具卡落 SQLite，resume id 也保存下来，重启后能继续。不同会话可以同时运行：各自的事件按运行 id 回到发起会话，后台会话的审批卡不会抢占当前聊天，输入栏上方会提示其它会话的待审批数量。读工具（Read / Glob / Grep / LS）自动放行；编辑、写入、Bash 等工具会弹出「允许一次 / 本会话允许 / 拒绝」审批卡，可逐次裁决或本会话放行。Codex 继承 CLI 时走 `codex exec --json` 的只读沙箱；保存并启用 Codex Provider 后改走 `codex app-server --stdio`，使用应用自己的 `codex-home`，线程以工作区权限 + `on-request` 运行，命令执行、文件改动和额外权限请求都会接到同一张审批卡。设置里可切「继承 CLI」或自定义 Provider；自定义配置只影响本应用启动的进程，API Key 用系统加密存本机，绝不回显。命令面板可跨任务、笔记、会话与学习卡全局搜索（笔记直接开详情、学习卡定位高亮）；助手消息悬停可「分叉」出新会话：Claude 最新一条回复用 `--resume --fork-session`，Codex 激活 Provider 后可从任意助手回合用 `thread/fork` 的 `lastTurnId` 延续到该回合为止的真实上下文；Claude 较早消息或没有 Provider 时只复制到此为止的对话与工作区，按钮提示与结果提示会区分两种模式。会话栏支持按标题与消息正文搜索（正文命中可跳到消息）、双击或 F2 重命名、悬停 ☆/★ 置顶、顶栏导出 Markdown，以及两段确认删除——删除只作用于应用内会话与消息，运行中禁用，外部 CLI 的历史文件不动。
 - **舰队控制台**：状态栏「舰队 N」、左侧舰队区和命令面板都能打开统一总览。所有 Claude / Codex 会话按 Agent 分组，显示运行 / 待审批 / 空闲、工作区、消息数、排队状态与审批数量；可筛选、打开、停止运行中的会话，归档/取消归档，或直接新建。还能保存「当前会话 + 工作区」为预设，一键用相同工作区新开会话；「用量」展示近 7 天运行、成本、时长、轮次与每日柱。「导入本机」只读扫描 Claude / Codex CLI 的 JSONL，导入标题、工作区、resume id、最近 200 条只读历史与工具卡；已有导入会话可「补历史」。它统一的是本应用启动/恢复的会话，不接管外部终端窗口。
 - **工作区文件与产物**：Agent 顶栏「文件」打开只读工作区文件树，跳过 `.git / node_modules / dist`，点击文件预览文本（上限 128 KB）；Write / Edit / Patch 工具里出现的文件汇总为「本回合产物」，可一键定位预览。不内置编辑器。
-- **能力中心**：设置页分「基础 / 能力中心」。Claude 插件从官方市场浏览、一键安装到应用私有目录，市场按安装量排序、显示热度并分批加载；也支持导入本地 `SKILL.md` / 插件目录，查看源文件与 SKILL.md 预览。官方市场走应用私有的浅层稀疏镜像（显示「Claude 官方」，不写全局市场记录），按会话通过 `--plugin-dir` 加载；外部 MCP 支持内置目录、自定义 stdio / HTTP、密钥加密、启停、更新检查、连接测试、工具级「自动 / 询问 / 禁止」、环境自检与 `mcpServers` JSON 导入导出，会进入本应用启动的 Claude 会话与激活 Provider 后的 Codex app-server 会话，Claude 会话的「询问」工具由本机桥审批中继接管；密钥只进子进程环境，继承 CLI 的 Codex exec 不接；「工具面」按 Claude / Codex 统一管理 CLI 原生工具开关、外部 MCP、技能与数据桥工具，MCP 与技能可调整顺序；会话启动只注入启用项，可把 MCP / 技能标为 ★ 首选写入系统提示的「首选」分组，并要求能做同一件事时不改用 CLI 原生工具（Claude 走 `--disallowedTools` + `--append-system-prompt`，Codex 走 `-c` 参数 + `developerInstructions`），界面可直接预览注入原文，关闭 Shell 或修改文件时会在审批前直接拒绝。新装默认停用，带 hooks/MCP 的插件与外部 Server 需要二次确认信任；工具级自动批准只建议用于只读工具。所有记录都在 WorkStationForOne 自己的库里，不写 `~/.claude`、`~/.codex`、CC Switch 或桌面端配置。
+- **能力中心**：设置页分「基础 / 能力中心」。Claude 插件从官方市场浏览、一键安装到应用私有目录，市场按安装量排序、显示热度并分批加载；也支持导入本地 `SKILL.md` / 插件目录，查看源文件与 SKILL.md 预览。官方市场走应用私有的浅层稀疏镜像（显示「Claude 官方」，不写全局市场记录），按会话通过 `--plugin-dir` 加载；外部 MCP 支持内置目录、自定义 stdio / HTTP、密钥加密、启停、更新检查、连接测试、工具级「自动 / 询问 / 禁止」、环境自检与 `mcpServers` JSON 导入导出，会进入本应用启动的 Claude 会话与激活 Provider 后的 Codex app-server 会话，Claude 会话的「询问」工具由本机桥审批中继接管；密钥只进子进程环境，继承 CLI 的 Codex exec 不接；「工具面」按 Claude / Codex 统一管理 CLI 原生工具开关、外部 MCP、技能与数据桥工具，MCP 与技能可调整顺序；会话启动只注入启用项，可把 MCP / 技能标为 ★ 首选写入系统提示的「首选」分组，并要求能做同一件事时不改用 CLI 原生工具（首选行还可写一句 80 字内的用途说明，随首选分组一起注入，URL / 密钥自动脱敏；Claude 走 `--disallowedTools` + `--append-system-prompt`，Codex 走 `-c` 参数 + `developerInstructions`），界面可直接预览注入原文，关闭 Shell 或修改文件时会在审批前直接拒绝。新装默认停用，带 hooks/MCP 的插件与外部 Server 需要二次确认信任；工具级自动批准只建议用于只读工具。所有记录都在 WorkStationForOne 自己的库里，不写 `~/.claude`、`~/.codex`、CC Switch 或桌面端配置。
 - **可扩展的外壳**：新应用作为一级导航项接入，各自拥有全宽工作区；看板与 Agent 不同屏，也不存在常驻右栏。
 - **本地优先**：数据只存在本机 SQLite；不使用云同步、不上传遥测；默认不保存 API Key，只有显式保存的自定义 Provider Key 会以系统加密存本机。
 - **备份与恢复**：每天首次启动自动生成数据库快照，设置页「数据」可立即备份、查看快照并一键恢复；恢复前自动留安全快照，损坏或版本不兼容的备份会被拒绝，恢复在下次启动前执行，失败自动回滚。
-- **中文优先的 HUD 界面**：极光玻璃、直角、终端式元素；夜色与白天双主题，动效可整体关闭，也尊重系统的「减少动效」设置。任务完成有复选框弹跳与行扫光，提醒行会滑出并把静音条淡入，周视图键盘移动有棱镜脉冲，切换工作区时有一条 HUD 扫线。
+- **中文优先的 HUD 界面**：极光玻璃、直角、终端式元素；夜色与白天双主题，动效可整体关闭，也尊重系统的「减少动效」设置。任务完成有复选框弹跳与行扫光，提醒行会滑出并把静音条淡入，周视图键盘移动有棱镜脉冲，切换工作区时有一条 HUD 扫线；卡片跟随指针聚光，运行中的会话与待审批卡带旋转光束，主按钮按下散开水波纹，状态栏数字滚动更新。
 - **间隔重复复习**：面向 MEM 初试的闪卡，默认科目为英语二 / 管综数学 / 管综逻辑 / 管综写作；调度使用 **FSRS-6**（默认参数、90% 目标保留率），评分 1 留在今天，具体公式与参数见 `shared/srs.ts`。支持 `{{c1::答案}}` 挖空卡与一键把笔记转成卡片；卡片可停用或在编辑区两次确认后删除。
 - **学习统计**：学习视图的「统计」弹层用 FSRS 稳定度估算当前记忆保持率，按复习日分桶展示未来 7 天到期负载，按新卡 / 学习中（稳定度 < 21 天）/ 成熟卡展示掌握分布，并给出最近 14 天复习量与四档评分占比。
 - **学习卡批量导入导出**：用 UTF-8 CSV（`科目,正面,背面,来源,类型,挖空原文`）批量灌入 MEM 词表与题库；导入前预览可导入 / 重复 / 错误行，按「科目 + 正面」去重，不覆盖已有卡；导出按当前科目筛出启用卡，直接用 Excel / WPS 编辑。
@@ -46,7 +46,7 @@ Windows 上的个人 AI 工作站。把「今日看板 + 任务清单 + Agent �
 | --- | --- |
 | 桌面壳 | Electron 45（sandbox + contextIsolation，仅暴露窄 preload 桥） |
 | 界面 | React 19、TypeScript、Zustand、Motion、cmdk |
-| 数据 | Electron 内置 `node:sqlite`（WAL、`PRAGMA user_version` 前向迁移、FTS5，DB v42） |
+| 数据 | Electron 内置 `node:sqlite`（WAL、`PRAGMA user_version` 前向迁移、FTS5，DB v45） |
 | 构建 | electron-vite、Vite 8、Vitest、Biome |
 
 不引入原生 SQLite 模块，因此没有 `@electron/rebuild` 与 ABI 匹配问题。
@@ -72,8 +72,8 @@ npm run dev
 | `npm run typecheck` | 类型检查（main/preload 与 renderer 各一套配置） |
 | `npm test` | 运行全部单元测试（1014 项） |
 | `npm run check` | Biome 检查格式与 lint（Rust 单二进制，不依赖 Prettier / ESLint） |
-| `npm run smoke` | 构建后跑 UI 交互冒烟（395 项，真实主进程 + 临时 SQLite） |
-| `npm run verify` | 启动真实主进程跑 253–255 项运行时断言（五视图、双主题/皮肤、跨重启） |
+| `npm run smoke` | 构建后跑 UI 交互冒烟（513 项，真实主进程 + 临时 SQLite） |
+| `npm run verify` | 启动真实主进程跑 250 项运行时断言（五视图、双主题/皮肤、跨重启） |
 | `npm run capture -- .screenshots/home.png 1440 900 .screenshots/audit.json` | 截图并输出布局审计 |
 | `npm run capture -- .screenshots/notes-1180.png 1180 720 .screenshots/audit-notes.json dark notes` | 指定主题 `dark|light` 与视图 `today|tasks|agent|notes|learning` 截图 |
 | `npm run package` | 构建并生成便携版到 `dist/WorkStationForOne/` |

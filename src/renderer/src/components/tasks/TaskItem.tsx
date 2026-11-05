@@ -27,6 +27,7 @@ interface TaskItemProps {
   onCollapse: () => void
   onAddSubtask: (title: string) => void
   onToggleSubtask: (id: string) => void
+  onHandoff: (prompt: string) => void
 }
 
 export function TaskItem({
@@ -42,7 +43,8 @@ export function TaskItem({
   onDelete,
   onCollapse,
   onAddSubtask,
-  onToggleSubtask
+  onToggleSubtask,
+  onHandoff
 }: TaskItemProps) {
   const due = taskDueLabel(task, today)
   const overdue = Boolean(task.dueDate && task.dueDate < today && !task.done)
@@ -160,6 +162,7 @@ export function TaskItem({
                 onClose={onCollapse}
                 onAddSubtask={onAddSubtask}
                 onToggleSubtask={onToggleSubtask}
+                onHandoff={onHandoff}
               />
             </div>
           </m.div>

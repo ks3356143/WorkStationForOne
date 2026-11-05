@@ -6,6 +6,8 @@ import { MEM_STARTERS } from '../../shared/mem-starters'
 export interface Migration {
   version: number
   sql: string
+  /** 重建表时临时关闭外键，避免 DROP TABLE 触发其它表的级联删除。 */
+  foreignKeysOff?: boolean
 }
 
 function sqlLiteral(value: string): string {
@@ -724,6 +726,74 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE agent_tool_prefs
         ADD COLUMN preferred INTEGER NOT NULL DEFAULT 0 CHECK (preferred IN (0, 1));
     `
+  },
+  {
+    // 重复规则扩展：SQLite 不能改 CHECK，只能重建 tasks。
+    // 关闭外键后再 DROP，避免 reminder_mutes 的 ON DELETE CASCADE 清空静音记录。
+    version: 43,
+    foreignKeysOff: true,
+    sql: `
+      CREATE TABLE tasks_new (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        time_label TEXT NOT NULL DEFAULT '—',
+        tag TEXT,
+        tone TEXT CHECK (tone IS NULL OR tone IN ('agent', 'hot')),
+        done INTEGER NOT NULL DEFAULT 0 CHECK (done IN (0, 1)),
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        completed_at INTEGER,
+        notes TEXT NOT NULL DEFAULT '',
+        due_date TEXT CHECK (due_date IS NULL OR due_date GLOB '????-??-??'),
+        priority INTEGER NOT NULL DEFAULT 0 CHECK (priority BETWEEN 0 AND 3),
+        list TEXT,
+        deleted_at INTEGER,
+        planned_for TEXT CHECK (planned_for IS NULL OR planned_for GLOB '????-??-??'),
+        estimate_minutes INTEGER NOT NULL DEFAULT 0
+          CHECK (estimate_minutes BETWEEN 0 AND 480),
+        repeat TEXT CHECK (
+          repeat IS NULL
+          OR repeat IN ('daily', 'weekly', 'monthly', 'weekday')
+          OR repeat GLOB 'every:[0-9]*'
+          OR repeat GLOB 'monthly-nth:[1-4]:[0-6]'
+        ),
+        parent_id TEXT
+      );
+      INSERT INTO tasks_new (
+        id, title, time_label, tag, tone, done, sort_order, created_at, updated_at,
+        completed_at, notes, due_date, priority, list, deleted_at, planned_for,
+        estimate_minutes, repeat, parent_id
+      )
+      SELECT
+        id, title, time_label, tag, tone, done, sort_order, created_at, updated_at,
+        completed_at, notes, due_date, priority, list, deleted_at, planned_for,
+        estimate_minutes, repeat, parent_id
+      FROM tasks;
+      DROP TABLE tasks;
+      ALTER TABLE tasks_new RENAME TO tasks;
+      CREATE INDEX idx_tasks_done ON tasks(done, sort_order);
+      CREATE INDEX idx_tasks_due ON tasks(done, due_date, sort_order);
+      CREATE INDEX idx_tasks_list ON tasks(done, list);
+      CREATE INDEX idx_tasks_live ON tasks(deleted_at, sort_order);
+      CREATE INDEX idx_tasks_parent ON tasks(parent_id);
+      CREATE INDEX idx_tasks_planned ON tasks(planned_for, deleted_at);
+    `
+  },
+  {
+    // 首选用途说明：只进入首选分组，每轮提示词都带，所以存清洗后的短文本。
+    version: 44,
+    sql: `
+      ALTER TABLE agent_tool_prefs
+        ADD COLUMN note TEXT NOT NULL DEFAULT '';
+    `
+  },
+  {
+    // 回合改动复盘：助手消息关联产生它的运行，用于匹配检查点。
+    version: 45,
+    sql: `
+      ALTER TABLE agent_messages ADD COLUMN run_id TEXT;
+    `
   }
 ]
 
@@ -751,15 +821,24 @@ export function migrate(db: DatabaseSync, migrations: Migration[] = MIGRATIONS):
   backupBeforeMigrate(db, current)
 
   for (const migration of pending) {
+    const fkOff = migration.foreignKeysOff === true
+    // PRAGMA foreign_keys 只能在事务外切换；重建表时必须先关，否则 DROP 会级联删数据。
+    if (fkOff) db.exec('PRAGMA foreign_keys = OFF')
     db.exec('BEGIN')
     try {
       db.exec(migration.sql)
+      if (fkOff) {
+        const violations = db.prepare('PRAGMA foreign_key_check').all()
+        if (violations.length > 0) throw new Error('迁移后外键校验失败')
+      }
       db.exec(`PRAGMA user_version = ${migration.version}`)
       db.exec('COMMIT')
       current = migration.version
     } catch (error) {
       db.exec('ROLLBACK')
       throw error
+    } finally {
+      if (fkOff) db.exec('PRAGMA foreign_keys = ON')
     }
   }
 

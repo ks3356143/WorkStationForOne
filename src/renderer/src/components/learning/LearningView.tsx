@@ -12,12 +12,15 @@ import { MEM_SUBJECTS } from '../../../../shared/mem-starters'
 import type { LearningDraft, LearningPatch, LearningReviewRecord } from '../../../../shared/ipc'
 import type { LearningItem } from '../../types'
 import {
+  deferredNewCount,
+  dueQueue,
   estimatedMinutes,
   filterItems,
   isDue,
   learningSubjects,
   learningDueLabel
 } from '../../lib/learning'
+import { LEARNING_NEW_PER_DAY_OPTIONS, describeNewPerDay } from '../../lib/learning-limit'
 import { planImport } from '../../lib/learning-import'
 import { REVIEW_HISTORY_DAYS } from '../../lib/learning-stats'
 import { replaceLearning } from '../../lib/learning-persistence'
@@ -410,6 +413,9 @@ interface LearningLibraryProps {
 export function LearningLibrary({ onStartReview }: LearningLibraryProps) {
   const items = useWorkstation((state) => state.learningItems)
   const learningReady = useWorkstation((state) => state.learningReady)
+  const learningNewPerDay = useWorkstation((state) => state.learningNewPerDay)
+  const learningNewIntroduced = useWorkstation((state) => state.learningNewIntroduced)
+  const setLearningNewPerDay = useWorkstation((state) => state.setLearningNewPerDay)
   const scope = useWorkstation((state) => state.learningScope)
   const setScope = useWorkstation((state) => state.setLearningScope)
   const addItem = useWorkstation((state) => state.addLearningItem)
@@ -437,7 +443,14 @@ export function LearningLibrary({ onStartReview }: LearningLibraryProps) {
   } | null>(null)
 
   const active = items.filter((item) => item.active)
-  const dueCount = active.filter((item) => item.nextReviewOn <= today).length
+  const dueCount = dueQueue(items, today, {
+    perDay: learningNewPerDay,
+    introducedToday: learningNewIntroduced
+  }).length
+  const deferredNew = deferredNewCount(items, today, {
+    perDay: learningNewPerDay,
+    introducedToday: learningNewIntroduced
+  })
   const inactiveCount = items.length - active.length
   const subjectDue = learningSubjects(items)
   const subjects = subjectDue.map((entry) => entry.subject)
@@ -680,6 +693,29 @@ export function LearningLibrary({ onStartReview }: LearningLibraryProps) {
                 <>
                   <span className="w1-subtag">到期</span>
                   <b>{dueCount}</b> 张 · 本轮约 <b>{estimatedMinutes(dueCount)}</b> 分钟
+                  <label className="w1-lnewlimit">
+                    <span>每日新卡</span>
+                    <select
+                      aria-label="每日新卡上限"
+                      value={learningNewPerDay}
+                      onChange={(event) => setLearningNewPerDay(Number(event.target.value))}
+                    >
+                      {LEARNING_NEW_PER_DAY_OPTIONS.map((value) => (
+                        <option key={value} value={value}>
+                          {describeNewPerDay(value)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {learningNewPerDay > 0 && learningNewIntroduced > 0 ? (
+                    <span className="w1-lnewdefer">
+                      · 今日 {Math.min(learningNewIntroduced, learningNewPerDay)}/
+                      {learningNewPerDay}
+                    </span>
+                  ) : null}
+                  {deferredNew > 0 ? (
+                    <span className="w1-lnewdefer">· {deferredNew} 张留到明天</span>
+                  ) : null}
                 </>
               )}
             </div>

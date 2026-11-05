@@ -52,6 +52,32 @@ describe('迁移 v16', () => {
       .map((row) => (row as { name: string }).name)
     expect(messageColumns).toContain('origin')
     expect(messageColumns).toContain('context_files')
+    expect(messageColumns).toContain('run_id')
+    db.close()
+  })
+
+  it('v44 升级到 v45 为消息增加 run_id，旧消息保持为空', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wsfo-agent-run-'))
+    dirs.push(dir)
+    const db = openDatabase(join(dir, 'workstation.db'))
+    migrate(
+      db,
+      MIGRATIONS.filter((migration) => migration.version <= 44)
+    )
+    db.prepare(
+      `INSERT INTO agent_sessions (id, agent, title, status, created_at, updated_at)
+       VALUES ('s1', 'claude', '旧会话', 'idle', 1, 1)`
+    ).run()
+    db.prepare(
+      `INSERT INTO agent_messages (id, session_id, role, text, time_label, error, created_at)
+       VALUES ('m1', 's1', 'assistant', '旧回复', '刚刚', 0, 1)`
+    ).run()
+
+    migrate(db)
+
+    const repo = new AgentRepository(db)
+    expect(userVersion(db)).toBe(45)
+    expect(repo.listMessagesForSession('s1')[0]?.runId).toBeUndefined()
     db.close()
   })
 
@@ -730,6 +756,52 @@ describe('AgentRepository · 消息', () => {
 
     expect(repo.listMessages()).toHaveLength(1)
     expect(repo.listMessages()[0]).toMatchObject({ text: '最终回复', error: true })
+    db.close()
+  })
+
+  it('保存消息 run id，覆盖更新，分叉时清空', () => {
+    const { db, repo } = seedDb()
+    repo.createSession({ id: 's1', agent: 'claude', title: '源会话' })
+    repo.saveMessage({
+      id: 'u1',
+      sessionId: 's1',
+      role: 'user',
+      text: '改一下 auth',
+      timeLabel: '刚刚',
+      createdAt: 100,
+      runId: 'run-1'
+    })
+    repo.saveMessage({
+      id: 'a1',
+      sessionId: 's1',
+      role: 'assistant',
+      text: '改好了',
+      timeLabel: '刚刚',
+      createdAt: 200,
+      runId: 'run-1'
+    })
+    repo.saveMessage({
+      id: 'a1',
+      sessionId: 's1',
+      role: 'assistant',
+      text: '改好了（更新）',
+      timeLabel: '刚刚',
+      createdAt: 200,
+      runId: 'run-2'
+    })
+
+    expect(repo.listMessagesForSession('s1').map((message) => message.runId)).toEqual([
+      'run-1',
+      'run-2'
+    ])
+
+    const fork = repo.forkSession({
+      sourceId: 's1',
+      messageId: 'a1',
+      id: 's2',
+      title: '分叉'
+    })
+    expect(fork?.messages.map((message) => message.runId)).toEqual([undefined, undefined])
     db.close()
   })
 

@@ -3,7 +3,7 @@ import type { DatabaseSync, StatementSync } from 'node:sqlite'
 import { runInTransaction } from './transaction'
 import type { AuditLog } from './audit'
 import { dateKey } from '../../shared/date-key'
-import { nextDueDate } from '../../shared/repeat'
+import { nextDueDate, type RepeatRule } from '../../shared/repeat'
 import type {
   TaskDraft,
   TaskPatch,
@@ -26,7 +26,7 @@ interface TaskRow {
   completed_at: number | null
   planned_for: string | null
   estimate_minutes: number
-  repeat: 'daily' | 'weekly' | 'monthly' | null
+  repeat: RepeatRule | null
   parent_id: string | null
   created_at: number
 }

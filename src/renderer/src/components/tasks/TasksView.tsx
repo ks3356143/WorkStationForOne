@@ -70,6 +70,7 @@ export function TasksView({ notify }: TasksViewProps) {
   const scope = useWorkstation((state) => state.taskScope)
   const setScope = useWorkstation((state) => state.setTaskScope)
   const composeTask = useWorkstation((state) => state.composeTask)
+  const composeAgent = useWorkstation((state) => state.composeAgent)
   const taskComposerRequest = useWorkstation((state) => state.taskComposerRequest)
   const taskJumpId = useWorkstation((state) => state.taskJumpId)
   const clearTaskJump = useWorkstation((state) => state.clearTaskJump)
@@ -537,6 +538,10 @@ export function TasksView({ notify }: TasksViewProps) {
                     onExpand={() =>
                       setExpandedId((current) => (current === task.id ? null : task.id))
                     }
+                    onHandoff={(prompt) => {
+                      composeAgent(prompt)
+                      setExpandedId(null)
+                    }}
                     onSave={(patch: TaskPatch) => {
                       withViewTransition(() => {
                         updateTask(task.id, patch)

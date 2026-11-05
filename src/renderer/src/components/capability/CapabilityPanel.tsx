@@ -153,11 +153,12 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         .map((server) => ({
           name: server.name,
           tools: server.tools,
-          preferred: server.preferred
+          preferred: server.preferred,
+          note: server.note
         })),
       skills: current.skills
         .filter((skill) => skill.enabled)
-        .map((skill) => ({ name: skill.name, preferred: skill.preferred }))
+        .map((skill) => ({ name: skill.name, preferred: skill.preferred, note: skill.note }))
     })
   }, [surface, surfaceAgent])
 
@@ -483,7 +484,18 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
   }
 
   const moveTool = (key: string, direction: 'up' | 'down') => {
-    if (!api?.moveTool || surfaceBusy) return
+    if (!api?.moveTool || surfaceBusy || !surface) return
+    const current = surface[surfaceAgent]
+    const list = [...current.mcp, ...current.skills]
+    const index = list.findIndex((item) => item.id === key)
+    const from = list[index]
+    const to = list[direction === 'up' ? index - 1 : index + 1]
+    if (!from || !to) return
+    // 首选分组固定置顶：跨组换位写进去也会被排序抹平，点击时直接说明原因。
+    if (from.preferred !== to.preferred) {
+      notify('首选分组固定置顶；先取消 ★ 再和其它项换位')
+      return
+    }
     setSurfaceBusy(`move:${key}`)
     void api
       .moveTool(surfaceAgent, key, direction)
@@ -493,7 +505,20 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
   }
 
   const togglePreferred = (key: string, preferred: boolean) => {
-    if (!api?.setPreferredTool || surfaceBusy) return
+    if (!api?.setPreferredTool || surfaceBusy || !surface) return
+    const current = surface[surfaceAgent]
+    const item = [...current.mcp, ...current.skills].find((entry) => entry.id === key)
+    if (!item) return
+    // 未启用 / 未信任的项进不了会话，设成首选没有意义；给可见反馈而不是静默 return。
+    // 取消首选始终允许，避免停用后再也摘不掉 ★。
+    if (!item.enabled && preferred) {
+      notify(
+        key.startsWith('skill:')
+          ? '先启用并信任这个技能才能设为首选'
+          : '先启用并信任这个 Server 才能设为首选'
+      )
+      return
+    }
     setSurfaceBusy(`prefer:${key}`)
     void api
       .setPreferredTool(surfaceAgent, key, preferred)
@@ -502,6 +527,19 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         notify(preferred ? '已设为首选 · 下一次会话优先调用它' : '已取消首选 · 下一次会话生效')
       })
       .catch((reason: unknown) => notify(friendlyMessage(reason, '首选设置失败')))
+      .finally(() => setSurfaceBusy(null))
+  }
+
+  const saveToolNote = (key: string, note: string) => {
+    if (!api?.setToolNote || surfaceBusy || !surface) return
+    setSurfaceBusy(`note:${key}`)
+    void api
+      .setToolNote(surfaceAgent, key, note)
+      .then((next) => {
+        setSurface(next)
+        notify(note.trim() ? '用途说明已保存 · 下一次会话生效' : '用途说明已清空')
+      })
+      .catch((reason: unknown) => notify(friendlyMessage(reason, '用途说明保存失败')))
       .finally(() => setSurfaceBusy(null))
   }
 
@@ -1228,6 +1266,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
           onToggleSkill={toggleSurfaceSkill}
           onToggleBuiltin={toggleBuiltin}
           onPreferred={togglePreferred}
+          onNote={saveToolNote}
           promptPreview={promptPreview}
           onOpenMcp={() => setTab('mcp')}
         />

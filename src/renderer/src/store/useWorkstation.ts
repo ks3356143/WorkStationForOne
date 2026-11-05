@@ -28,7 +28,8 @@ import { dateKey } from '../../../shared/date-key'
 import { agentSessionDate, agentSessionMeta } from '../lib/agent'
 import { toChatMessage } from '../lib/chat-message'
 import { toggleCheckin } from '../lib/habits'
-import { dueQueue } from '../lib/learning'
+import { dueQueue, isNewCard } from '../lib/learning'
+import { normalizeNewPerDay, persistNewPerDay, readStoredNewPerDay } from '../lib/learning-limit'
 import { scheduleReview } from '../../../shared/srs'
 import {
   browserStorage,
@@ -172,6 +173,8 @@ interface WorkstationActions {
   clearReminderMutes: (day: string) => void
   undoRemoveTask: () => void
   composeTask: () => void
+  composeAgent: (text: string) => void
+  consumeAgentDraft: () => void
   clearLastAddedTask: () => void
   toggleHabitToday: (habitId: string) => void
   toggleHabitDay: (habitId: string, day: string) => void
@@ -225,12 +228,14 @@ interface WorkstationActions {
   closeFocus: () => void
   openQuickNote: () => void
   closeQuickNote: () => void
-  addNote: (text: string) => void
+  addNote: (text: string, tag?: string) => void
   toggleNotePin: (noteId: string) => void
   updateNote: (noteId: string, patch: NotePatch) => void
   removeNote: (noteId: string) => void
   openNotesView: () => void
   setLearningScope: (scope: LearningScope) => void
+  setLearningNewPerDay: (value: number) => void
+  refreshLearningNewIntroduced: () => void
   addLearningItem: (draft: LearningDraft) => void
   updateLearningItem: (itemId: string, patch: LearningPatch) => void
   removeLearningItem: (itemId: string) => void
@@ -313,6 +318,7 @@ function persistAgentMessage(sessionId: string, message: ChatMessage): void {
   }
   if (message.error) record.error = true
   if (message.turnId) record.turnId = message.turnId
+  if (message.runId) record.runId = message.runId
   if (message.contextFiles?.length) record.contextFiles = message.contextFiles
   if (message.images?.length) record.images = message.images
   const tools = agentTools(message.tools)
@@ -324,6 +330,8 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
   ...createInitialData(),
   theme: readStoredTheme(browserStorage()),
   skin: readStoredSkin(browserStorage()),
+  learningNewPerDay: readStoredNewPerDay(browserStorage()),
+  learningNewIntroduced: 0,
   setView: (activeView) => set({ activeView }),
 
   setFilter: (taskFilter) => set({ taskFilter }),
@@ -360,6 +368,27 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
 
   composeTask: () =>
     set((state) => ({ activeView: 'tasks', taskComposerRequest: state.taskComposerRequest + 1 })),
+
+  /** 任务 / 笔记交给 Agent：没有可用会话时新建 Claude 会话；提示词只预填，不自动发送。 */
+  composeAgent: (text) => {
+    const trimmed = text.trim()
+    if (!trimmed) return
+    const current = selectActiveSession(get())
+    if (!current || current.archived) get().createAgentSession('claude')
+    const target = selectActiveSession(get())
+    set((state) => ({
+      activeView: 'agent',
+      agentDraftText: trimmed,
+      agentDraftSessionId: target?.id ?? null,
+      agentDraftRequest: state.agentDraftRequest + 1
+    }))
+  },
+
+  /** 用户编辑或发送后才清空草稿；只选工作区导致 Composer 重挂载时要能重新填上。 */
+  consumeAgentDraft: () => {
+    if (!get().agentDraftText && !get().agentDraftSessionId) return
+    set({ agentDraftText: '', agentDraftSessionId: null })
+  },
 
   clearLastAddedTask: () => set({ lastAddedTaskId: null }),
 
@@ -1176,7 +1205,7 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
   finishAgentReply: (sessionId, error) => {
     const stream = get().streams[sessionId]
     if (!stream) return
-    const { messageId, turnId } = stream
+    const { messageId, turnId, runId } = stream
     const now = Date.now()
     const toolPermissions = { ...get().toolPermissions }
     delete toolPermissions[sessionId]
@@ -1221,6 +1250,7 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
                 ...entry,
                 text: entry.text ? `${entry.text}\n\n${text}` : text,
                 ...(turnId ? { turnId } : {}),
+                ...(runId ? { runId } : {}),
                 error: true
               }
             }
@@ -1228,8 +1258,13 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
             if (entry.error) return entry
             // 空回复也要留个痕迹，否则界面像「什么都没发生」
             return entry.text
-              ? { ...entry, ...(turnId ? { turnId } : {}) }
-              : { ...entry, text: '（本轮没有输出）', ...(turnId ? { turnId } : {}) }
+              ? { ...entry, ...(turnId ? { turnId } : {}), ...(runId ? { runId } : {}) }
+              : {
+                  ...entry,
+                  text: '（本轮没有输出）',
+                  ...(turnId ? { turnId } : {}),
+                  ...(runId ? { runId } : {})
+                }
           })
         },
         streams,
@@ -1356,11 +1391,11 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
 
   closeQuickNote: () => set({ quickNoteOpen: false }),
 
-  addNote: (text) => {
+  addNote: (text, tag = '想法') => {
     const trimmed = text.trim()
     if (!trimmed) return
     const persistence = notePersistence
-    const local: Note = { id: `n-${Date.now()}`, text: trimmed, time: '刚刚', tag: '想法' }
+    const local: Note = { id: `n-${Date.now()}`, text: trimmed, time: '刚刚', tag }
     set((state) => ({
       notes: [local, ...state.notes],
       noteTotal: state.noteTotal + 1,
@@ -1370,7 +1405,7 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
 
     if (!persistence) return
     void persistence
-      .create(trimmed, '想法')
+      .create(trimmed, tag)
       .then((saved) => {
         set((state) => ({
           notes: state.notes.map((note) =>
@@ -1482,6 +1517,24 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
 
   setLearningScope: (learningScope) => set({ learningScope }),
 
+  setLearningNewPerDay: (value) => {
+    const perDay = normalizeNewPerDay(value)
+    persistNewPerDay(browserStorage(), perDay)
+    set({ learningNewPerDay: perDay })
+  },
+
+  refreshLearningNewIntroduced: () => {
+    const api = typeof window === 'undefined' ? undefined : window.ws?.learning
+    if (!api?.newIntroduced) return
+    void api
+      .newIntroduced(dateKey())
+      .then((value) => {
+        if (!Number.isFinite(value)) return
+        set({ learningNewIntroduced: Math.max(0, Math.trunc(value)) })
+      })
+      .catch(() => {})
+  },
+
   addLearningItem: (draft) => {
     const title = draft.title.trim()
     const subject = draft.subject.trim()
@@ -1575,8 +1628,9 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     const state = get()
     const item = state.learningItems.find((entry) => entry.id === itemId)
     if (!item) return
+    const wasNew = isNewCard(item)
 
-    const advance = (updated: LearningItem) => {
+    const advance = (updated: LearningItem, countNew = false) => {
       set((current) => {
         const session = current.learningReviewSession ?? []
         const rest = session.filter((id) => id !== itemId)
@@ -1585,6 +1639,9 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
             entry.id === itemId ? updated : entry
           ),
           learningReviewSession: rating === 1 ? [...rest, itemId] : rest,
+          learningNewIntroduced: countNew
+            ? current.learningNewIntroduced + 1
+            : current.learningNewIntroduced,
           learningReviewTally: {
             reviewed: current.learningReviewTally.reviewed + 1,
             again: current.learningReviewTally.again + (rating === 1 ? 1 : 0),
@@ -1595,29 +1652,32 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     }
 
     if (!learningPersistence) {
-      advance({
-        ...item,
-        ...scheduleReview(
-          {
-            repetitions: item.repetitions,
-            intervalDays: item.intervalDays,
-            stability: item.stability,
-            difficulty: item.difficulty,
-            lapses: item.lapses,
-            lastReviewOn: item.lastReviewOn,
-            lastReviewedAt: item.lastReviewedAt
-          },
-          rating,
-          dateKey()
-        ),
-        lastReviewOn: dateKey()
-      })
+      advance(
+        {
+          ...item,
+          ...scheduleReview(
+            {
+              repetitions: item.repetitions,
+              intervalDays: item.intervalDays,
+              stability: item.stability,
+              difficulty: item.difficulty,
+              lapses: item.lapses,
+              lastReviewOn: item.lastReviewOn,
+              lastReviewedAt: item.lastReviewedAt
+            },
+            rating,
+            dateKey()
+          ),
+          lastReviewOn: dateKey()
+        },
+        wasNew
+      )
       return
     }
 
     void learningPersistence
       .review(itemId, rating)
-      .then(advance)
+      .then((updated) => advance(updated, wasNew))
       .catch((error) => {
         reportPersistenceError(error)
         // 写库失败也要让这一张离开队列，否则用户会被卡在同一张卡上。
@@ -1627,7 +1687,10 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
 
   startLearningReview: () => {
     const state = get()
-    const ids = dueQueue(state.learningItems, dateKey()).map((item) => item.id)
+    const ids = dueQueue(state.learningItems, dateKey(), {
+      perDay: state.learningNewPerDay,
+      introducedToday: state.learningNewIntroduced
+    }).map((item) => item.id)
     set({
       activeView: 'learning',
       learningReviewOpen: true,

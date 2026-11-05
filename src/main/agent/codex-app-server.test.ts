@@ -458,7 +458,7 @@ describe('startCodexAppServerRun · stub 链路', () => {
 
     expect(exit).toMatchObject({ code: 0, cancelled: false })
     expect(streamText(events)).toBe(
-      '工具面：features.computer_use=false|web_search="disabled"；优先级 有；首选 无'
+      '工具面：features.computer_use=false|web_search="disabled"；优先级 有；首选 无；说明 无'
     )
   })
 

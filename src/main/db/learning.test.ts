@@ -275,6 +275,28 @@ describe('LearningRepository · 复习历史', () => {
     expect(history[0].reviewedAt).toBeLessThan(history[1].reviewedAt)
     db.close()
   })
+
+  it('只统计当天首次复习的卡片，重复评分不重复计数', () => {
+    const { db, repo } = seedDb()
+    const a = repo.create({ subject: '英语二', title: 'A' })
+    const b = repo.create({ subject: '英语二', title: 'B' })
+    const c = repo.create({ subject: '英语二', title: 'C' })
+    const d = repo.create({ subject: '英语二', title: 'D' })
+    const at = (day: number, hour = 12) => new Date(2026, 10, day, hour).getTime()
+    const insert = db.prepare(
+      'INSERT INTO learning_reviews (id, item_id, rating, reviewed_at) VALUES (?, ?, ?, ?)'
+    )
+    insert.run('a1', a.id, 3, at(4))
+    insert.run('a2', a.id, 4, at(5))
+    insert.run('b1', b.id, 3, at(4))
+    insert.run('c1', c.id, 1, at(5))
+    insert.run('d1', d.id, 3, at(6))
+
+    expect(repo.newIntroduced('2026-11-05')).toBe(1)
+    expect(repo.newIntroduced('2026-11-04')).toBe(2)
+    expect(repo.newIntroduced('2026-11-06')).toBe(1)
+    db.close()
+  })
 })
 
 describe('LearningRepository · 复习', () => {

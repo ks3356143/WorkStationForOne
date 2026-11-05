@@ -23,6 +23,8 @@ export interface ToolSurfaceMcpRecord {
   enabled: boolean
   /** 首选：提示词里单独成组，并要求优先于 CLI 原生工具 */
   preferred: boolean
+  /** 首选时的使用场景说明，最多 80 字；非首选不注入 */
+  note: string
   tools: string[]
 }
 
@@ -31,6 +33,7 @@ export interface ToolSurfaceSkillRecord {
   name: string
   enabled: boolean
   preferred: boolean
+  note: string
 }
 
 export interface ToolSurfaceRecord {
@@ -318,6 +321,8 @@ export interface CapabilityApi {
     key: string,
     preferred: boolean
   ) => Promise<ToolSurfaceBundle>
+  /** 首选工具的使用场景说明；空字符串表示清空 */
+  setToolNote: (agent: AgentKind, key: string, note: string) => Promise<ToolSurfaceBundle>
   environment: (force?: boolean) => Promise<EnvironmentCheckRecord[]>
   skills: SkillApi
   mcp: ExternalMcpApi

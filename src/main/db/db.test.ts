@@ -70,6 +70,34 @@ describe('migrate', () => {
     expect(tables).toHaveLength(1)
     db.close()
   })
+
+  it('v43 放宽 repeat CHECK，保留任务与提醒静音', () => {
+    const db = tempDb()
+    migrate(
+      db,
+      MIGRATIONS.filter((migration) => migration.version <= 42)
+    )
+    db.exec(
+      `INSERT INTO tasks (id, title, created_at, updated_at, repeat)
+       VALUES ('t-legacy', '旧任务', 1, 1, 'weekly')`
+    )
+    db.exec(
+      `INSERT INTO reminder_mutes (task_id, day, created_at)
+       VALUES ('t-legacy', '2026-11-05', 1)`
+    )
+    migrate(db)
+    expect(userVersion(db)).toBe(MIGRATIONS.at(-1)!.version)
+    expect(db.prepare('SELECT repeat FROM tasks WHERE id = ?').get('t-legacy')).toMatchObject({
+      repeat: 'weekly'
+    })
+    expect(db.prepare('SELECT COUNT(*) AS n FROM reminder_mutes').get()).toMatchObject({ n: 1 })
+    db.exec(`UPDATE tasks SET repeat = 'every:3' WHERE id = 't-legacy'`)
+    db.exec(`UPDATE tasks SET repeat = 'monthly-nth:2:2' WHERE id = 't-legacy'`)
+    expect(() => db.exec(`UPDATE tasks SET repeat = 'yearly' WHERE id = 't-legacy'`)).toThrow()
+    const fk = db.prepare('PRAGMA foreign_keys').get() as { foreign_keys: number }
+    expect(fk.foreign_keys).toBe(1)
+    db.close()
+  })
 })
 
 describe('TaskRepository', () => {

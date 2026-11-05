@@ -1,3 +1,4 @@
+import { BeamLayer } from '../effects/BeamLayer'
 import { useEffect, useMemo, useState } from 'react'
 import { m } from 'motion/react'
 import { DURATION, EASE_OUT } from '../../lib/motion'
@@ -77,6 +78,7 @@ export function QuestionCard({ request, onResolve }: QuestionCardProps) {
       transition={{ duration: DURATION.permissionIn, ease: EASE_OUT }}
     >
       <span className="w1-permglow" aria-hidden="true" />
+      <BeamLayer />
       <div className="w1-ph">
         <span className="w1-pi">?</span>
         <span>// Agent 提问</span>

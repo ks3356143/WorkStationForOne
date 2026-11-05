@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { m } from 'motion/react'
 import { noteLinkName } from '../../../shared/note-links'
 import type { NoteLinks, NotePatch, NoteRecord } from '../../../shared/ipc'
 import { applyLink, linkTrigger } from '../lib/note-link-input'
+import { noteToAgentPrompt, type NoteHandoffMode } from '../lib/agent-handoff'
 import { DURATION, EASE_OUT } from '../lib/motion'
+import { AgentMarkdown, type NoteLinkContext } from './agent/AgentMarkdown'
 
 export interface NoteDetailValue {
   id: string
@@ -20,6 +22,8 @@ interface NoteDetailProps {
   onClose: () => void
   onMakeCard: (text: string) => void
   onOpenNote: (note: NoteDetailValue) => void
+  /** 把当前草稿交给 Agent：只预填输入栏，不自动发送 */
+  onHandoff: (prompt: string) => void
 }
 
 const MAX_TAG = 40
@@ -41,11 +45,14 @@ export function NoteDetail({
   onDelete,
   onClose,
   onMakeCard,
-  onOpenNote
+  onOpenNote,
+  onHandoff
 }: NoteDetailProps) {
   const [text, setText] = useState(note.text)
   const [tag, setTag] = useState(note.tag ?? '')
   const [confirming, setConfirming] = useState(false)
+  const [handoffOpen, setHandoffOpen] = useState(false)
+  const [mode, setMode] = useState<'edit' | 'preview'>('edit')
   const [links, setLinks] = useState<NoteLinks | null>(null)
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [active, setActive] = useState(0)
@@ -92,6 +99,38 @@ export function NoteDetail({
     },
     []
   )
+
+  // 预览里的双链按已保存的链接解析；草稿中新写的链接保存后才可点击。
+  const noteLinks = useMemo<NoteLinkContext>(() => {
+    const targets = new Map<string, NoteRecord>()
+    for (const link of links?.outgoing ?? []) {
+      if (link.status === 'ok' && link.target) targets.set(link.title, link.target)
+    }
+    return {
+      state: (title) => {
+        if (targets.has(title)) return { ok: true }
+        const row = links?.outgoing.find((link) => link.title === title)
+        return {
+          ok: false,
+          reason: row?.status === 'ambiguous' ? '有多篇同名笔记，不建立链接' : '找不到同名笔记'
+        }
+      },
+      open: (title) => {
+        const target = targets.get(title)
+        if (target) onOpenNote(toDetail(target))
+      }
+    }
+  }, [links, onOpenNote])
+
+  const modeRef = useRef(mode)
+  useEffect(() => {
+    if (mode === 'edit' && modeRef.current === 'preview') {
+      const node = textRef.current
+      node?.focus()
+      node?.setSelectionRange(node.value.length, node.value.length)
+    }
+    modeRef.current = mode
+  }, [mode])
 
   const closeSuggestions = () => {
     suggestSeq.current += 1
@@ -156,6 +195,15 @@ export function NoteDetail({
     onSave(patch)
   }
 
+  /** 交给 Agent 前先落库当前草稿（如果有改动），再切到 Agent 并预填提示词。 */
+  const handoff = (target: NoteHandoffMode) => {
+    const prompt = noteToAgentPrompt(text, target)
+    if (!prompt) return
+    onHandoff(prompt)
+    if (dirty) save()
+    else onClose()
+  }
+
   return (
     <m.div
       className="w1-modalbackdrop"
@@ -189,53 +237,80 @@ export function NoteDetail({
       >
         <div className="w1-modalhead">
           <span className="w1-eyebrow">// 笔记 · {note.time}</span>
-          <button className="w1-modalx" type="button" aria-label="关闭" onClick={onClose}>
-            ×
-          </button>
+          <div className="w1-modalheadacts">
+            <button
+              type="button"
+              className="w1-nlpreviewbtn"
+              aria-pressed={mode === 'preview'}
+              onClick={() => {
+                if (mode === 'edit') {
+                  closeSuggestions()
+                  setMode('preview')
+                  return
+                }
+                setMode('edit')
+              }}
+            >
+              {mode === 'preview' ? '编辑' : '预览'}
+            </button>
+            <button className="w1-modalx" type="button" aria-label="关闭" onClick={onClose}>
+              ×
+            </button>
+          </div>
         </div>
 
-        <textarea
-          ref={textRef}
-          className="w1-noteinput w1-notedetail-text"
-          value={text}
-          rows={8}
-          maxLength={4000}
-          aria-label="笔记正文"
-          onChange={(event) => {
-            const value = event.target.value
-            setText(value)
-            syncTrigger(value, event.target.selectionStart ?? value.length)
-          }}
-          onKeyDown={(event) => {
-            if (event.nativeEvent.isComposing || event.keyCode === 229) return
-            if (suggestions.length > 0) {
-              if (event.key === 'ArrowDown') {
+        {mode === 'edit' ? (
+          <textarea
+            ref={textRef}
+            className="w1-noteinput w1-notedetail-text"
+            value={text}
+            rows={8}
+            maxLength={4000}
+            aria-label="笔记正文"
+            onChange={(event) => {
+              const value = event.target.value
+              setText(value)
+              syncTrigger(value, event.target.selectionStart ?? value.length)
+            }}
+            onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing || event.keyCode === 229) return
+              if (suggestions.length > 0) {
+                if (event.key === 'ArrowDown') {
+                  event.preventDefault()
+                  setActive((index) => (index + 1) % suggestions.length)
+                  return
+                }
+                if (event.key === 'ArrowUp') {
+                  event.preventDefault()
+                  setActive((index) => (index - 1 + suggestions.length) % suggestions.length)
+                  return
+                }
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  choose(suggestions[active] ?? suggestions[0])
+                  return
+                }
+                if (event.key === 'Escape') {
+                  event.stopPropagation()
+                  closeSuggestions()
+                  return
+                }
+              }
+              if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
                 event.preventDefault()
-                setActive((index) => (index + 1) % suggestions.length)
-                return
+                save()
               }
-              if (event.key === 'ArrowUp') {
-                event.preventDefault()
-                setActive((index) => (index - 1 + suggestions.length) % suggestions.length)
-                return
-              }
-              if (event.key === 'Enter') {
-                event.preventDefault()
-                choose(suggestions[active] ?? suggestions[0])
-                return
-              }
-              if (event.key === 'Escape') {
-                event.stopPropagation()
-                closeSuggestions()
-                return
-              }
-            }
-            if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
-              event.preventDefault()
-              save()
-            }
-          }}
-        />
+            }}
+          />
+        ) : (
+          <div className="w1-npreview" role="region" aria-label="笔记预览">
+            <AgentMarkdown text={text} noteLinks={noteLinks} />
+          </div>
+        )}
+
+        {mode === 'preview' && dirty ? (
+          <p className="w1-nlhint">双链按已保存的内容解析，保存后更新。</p>
+        ) : null}
 
         {suggestions.length > 0 ? (
           <div className="w1-nlsuggest" role="listbox" aria-label="链接笔记建议">
@@ -337,6 +412,25 @@ export function NoteDetail({
           <button className="w1-notedetail-card" type="button" onClick={() => onMakeCard(text)}>
             变成卡片
           </button>
+          {handoffOpen ? (
+            <span className="w1-nlhandoff">
+              <button className="w1-pb" type="button" onClick={() => handoff('summarize')}>
+                总结
+              </button>
+              <button className="w1-pb" type="button" onClick={() => handoff('continue')}>
+                续写
+              </button>
+            </span>
+          ) : (
+            <button
+              className="w1-pb"
+              type="button"
+              disabled={!text.trim()}
+              onClick={() => setHandoffOpen(true)}
+            >
+              交给 Agent
+            </button>
+          )}
           <button
             className="w1-notedetail-del"
             type="button"

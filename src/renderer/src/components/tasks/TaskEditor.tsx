@@ -2,19 +2,32 @@ import { useEffect, useState } from 'react'
 import { addDaysKey } from '../../../../shared/date-key'
 import type { TaskPatch } from '../../../../shared/ipc'
 import type { Task } from '../../types'
-import type { RepeatRule } from '../../../../shared/repeat'
+import {
+  buildRepeatRule,
+  EVERY_MAX,
+  EVERY_MIN,
+  nextDueDate,
+  parseRepeat,
+  WEEKDAY_NAMES,
+  type RepeatKind,
+  type RepeatRule
+} from '../../../../shared/repeat'
 import { childrenOf, subtaskProgress } from '../../lib/subtasks'
+import { taskToAgentPrompt } from '../../lib/agent-handoff'
 import { ComboSelect } from '../fields/ComboSelect'
 import { DatePicker } from '../fields/DatePicker'
 import { TimePicker } from '../fields/TimePicker'
 
 const ESTIMATES = [0, 15, 30, 60, 90, 120] as const
 
-const REPEAT_OPTIONS: { value: RepeatRule | null; label: string }[] = [
-  { value: null, label: '不重复' },
-  { value: 'daily', label: '每天' },
-  { value: 'weekly', label: '每周' },
-  { value: 'monthly', label: '每月' }
+const REPEAT_OPTIONS: { kind: RepeatKind | null; label: string }[] = [
+  { kind: null, label: '不重复' },
+  { kind: 'daily', label: '每天' },
+  { kind: 'weekly', label: '每周' },
+  { kind: 'monthly', label: '每月' },
+  { kind: 'weekday', label: '工作日' },
+  { kind: 'every', label: '每 N 天' },
+  { kind: 'monthlyNth', label: '每月第 N 个' }
 ]
 
 const PRIORITIES: { value: 0 | 1 | 2 | 3; label: string }[] = [
@@ -35,6 +48,8 @@ interface TaskEditorProps {
   onSave: (patch: TaskPatch) => void
   onDelete: () => void
   onClose: () => void
+  /** 把当前草稿交给 Agent：只预填输入栏，不自动发送 */
+  onHandoff: (prompt: string) => void
 }
 
 export function TaskEditor({
@@ -46,7 +61,8 @@ export function TaskEditor({
   onDelete,
   onClose,
   onAddSubtask,
-  onToggleSubtask
+  onToggleSubtask,
+  onHandoff
 }: TaskEditorProps) {
   const children = childrenOf(tasks, task.id)
   const progress = subtaskProgress(tasks, task.id)
@@ -59,7 +75,11 @@ export function TaskEditor({
   const [list, setList] = useState(task.list ?? '')
   const [plannedFor, setPlannedFor] = useState(task.plannedFor ?? '')
   const [estimate, setEstimate] = useState(task.estimateMinutes ?? 0)
-  const [repeat, setRepeat] = useState<RepeatRule | null>(task.repeat ?? null)
+  const initialRepeat = parseRepeat(task.repeat ?? null)
+  const [repeatKind, setRepeatKind] = useState<RepeatKind | null>(initialRepeat?.kind ?? null)
+  const [repeatEvery, setRepeatEvery] = useState(initialRepeat?.every ?? 3)
+  const [repeatNth, setRepeatNth] = useState(initialRepeat?.nth ?? 1)
+  const [repeatWeekday, setRepeatWeekday] = useState(initialRepeat?.weekday ?? 1)
   const [confirming, setConfirming] = useState(false)
 
   useEffect(() => {
@@ -67,6 +87,16 @@ export function TaskEditor({
     const timer = window.setTimeout(() => setConfirming(false), 3000)
     return () => window.clearTimeout(timer)
   }, [confirming])
+
+  const repeatValue: RepeatRule | null = repeatKind
+    ? buildRepeatRule({
+        kind: repeatKind,
+        every: repeatEvery,
+        nth: repeatNth,
+        weekday: repeatWeekday
+      })
+    : null
+  const repeatNext = repeatValue ? nextDueDate(repeatValue, dueDate || today) : ''
 
   const save = () => {
     const nextTitle = title.trim()
@@ -80,7 +110,7 @@ export function TaskEditor({
       list: list.trim() || null,
       plannedFor: plannedFor || null,
       estimateMinutes: estimate,
-      repeat
+      repeat: repeatValue
     })
   }
 
@@ -226,16 +256,72 @@ export function TaskEditor({
           <div className="w1-todoprirow" role="group" aria-label="重复规则">
             {REPEAT_OPTIONS.map((option) => (
               <button
-                key={option.value ?? 'none'}
+                key={option.kind ?? 'none'}
                 type="button"
-                className={`w1-todopriopt${repeat === option.value ? ' on' : ''}`}
-                aria-pressed={repeat === option.value}
-                onClick={() => setRepeat(option.value)}
+                className={`w1-todopriopt${repeatKind === option.kind ? ' on' : ''}`}
+                aria-pressed={repeatKind === option.kind}
+                onClick={() => setRepeatKind(option.kind)}
               >
                 {option.label}
               </button>
             ))}
           </div>
+          {repeatKind === 'every' ? (
+            <div className="w1-todorepeatparams">
+              <span>每</span>
+              <input
+                className="w1-todorepeatnum"
+                type="number"
+                min={EVERY_MIN}
+                max={EVERY_MAX}
+                value={repeatEvery}
+                aria-label="重复间隔天数"
+                onChange={(event) => {
+                  const next = Number(event.target.value)
+                  if (Number.isFinite(next)) {
+                    setRepeatEvery(Math.min(EVERY_MAX, Math.max(EVERY_MIN, Math.trunc(next))))
+                  }
+                }}
+              />
+              <span>天重复一次</span>
+            </div>
+          ) : null}
+          {repeatKind === 'monthlyNth' ? (
+            <>
+              <div className="w1-todoprirow" role="group" aria-label="每月第几个">
+                {[1, 2, 3, 4].map((nth) => (
+                  <button
+                    key={nth}
+                    type="button"
+                    className={`w1-todopriopt${repeatNth === nth ? ' on' : ''}`}
+                    aria-pressed={repeatNth === nth}
+                    onClick={() => setRepeatNth(nth)}
+                  >
+                    第 {nth} 个
+                  </button>
+                ))}
+              </div>
+              <div className="w1-todoprirow" role="group" aria-label="星期几">
+                {WEEKDAY_NAMES.map((name, index) => (
+                  <button
+                    key={name}
+                    type="button"
+                    className={`w1-todopriopt${repeatWeekday === index ? ' on' : ''}`}
+                    aria-pressed={repeatWeekday === index}
+                    onClick={() => setRepeatWeekday(index)}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : null}
+          {repeatValue ? (
+            <p className="w1-todorepeatnext">
+              下次：{repeatNext}
+              {dueDate ? '' : '（无截止日期，按今天算）'}
+            </p>
+          ) : null}
         </div>
         <div className="w1-todofield">
           <span className="w1-todofieldlabel">预计时长</span>
@@ -311,6 +397,26 @@ export function TaskEditor({
       <div className="w1-todoactions">
         <button className="w1-todosave" type="submit" disabled={!title.trim()}>
           保存
+        </button>
+        <button
+          className="w1-todohand"
+          type="button"
+          disabled={!title.trim()}
+          onClick={() =>
+            onHandoff(
+              taskToAgentPrompt({
+                title,
+                notes,
+                dueDate: dueDate || undefined,
+                time,
+                priority,
+                list,
+                estimateMinutes: estimate
+              })
+            )
+          }
+        >
+          交给 Agent
         </button>
         <button className="w1-todocancel" type="button" onClick={onClose}>
           收起

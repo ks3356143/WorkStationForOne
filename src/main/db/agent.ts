@@ -108,6 +108,7 @@ interface MessageRow {
   error: number
   tools_json: string | null
   turn_id: string | null
+  run_id: string | null
   context_files: string | null
   images_json: string | null
   created_at: number
@@ -166,6 +167,7 @@ function toMessage(row: MessageRow): AgentMessageRecord {
   }
   if (row.error === 1) message.error = true
   if (row.turn_id) message.turnId = row.turn_id
+  if (row.run_id) message.runId = row.run_id
   if (row.origin === 'import') message.origin = 'import'
   const tools = parseTools(row.tools_json)
   if (tools) message.tools = tools
@@ -277,7 +279,7 @@ export class AgentRepository {
   listMessages(): AgentMessageRecord[] {
     const rows = this.db
       .prepare(
-        `SELECT id, session_id, role, text, time_label, error, tools_json, turn_id,
+        `SELECT id, session_id, role, text, time_label, error, tools_json, turn_id, run_id,
            context_files, images_json, created_at, origin
          FROM agent_messages ORDER BY created_at ASC, rowid ASC`
       )
@@ -288,7 +290,7 @@ export class AgentRepository {
   listMessagesForSession(sessionId: string): AgentMessageRecord[] {
     const rows = this.db
       .prepare(
-        `SELECT id, session_id, role, text, time_label, error, tools_json, turn_id,
+        `SELECT id, session_id, role, text, time_label, error, tools_json, turn_id, run_id,
            context_files, images_json, created_at, origin
          FROM agent_messages WHERE session_id = ? ORDER BY created_at ASC, rowid ASC`
       )
@@ -428,15 +430,16 @@ export class AgentRepository {
     this.db
       .prepare(
         `INSERT INTO agent_messages
-          (id, session_id, role, text, time_label, error, tools_json, turn_id, context_files,
-           images_json, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          (id, session_id, role, text, time_label, error, tools_json, turn_id, run_id,
+           context_files, images_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            text = excluded.text,
            time_label = excluded.time_label,
            error = excluded.error,
            tools_json = excluded.tools_json,
            turn_id = excluded.turn_id,
+           run_id = excluded.run_id,
            context_files = excluded.context_files,
            images_json = excluded.images_json`
       )
@@ -449,6 +452,7 @@ export class AgentRepository {
         message.error ? 1 : 0,
         tools,
         message.turnId ?? null,
+        message.runId ?? null,
         contextFiles,
         images,
         message.createdAt

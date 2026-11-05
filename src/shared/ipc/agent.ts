@@ -47,6 +47,8 @@ export interface AgentMessageRecord {
   createdAt: number
   /** Codex app-server 的回合 id，用于从该条回复真分叉 */
   turnId?: string
+  /** 产生这条助手消息的应用运行 id，用于匹配回合检查点 */
+  runId?: string
   /** app = 应用内产生；import = 从本机 CLI JSONL 只读导入 */
   origin?: 'app' | 'import'
   /** 用户 @ 附加的工作区相对路径；只存路径，文件内容不落库 */

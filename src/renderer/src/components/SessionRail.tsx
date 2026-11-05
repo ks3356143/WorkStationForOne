@@ -1,3 +1,4 @@
+import { BeamLayer } from './effects/BeamLayer'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { AgentSessionSearchHit } from '../../../shared/ipc'
 import { sortPinnedFirst } from '../lib/agent'
@@ -192,6 +193,7 @@ export function SessionRail() {
                 startRename(session.id, session.title)
               }}
             >
+              {session.status === 'run' ? <BeamLayer /> : null}
               <span className="w1-st">{session.title}</span>
               <span className="w1-sm">
                 {session.meta}

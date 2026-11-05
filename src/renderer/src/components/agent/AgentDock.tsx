@@ -1,10 +1,16 @@
+import { SpotlightLayer } from '../effects/SpotlightLayer'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, m } from 'motion/react'
 import { AGENT_META, agentCommandPreview, workspaceName } from '../../lib/agent'
 import { DURATION, EASE_OUT } from '../../lib/motion'
 import { selectActiveSession, selectActiveThread, useWorkstation } from '../../store/useWorkstation'
 import type { AgentId, Task } from '../../types'
-import type { McpPermissionDecision, ProviderProfileRecord } from '../../../../shared/ipc'
+import type {
+  AgentCheckpointView,
+  AgentRollbackResult,
+  McpPermissionDecision,
+  ProviderProfileRecord
+} from '../../../../shared/ipc'
 import { FolderIcon } from '../Glyphs'
 import { Composer } from './Composer'
 import { DockHeader } from './DockHeader'
@@ -17,6 +23,7 @@ import { WorkspaceSheet } from './WorkspaceSheet'
 import { CheckpointSheet } from './CheckpointSheet'
 import { friendlyMessage } from '../../lib/errors'
 import { activeProviderLabel } from '../../lib/provider-label'
+import { messageToNote, messageToTask } from '../../lib/agent-capture'
 import { toChatMessage } from '../../lib/chat-message'
 import { StatePlaceholder } from '../StatePlaceholder'
 import { canForkWithCli } from '../../../../shared/fork'
@@ -36,6 +43,12 @@ interface AgentDockProps {
 export function AgentDock({ notify }: AgentDockProps) {
   const sessions = useWorkstation((state) => state.sessions)
   const setActiveSession = useWorkstation((state) => state.setActiveSession)
+  const addNote = useWorkstation((state) => state.addNote)
+  const addTask = useWorkstation((state) => state.addTask)
+  const agentDraftRequest = useWorkstation((state) => state.agentDraftRequest)
+  const agentDraftText = useWorkstation((state) => state.agentDraftText)
+  const agentDraftSessionId = useWorkstation((state) => state.agentDraftSessionId)
+  const consumeAgentDraft = useWorkstation((state) => state.consumeAgentDraft)
   const createAgentSession = useWorkstation((state) => state.createAgentSession)
   const removeAgentSession = useWorkstation((state) => state.removeAgentSession)
   const toggleAgentPlanMode = useWorkstation((state) => state.toggleAgentPlanMode)
@@ -105,6 +118,7 @@ export function AgentDock({ notify }: AgentDockProps) {
   const [workspaceError, setWorkspaceError] = useState<string | null>(null)
   const [workspaceOpen, setWorkspaceOpen] = useState(false)
   const [checkpointsOpen, setCheckpointsOpen] = useState(false)
+  const [checkpoints, setCheckpoints] = useState<AgentCheckpointView[]>([])
   const [exportState, setExportState] = useState<'idle' | 'busy' | 'done' | 'error'>('idle')
   const [forkingId, setForkingId] = useState<string | null>(null)
   const [deleteState, setDeleteState] = useState<'idle' | 'armed' | 'busy' | 'error'>('idle')
@@ -290,6 +304,46 @@ export function AgentDock({ notify }: AgentDockProps) {
   }
   // 只看当前会话：别的会话在跑不该锁住这里的输入
   const typingHere = Boolean(activeId) && (Boolean(streamHere) || queuedHere)
+  const checkpointsByRun = useMemo(() => {
+    const map = new Map<string, AgentCheckpointView>()
+    for (const checkpoint of checkpoints) map.set(checkpoint.runId, checkpoint)
+    return map
+  }, [checkpoints])
+  const latestCheckpointRunId = checkpoints[0]?.runId
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 回合结束、线程加载与检查点面板关闭都要重新拉一次
+  useEffect(() => {
+    const api = typeof window === 'undefined' ? undefined : window.ws?.agent
+    if (!api || !activeId) {
+      setCheckpoints([])
+      return
+    }
+    let alive = true
+    void api
+      .checkpoints(activeId)
+      .then((list) => {
+        if (alive) setCheckpoints(list)
+      })
+      .catch(() => {
+        if (alive) setCheckpoints([])
+      })
+    return () => {
+      alive = false
+    }
+  }, [activeId, typingHere, threadLoaded, checkpointsOpen])
+
+  const rollbackTurn = useCallback(
+    async (checkpoint: AgentCheckpointView): Promise<AgentRollbackResult> => {
+      const api = typeof window === 'undefined' ? undefined : window.ws?.agent
+      if (!api) throw new Error('当前环境没有 preload 桥')
+      const result = await api.rollback(checkpoint.id)
+      setCheckpoints((list) =>
+        list.map((item) => (item.id === checkpoint.id ? { ...item, restoredAt: Date.now() } : item))
+      )
+      return result
+    },
+    []
+  )
 
   useEffect(() => {
     if (!typingHere) setStopRequested(false)
@@ -410,7 +464,8 @@ export function AgentDock({ notify }: AgentDockProps) {
     return (
       <aside className="w1-dock">
         <DockHeader agent="claude" counts={counts} status="idle" onSwitch={switchAgent} />
-        <div className="w1-agentempty">
+        <div className="w1-agentempty" data-spotlight>
+          <SpotlightLayer />
           <span className="w1-eyebrow">// Agent</span>
           <h2>还没有会话。</h2>
           <p>新建一个 Claude 或 Codex 会话。对话会存在本机，重启后还能继续。</p>
@@ -500,6 +555,27 @@ export function AgentDock({ notify }: AgentDockProps) {
         setDeleteState('error')
         deleteTimer.current = window.setTimeout(() => setDeleteState('idle'), 2400)
       })
+  }
+
+  /** 把助手回复收进笔记 / 任务：标题取首行，正文按主进程上限截断。 */
+  const captureNote = (text: string) => {
+    const body = messageToNote(text)
+    if (!body) {
+      notify('这条回复没有可保存的正文')
+      return
+    }
+    addNote(body, 'Agent')
+    notify('已存为笔记 · 标签 Agent')
+  }
+
+  const captureTask = (text: string) => {
+    const next = messageToTask(text)
+    if (!next) {
+      notify('这条回复没有可保存的正文')
+      return
+    }
+    addTask({ title: next.title, notes: next.notes })
+    notify('已建任务 · 标题取自首行')
   }
 
   const forkMessage = (messageId: string) => {
@@ -725,12 +801,25 @@ export function AgentDock({ notify }: AgentDockProps) {
 
               {visibleThread.map((message, visibleIndex) => {
                 const index = windowStart + visibleIndex
+                const runCheckpoint = message.runId
+                  ? checkpointsByRun.get(message.runId)
+                  : undefined
                 return (
                   <MessageRow
                     key={message.id}
                     message={message}
                     agent={agent}
                     animate={message.id === animateId}
+                    onSaveNote={
+                      message.role === 'assistant' && !message.error && message.text.trim()
+                        ? () => captureNote(message.text)
+                        : undefined
+                    }
+                    onSaveTask={
+                      message.role === 'assistant' && !message.error && message.text.trim()
+                        ? () => captureTask(message.text)
+                        : undefined
+                    }
                     onFork={
                       message.role === 'assistant' && !typingHere
                         ? () => forkMessage(message.id)
@@ -746,6 +835,15 @@ export function AgentDock({ notify }: AgentDockProps) {
                         : '复制到此消息；只有最新回复能真分叉'
                     }
                     forking={forkingId === message.id}
+                    turnCheckpoint={runCheckpoint}
+                    turnRollbackEnabled={
+                      runCheckpoint
+                        ? message.runId === latestCheckpointRunId && !runCheckpoint.restoredAt
+                        : false
+                    }
+                    onRollbackTurn={rollbackTurn}
+                    running={typingHere}
+                    notify={notify}
                     onRetry={
                       message.error && !message.imported && !typingHere
                         ? () => {
@@ -875,6 +973,10 @@ export function AgentDock({ notify }: AgentDockProps) {
         runId={streamHere?.runId ?? null}
         queued={queuedHere}
         stopping={stopRequested}
+        draftRequest={agentDraftRequest}
+        draftText={agentDraftText}
+        draftSessionId={agentDraftSessionId}
+        onDraftApplied={consumeAgentDraft}
         onSend={sendMessage}
         onStop={stopHere}
       />

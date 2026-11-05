@@ -6,6 +6,7 @@ import type {
 } from '../../shared/ipc'
 import {
   buildToolPriorityPrompt,
+  cleanToolNote,
   claudeDisabledTools,
   codexDeniedTools,
   codexFlags,
@@ -42,6 +43,7 @@ export class ToolSurfaceService {
     const disabled = new Set(this.prefs.disabledNative(agent))
     const order = this.prefs.order(agent)
     const preferred = this.prefs.preferred(agent)
+    const notes = this.prefs.notes(agent)
     const mcp = this.capabilities
       .listMcpServers()
       .filter((server) => server.targets === 'both' || server.targets === agent)
@@ -50,6 +52,7 @@ export class ToolSurfaceService {
         name: server.name,
         enabled: server.enabled && server.trusted,
         preferred: preferred.has(`mcp:${server.id}`),
+        note: notes.get(`mcp:${server.id}`) ?? '',
         tools: server.tools.map((tool) => tool.name),
         sortOrder: order.get(`mcp:${server.id}`)
       }))
@@ -61,6 +64,7 @@ export class ToolSurfaceService {
         name: plugin.name,
         enabled: plugin.enabled && plugin.trusted,
         preferred: preferred.has(`skill:${plugin.id}`),
+        note: notes.get(`skill:${plugin.id}`) ?? '',
         sortOrder: order.get(`skill:${plugin.id}`)
       }))
       .sort((a, b) => this.compare(a, b))
@@ -79,13 +83,15 @@ export class ToolSurfaceService {
         name: server.name,
         enabled: server.enabled,
         preferred: server.preferred,
+        note: server.note,
         tools: server.tools
       })),
       skills: skills.map((skill) => ({
         id: skill.id,
         name: skill.name,
         enabled: skill.enabled,
-        preferred: skill.preferred
+        preferred: skill.preferred,
+        note: skill.note
       })),
       builtin: this.builtin()
     }
@@ -103,6 +109,15 @@ export class ToolSurfaceService {
       throw new Error('只有 MCP 与技能可以设为首选')
     }
     this.prefs.setPreferred(agent, key, preferred)
+    return this.bundle()
+  }
+
+  /** 用途说明只作用于 MCP / 技能；写入前统一清洗并截断。 */
+  setNote(agent: AgentKind, key: string, note: string): ToolSurfaceBundle {
+    if (!key.startsWith('mcp:') && !key.startsWith('skill:')) {
+      throw new Error('只有 MCP 与技能可以写用途说明')
+    }
+    this.prefs.setNote(agent, key, cleanToolNote(note))
     return this.bundle()
   }
 
@@ -142,11 +157,16 @@ export class ToolSurfaceService {
         .map((server) => ({
           name: server.name,
           tools: server.tools,
-          preferred: server.preferred
+          preferred: server.preferred,
+          note: server.note
         })),
       skills: surface.skills
         .filter((skill) => skill.enabled)
-        .map((skill) => ({ name: skill.name, preferred: skill.preferred }))
+        .map((skill) => ({
+          name: skill.name,
+          preferred: skill.preferred,
+          note: skill.note
+        }))
     })
   }
 

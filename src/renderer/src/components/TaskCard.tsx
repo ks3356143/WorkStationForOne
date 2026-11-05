@@ -1,3 +1,4 @@
+import { SpotlightLayer } from './effects/SpotlightLayer'
 import { useEffect, useRef, useState } from 'react'
 import { dateKey } from '../../../shared/date-key'
 import { TASK_DRAG_TYPE } from '../lib/dnd'
@@ -61,7 +62,8 @@ export function TaskCard({ nextTaskId }: TaskCardProps) {
   }
 
   return (
-    <section className="w1-card w1-tasks">
+    <section className="w1-card w1-tasks" data-spotlight>
+      <SpotlightLayer />
       <div className="w1-ct">
         <b>
           <em>//</em>任务与日程

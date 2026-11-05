@@ -31,6 +31,7 @@ export async function hydrateLearning(
     ...(remove ? { remove: (id: string) => remove(id) } : {}),
     review: deps.review
   })
+  useWorkstation.getState().refreshLearningNewIntroduced()
 
   try {
     const stored = await deps.list()

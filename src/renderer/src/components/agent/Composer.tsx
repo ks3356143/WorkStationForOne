@@ -1,4 +1,11 @@
-import { useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type KeyboardEvent
+} from 'react'
 import { MAX_CONTEXT_FILES } from '../../../../shared/agent-context'
 import type { AgentImageRef, WorkspaceEntry } from '../../../../shared/ipc'
 import { AGENT_META } from '../../lib/agent'
@@ -28,6 +35,11 @@ interface ComposerProps {
   runId?: string | null
   queued?: boolean
   stopping?: boolean
+  /** 任务 / 笔记「交给 Agent」预填的提示词，只填不发 */
+  draftRequest?: number
+  draftText?: string
+  draftSessionId?: string | null
+  onDraftApplied?: () => void
   onSend: (text: string, contextFiles?: string[], images?: AgentImageRef[]) => void
   onStop: () => void
 }
@@ -50,6 +62,10 @@ export function Composer({
   runId,
   queued,
   stopping,
+  draftRequest = 0,
+  draftText = '',
+  draftSessionId,
+  onDraftApplied,
   onSend,
   onStop
 }: ComposerProps) {
@@ -68,6 +84,17 @@ export function Composer({
   const inputRef = useRef<HTMLInputElement | null>(null)
   const meta = AGENT_META[agent]
   const missingWorkspace = !workspace
+
+  // 「交给 Agent」只预填输入栏，不自动发送；草稿留在 store 里直到用户编辑或发送，
+  // 这样只选工作区导致 Composer 重挂载时提示词还能重新填回来。
+  const appliedDraft = useRef(0)
+  useEffect(() => {
+    if (!draftText || draftSessionId !== sessionId) return
+    if (draftRequest <= appliedDraft.current) return
+    appliedDraft.current = draftRequest
+    setDraft(draftText)
+    window.requestAnimationFrame(() => inputRef.current?.focus())
+  }, [draftRequest, draftText, draftSessionId, sessionId])
   const blocked = missingWorkspace || !threadReady
   const bridge = typeof window === 'undefined' ? undefined : window.ws?.agent
 
@@ -121,6 +148,7 @@ export function Composer({
       attachments.length > 0 ? attachments : undefined,
       images.length ? images : undefined
     )
+    onDraftApplied?.()
     setDraft('')
     setAttachments([])
     setImages([])
@@ -273,6 +301,7 @@ export function Composer({
           onChange={(event) => {
             const value = event.target.value
             setDraft(value)
+            onDraftApplied?.()
             const caret = event.target.selectionStart ?? value.length
             const hit = matchMention(value, caret)
             setMention(hit)

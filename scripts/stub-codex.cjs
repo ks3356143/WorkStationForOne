@@ -356,7 +356,7 @@ function runAppServer() {
     setTimeout(() => {
       if (prompt.includes('工具面检查')) {
         finishTurn(
-          `工具面：${CONFIG_FLAGS.join('|') || '无'}；优先级 ${developerText.includes('[工具优先级]') ? '有' : '无'}；首选 ${developerText.includes('首选：') ? '有' : '无'}`
+          `工具面：${CONFIG_FLAGS.join('|') || '无'}；优先级 ${developerText.includes('[工具优先级]') ? '有' : '无'}；首选 ${developerText.includes('首选：') ? '有' : '无'}；说明 ${developerText.includes('用途：') ? '有' : '无'}`
         )
         return
       }

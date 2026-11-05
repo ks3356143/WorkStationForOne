@@ -402,3 +402,196 @@
 .w1-fleetrow {
   animation: w1-item-in 240ms var(--ease-out) both;
 }
+
+/* ---------- 指针特效与状态流光（v0.64.0） ---------- */
+
+/* 聚光：单监听写入 --spot-x/y，光斑用 translate3d 移动，不触发布局 */
+[data-spotlight] {
+  position: relative;
+  isolation: isolate;
+}
+
+.w1-spot {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.w1-spot::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 18rem;
+  height: 18rem;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle closest-side,
+    rgb(var(--prism-1-rgb) / 0.16),
+    rgb(var(--prism-2-rgb) / 0.05) 46%,
+    transparent 74%
+  );
+  transform: translate3d(calc(var(--spot-x, 50%) - 9rem), calc(var(--spot-y, 50%) - 9rem), 0);
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+
+[data-spotlight]:hover .w1-spot::before,
+[data-spotlight]:focus-within .w1-spot::before {
+  opacity: 1;
+}
+
+/* 流光边框：1px 的旋转光束，只给运行中 / 待审批 / 首选这类状态面 */
+@property --beam-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.w1-sess,
+.w1-perm,
+.w1-caprow {
+  position: relative;
+}
+
+.w1-beamlayer {
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  pointer-events: none;
+  z-index: 1;
+  background: conic-gradient(
+    from var(--beam-angle),
+    transparent 0deg 288deg,
+    rgb(var(--prism-1-rgb) / 0.85) 322deg,
+    rgb(var(--ac2-rgb) / 0.7) 340deg,
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: w1-beam-spin 4.6s linear infinite;
+}
+
+@keyframes w1-beam-spin {
+  to {
+    --beam-angle: 360deg;
+  }
+}
+
+/* 主按钮：水波纹从按下点散开，磁吸只给发送 / 快速添加 */
+.w1-send,
+.w1-todoadd,
+.w1-todosave,
+.w1-pb.pri {
+  position: relative;
+  overflow: hidden;
+}
+
+.w1-ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgb(var(--prism-1-rgb) / 0.32);
+  transform: scale(0);
+  pointer-events: none;
+  animation: w1-ripple 560ms var(--ease-out) forwards;
+}
+
+@keyframes w1-ripple {
+  to {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+.w1-send,
+.w1-todoadd {
+  translate: var(--mag-x, 0px) var(--mag-y, 0px);
+  transition: translate 160ms var(--ease-out);
+}
+
+/* 标题微光：启动页一次扫光，顶栏品牌悬停扫光 */
+.w1-wsname {
+  font-weight: inherit;
+}
+
+.w1-boot-name {
+  background-image: linear-gradient(
+    100deg,
+    var(--fg) 32%,
+    rgb(var(--ac2-rgb)) 48%,
+    rgb(var(--prism-1-rgb)) 54%,
+    var(--fg) 70%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation:
+    bootLine 0.45s var(--ease-out) 0.12s backwards,
+    w1-title-shine 0.9s var(--ease-out) 0.24s both;
+}
+
+.w1-brand:hover .w1-wsname {
+  background-image: linear-gradient(100deg, var(--fg) 30%, var(--ac2-fg) 50%, var(--fg) 70%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: w1-title-shine 1.6s var(--ease-out) both;
+}
+
+@keyframes w1-title-shine {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -20% 0;
+  }
+}
+
+:root[data-theme="light"] .w1-spot::before {
+  background: radial-gradient(
+    circle closest-side,
+    rgb(var(--prism-1-rgb) / 0.1),
+    rgb(var(--prism-2-rgb) / 0.04) 46%,
+    transparent 74%
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .w1-spot,
+  .w1-beamlayer,
+  .w1-ripple {
+    display: none;
+  }
+
+  .w1-send,
+  .w1-todoadd {
+    translate: none;
+  }
+
+  .w1-boot-name {
+    background: none;
+    color: var(--fg);
+    -webkit-text-fill-color: var(--fg);
+  }
+}
+
+.w1.motion-off .w1-spot,
+.w1.motion-off .w1-beamlayer,
+.w1.motion-off .w1-ripple {
+  display: none;
+}
+
+.w1.motion-off .w1-send,
+.w1.motion-off .w1-todoadd {
+  translate: none;
+}

@@ -80,4 +80,6 @@ export interface LearningApi {
   createMany: (drafts: LearningDraft[]) => Promise<LearningImportResult>
   exportCards: (subject?: string) => Promise<LearningExportResult>
   reviewHistory: (days: number) => Promise<LearningReviewRecord[]>
+  /** 当天首次复习的卡片数；用于每日新卡限额。 */
+  newIntroduced: (day: string) => Promise<number>
 }

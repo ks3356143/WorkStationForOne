@@ -1,4 +1,5 @@
 import type { WorkstationData } from '../types'
+import { DEFAULT_LEARNING_NEW_PER_DAY } from '../lib/learning-limit'
 import { createSeedHabits } from './seed/habits'
 import { createSeedLearning } from './seed/learning'
 import { createSeedNotes } from './seed/notes'
@@ -19,12 +20,17 @@ export function createInitialData(): WorkstationData {
     learningReviewOpen: false,
     learningReviewSession: null,
     learningReviewTally: { reviewed: 0, again: 0, startedAt: Date.now() },
+    learningNewPerDay: DEFAULT_LEARNING_NEW_PER_DAY,
+    learningNewIntroduced: 0,
     taskFilter: 'all',
     taskScope: 'today',
     taskJumpId: null,
     noteJump: null,
     learningJumpId: null,
     taskComposerRequest: 0,
+    agentDraftText: '',
+    agentDraftRequest: 0,
+    agentDraftSessionId: null,
     lastAddedTaskId: null,
     lastRemovedTask: null,
     habits: createSeedHabits(),

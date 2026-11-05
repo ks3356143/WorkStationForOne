@@ -33,6 +33,7 @@ import { hydrateNotes } from './lib/notes-persistence'
 import { hydrateHabits } from './lib/habits-persistence'
 import { hydrateLearning } from './lib/learning-persistence'
 import { isTypingTarget } from './lib/shortcuts'
+import { installPointerEffects } from './lib/pointer-effects'
 import { useAgentRun } from './lib/useAgentRun'
 
 /** 视图中文名，错误边界用它说清「哪一块坏了」 */
@@ -77,6 +78,8 @@ export default function App() {
   const reducedMotion = useReducedMotion()
 
   useAgentRun()
+
+  useEffect(() => installPointerEffects(), [])
 
   const notify = useCallback(
     (text: string, action?: { label: string; run: () => void }, duration = 2400) => {

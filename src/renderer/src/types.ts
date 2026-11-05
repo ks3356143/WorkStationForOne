@@ -107,6 +107,8 @@ export interface ChatMessage {
   imported?: boolean
   /** Codex 回合 id，用于从该条回复真分叉 */
   turnId?: string
+  /** 产生这条回复的应用运行 id，用于匹配回合检查点 */
+  runId?: string
   /** 用户 @ 附加的工作区相对路径；只存路径，文件内容不落库 */
   contextFiles?: string[]
   /** 用户输入的图片引用；图片本体在应用私有目录 */
@@ -179,6 +181,10 @@ export interface WorkstationData {
   learningReviewOpen: boolean
   learningReviewSession: string[] | null
   learningReviewTally: ReviewTallyData
+  /** 每日新卡上限；0 表示不限 */
+  learningNewPerDay: number
+  /** 今天已经首次复习的卡片数 */
+  learningNewIntroduced: number
   taskFilter: TaskFilter
   taskScope: TaskScope
   /** 全局搜索/提醒中心要求打开的任务详情；消费后清空 */
@@ -188,6 +194,11 @@ export interface WorkstationData {
   /** 全局搜索命中学习卡时要定位并高亮的卡片 */
   learningJumpId: string | null
   taskComposerRequest: number
+  /** 任务 / 笔记「交给 Agent」时预填到输入栏的提示词 */
+  agentDraftText: string
+  agentDraftRequest: number
+  /** 预填草稿属于哪个会话；切会话不会串提示词 */
+  agentDraftSessionId: string | null
   lastAddedTaskId: string | null
   lastRemovedTask: { task: Task; index: number } | null
   habits: Habit[]

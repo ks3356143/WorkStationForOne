@@ -221,9 +221,8 @@ async function launch(phase) {
     page.call('Performance.enable'),
     main.call('Runtime.enable')
   ])
-  await page.call('Page.bringToFront').catch(() => {})
   await page.call('Emulation.setFocusEmulationEnabled', { enabled: true }).catch(() => {})
-  // 其它窗口可能抢走焦点；验证期间把应用窗口置顶并聚焦，和冒烟保持同一前提。
+  // 验证不抢前台：窗口透明、不激活，但保持可见让页面继续渲染。
   try {
     await evaluate(
       main,
@@ -234,15 +233,16 @@ async function launch(phase) {
         const { BrowserWindow } = req('electron')
         const win = BrowserWindow.getAllWindows()[0]
         if (!win) return false
-        win.setAlwaysOnTop(true, 'screen-saver')
-        win.show()
-        win.focus()
-        return win.isFocused()
+        if (win.isMinimized()) win.restore()
+        win.setSkipTaskbar(true)
+        win.setOpacity(0)
+        win.showInactive()
+        return { visible: win.isVisible(), focused: win.isFocused() }
       })()`,
-      'focus window'
+      'show window inactive'
     )
   } catch (error) {
-    console.error('[focus window]', error.message)
+    console.error('[show window inactive]', error.message)
   }
 
   await waitFor(
@@ -1462,9 +1462,9 @@ async function ensureWindowVisible() {
         const win = BrowserWindow.getAllWindows()[0]
         if (!win) return null
         if (win.isMinimized()) win.restore()
-        win.setAlwaysOnTop(true, 'screen-saver')
-        win.show()
-        win.focus()
+        win.setSkipTaskbar(true)
+        win.setOpacity(0)
+        win.showInactive()
         return { visible: win.isVisible(), focused: win.isFocused(), minimized: win.isMinimized() }
       })()`,
       'ensure window visible'

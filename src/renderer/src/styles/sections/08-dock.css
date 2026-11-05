@@ -412,8 +412,10 @@
 
 .w1-ameta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  row-gap: 4px;
   margin-bottom: 5px;
   font: 12.5px / 1 var(--mono);
   color: var(--su);
@@ -695,6 +697,10 @@
 
 .w1-fork {
   margin-left: 4px;
+}
+
+.w1-capture {
+  margin-left: 0;
 }
 
 .w1-fork:disabled {
@@ -1947,4 +1953,129 @@
   font: 10.5px / 1.5 var(--mono);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.w1-turnchanges {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.55);
+  background: rgb(var(--panel-2-rgb) / 0.36);
+}
+
+.w1-tc-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.w1-tc-label {
+  font: 600 10.5px / 1 var(--mono);
+  letter-spacing: 0.06em;
+  color: var(--ac2-fg);
+}
+
+.w1-tc-total {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 10.5px / 1 var(--mono);
+  color: var(--mu);
+}
+
+.w1-tc-total b,
+.w1-tc-file b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.w1-tc-total .add,
+.w1-tc-file .add {
+  color: var(--ok-fg);
+}
+
+.w1-tc-total .del,
+.w1-tc-file .del {
+  color: var(--dg-fg);
+}
+
+.w1-tc-total i,
+.w1-tc-file i {
+  font: 9.5px / 1 var(--mono);
+  font-style: normal;
+  color: var(--wn-fg);
+}
+
+.w1-tc-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.w1-tc-rollback {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid rgb(var(--ac-rgb) / 0.35);
+  background: transparent;
+  color: var(--ac-fg);
+  font: 10px / 1 var(--mono);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-ui),
+    color var(--dur-ui),
+    background-color var(--dur-ui);
+}
+
+.w1-tc-rollback:hover:not(:disabled) {
+  border-color: rgb(var(--ac2-rgb) / 0.55);
+  color: var(--ac2-fg);
+}
+
+.w1-tc-rollback.armed {
+  border-color: rgb(var(--dg-rgb) / 0.55);
+  background: rgb(var(--dg-rgb) / 0.08);
+  color: var(--dg-fg);
+}
+
+.w1-tc-rollback:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.w1-tc-note {
+  font: 9.5px / 1 var(--mono);
+  color: var(--mu);
+}
+
+.w1-tc-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 6px;
+}
+
+.w1-tc-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  font: 10.5px / 1.4 var(--mono);
+  color: var(--su);
+}
+
+.w1-tc-file em {
+  max-width: 36ch;
+  overflow: hidden;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.w1-tc-error {
+  display: block;
+  margin-top: 5px;
+  font: 10px / 1.4 var(--mono);
+  color: var(--dg-fg);
 }

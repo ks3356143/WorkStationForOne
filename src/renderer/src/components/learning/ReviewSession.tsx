@@ -1,3 +1,4 @@
+import { SpotlightLayer } from '../effects/SpotlightLayer'
 import { useEffect, useState } from 'react'
 import { AnimatePresence, m } from 'motion/react'
 import { clozePlainText } from '../../../../shared/cloze'
@@ -65,7 +66,8 @@ export function ReviewSession({ onExit }: ReviewSessionProps) {
   if (done) {
     const finished = tally.reviewed > 0
     return (
-      <section className="w1-workspace w1-learn review" aria-label="复习完成">
+      <section className="w1-workspace w1-learn review" aria-label="复习完成" data-spotlight>
+        <SpotlightLayer />
         <div className="w1-lreview">
           <div className="w1-ldone">
             <span className="w1-eyebrow">// 复习</span>
@@ -99,7 +101,8 @@ export function ReviewSession({ onExit }: ReviewSessionProps) {
   const position = Math.min(tally.reviewed + 1, total)
 
   return (
-    <section className="w1-workspace w1-learn review" aria-label="复习会话">
+    <section className="w1-workspace w1-learn review" aria-label="复习会话" data-spotlight>
+      <SpotlightLayer />
       <div className="w1-lreview">
         <header className="w1-lrevhead">
           <div className="w1-lrevmeta">

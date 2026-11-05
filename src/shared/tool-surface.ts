@@ -118,12 +118,15 @@ export function toolSurfaceDenial(toolName: string, disabledTools: string[]): st
 }
 
 export interface ToolSurfacePromptInput {
-  mcp: Array<{ name: string; tools: string[]; preferred?: boolean }>
-  skills: Array<{ name: string; preferred?: boolean }>
+  mcp: Array<{ name: string; tools: string[]; preferred?: boolean; note?: string }>
+  skills: Array<{ name: string; preferred?: boolean; note?: string }>
 }
 
 /** 每个 Server 最多列几个工具名；Notion 这类 70 工具的 Server 不能整串塞进提示词。 */
 export const MAX_PROMPT_TOOLS_PER_SERVER = 6
+
+/** 使用场景说明只进入首选分组；每轮提示词都会带上，必须短。 */
+export const MAX_TOOL_NOTE = 80
 
 /**
  * 名称是用户输入，可能被贴进 URL 或密钥。提示词是它唯一的出口，
@@ -137,6 +140,17 @@ function sanitizeLabel(value: string): string {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 60)
+}
+
+/** 用途说明是用户自己写的，可能误贴 URL / Key；与名称走同一套脱敏。 */
+export function cleanToolNote(value: string): string {
+  return value
+    .replace(/[a-z][a-z0-9+.-]*:\/\/\S+/gi, '[已隐藏]')
+    .replace(/\b(?:ctx7sk|sk)-[A-Za-z0-9_-]{8,}/g, '[已隐藏]')
+    .replace(/Bearer\s+[A-Za-z0-9._-]{8,}/gi, 'Bearer [已隐藏]')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, MAX_TOOL_NOTE)
 }
 
 function describeMcp(server: { name: string; tools: string[] }): string {
@@ -156,6 +170,33 @@ function describeGroups(
   const parts = mcp.map(describeMcp)
   const names = skills.map((skill) => sanitizeLabel(skill.name)).filter(Boolean)
   if (names.length > 0) parts.push(`技能 ${names.join('、')}`)
+  return parts.join('；')
+}
+
+function withNote(base: string, note?: string): string {
+  const cleaned = cleanToolNote(note ?? '')
+  return cleaned ? `${base} · 用途：${cleaned}` : base
+}
+
+/**
+ * 首选组逐项附上用途说明。技能只有在带说明时才拆开写，
+ * 否则保持原来的「技能 a、b」合并格式，避免无谓变长。
+ */
+function describePreferred(
+  mcp: Array<{ name: string; tools: string[]; note?: string }>,
+  skills: Array<{ name: string; note?: string }>
+): string {
+  const parts = mcp.map((server) => withNote(describeMcp(server), server.note))
+  const noted = skills.filter((skill) => cleanToolNote(skill.note ?? ''))
+  if (noted.length === 0) {
+    const names = skills.map((skill) => sanitizeLabel(skill.name)).filter(Boolean)
+    if (names.length > 0) parts.push(`技能 ${names.join('、')}`)
+    return parts.join('；')
+  }
+  for (const skill of skills) {
+    const name = sanitizeLabel(skill.name)
+    if (name) parts.push(withNote(`技能 ${name}`, skill.note))
+  }
   return parts.join('；')
 }
 
@@ -182,7 +223,7 @@ export function buildToolPriorityPrompt(
     lines.push(
       '凡是能由下列首选工具完成的工作，先调用它们，不要改用 CLI 原生工具（如 Read、WebFetch、WebSearch、ComputerUse、BrowserUse、Shell 等）去完成同一件事；原生工具只用于首选工具做不到的部分。'
     )
-    lines.push(`首选：${describeGroups(topMcp, topSkills)}`)
+    lines.push(`首选：${describePreferred(topMcp, topSkills)}`)
     const others = describeGroups(restMcp, restSkills)
     if (others) lines.push(`其它已启用：${others}`)
   } else {

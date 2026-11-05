@@ -1,8 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
 import { fallbackCopy } from '../../lib/clipboard'
+import { parseNoteLinkHref, remarkNoteLinks } from '../../lib/note-markdown'
+
+/** 笔记预览用：把 [[双链]] 解析到真实笔记并支持点击打开。 */
+export interface NoteLinkContext {
+  open: (title: string) => void
+  state: (title: string) => { ok: boolean; reason?: string }
+}
 
 function CodeBlock({ children }: { children: React.ReactNode }) {
   const preRef = useRef<HTMLPreElement>(null)
@@ -41,7 +48,7 @@ function CodeBlock({ children }: { children: React.ReactNode }) {
   )
 }
 
-const MarkdownLink: Components['a'] = ({ href, children }) => {
+function MarkdownLink({ href, children }: { href?: string; children?: React.ReactNode }) {
   const external = typeof href === 'string' && /^https?:\/\//i.test(href)
   if (!external) return <span className="w1-md-linkplain">{children}</span>
   return (
@@ -59,22 +66,53 @@ const MarkdownLink: Components['a'] = ({ href, children }) => {
   )
 }
 
-const components: Components = {
-  pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
-  a: MarkdownLink,
-  img: ({ alt }) => <span className="w1-md-img">[图片{alt ? `: ${alt}` : ''}]</span>,
-  table: ({ children }) => (
-    <div className="w1-md-tablewrap">
-      <table>{children}</table>
-    </div>
-  )
+/** Agent 回复不传 noteLinks：渲染结果与原来的纯 Markdown 一致。 */
+function markdownComponents(noteLinks?: NoteLinkContext): Components {
+  return {
+    pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
+    a: ({ href, children }) => {
+      const title = typeof href === 'string' ? parseNoteLinkHref(href) : null
+      if (title && noteLinks) {
+        const state = noteLinks.state(title)
+        if (!state.ok) {
+          return (
+            <span className="w1-nlink missing" title={state.reason}>
+              {children}
+            </span>
+          )
+        }
+        return (
+          <button
+            type="button"
+            className="w1-nlink"
+            title={`打开笔记：${title}`}
+            onClick={() => noteLinks.open(title)}
+          >
+            {children}
+          </button>
+        )
+      }
+      return <MarkdownLink href={href}>{children}</MarkdownLink>
+    },
+    img: ({ alt }) => <span className="w1-md-img">[图片{alt ? `: ${alt}` : ''}]</span>,
+    table: ({ children }) => (
+      <div className="w1-md-tablewrap">
+        <table>{children}</table>
+      </div>
+    )
+  }
 }
 
-export function AgentMarkdown({ text }: { text: string }) {
+export function AgentMarkdown({ text, noteLinks }: { text: string; noteLinks?: NoteLinkContext }) {
+  const components = useMemo(() => markdownComponents(noteLinks), [noteLinks])
+  const remarkPlugins = useMemo(
+    () => (noteLinks ? [remarkGfm, remarkNoteLinks] : [remarkGfm]),
+    [noteLinks]
+  )
   return (
     <div className="w1-md">
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={remarkPlugins}
         rehypePlugins={[rehypeHighlight]}
         skipHtml
         components={components}

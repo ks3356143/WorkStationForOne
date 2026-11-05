@@ -1,3 +1,4 @@
+import { SpotlightLayer } from './effects/SpotlightLayer'
 import { selectPreviewNotes, useWorkstation } from '../store/useWorkstation'
 import { PinIcon } from './Glyphs'
 
@@ -9,7 +10,8 @@ export function NoteCard() {
   const { pinned, rest } = selectPreviewNotes(notes)
 
   return (
-    <section className="w1-card w1-note">
+    <section className="w1-card w1-note" data-spotlight>
+      <SpotlightLayer />
       <div className="w1-ct">
         <b>
           <em>//</em>快速笔记

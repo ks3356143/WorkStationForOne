@@ -247,6 +247,11 @@ export function registerLearningHandlers(repository: LearningRepository): void {
     repository.reviewHistory(assertHistoryDays(days))
   )
 
+  ipcMain.handle(IPC.learningNewIntroduced, (_event, day: unknown) => {
+    if (!isDateKey(day)) throw new TypeError('日期无效')
+    return repository.newIntroduced(day)
+  })
+
   ipcMain.handle(IPC.learningExport, async (_event, subject: unknown) => {
     if (subject !== undefined && typeof subject !== 'string') throw new TypeError('科目无效')
     const target = typeof subject === 'string' ? subject.trim() : ''

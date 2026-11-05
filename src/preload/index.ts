@@ -69,7 +69,8 @@ const api: WsApi = {
     review: (id, rating) => ipcRenderer.invoke(IPC_CHANNELS.learningReview, id, rating),
     createMany: (drafts) => ipcRenderer.invoke(IPC_CHANNELS.learningCreateMany, drafts),
     exportCards: (subject) => ipcRenderer.invoke(IPC_CHANNELS.learningExport, subject),
-    reviewHistory: (days) => ipcRenderer.invoke(IPC_CHANNELS.learningReviewHistory, days)
+    reviewHistory: (days) => ipcRenderer.invoke(IPC_CHANNELS.learningReviewHistory, days),
+    newIntroduced: (day) => ipcRenderer.invoke(IPC_CHANNELS.learningNewIntroduced, day)
   },
   habits: {
     list: () => ipcRenderer.invoke(IPC_CHANNELS.habitsList),
@@ -158,6 +159,8 @@ const api: WsApi = {
       ipcRenderer.invoke(IPC_CHANNELS.capabilityToolMove, agent, key, direction),
     setPreferredTool: (agent, key, preferred) =>
       ipcRenderer.invoke(IPC_CHANNELS.capabilityToolPrefer, agent, key, preferred),
+    setToolNote: (agent, key, note) =>
+      ipcRenderer.invoke(IPC_CHANNELS.capabilityToolNote, agent, key, note),
     pluginSources: () => ipcRenderer.invoke(IPC_CHANNELS.capabilityPluginSources),
     addPluginSource: (input) => ipcRenderer.invoke(IPC_CHANNELS.capabilityPluginSourceAdd, input),
     refreshPluginSource: (id) => ipcRenderer.invoke(IPC_CHANNELS.capabilityPluginSourceRefresh, id),

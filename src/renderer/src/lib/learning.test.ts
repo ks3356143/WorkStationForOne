@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { LearningItem } from '../types'
 import {
+  deferredNewCount,
   dueQueue,
   estimatedMinutes,
   filterItems,
   isDue,
+  isNewCard,
   learningDueLabel,
   learningSubjects,
   subjectBreakdown,
@@ -70,6 +72,63 @@ describe('dueQueue', () => {
     const items = [card({ id: 'b', ease: 2.8 }), card({ id: 'a', ease: 2.1 })]
     dueQueue(items, today)
     expect(items.map((item) => item.id)).toEqual(['b', 'a'])
+  })
+})
+
+describe('dueQueue · 新卡每日限额', () => {
+  const review = (id: string, ease = 4) => card({ id, repetitions: 3, stability: 10, ease })
+
+  it('只放行剩余额度的新卡，复习卡全部保留', () => {
+    const items = [
+      card({ id: 'new-a', ease: 1 }),
+      card({ id: 'new-b', ease: 2 }),
+      review('review', 3),
+      card({ id: 'new-c', ease: 4 })
+    ]
+
+    expect(
+      dueQueue(items, today, { perDay: 2, introducedToday: 0 }).map((item) => item.id)
+    ).toEqual(['new-a', 'new-b', 'review'])
+  })
+
+  it('今天已经学够新卡时只保留复习卡', () => {
+    const items = [card({ id: 'new', ease: 1 }), review('review', 2)]
+
+    expect(
+      dueQueue(items, today, { perDay: 2, introducedToday: 2 }).map((item) => item.id)
+    ).toEqual(['review'])
+  })
+
+  it('额度为 0 表示不限', () => {
+    const items = [card({ id: 'new-a' }), card({ id: 'new-b' }), review('review', 3)]
+
+    expect(dueQueue(items, today, { perDay: 0, introducedToday: 9 })).toHaveLength(3)
+  })
+})
+
+describe('isNewCard', () => {
+  it('只有从未建立 FSRS 状态且复习次数为 0 才是新卡', () => {
+    expect(isNewCard(card())).toBe(true)
+    expect(isNewCard(card({ stability: 1 }))).toBe(false)
+    expect(isNewCard(card({ repetitions: 1 }))).toBe(false)
+    expect(isNewCard(card({ repetitions: 1, stability: 1 }))).toBe(false)
+  })
+})
+
+describe('deferredNewCount', () => {
+  it('统计超出每日限额的新卡，忽略停用与未到期', () => {
+    const items = [
+      card({ id: 'a' }),
+      card({ id: 'b' }),
+      card({ id: 'c' }),
+      card({ id: 'future', nextReviewOn: '2026-10-28' }),
+      card({ id: 'off', active: false }),
+      card({ id: 'review', repetitions: 3, stability: 10 })
+    ]
+
+    expect(deferredNewCount(items, today, { perDay: 2, introducedToday: 0 })).toBe(1)
+    expect(deferredNewCount(items, today, { perDay: 2, introducedToday: 2 })).toBe(3)
+    expect(deferredNewCount(items, today, { perDay: 0, introducedToday: 0 })).toBe(0)
   })
 })
 
