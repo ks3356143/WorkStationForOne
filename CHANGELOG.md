@@ -6,6 +6,19 @@
 
 暂无。
 
+## [0.70.0] - 2026-11-05
+
+### 性能
+
+- **首屏渲染包从 2.99 MB 降到 1.24 MB（约 −59%）**：任务、笔记、学习、Agent、设置与舰队改为按视图加载，首次进入时加载并缓存；Markdown 渲染与文件 diff 预览按需加载，首屏不再解析这些重依赖。
+- Markdown 渲染块从 862 KB 降到 698 KB：改用 `lowlight` + `highlight.js` 语言子集（bash / css / javascript / json / markdown / python / rust / sql / typescript / xml / yaml），移除会静态带入全部 common 语言的 `rehype-highlight`。
+- 视图与预览加载期间使用 `StatePlaceholder` / 轻量占位，不改变五视图互斥、焦点归还与现有布局；命令面板保持静态加载，Ctrl+K 仍然即时。
+
+### 验证
+
+- Biome 441 文件、typecheck、1215 项单测、527 项冒烟、250/250 运行时断言全部通过；任务 / Agent / 笔记 / 学习 / 今日五视图在 1440×900 与 1180×720 下截图检查，无布局回退。
+- 首包：`index` 2,989 KB → 1,235 KB；按需块：Agent 176 KB、设置 158 KB、任务 80 KB、笔记 57 KB、学习 65 KB、舰队 27 KB、Markdown 698 KB、diff 277 KB。
+
 ## [0.69.1] - 2026-11-05
 
 ### 修复

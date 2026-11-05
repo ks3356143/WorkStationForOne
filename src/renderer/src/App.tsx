@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import {
   AnimatePresence,
   LazyMotion,
@@ -7,20 +7,14 @@ import {
   m,
   useReducedMotion
 } from 'motion/react'
-import { AgentDock } from './components/agent/AgentDock'
 import { BootOverlay } from './components/BootOverlay'
 import { CommandPalette } from './components/CommandPalette'
-import { FleetSheet } from './components/FleetSheet'
 import { FocusOverlay } from './components/FocusOverlay'
-import { LearningWorkspace } from './components/learning/LearningWorkspace'
-import { NotesView } from './components/NotesView'
 import { QuickNoteModal } from './components/QuickNoteModal'
 import { ReminderSheet } from './components/ReminderSheet'
-import { SessionRail } from './components/SessionRail'
-import { SettingsSheet } from './components/SettingsSheet'
 import { ShortcutSheet } from './components/ShortcutSheet'
+import { StatePlaceholder } from './components/StatePlaceholder'
 import { StatusBar } from './components/StatusBar'
-import { TasksView } from './components/tasks/TasksView'
 import { TodayDashboard } from './components/TodayDashboard'
 import { TopBar } from './components/TopBar'
 import { ViewErrorBoundary } from './components/ViewErrorBoundary'
@@ -43,6 +37,45 @@ const VIEW_SCOPE: Record<string, string> = {
   agent: 'Agent',
   notes: '笔记',
   learning: '学习'
+}
+
+const AgentWorkspace = lazy(() =>
+  import('./components/agent/AgentWorkspace').then((module) => ({
+    default: module.AgentWorkspace
+  }))
+)
+const TasksView = lazy(() =>
+  import('./components/tasks/TasksView').then((module) => ({ default: module.TasksView }))
+)
+const NotesView = lazy(() =>
+  import('./components/NotesView').then((module) => ({ default: module.NotesView }))
+)
+const LearningWorkspace = lazy(() =>
+  import('./components/learning/LearningWorkspace').then((module) => ({
+    default: module.LearningWorkspace
+  }))
+)
+const SettingsSheet = lazy(() =>
+  import('./components/SettingsSheet').then((module) => ({ default: module.SettingsSheet }))
+)
+const FleetSheet = lazy(() =>
+  import('./components/FleetSheet').then((module) => ({ default: module.FleetSheet }))
+)
+
+function AgentWorkspaceFallback() {
+  return (
+    <section className="w1-workspace w1-agent" aria-label="Agent 工作区">
+      <StatePlaceholder kind="loading" title="正在打开 Agent 工作区…" rows={4} />
+    </section>
+  )
+}
+
+function ViewLoading({ title }: { title: string }) {
+  return (
+    <div className="w1-viewloading">
+      <StatePlaceholder kind="loading" title={title} rows={4} />
+    </div>
+  )
 }
 
 export default function App() {
@@ -268,15 +301,26 @@ export default function App() {
                   notify={notify}
                 >
                   {activeView === 'today' ? <TodayDashboard /> : null}
-                  {activeView === 'tasks' ? <TasksView notify={notify} /> : null}
-                  {activeView === 'agent' ? (
-                    <section className="w1-workspace w1-agent" aria-label="Agent 工作区">
-                      <SessionRail />
-                      <AgentDock notify={notify} />
-                    </section>
+                  {activeView === 'tasks' ? (
+                    <Suspense fallback={<ViewLoading title="正在打开任务…" />}>
+                      <TasksView notify={notify} />
+                    </Suspense>
                   ) : null}
-                  {activeView === 'notes' ? <NotesView /> : null}
-                  {activeView === 'learning' ? <LearningWorkspace /> : null}
+                  {activeView === 'agent' ? (
+                    <Suspense fallback={<AgentWorkspaceFallback />}>
+                      <AgentWorkspace notify={notify} />
+                    </Suspense>
+                  ) : null}
+                  {activeView === 'notes' ? (
+                    <Suspense fallback={<ViewLoading title="正在打开笔记…" />}>
+                      <NotesView />
+                    </Suspense>
+                  ) : null}
+                  {activeView === 'learning' ? (
+                    <Suspense fallback={<ViewLoading title="正在打开学习…" />}>
+                      <LearningWorkspace />
+                    </Suspense>
+                  ) : null}
                 </ViewErrorBoundary>
               </div>
             </main>
@@ -300,12 +344,18 @@ export default function App() {
 
           <AnimatePresence>
             {settingsOpen ? (
-              <SettingsSheet onClose={() => setSettingsOpen(false)} notify={notify} />
+              <Suspense fallback={null}>
+                <SettingsSheet onClose={() => setSettingsOpen(false)} notify={notify} />
+              </Suspense>
             ) : null}
           </AnimatePresence>
 
           <AnimatePresence>
-            {fleetOpen ? <FleetSheet onClose={closeFleet} notify={notify} /> : null}
+            {fleetOpen ? (
+              <Suspense fallback={null}>
+                <FleetSheet onClose={closeFleet} notify={notify} />
+              </Suspense>
+            ) : null}
           </AnimatePresence>
 
           <AnimatePresence>

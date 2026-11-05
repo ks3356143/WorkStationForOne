@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { m } from 'motion/react'
 import { DURATION, EASE_OUT } from '../../lib/motion'
 import type { ToolPermission } from '../../types'
-import { FileDiffView } from './FileDiffView'
+import { FileDiffView } from './FileDiffViewLazy'
 
 type ToolDecision = 'once' | 'session' | 'workspace' | 'deny'
 

@@ -3,7 +3,7 @@ import { m } from 'motion/react'
 import { DURATION, EASE_OUT } from '../../lib/motion'
 import type { ToolCall } from '../../types'
 import { ArrowIcon } from '../Glyphs'
-import { FileDiffView } from './FileDiffView'
+import { FileDiffView } from './FileDiffViewLazy'
 
 interface ToolCardRowProps {
   tool: ToolCall

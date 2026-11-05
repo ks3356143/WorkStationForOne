@@ -1650,3 +1650,10 @@
     padding: 4px 5px;
   }
 }
+
+.w1-viewloading {
+  flex: 1;
+  min-width: 0;
+  padding: 24px 30px;
+  overflow-y: auto;
+}
