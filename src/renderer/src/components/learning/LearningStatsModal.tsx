@@ -1,4 +1,5 @@
 import { m } from 'motion/react'
+import { estimatedMinutes } from '../../lib/learning'
 import { DURATION, EASE_OUT } from '../../lib/motion'
 import { dailyReviewCounts, learningStats, ratingDistribution } from '../../lib/learning-stats'
 import type { LearningItemRecord, LearningReviewRecord } from '../../../../shared/ipc'
@@ -8,6 +9,10 @@ interface LearningStatsModalProps {
   items: LearningItem[] | LearningItemRecord[]
   reviewHistory: LearningReviewRecord[]
   today: string
+  /** 每日新卡上限裁剪后的今日复习队列；未传时按全部到期卡 */
+  todayQueue?: number
+  /** 因新卡上限留到明天的张数 */
+  deferredNew?: number
   onClose: () => void
 }
 
@@ -16,6 +21,8 @@ export function LearningStatsModal({
   items,
   reviewHistory,
   today,
+  todayQueue,
+  deferredNew = 0,
   onClose
 }: LearningStatsModalProps) {
   const stats = learningStats(items, today)
@@ -27,6 +34,8 @@ export function LearningStatsModal({
   const masteryTotal = stats.mastery.fresh + stats.mastery.learning + stats.mastery.mature
   const share = (count: number) => (masteryTotal > 0 ? `${(count / masteryTotal) * 100}%` : '0%')
   const retentionLabel = stats.retention === null ? '—' : `${Math.round(stats.retention * 100)}%`
+  const limited = deferredNew > 0
+  const queueCount = todayQueue ?? Math.max(0, stats.forecast[0].count - deferredNew)
 
   return (
     <m.div
@@ -56,9 +65,11 @@ export function LearningStatsModal({
 
         <div className="w1-lstatgrid">
           <div>
-            <span>今天到期</span>
-            <b>{stats.forecast[0].count}</b>
-            <small>约 {stats.forecast[0].minutes} 分钟</small>
+            <span>{limited ? '今日队列' : '今天到期'}</span>
+            <b>{limited ? queueCount : stats.forecast[0].count}</b>
+            <small>
+              约 {limited ? estimatedMinutes(queueCount) : stats.forecast[0].minutes} 分钟
+            </small>
           </div>
           <div>
             <span>记忆保持率</span>
@@ -71,6 +82,12 @@ export function LearningStatsModal({
             <small>稳定度 ≥ 21 天</small>
           </div>
         </div>
+
+        {limited ? (
+          <p className="w1-lstatlimit">
+            每日新卡上限：今日队列 {queueCount} 张，另有 {deferredNew} 张新卡留到明天。
+          </p>
+        ) : null}
 
         <div className="w1-lstatblock">
           <span className="w1-lstatlabel">// 未来 7 天到期</span>

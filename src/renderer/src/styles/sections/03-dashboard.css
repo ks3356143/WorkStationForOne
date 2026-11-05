@@ -867,3 +867,78 @@
   cursor: not-allowed;
   transform: none;
 }
+
+/* ---------- weekly review ---------- */
+
+.w1-wreviewhead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.w1-wreviewnav {
+  display: flex;
+  flex: none;
+  gap: 6px;
+  padding-bottom: 2px;
+}
+
+.w1-wreviewnav button {
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--bd);
+  background: transparent;
+  color: var(--su);
+  font: 10px / 1 var(--mono);
+  cursor: pointer;
+  transition:
+    color var(--dur-ui),
+    border-color var(--dur-ui),
+    background-color var(--dur-ui);
+}
+
+.w1-wreviewnav button:hover:not(:disabled) {
+  border-color: var(--ctl);
+  background: rgb(var(--ac-rgb) / 0.06);
+  color: var(--fg);
+}
+
+.w1-wreviewnav button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.w1-wreviewdays {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.w1-wreviewday {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 8px;
+  font: 10.5px / 1.2 var(--mono);
+  color: var(--su);
+}
+
+.w1-wreviewday i {
+  height: 6px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.4);
+  background: rgb(var(--field-rgb) / 0.6);
+}
+
+.w1-wreviewday i b {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--ac), var(--ac2));
+}
+
+.w1-wreviewday em {
+  font-style: normal;
+  text-align: right;
+  color: var(--mu);
+  font-variant-numeric: tabular-nums;
+}

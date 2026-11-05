@@ -935,6 +935,8 @@ export function LearningLibrary({ onStartReview }: LearningLibraryProps) {
           items={items}
           reviewHistory={reviewHistory}
           today={today}
+          todayQueue={dueCount}
+          deferredNew={deferredNew}
           onClose={() => setStatsOpen(false)}
         />
       ) : null}

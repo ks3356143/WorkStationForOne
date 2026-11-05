@@ -1193,3 +1193,12 @@
   margin-left: 6px;
   color: var(--ac2-fg);
 }
+
+.w1-lstatlimit {
+  margin: 10px 0 0;
+  padding: 7px 10px;
+  border-left: 2px solid rgb(var(--wn-rgb) / 0.6);
+  background: rgb(var(--wn-rgb) / 0.07);
+  color: var(--fs);
+  font: 11.5px / 1.5 var(--sans);
+}

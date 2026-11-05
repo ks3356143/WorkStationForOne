@@ -339,6 +339,9 @@ const reviewTheme = process.env.WS_SMOKE_REVIEW_THEME?.trim()
 const turnShot = process.env.WS_SMOKE_TURN_SHOT?.trim()
 const turnSize = process.env.WS_SMOKE_TURN_SIZE?.trim()
 const turnTheme = process.env.WS_SMOKE_TURN_THEME?.trim()
+const weeklyShot = process.env.WS_SMOKE_WEEKLY_SHOT?.trim()
+const weeklySize = process.env.WS_SMOKE_WEEKLY_SIZE?.trim()
+const weeklyTheme = process.env.WS_SMOKE_WEEKLY_THEME?.trim()
 // 工具面截图可指定窗口尺寸（如 1180x720），用于最小尺寸检查
 const toolsSize = (process.env.WS_SMOKE_TOOLS_SIZE?.trim() ?? '')
   .split('x')
@@ -410,6 +413,20 @@ app.on('browser-window-created', (_event, created) => {
           .catch(() => {})
       }, 900)
     }
+    if (weeklyShot && String(event.message ?? '').includes('SMOKE_WEEKLY_SHOT')) {
+      if (weeklySize) {
+        const [shotWidth, shotHeight] = weeklySize.split('x').map(Number)
+        if (shotWidth >= 1180 && shotHeight >= 720) {
+          created.setContentSize(shotWidth, shotHeight)
+        }
+      }
+      setTimeout(() => {
+        void created.webContents
+          .capturePage()
+          .then((image) => writeFileSync(weeklyShot, image.toPNG()))
+          .catch(() => {})
+      }, 900)
+    }
     if (
       toolsShot &&
       // SHOT2 的文本包含 SHOT，必须互斥判断，否则第一张会被拍两次
@@ -459,7 +476,7 @@ async function run() {
   await sleep(1800)
 
   await win.webContents.executeJavaScript(
-    `window.__WS_MCP_STUB__ = ${JSON.stringify(stubMcpServer)}; window.__WS_AGENT_WORKSPACE__ = ${JSON.stringify(agentWorkspace)}; window.__WS_UPDATE_SOURCE__ = ${JSON.stringify(updateSourceDir)}; window.__WS_SMOKE_SHOT__ = ${Boolean(contextShot)}; window.__WS_SMOKE_CHECKPOINT_SHOT__ = ${Boolean(checkpointShot)}; window.__WS_SMOKE_ERROR_SHOT__ = ${Boolean(errorShot)}; window.__WS_SMOKE_TOOLS_SHOT__ = ${Boolean(toolsShot)}; window.__WS_SMOKE_TOOLS_SHOT2__ = ${Boolean(toolsShot2)}; window.__WS_SMOKE_REVIEW_SHOT__ = ${Boolean(reviewShot)}; window.__WS_SMOKE_REVIEW_THEME__ = ${JSON.stringify(reviewTheme ?? '')}; window.__WS_SMOKE_TURN_SHOT__ = ${Boolean(turnShot)}; window.__WS_SMOKE_TURN_THEME__ = ${JSON.stringify(turnTheme ?? '')}`
+    `window.__WS_MCP_STUB__ = ${JSON.stringify(stubMcpServer)}; window.__WS_AGENT_WORKSPACE__ = ${JSON.stringify(agentWorkspace)}; window.__WS_UPDATE_SOURCE__ = ${JSON.stringify(updateSourceDir)}; window.__WS_SMOKE_SHOT__ = ${Boolean(contextShot)}; window.__WS_SMOKE_CHECKPOINT_SHOT__ = ${Boolean(checkpointShot)}; window.__WS_SMOKE_ERROR_SHOT__ = ${Boolean(errorShot)}; window.__WS_SMOKE_TOOLS_SHOT__ = ${Boolean(toolsShot)}; window.__WS_SMOKE_TOOLS_SHOT2__ = ${Boolean(toolsShot2)}; window.__WS_SMOKE_REVIEW_SHOT__ = ${Boolean(reviewShot)}; window.__WS_SMOKE_REVIEW_THEME__ = ${JSON.stringify(reviewTheme ?? '')}; window.__WS_SMOKE_TURN_SHOT__ = ${Boolean(turnShot)}; window.__WS_SMOKE_TURN_THEME__ = ${JSON.stringify(turnTheme ?? '')}; window.__WS_SMOKE_WEEKLY_SHOT__ = ${Boolean(weeklyShot)}; window.__WS_SMOKE_WEEKLY_THEME__ = ${JSON.stringify(weeklyTheme ?? '')}`
   )
   // Injected as a template literal: regex backslashes need double escaping.
   let results
@@ -5154,6 +5171,11 @@ async function run() {
         all('.w1-lstatlegend span').length === 3,
       one('.w1-lstatgrid')?.textContent ?? ''
     )
+    check(
+      '学习统计无限额时显示今天到期',
+      (one('.w1-lstatgrid')?.textContent ?? '').includes('今天到期'),
+      one('.w1-lstatgrid')?.textContent ?? ''
+    )
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
     await sleep(300)
     check('Esc 关闭学习统计', !one('.w1-lstats'))
@@ -5282,6 +5304,18 @@ async function run() {
       learningNavMeta.includes('10 张到期'),
       learningNavMeta || 'missing'
     )
+    byText('.w1-lfilebtn', '统计')?.click()
+    const limitStats = await waitFor(() => Boolean(one('.w1-lstatlimit')), 2000)
+    check(
+      '学习统计显示限额后的今日队列',
+      limitStats &&
+        (one('.w1-lstatgrid')?.textContent ?? '').includes('今日队列') &&
+        (one('.w1-lstatlimit')?.textContent ?? '').includes('留到明天'),
+      one('.w1-lstatlimit')?.textContent ?? 'missing'
+    )
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
+    const limitStatsClosed = await waitFor(() => !one('.w1-lstats'), 1500)
+    check('学习统计关闭后回到卡片库', limitStatsClosed, String(limitStatsClosed))
     const restoreLimit = one('.w1-lnewlimit select')
     if (restoreLimit) setValue(restoreLimit, '20')
     const restoredCount = await waitFor(
@@ -5878,6 +5912,106 @@ async function run() {
     )
     const reviewEscClosed = await waitFor(() => !one('.w1-dreview'), 2000)
     check('收尾面板 Esc 可关闭', reviewEscClosed, String(reviewEscClosed))
+
+    const weekButton = one('.w1-acts button[aria-label="打开本周回顾"]')
+    check('今日页有本周回顾入口', Boolean(weekButton))
+    weekButton?.click()
+    const weeklyOpened = await waitFor(() => Boolean(one('.w1-wreview')), 2500)
+    check('本周回顾面板可打开', weeklyOpened, weeklyOpened ? 'ok' : 'missing')
+    const weeklyFocused = await waitFor(() => document.activeElement === one('.w1-wreview'), 1200)
+    check('本周回顾焦点在对话框', weeklyFocused, document.activeElement?.className ?? '')
+    const weekRange = () => one('.w1-wreview .w1-dreviewintro h2')?.textContent ?? ''
+    const weekRangeBefore = weekRange()
+    const weekRangeParts = weekRangeBefore.split(' – ')
+    const rangeLeft = weekRangeParts[0]?.split('.') ?? []
+    const rangeRight = weekRangeParts[1]?.split('.') ?? []
+    const validWeekRange =
+      weekRangeParts.length === 2 &&
+      rangeLeft.length === 3 &&
+      rangeRight.length === 2 &&
+      rangeLeft[0]?.length === 4 &&
+      rangeLeft[1]?.length === 2 &&
+      rangeLeft[2]?.length === 2 &&
+      rangeRight[0]?.length === 2 &&
+      rangeRight[1]?.length === 2 &&
+      [...rangeLeft, ...rangeRight].every((part) => Number.isInteger(Number(part)))
+    check('本周回顾显示周区间', validWeekRange, weekRangeBefore || 'missing')
+    const weeklyReady = await waitFor(
+      () => one('.w1-wreview .w1-btn.pri')?.disabled === false,
+      3500
+    )
+    check('本周回顾数据就绪', weeklyReady, one('.w1-wreview .w1-btn.pri')?.textContent ?? '')
+    check(
+      '本周回顾有每日、习惯、学习与 Agent',
+      all('.w1-wreviewday').length === 7 &&
+        (one('.w1-wreview')?.textContent ?? '').includes('每日完成') &&
+        (one('.w1-wreview')?.textContent ?? '').includes('学习') &&
+        (one('.w1-wreview')?.textContent ?? '').includes('Agent'),
+      String(all('.w1-wreviewday').length)
+    )
+    if (window.__WS_SMOKE_WEEKLY_SHOT__) {
+      const previousTheme = document.documentElement.dataset.theme
+      const previousStoredTheme = localStorage.getItem('workstation.theme')
+      if (window.__WS_SMOKE_WEEKLY_THEME__ === 'light') {
+        document.documentElement.dataset.theme = 'light'
+        localStorage.setItem('workstation.theme', 'light')
+        await sleep(400)
+      }
+      const weeklyBody = one('.w1-wreview .w1-dreviewbody')
+      if (weeklyBody) weeklyBody.scrollTop = 0
+      await sleep(200)
+      console.log('SMOKE_WEEKLY_SHOT')
+      await sleep(1200)
+      if (window.__WS_SMOKE_WEEKLY_THEME__ === 'light') {
+        if (previousTheme) document.documentElement.dataset.theme = previousTheme
+        else document.documentElement.removeAttribute('data-theme')
+        if (previousStoredTheme === null) localStorage.removeItem('workstation.theme')
+        else localStorage.setItem('workstation.theme', previousStoredTheme)
+        await sleep(300)
+      }
+    }
+    byText('.w1-wreviewnav button', '上一周')?.click()
+    const previousWeekOpen = await waitFor(
+      () => byText('.w1-wreviewnav button', '回到本周') !== undefined,
+      1500
+    )
+    const weekRangePrevious = weekRange()
+    check(
+      '本周回顾可切到上一周',
+      previousWeekOpen && weekRangePrevious !== weekRangeBefore,
+      weekRangeBefore + ' -> ' + weekRangePrevious
+    )
+    byText('.w1-wreviewnav button', '回到本周')?.click()
+    const weekBack = await waitFor(() => weekRange() === weekRangeBefore, 1500)
+    check('本周回顾可回到本周', weekBack, weekRange())
+    byText('.w1-wreview .w1-btn.pri', '存为本周复盘')?.click()
+    const weeklyClosed = await waitFor(() => !one('.w1-wreview'), 2500)
+    const weeklyNoteSaved = await waitFor(async () => {
+      const page = await window.ws.notes.page(0, 50, '复盘')
+      return page.items.some((note) => note.text.includes('本周回顾'))
+    }, 3000)
+    const weeklyNote = weeklyNoteSaved
+      ? (await window.ws.notes.page(0, 50, '复盘')).items.find((note) =>
+          note.text.includes('本周回顾')
+        )
+      : undefined
+    check(
+      '本周复盘笔记落库',
+      weeklyClosed &&
+        Boolean(weeklyNote) &&
+        weeklyNote.tag === '复盘' &&
+        weeklyNote.text.includes('每日完成'),
+      weeklyNote ? weeklyNote.text.split('\\n')[0] : 'missing'
+    )
+    const weekFocusBack = await waitFor(() => document.activeElement === weekButton, 2500)
+    check('本周回顾关闭后焦点回到入口', weekFocusBack, document.activeElement?.textContent ?? '')
+    weekButton?.click()
+    await waitFor(() => Boolean(one('.w1-wreview')), 2000)
+    one('.w1-wreview')?.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true })
+    )
+    const weekEscClosed = await waitFor(() => !one('.w1-wreview'), 2000)
+    check('本周回顾 Esc 可关闭', weekEscClosed, String(weekEscClosed))
 
     return { checks, title: document.title, size: [innerWidth, innerHeight], activeView: activeNav() }
   })()`)

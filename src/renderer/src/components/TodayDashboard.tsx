@@ -13,9 +13,10 @@ import { DailyReviewSheet } from './DailyReviewSheet'
 import { HabitCard } from './HabitCard'
 import { HeatmapCard } from './HeatmapCard'
 import { NoteCard } from './NoteCard'
-import { CheckIcon, PlayIcon, PlusIcon } from './Glyphs'
+import { CheckIcon, PlayIcon, PlusIcon, TodayIcon } from './Glyphs'
 import { ReviewCard } from './ReviewCard'
 import { TaskCard } from './TaskCard'
+import { WeeklyReviewSheet } from './WeeklyReviewSheet'
 
 const TIMELINE = [
   { time: '09:00', label: '站会', left: 7.1, width: 6.5 },
@@ -33,7 +34,9 @@ export function TodayDashboard() {
   const updateTask = useWorkstation((state) => state.updateTask)
   const [dropActive, setDropActive] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
+  const [weekOpen, setWeekOpen] = useState(false)
   const reviewButtonRef = useRef<HTMLButtonElement>(null)
+  const weekButtonRef = useRef<HTMLButtonElement>(null)
   const now = useNow(30_000)
 
   const fleet = summarizeFleet(sessions)
@@ -77,6 +80,16 @@ export function TodayDashboard() {
           >
             <CheckIcon width={11} height={11} />
             今日收尾
+          </button>
+          <button
+            ref={weekButtonRef}
+            className="w1-btn"
+            type="button"
+            aria-label="打开本周回顾"
+            onClick={() => setWeekOpen(true)}
+          >
+            <TodayIcon width={11} height={11} />
+            本周
           </button>
           <button className="w1-btn" type="button" onClick={openQuickNote}>
             <PlusIcon width={12} height={12} />
@@ -160,6 +173,9 @@ export function TodayDashboard() {
 
       <AnimatePresence onExitComplete={() => reviewButtonRef.current?.focus()}>
         {reviewOpen ? <DailyReviewSheet onClose={() => setReviewOpen(false)} /> : null}
+      </AnimatePresence>
+      <AnimatePresence onExitComplete={() => weekButtonRef.current?.focus()}>
+        {weekOpen ? <WeeklyReviewSheet onClose={() => setWeekOpen(false)} /> : null}
       </AnimatePresence>
     </div>
   )
