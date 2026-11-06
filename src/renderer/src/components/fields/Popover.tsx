@@ -11,6 +11,8 @@ interface PopoverProps {
   width: number
   /** Esc 关闭后要还回焦点的元素；默认用 anchor */
   focusTarget?: HTMLElement | null
+  /** 可输入的 ComboSelect 已经有焦点，关闭时不要再 focus，避免重新打开 */
+  restoreFocus?: boolean
   children: ReactNode
 }
 
@@ -33,6 +35,7 @@ export function Popover({
   label,
   width,
   focusTarget,
+  restoreFocus = true,
   children
 }: PopoverProps) {
   const panelRef = useRef<HTMLDivElement | null>(null)
@@ -81,7 +84,7 @@ export function Popover({
         // Esc 属于最上层弹层：截断到本层，不要让外层表单同时收起
         event.stopImmediatePropagation()
         onClose()
-        ;(focusTarget ?? anchor)?.focus()
+        if (restoreFocus) (focusTarget ?? anchor)?.focus()
       }
     }
     const onReflow = () => place()
@@ -95,7 +98,7 @@ export function Popover({
       window.removeEventListener('resize', onReflow)
       window.removeEventListener('scroll', onReflow, true)
     }
-  }, [anchor, onClose, open, place, focusTarget])
+  }, [anchor, onClose, open, place, focusTarget, restoreFocus])
 
   const panel = (
     <AnimatePresence>

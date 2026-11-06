@@ -1,4 +1,5 @@
 import { type DragEvent as ReactDragEvent, useEffect, useRef, useState } from 'react'
+import { AnimatePresence } from 'motion/react'
 import { addDaysKey, dateKey } from '../../../../shared/date-key'
 import type { TaskDraft, TaskPatch } from '../../../../shared/ipc'
 import type { TaskScope, TaskViewMode } from '../../types'
@@ -19,6 +20,7 @@ import { topThree } from '../../lib/focus'
 import { scopeDropPatch, TASK_DRAG_TYPE } from '../../lib/dnd'
 import { withViewTransition } from '../../lib/view-transition'
 import { CapacityBar } from './CapacityBar'
+import { InboxTriageSheet } from './InboxTriageSheet'
 import { PlanningPanel } from './PlanningPanel'
 import { SchedulePreview } from './SchedulePreview'
 import { QuickAdd } from './QuickAdd'
@@ -87,6 +89,8 @@ export function TasksView({ notify }: TasksViewProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const jumpBusy = useRef(false)
   const [planningOpen, setPlanningOpen] = useState(false)
+  const [triageOpen, setTriageOpen] = useState(false)
+  const triageButtonRef = useRef<HTMLButtonElement>(null)
   const [dragTarget, setDragTarget] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'week'>('list')
   const [scheduleOpen, setScheduleOpen] = useState(false)
@@ -385,6 +389,21 @@ export function TasksView({ notify }: TasksViewProps) {
                 <>
                   搜索 <b>{visible.length}</b> 项
                 </>
+              ) : scope === 'inbox' ? (
+                <>
+                  <span className="w1-subtag">收集箱</span>
+                  <b>{counts.inbox}</b> 条待整理
+                  {counts.inbox > 0 ? (
+                    <button
+                      ref={triageButtonRef}
+                      className="w1-todointriage"
+                      type="button"
+                      onClick={() => setTriageOpen(true)}
+                    >
+                      开始整理
+                    </button>
+                  ) : null}
+                </>
               ) : (
                 <>
                   <span className="w1-subtag">今日</span>
@@ -627,6 +646,15 @@ export function TasksView({ notify }: TasksViewProps) {
           onClose={() => setPlanningOpen(false)}
         />
       ) : null}
+
+      <AnimatePresence
+        onExitComplete={() => {
+          if (triageButtonRef.current) triageButtonRef.current.focus()
+          else document.querySelector<HTMLElement>('.w1-todorow.on')?.focus()
+        }}
+      >
+        {triageOpen ? <InboxTriageSheet onClose={() => setTriageOpen(false)} /> : null}
+      </AnimatePresence>
     </section>
   )
 }

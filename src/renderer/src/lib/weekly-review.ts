@@ -169,7 +169,10 @@ export function buildWeeklyReview(input: WeeklyReviewInput): WeeklyReview {
   }
 }
 
-export function buildWeeklyReviewNote(review: WeeklyReview): string {
+export function buildWeeklyReviewNote(
+  review: WeeklyReview,
+  carriedOverIds: ReadonlySet<string> = new Set()
+): string {
   const lines = [
     `${review.weekStart} 本周回顾`,
     '',
@@ -181,7 +184,9 @@ export function buildWeeklyReviewNote(review: WeeklyReview): string {
 
   lines.push('', `未完成 ${review.open.length} 项`)
   for (const item of review.open) {
-    lines.push(`- ${item.title}（${WEEKLY_REASON_LABEL[item.reason]}）`)
+    const labels: string[] = [WEEKLY_REASON_LABEL[item.reason]]
+    if (carriedOverIds.has(item.id)) labels.push('顺延到下周')
+    lines.push(`- ${item.title}（${labels.join(' · ')}）`)
   }
 
   lines.push('', `习惯 ${review.habits.checked} 次`)

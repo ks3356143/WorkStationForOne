@@ -96,6 +96,7 @@ export function ComboSelect({
         onClose={() => setOpen(false)}
         label={label}
         width={Math.max(200, inputRef.current?.offsetWidth ?? 200)}
+        restoreFocus={false}
       >
         <div className="w1-picklist" id={`${id}-list`} role="listbox" aria-label={label}>
           {matches.map((item, index) => (

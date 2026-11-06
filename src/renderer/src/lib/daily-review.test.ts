@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { AgentRunRecord } from '../../../shared/ipc'
 import type { Habit, LearningItem, Task } from '../types'
-import {
-  DAILY_REVIEW_NOTE_LIMIT,
-  buildDailyReview,
-  buildDailyReviewNote,
-  carryOverPatch
-} from './daily-review'
+import { carryOverPatch } from './carry-over'
+import { DAILY_REVIEW_NOTE_LIMIT, buildDailyReview, buildDailyReviewNote } from './daily-review'
 
 const TODAY = '2026-11-05'
 const TOMORROW = '2026-11-06'

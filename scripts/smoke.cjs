@@ -342,6 +342,9 @@ const turnTheme = process.env.WS_SMOKE_TURN_THEME?.trim()
 const weeklyShot = process.env.WS_SMOKE_WEEKLY_SHOT?.trim()
 const weeklySize = process.env.WS_SMOKE_WEEKLY_SIZE?.trim()
 const weeklyTheme = process.env.WS_SMOKE_WEEKLY_THEME?.trim()
+const triageShot = process.env.WS_SMOKE_TRIAGE_SHOT?.trim()
+const triageSize = process.env.WS_SMOKE_TRIAGE_SIZE?.trim()
+const triageTheme = process.env.WS_SMOKE_TRIAGE_THEME?.trim()
 // 工具面截图可指定窗口尺寸（如 1180x720），用于最小尺寸检查
 const toolsSize = (process.env.WS_SMOKE_TOOLS_SIZE?.trim() ?? '')
   .split('x')
@@ -427,6 +430,20 @@ app.on('browser-window-created', (_event, created) => {
           .catch(() => {})
       }, 900)
     }
+    if (triageShot && String(event.message ?? '').includes('SMOKE_TRIAGE_SHOT')) {
+      if (triageSize) {
+        const [shotWidth, shotHeight] = triageSize.split('x').map(Number)
+        if (shotWidth >= 1180 && shotHeight >= 720) {
+          created.setContentSize(shotWidth, shotHeight)
+        }
+      }
+      setTimeout(() => {
+        void created.webContents
+          .capturePage()
+          .then((image) => writeFileSync(triageShot, image.toPNG()))
+          .catch(() => {})
+      }, 900)
+    }
     if (
       toolsShot &&
       // SHOT2 的文本包含 SHOT，必须互斥判断，否则第一张会被拍两次
@@ -476,7 +493,7 @@ async function run() {
   await sleep(1800)
 
   await win.webContents.executeJavaScript(
-    `window.__WS_MCP_STUB__ = ${JSON.stringify(stubMcpServer)}; window.__WS_AGENT_WORKSPACE__ = ${JSON.stringify(agentWorkspace)}; window.__WS_UPDATE_SOURCE__ = ${JSON.stringify(updateSourceDir)}; window.__WS_SMOKE_SHOT__ = ${Boolean(contextShot)}; window.__WS_SMOKE_CHECKPOINT_SHOT__ = ${Boolean(checkpointShot)}; window.__WS_SMOKE_ERROR_SHOT__ = ${Boolean(errorShot)}; window.__WS_SMOKE_TOOLS_SHOT__ = ${Boolean(toolsShot)}; window.__WS_SMOKE_TOOLS_SHOT2__ = ${Boolean(toolsShot2)}; window.__WS_SMOKE_REVIEW_SHOT__ = ${Boolean(reviewShot)}; window.__WS_SMOKE_REVIEW_THEME__ = ${JSON.stringify(reviewTheme ?? '')}; window.__WS_SMOKE_TURN_SHOT__ = ${Boolean(turnShot)}; window.__WS_SMOKE_TURN_THEME__ = ${JSON.stringify(turnTheme ?? '')}; window.__WS_SMOKE_WEEKLY_SHOT__ = ${Boolean(weeklyShot)}; window.__WS_SMOKE_WEEKLY_THEME__ = ${JSON.stringify(weeklyTheme ?? '')}`
+    `window.__WS_MCP_STUB__ = ${JSON.stringify(stubMcpServer)}; window.__WS_AGENT_WORKSPACE__ = ${JSON.stringify(agentWorkspace)}; window.__WS_UPDATE_SOURCE__ = ${JSON.stringify(updateSourceDir)}; window.__WS_SMOKE_SHOT__ = ${Boolean(contextShot)}; window.__WS_SMOKE_CHECKPOINT_SHOT__ = ${Boolean(checkpointShot)}; window.__WS_SMOKE_ERROR_SHOT__ = ${Boolean(errorShot)}; window.__WS_SMOKE_TOOLS_SHOT__ = ${Boolean(toolsShot)}; window.__WS_SMOKE_TOOLS_SHOT2__ = ${Boolean(toolsShot2)}; window.__WS_SMOKE_REVIEW_SHOT__ = ${Boolean(reviewShot)}; window.__WS_SMOKE_REVIEW_THEME__ = ${JSON.stringify(reviewTheme ?? '')}; window.__WS_SMOKE_TURN_SHOT__ = ${Boolean(turnShot)}; window.__WS_SMOKE_TURN_THEME__ = ${JSON.stringify(turnTheme ?? '')}; window.__WS_SMOKE_WEEKLY_SHOT__ = ${Boolean(weeklyShot)}; window.__WS_SMOKE_WEEKLY_THEME__ = ${JSON.stringify(weeklyTheme ?? '')}; window.__WS_SMOKE_TRIAGE_SHOT__ = ${Boolean(triageShot)}; window.__WS_SMOKE_TRIAGE_THEME__ = ${JSON.stringify(triageTheme ?? '')}`
   )
   // Injected as a template literal: regex backslashes need double escaping.
   let results
@@ -5913,6 +5930,21 @@ async function run() {
     const reviewEscClosed = await waitFor(() => !one('.w1-dreview'), 2000)
     check('收尾面板 Esc 可关闭', reviewEscClosed, String(reviewEscClosed))
 
+    await navTo('任务')
+    await waitFor(() => Boolean(one('.w1-todoinput')), 3000)
+    const weekSeedSearch = one('.w1-todosearch input')
+    if (weekSeedSearch?.value) setValue(weekSeedSearch, '')
+    await taskScopeTo('全部任务')
+    const weekSeedInput = one('.w1-todoinput')
+    setValue(weekSeedInput, '今天 周回顾顺延任务')
+    await waitFor(() => one('.w1-todoadd')?.disabled === false, 1500)
+    weekSeedInput?.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    await waitFor(() => taskRow('周回顾顺延任务') !== undefined, 3000)
+    await navTo('今日')
+    await waitFor(() => Boolean(byText('.w1-acts .w1-btn', '本周')), 2500)
+
     const weekButton = one('.w1-acts button[aria-label="打开本周回顾"]')
     check('今日页有本周回顾入口', Boolean(weekButton))
     weekButton?.click()
@@ -5959,6 +5991,11 @@ async function run() {
       }
       const weeklyBody = one('.w1-wreview .w1-dreviewbody')
       if (weeklyBody) weeklyBody.scrollTop = 0
+      const weeklyOpenSection = all('.w1-wreview .w1-dreviewsection').find(
+        (section) =>
+          section.querySelector('.w1-dreviewsechead b')?.textContent?.trim() === '未完成'
+      )
+      weeklyOpenSection?.scrollIntoView({ block: 'center' })
       await sleep(200)
       console.log('SMOKE_WEEKLY_SHOT')
       await sleep(1200)
@@ -5970,9 +6007,64 @@ async function run() {
         await sleep(300)
       }
     }
+    const weeklyRows = all('.w1-wreview .w1-dreviewopen')
+    const weeklyCarryRow = weeklyRows.find((row) => row.textContent?.includes('周回顾顺延任务'))
+    check(
+      '本周回顾未完成项可勾选',
+      Boolean(weeklyCarryRow) &&
+        Boolean(weeklyCarryRow?.querySelector('input[type="checkbox"]')),
+      String(weeklyRows.length) + ' | ' + (weeklyCarryRow?.textContent ?? 'missing')
+    )
+    for (const row of weeklyRows) {
+      if (row === weeklyCarryRow) continue
+      const box = row.querySelector('input[type="checkbox"]')
+      if (box?.checked) box.click()
+    }
+    const carryButtonShown = await waitFor(
+      () => Boolean(byText('.w1-wreview .w1-dreviewactions .w1-btn', '顺延 1 项到下周')),
+      1500
+    )
+    byText('.w1-wreview .w1-dreviewactions .w1-btn', '顺延 1 项到下周')?.click()
+    const weeklyCarriedMark = await waitFor(
+      () => (byText('.w1-wreview .w1-dreviewopen', '周回顾顺延任务')?.textContent ?? '').includes('已顺延'),
+      2000
+    )
+    check(
+      '本周回顾顺延后显示已顺延',
+      carryButtonShown && weeklyCarriedMark,
+      String(carryButtonShown) + ' | ' + String(weeklyCarriedMark)
+    )
+    const nextWeekMondayKey = (() => {
+      const d = new Date()
+      d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + 7)
+      const pad = (n) => String(n).padStart(2, '0')
+      return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+    })()
+    const weeklyCarriedTask = await (async () => {
+      let target = null
+      await waitFor(async () => {
+        target = (await window.ws.tasks.list()).find(
+          (task) => task.title === '周回顾顺延任务'
+        )
+        return target?.dueDate === nextWeekMondayKey && target?.plannedFor === nextWeekMondayKey
+      }, 3000)
+      return target
+    })()
+    check(
+      '本周回顾顺延写入下周一',
+      weeklyCarriedTask?.dueDate === nextWeekMondayKey &&
+        weeklyCarriedTask?.plannedFor === nextWeekMondayKey,
+      String(weeklyCarriedTask?.dueDate) + ' | ' + String(weeklyCarriedTask?.plannedFor)
+    )
     byText('.w1-wreviewnav button', '上一周')?.click()
     const previousWeekOpen = await waitFor(
       () => byText('.w1-wreviewnav button', '回到本周') !== undefined,
+      1500
+    )
+    const previousWeekReadonly = await waitFor(
+      () =>
+        all('.w1-wreview .w1-dreviewopen').length === 0 &&
+        byText('.w1-wreview .w1-dreviewactions .w1-btn', '顺延') === undefined,
       1500
     )
     const weekRangePrevious = weekRange()
@@ -5980,6 +6072,11 @@ async function run() {
       '本周回顾可切到上一周',
       previousWeekOpen && weekRangePrevious !== weekRangeBefore,
       weekRangeBefore + ' -> ' + weekRangePrevious
+    )
+    check(
+      '上一周未完成只读不可顺延',
+      previousWeekReadonly,
+      String(all('.w1-wreview .w1-dreviewopen').length)
     )
     byText('.w1-wreviewnav button', '回到本周')?.click()
     const weekBack = await waitFor(() => weekRange() === weekRangeBefore, 1500)
@@ -6000,7 +6097,8 @@ async function run() {
       weeklyClosed &&
         Boolean(weeklyNote) &&
         weeklyNote.tag === '复盘' &&
-        weeklyNote.text.includes('每日完成'),
+        weeklyNote.text.includes('每日完成') &&
+        weeklyNote.text.includes('周回顾顺延任务（本周到期 · 顺延到下周）'),
       weeklyNote ? weeklyNote.text.split('\\n')[0] : 'missing'
     )
     const weekFocusBack = await waitFor(() => document.activeElement === weekButton, 2500)
@@ -6012,6 +6110,130 @@ async function run() {
     )
     const weekEscClosed = await waitFor(() => !one('.w1-wreview'), 2000)
     check('本周回顾 Esc 可关闭', weekEscClosed, String(weekEscClosed))
+
+    await navTo('任务')
+    byText('.w1-todorow', '收集箱')?.click()
+    await waitFor(() => (one('.w1-todorow.on')?.textContent ?? '').includes('收集箱'), 2000)
+    const addInboxFixture = async (title) => {
+      const input = one('.w1-todoinput')
+      setValue(input, title)
+      await sleep(80)
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+      )
+      return waitFor(
+        async () => (await window.ws.tasks.list()).some((task) => task.title === title),
+        2500
+      )
+    }
+    const saveFixture = await addInboxFixture('整理保存任务')
+    const deleteFixture = await addInboxFixture('整理删除任务')
+    const triageEntryReady = await waitFor(() => Boolean(one('.w1-todointriage')), 2000)
+    const triageEntry = one('.w1-todointriage')
+    check('收集箱有整理入口', triageEntryReady, Boolean(saveFixture && deleteFixture))
+    triageEntry?.click()
+    const triageOpen = await waitFor(() => Boolean(one('.w1-triage')), 2500)
+    check('收件箱整理面板可打开', triageOpen)
+    const triageFocused = await waitFor(() => document.activeElement === one('.w1-triage'), 1200)
+    check('整理面板焦点在对话框', triageFocused, document.activeElement?.className ?? '')
+    check(
+      '整理队列从最新收集任务开始',
+      one('.w1-triagetitle')?.textContent === '整理删除任务',
+      one('.w1-triagetitle')?.textContent ?? 'missing'
+    )
+    check(
+      '整理显示进度',
+      (one('.w1-triageprogress')?.textContent ?? '').includes('第') &&
+        /1\\s*\\/\\s*\\d+/.test(one('.w1-triageprogress')?.textContent ?? ''),
+      one('.w1-triageprogress')?.textContent ?? ''
+    )
+    one('.w1-triageactions .w1-tododelete')?.click()
+    await sleep(100)
+    check(
+      '整理删除需要二次确认',
+      (one('.w1-triageactions .w1-tododelete')?.textContent ?? '').includes('再次点击确认删除'),
+      one('.w1-triageactions .w1-tododelete')?.textContent ?? ''
+    )
+    one('.w1-triageactions .w1-tododelete')?.click()
+    const triageDeleted = await waitFor(async () => {
+      const list = await window.ws.tasks.list()
+      return !list.some((task) => task.title === '整理删除任务')
+    }, 3000)
+    check('整理删除任务落库', triageDeleted)
+    const triageNext = await waitFor(
+      () => one('.w1-triagetitle')?.textContent === '整理保存任务',
+      2000
+    )
+    check('整理删除后进入下一条', triageNext, one('.w1-triagetitle')?.textContent ?? 'missing')
+    setValue(one('#triage-list'), '工作')
+    byText('.w1-triagecard .w1-tododatequick button', '明天')?.click()
+    byText('.w1-triagecard .w1-todopriopt', '高')?.click()
+    const triageTomorrow = (() => {
+      const d = new Date()
+      d.setDate(d.getDate() + 1)
+      const pad = (n) => String(n).padStart(2, '0')
+      return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+    })()
+    const triageSaveReady = await waitFor(
+      () => byText('.w1-triageactions .w1-pb.pri', '保存并下一条') !== undefined,
+      1500
+    )
+    check('整理字段改动可保存', triageSaveReady)
+    one('#triage-list')?.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true })
+    )
+    const triageComboClosed = await waitFor(() => !one('.w1-pop'), 1200)
+    check('整理清单下拉 Esc 可关闭', triageComboClosed)
+    if (window.__WS_SMOKE_TRIAGE_SHOT__) {
+      const previousTheme = document.documentElement.dataset.theme
+      const previousStoredTheme = localStorage.getItem('workstation.theme')
+      if (window.__WS_SMOKE_TRIAGE_THEME__ === 'light') {
+        document.documentElement.dataset.theme = 'light'
+        localStorage.setItem('workstation.theme', 'light')
+        await sleep(400)
+      }
+      console.log('SMOKE_TRIAGE_SHOT')
+      await sleep(1200)
+      if (window.__WS_SMOKE_TRIAGE_THEME__ === 'light') {
+        if (previousTheme) document.documentElement.dataset.theme = previousTheme
+        else document.documentElement.removeAttribute('data-theme')
+        if (previousStoredTheme === null) localStorage.removeItem('workstation.theme')
+        else localStorage.setItem('workstation.theme', previousStoredTheme)
+        await sleep(300)
+      }
+    }
+    byText('.w1-triageactions .w1-pb.pri', '保存并下一条')?.click()
+    const triageSaved = await waitFor(async () => {
+      const task = (await window.ws.tasks.list()).find((item) => item.title === '整理保存任务')
+      return task?.list === '工作' && task?.dueDate === triageTomorrow && task?.priority === 1
+    }, 3000)
+    check(
+      '整理保存清单 / 日期 / 优先级',
+      triageSaved,
+      triageTomorrow
+    )
+    let triageSkips = 0
+    while (triageSkips < 12 && one('.w1-triage') && !one('.w1-triagefinish')) {
+      const skip = byText('.w1-triageactions .w1-pb', '留到以后')
+      if (!skip) break
+      skip.click()
+      triageSkips += 1
+      await sleep(100)
+    }
+    const triageFinished = await waitFor(() => Boolean(one('.w1-triagefinish')), 2000)
+    check(
+      '整理完成显示汇总',
+      triageFinished && (one('.w1-triagefinish')?.textContent ?? '').includes('整理完成'),
+      one('.w1-triagefinish')?.textContent?.slice(0, 80) ?? 'missing'
+    )
+    byText('.w1-triagefinish .w1-pb', '完成')?.click()
+    const triageClosed = await waitFor(() => !one('.w1-triage'), 2000)
+    check('整理关闭后回到收集箱', triageClosed)
+    const triageFocusBack = await waitFor(
+      () => document.activeElement?.classList.contains('w1-todointriage'),
+      2000
+    )
+    check('整理关闭后焦点回到入口', triageFocusBack, document.activeElement?.textContent ?? '')
 
     return { checks, title: document.title, size: [innerWidth, innerHeight], activeView: activeNav() }
   })()`)

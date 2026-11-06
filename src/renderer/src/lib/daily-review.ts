@@ -1,5 +1,5 @@
 import { addDaysKey, dateKey } from '../../../shared/date-key'
-import type { AgentRunRecord, TaskPatch } from '../../../shared/ipc'
+import type { AgentRunRecord } from '../../../shared/ipc'
 import type { Habit, LearningItem, Task } from '../types'
 import { topLevel } from './subtasks'
 import { formatCost } from './usage'
@@ -136,18 +136,6 @@ export function buildDailyReview(input: DailyReviewInput): DailyReview {
     },
     learning,
     agent
-  }
-}
-
-/** 顺延：计划日一律改到明天；截止日在今天或更早时也改到明天。 */
-export function carryOverPatch(task: Task, today: string, tomorrow: string): TaskPatch | null {
-  if (task.done) return null
-  const due = Boolean(task.dueDate && task.dueDate <= today)
-  const planned = Boolean(task.plannedFor && task.plannedFor <= today)
-  if (!due && !planned) return null
-  return {
-    ...(due ? { dueDate: tomorrow } : {}),
-    plannedFor: tomorrow
   }
 }
 

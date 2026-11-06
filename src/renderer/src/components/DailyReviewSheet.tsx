@@ -2,12 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { m } from 'motion/react'
 import { dateKey } from '../../../shared/date-key'
 import type { AgentRunRecord } from '../../../shared/ipc'
+import { carryOverPatch } from '../lib/carry-over'
 import {
   DAILY_REVIEW_REASON_LABEL,
   type DailyReviewAgent,
   buildDailyReview,
-  buildDailyReviewNote,
-  carryOverPatch
+  buildDailyReviewNote
 } from '../lib/daily-review'
 import { DURATION, EASE_OUT } from '../lib/motion'
 import { formatCost } from '../lib/usage'

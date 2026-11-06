@@ -1657,3 +1657,134 @@
   padding: 24px 30px;
   overflow-y: auto;
 }
+
+/* ---------- inbox triage ---------- */
+
+.w1-todointriage {
+  height: 24px;
+  margin-left: 10px;
+  padding: 0 10px;
+  border: 1px solid rgb(var(--ac2-rgb) / 0.45);
+  background: rgb(var(--ac2-rgb) / 0.08);
+  color: var(--ac2-fg);
+  font: 10px / 1 var(--mono);
+  cursor: pointer;
+  transition:
+    color var(--dur-ui),
+    border-color var(--dur-ui),
+    background-color var(--dur-ui);
+}
+
+.w1-todointriage:hover {
+  border-color: rgb(var(--ac2-rgb) / 0.7);
+  background: rgb(var(--ac2-rgb) / 0.14);
+  color: var(--fg);
+}
+
+.w1-modal.w1-triage {
+  width: 620px;
+  max-height: 86vh;
+  overflow-y: auto;
+}
+
+.w1-triageprogress {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  color: var(--su);
+  font: 10.5px / 1.2 var(--mono);
+}
+
+.w1-triageprogress b {
+  color: var(--fg-strong);
+  font-weight: 600;
+}
+
+.w1-triagebar {
+  height: 3px;
+  margin-top: 8px;
+  background: rgb(var(--field-rgb) / 0.6);
+}
+
+.w1-triagebar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--ac), var(--ac2));
+  transition: width var(--dur-ui);
+}
+
+.w1-triagecard {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid rgb(var(--ac2-rgb) / 0.2);
+  background: linear-gradient(150deg, rgb(var(--vio-rgb) / 0.07), transparent 65%);
+}
+
+.w1-triagetitle {
+  color: var(--fg-strong);
+  font: 600 20px / 1.35 var(--sans);
+}
+
+.w1-triagenotes {
+  margin: 6px 0 0;
+  max-height: 54px;
+  overflow: hidden;
+  color: var(--su);
+  font: 12px / 1.6 var(--sans);
+  white-space: pre-wrap;
+}
+
+.w1-triagegrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px 16px;
+  margin-top: 16px;
+}
+
+.w1-triagepriority {
+  margin-top: 12px;
+}
+
+.w1-triageactions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.w1-triagegrow {
+  flex: 1;
+}
+
+.w1-triageactions .w1-pb,
+.w1-triageactions .w1-tododelete {
+  height: 30px;
+}
+
+.w1-triagefinish {
+  padding: 28px 0 10px;
+  text-align: center;
+}
+
+.w1-triagefinish .w1-modaltitle {
+  font-size: 26px;
+}
+
+.w1-triageempty {
+  max-width: 380px;
+  margin: 10px auto 0;
+  color: var(--su);
+  font: 12px / 1.6 var(--sans);
+}
+
+.w1-triagehint {
+  margin: 6px 0 0;
+  color: var(--mu);
+  font: 10.5px / 1.5 var(--mono);
+}
+
+.w1-triagefinish .w1-pb {
+  margin-top: 18px;
+}

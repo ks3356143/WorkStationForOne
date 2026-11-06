@@ -197,6 +197,19 @@ describe('buildWeeklyReviewNote', () => {
     expect(note).not.toContain('task-secret-id')
   })
 
+  it('标记勾选顺延到下周的未完成任务，未勾选的不标记', () => {
+    const result = build({
+      tasks: [
+        task({ id: 'carry', title: '顺延任务', dueDate: '2026-11-05' }),
+        task({ id: 'keep', title: '保留任务', plannedFor: '2026-11-06' })
+      ]
+    })
+    const note = buildWeeklyReviewNote(result, new Set(['carry']))
+
+    expect(note).toContain('- 顺延任务（本周到期 · 顺延到下周）')
+    expect(note).toContain('- 保留任务（本周计划）')
+  })
+
   it('空的一周也会生成完整结构', () => {
     const note = buildWeeklyReviewNote(build({}))
 

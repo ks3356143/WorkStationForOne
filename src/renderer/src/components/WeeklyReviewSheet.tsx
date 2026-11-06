@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { m } from 'motion/react'
 import { addDaysKey, dateKey } from '../../../shared/date-key'
 import type { AgentRunRecord, LearningReviewRecord } from '../../../shared/ipc'
+import { carryOverPatch } from '../lib/carry-over'
 import {
   WEEKLY_RATING_LABEL,
   WEEKLY_REASON_LABEL,
@@ -22,19 +23,33 @@ export function WeeklyReviewSheet({ onClose }: WeeklyReviewSheetProps) {
   const tasks = useWorkstation((state) => state.tasks)
   const habits = useWorkstation((state) => state.habits)
   const addNote = useWorkstation((state) => state.addNote)
+  const updateTask = useWorkstation((state) => state.updateTask)
   const boxRef = useRef<HTMLDivElement>(null)
+  const [snapshot] = useState(() => ({ tasks, habits, today: dateKey() }))
   const [weekOffset, setWeekOffset] = useState(0)
   const [learningReviews, setLearningReviews] = useState<LearningReviewRecord[]>([])
   const [agentRuns, setAgentRuns] = useState<AgentRunRecord[]>([])
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [reload, setReload] = useState(0)
-  const currentWeekStart = useMemo(() => startOfWeekKey(dateKey()), [])
+  const currentWeekStart = startOfWeekKey(snapshot.today)
   const weekStart = shiftWeek(currentWeekStart, weekOffset)
   const weekEnd = addDaysKey(weekStart, 6)
+  const nextWeekStart = shiftWeek(weekStart, 1)
   const review = useMemo(
-    () => buildWeeklyReview({ tasks, habits, learningReviews, agentRuns, weekStart }),
-    [tasks, habits, learningReviews, agentRuns, weekStart]
+    () =>
+      buildWeeklyReview({
+        tasks: snapshot.tasks,
+        habits: snapshot.habits,
+        learningReviews,
+        agentRuns,
+        weekStart
+      }),
+    [snapshot, learningReviews, agentRuns, weekStart]
   )
+  const [selected, setSelected] = useState(() => new Set(review.open.map((item) => item.id)))
+  const [carried, setCarried] = useState(false)
+  const canCarry = weekOffset === 0
+  const selectedOpen = canCarry ? review.open.filter((item) => selected.has(item.id)) : []
   const maxDay = Math.max(1, ...review.days.map((day) => day.completed))
 
   useEffect(() => {
@@ -87,8 +102,32 @@ export function WeeklyReviewSheet({ onClose }: WeeklyReviewSheetProps) {
     }
   }, [reload])
 
+  const toggle = (taskId: string) => {
+    if (carried) return
+    setSelected((current) => {
+      const next = new Set(current)
+      if (next.has(taskId)) next.delete(taskId)
+      else next.add(taskId)
+      return next
+    })
+  }
+
+  const applyCarry = () => {
+    if (carried || !canCarry || selectedOpen.length === 0) return
+    const byId = new Map(snapshot.tasks.map((task) => [task.id, task]))
+    for (const item of selectedOpen) {
+      const task = byId.get(item.id)
+      if (!task) continue
+      const patch = carryOverPatch(task, weekEnd, nextWeekStart)
+      if (patch) updateTask(item.id, patch)
+    }
+    setCarried(true)
+  }
+
   const saveNote = () => {
-    addNote(buildWeeklyReviewNote(review), '复盘')
+    const carriedIds =
+      canCarry && carried ? new Set(selectedOpen.map((item) => item.id)) : new Set<string>()
+    addNote(buildWeeklyReviewNote(review, carriedIds), '复盘')
     onClose()
   }
 
@@ -211,18 +250,41 @@ export function WeeklyReviewSheet({ onClose }: WeeklyReviewSheetProps) {
           <section className="w1-dreviewsection">
             <div className="w1-dreviewsechead">
               <b>未完成</b>
-              <span>{review.open.length} 项</span>
+              <span>{canCarry ? '勾选后顺延到下周' : `${weekLabel} · 只读`}</span>
             </div>
             {review.open.length > 0 ? (
               <div className="w1-dreviewlist">
-                {review.open.map((item) => (
-                  <div className="w1-dreviewrow" key={item.id}>
-                    <span className="w1-dreviewrowtitle">{item.title}</span>
-                    <span className="w1-dreviewbadge" data-reason={item.reason}>
-                      {WEEKLY_REASON_LABEL[item.reason]}
-                    </span>
-                  </div>
-                ))}
+                {review.open.map((item) => {
+                  if (!canCarry) {
+                    return (
+                      <div className="w1-dreviewrow" key={item.id}>
+                        <span className="w1-dreviewrowtitle">{item.title}</span>
+                        <span className="w1-dreviewbadge" data-reason={item.reason}>
+                          {WEEKLY_REASON_LABEL[item.reason]}
+                        </span>
+                      </div>
+                    )
+                  }
+                  const isCarried = carried && selected.has(item.id)
+                  return (
+                    <label
+                      className={`w1-dreviewrow w1-dreviewopen${isCarried ? ' is-carried' : ''}`}
+                      key={item.id}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected.has(item.id)}
+                        disabled={carried}
+                        onChange={() => toggle(item.id)}
+                      />
+                      <span className="w1-dreviewrowtitle">{item.title}</span>
+                      <span className="w1-dreviewbadge" data-reason={item.reason}>
+                        {WEEKLY_REASON_LABEL[item.reason]}
+                      </span>
+                      {isCarried ? <em className="w1-dreviewcarried">已顺延</em> : null}
+                    </label>
+                  )
+                })}
               </div>
             ) : (
               <div className="w1-dreviewempty">{weekLabel}没有未完成任务。</div>
@@ -281,10 +343,26 @@ export function WeeklyReviewSheet({ onClose }: WeeklyReviewSheetProps) {
         </div>
 
         <div className="w1-dreviewfoot">
-          <span className="w1-dreviewhint">
-            {weekStart} 至 {weekEnd}
+          <span className="w1-dreviewhint" aria-live="polite">
+            {canCarry
+              ? carried
+                ? `已顺延 ${selectedOpen.length} 项到下周（${nextWeekStart}）`
+                : selectedOpen.length > 0
+                  ? `已勾选 ${selectedOpen.length} 项 · 顺延到 ${nextWeekStart}`
+                  : '没有勾选要顺延的任务'
+              : '仅本周可顺延到下周'}
           </span>
           <div className="w1-dreviewactions">
+            {canCarry ? (
+              <button
+                className="w1-btn"
+                type="button"
+                disabled={carried || selectedOpen.length === 0}
+                onClick={applyCarry}
+              >
+                {carried ? '已顺延' : `顺延 ${selectedOpen.length} 项到下周`}
+              </button>
+            ) : null}
             {loadState === 'error' ? (
               <button
                 className="w1-btn"
