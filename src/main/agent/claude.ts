@@ -327,7 +327,8 @@ export function startClaudeRun(options: ClaudeRunOptions): RunHandle {
 
   if (!cli) {
     options.onEvent({ kind: 'error', message: '未找到 Claude CLI，请先安装并登录 claude' })
-    options.onExit({ code: null, stderr: '', cancelled: false })
+    // 延迟到微任务：调用方要先登记 run，同步 onExit 会留下删不掉的死运行锁住会话。
+    queueMicrotask(() => options.onExit({ code: null, stderr: '', cancelled: false }))
     return {
       sessionId,
       cancel: () => {},

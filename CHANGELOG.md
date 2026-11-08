@@ -6,6 +6,23 @@
 
 暂无。
 
+## [0.73.0] - 2026-11-08
+
+### 新增
+
+- **同会话审批排队**：渲染层新增 `toolPermissionQueues`，同一会话并发到达的多张工具卡不再互相覆盖；当前卡应答后自动提升队首，归档 / 删除 / 回合结束同步清队列。主进程 `permissionRuns` 与既有发卡链路不变。
+- **孤儿图片回收**：移除未发送的图片 chip 走新增窄 IPC `agent:discard-image`（主进程确认无消息引用才删）；启动时 `pruneOrphanImages()` 清理崩溃 / 切会话遗留的未引用图片，保留被引用与无关文件。
+
+### 修复
+
+- **Agent 生命周期**：Codex exec / app-server 同步启动失败改为微任务 `onExit`，避免死运行锁住会话；取消只发 cancel，进程退出再删 run；Codex 失败回合使用非 0 退出码；能力加载失败收尾并回收 MCP Token；`init` 返回的 resumeId 落库前过防注入校验；桥审批卡补文件 diff 预览。
+- **数据完整性**：消息 id 加时间戳，重载后不再覆盖历史消息；重复完成已完成任务不再重写 `completedAt`；工作区读取经 `realpath` 校验符号链接 / 目录联接；任务与学习卡创建失败移除幽灵行。
+- **界面与动效**：`.w1-view` 静止 `transform: none`，视图内模态遮罩恢复压暗整窗；学习响应式规则移到 `17-learning.css` 末尾，1180 下生效；翻面评级区改用 `:has()` 点亮；ComboSelect 选中后不再重开、补 `aria-activedescendant`；DatePicker 无效 grid 改 group；学习统计弹层补焦点管理；波纹节点补 `animationcancel` 兜底；收件箱无改动「下一条」改计留到以后。
+
+### 验证
+
+- Biome 448 文件、typecheck、1228 项单测、545 项冒烟 0 失败、250/250 运行时断言；1440/1180 × dark/light 五视图截图与模态遮罩全窗检查。
+
 ## [0.72.0] - 2026-11-06
 
 ### 新增

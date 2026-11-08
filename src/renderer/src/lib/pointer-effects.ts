@@ -94,7 +94,11 @@ export function installPointerEffects(): () => void {
     ripple.style.height = `${size}px`
     ripple.style.left = `${event.clientX - rect.left - size / 2}px`
     ripple.style.top = `${event.clientY - rect.top - size / 2}px`
-    ripple.addEventListener('animationend', () => ripple.remove(), { once: true })
+    const remove = () => ripple.remove()
+    ripple.addEventListener('animationend', remove, { once: true })
+    // 动效中途被 reduce/motion-off 取消时 animationend 不触发，兼听 cancel 并兜底删除。
+    ripple.addEventListener('animationcancel', remove, { once: true })
+    window.setTimeout(remove, 800)
     target.append(ripple)
   }
 

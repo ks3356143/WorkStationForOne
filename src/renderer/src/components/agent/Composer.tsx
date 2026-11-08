@@ -268,7 +268,10 @@ export function Composer({
                 className="w1-ctxchip-x"
                 type="button"
                 aria-label={`移除图片 ${image.name}`}
-                onClick={() => setImages((list) => list.filter((item) => item.id !== image.id))}
+                onClick={() => {
+                  setImages((list) => list.filter((item) => item.id !== image.id))
+                  void bridge?.discardImage(image)
+                }}
               >
                 ×
               </button>

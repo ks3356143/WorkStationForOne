@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -45,5 +45,18 @@ describe('工作区只读浏览', () => {
     expect(() => readWorkspaceText(root, 'binary.bin')).toThrow(/二进制/)
     writeFileSync(join(root, 'big.txt'), 'x'.repeat(129 * 1024))
     expect(() => readWorkspaceText(root, 'big.txt')).toThrow(/128 KB/)
+  })
+
+  it('目录联接解析后越界仍拒绝读取', () => {
+    const root = setup()
+    const outside = mkdtempSync(join(tmpdir(), 'wsfo-outside-'))
+    dirs.push(outside)
+    writeFileSync(join(outside, 'secret.txt'), 'top secret')
+    try {
+      symlinkSync(outside, join(root, 'link'), 'junction')
+    } catch {
+      return // 环境不允许创建联接时跳过
+    }
+    expect(() => readWorkspaceText(root, 'link/secret.txt')).toThrow(/工作区/)
   })
 })

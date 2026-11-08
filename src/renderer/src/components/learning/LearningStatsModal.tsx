@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { m } from 'motion/react'
 import { estimatedMinutes } from '../../lib/learning'
 import { DURATION, EASE_OUT } from '../../lib/motion'
@@ -26,6 +27,13 @@ export function LearningStatsModal({
   onClose
 }: LearningStatsModalProps) {
   const stats = learningStats(items, today)
+  const boxRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    boxRef.current?.focus()
+    return () => previous?.focus()
+  }, [])
   const peak = Math.max(1, ...stats.forecast.map((day) => day.count))
   const reviewDays = dailyReviewCounts(reviewHistory, today)
   const reviewTotal = reviewDays.reduce((sum, day) => sum + day.count, 0)
@@ -46,6 +54,7 @@ export function LearningStatsModal({
       }}
     >
       <m.div
+        ref={boxRef}
         className="w1-modal w1-lstats"
         role="dialog"
         aria-modal="true"

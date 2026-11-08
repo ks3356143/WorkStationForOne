@@ -69,6 +69,7 @@ export const IPC_CHANNELS = {
   agentRollback: 'agent:rollback',
   agentSaveImage: 'agent:save-image',
   agentImageData: 'agent:image-data',
+  agentDiscardImage: 'agent:discard-image',
   agentSavePreset: 'agent:save-preset',
   agentRemovePreset: 'agent:remove-preset',
   agentUsage: 'agent:usage',

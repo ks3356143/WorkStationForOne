@@ -12,6 +12,7 @@ import { buildSessionMarkdown } from '../agent/export'
 import { buildContextPrompt } from '../agent/context'
 import { CheckpointAccumulator } from '../agent/checkpoint-accumulator'
 import { filePathsFromInput, restoreFiles } from '../agent/checkpoints'
+import { buildClaudeFileDiffs } from '../agent/file-diff'
 import { toCheckpointView } from '../agent/checkpoints'
 import { assertRecord } from '../validate'
 import { imageDataUrl, imagePath, readImageBase64, removeImage, saveImage } from '../agent/images'
@@ -46,6 +47,7 @@ import {
   assertPermissionResponse,
   assertQuestionResponse,
   assertPresetInput,
+  assertResumeId,
   assertWorkspacePath
 } from './agent-validators'
 
@@ -234,6 +236,19 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
     const name = typeof image.name === 'string' ? image.name : 'image'
     const size = typeof image.size === 'number' ? image.size : 0
     return imageDataUrl(imagesDir, { id, mime, name, size })
+  })
+
+  // 只删没有消息引用的附件；已发送/分叉复用的图片必须保留。
+  ipcMain.handle(IPC.agentDiscardImage, (_event, value: unknown) => {
+    const image = assertRecord(value, '图片引用')
+    const id = assertAgentId(image.id, '图片 id')
+    if (repository.listImageRefs().some((item) => item.id === id)) return false
+    return removeImage(imagesDir, {
+      id,
+      mime: typeof image.mime === 'string' ? image.mime : '',
+      name: typeof image.name === 'string' ? image.name : 'image',
+      size: typeof image.size === 'number' ? image.size : 0
+    })
   })
 
   ipcMain.handle(IPC.agentPresets, () => repository.listPresets())
@@ -507,11 +522,16 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
       if (runEvent.kind === 'result') runResult = runEvent
       if (runEvent.kind === 'init' && runEvent.sessionId) {
         // init 表示 CLI 已接受续接 / 分叉；这一刻才把新 session id 落库。
-        repository.updateSession(input.sessionId, {
-          resumeId: runEvent.sessionId,
-          pendingFork: false,
-          forkTurnId: null
-        })
+        // CLI 返回值同样不可信：落库前过防 flag 注入校验，不合法则不写。
+        try {
+          repository.updateSession(input.sessionId, {
+            resumeId: assertResumeId(runEvent.sessionId, '续接会话 id'),
+            pendingFork: false,
+            forkTurnId: null
+          })
+        } catch (error) {
+          console.error('[agent] 忽略非法的 CLI 续接 id', error)
+        }
       }
       if (runEvent.kind === 'permission') {
         const disabledDenial = disabledToolDenial(runEvent.request.toolName)
@@ -568,6 +588,8 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
         codexExternalMcp = await capabilities.codexMcp()
       } catch (error) {
         const detail = error instanceof Error ? error.message : '读取 Codex 外部 MCP 配置失败'
+        checkpointRuns.delete(runId)
+        repository.finishRun(runId, { ok: false, cancelled: false })
         throw new Error(`无法加载 Codex 外部 MCP：${detail}`)
       }
     }
@@ -586,6 +608,9 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
         claudeDeniedTools = policy.denied
       } catch (error) {
         const detail = error instanceof Error ? error.message : '读取能力中心配置失败'
+        if (mcpEndpoint) mcp?.revoke(mcpEndpoint.token)
+        checkpointRuns.delete(runId)
+        repository.finishRun(runId, { ok: false, cancelled: false })
         throw new Error(`无法加载应用私有技能 / MCP：${detail}`)
       }
     }
@@ -765,8 +790,8 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
 
   ipcMain.handle(IPC.agentCancel, (_event, runId: unknown) => {
     const id = assertAgentId(runId, '运行 id')
+    // 只发取消，不立即删 run：进程异步退出前仍要锁住会话，避免同 resume id 并发双进程。
     runs.get(id)?.cancel()
-    runs.delete(id)
   })
 
   ipcMain.handle(IPC.agentPermissionResponse, (_event, value: unknown) => {
@@ -850,6 +875,7 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
         toolUseId: input.toolUseId,
         detail: summarizeToolInput(input.toolName, input.input),
         inputPreview: inputJson.length > 1200 ? `${inputJson.slice(0, 1199)}…` : inputJson,
+        diffs: buildClaudeFileDiffs(input.toolName, input.input, workspace),
         workspaceScope: approvalRules.isWorkspaceEligible('claude', input.toolName)
       }
     }

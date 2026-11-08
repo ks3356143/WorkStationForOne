@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AgentImageInput, AgentImageRef } from '../../shared/ipc'
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
@@ -65,4 +65,27 @@ export function removeImage(dir: string, image: AgentImageRef): boolean {
   } catch {
     return false
   }
+}
+
+/** 启动兜底：删除目录里没有任何消息引用的 img-* 文件，返回删除数量。 */
+export function pruneOrphanImages(dir: string, refs: AgentImageRef[]): number {
+  const referenced = new Set(refs.map((image) => image.id))
+  let entries: string[]
+  try {
+    entries = readdirSync(dir)
+  } catch {
+    return 0
+  }
+  let removed = 0
+  for (const name of entries) {
+    const match = /^(img-[0-9a-f-]{36})\.(png|jpg|webp|gif)$/.exec(name)
+    if (!match || referenced.has(match[1])) continue
+    try {
+      rmSync(join(dir, name))
+      removed += 1
+    } catch {
+      // 单个文件删除失败不阻断启动
+    }
+  }
+  return removed
 }

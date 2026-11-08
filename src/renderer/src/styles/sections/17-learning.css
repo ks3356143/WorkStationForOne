@@ -558,7 +558,7 @@
     transform var(--dur-ui) var(--ease-out);
 }
 
-.w1-lcard.flipped + .w1-lratings {
+.w1-lcardslot:has(.w1-lcard.flipped) + .w1-lratings {
   opacity: 1;
   transform: translateY(0);
 }
@@ -1201,4 +1201,77 @@
   background: rgb(var(--wn-rgb) / 0.07);
   color: var(--fs);
   font: 11.5px / 1.5 var(--sans);
+}
+
+/* 响应式降级必须放在本分节基础规则之后，否则会被同特异性基础规则覆盖。 */
+@media (max-width: 1279px) {
+  .w1-learnacts {
+    gap: 8px;
+  }
+
+  .w1-lrevbtn {
+    height: 30px;
+    padding: 0 11px;
+  }
+
+  .w1-leditor,
+  .w1-lnew {
+    grid-template-columns: minmax(0, 1fr);
+    padding-left: 22px;
+  }
+
+  .w1-lnew {
+    padding-left: 12px;
+  }
+
+  .w1-litemrow {
+    grid-template-columns: 14px minmax(0, 1fr) auto 54px;
+    gap: 8px;
+  }
+
+  .w1-lsource {
+    max-width: 150px;
+  }
+
+  .w1-lface {
+    padding: 26px 24px;
+  }
+
+  .w1-lcardtitle {
+    font-size: clamp(30px, 4.6vw, 44px);
+  }
+}
+
+@media (max-height: 800px) {
+  .w1-lreview {
+    padding: 16px 20px 18px;
+    gap: 10px;
+  }
+
+  .w1-lcard {
+    min-height: 180px;
+  }
+
+  .w1-lface {
+    gap: 10px;
+    padding: 22px 26px;
+  }
+
+  .w1-lcardtitle {
+    font-size: clamp(28px, 4.2vw, 40px);
+  }
+
+  .w1-lcardnotes {
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  .w1-lrate {
+    padding: 8px 10px;
+    gap: 4px;
+  }
+
+  .w1-ldone {
+    padding: 26px 22px;
+  }
 }

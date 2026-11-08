@@ -9,6 +9,7 @@ import { registerAppHandlers, WINDOW_PALETTE } from './ipc/app'
 import { ProviderService } from './providers'
 import { ApprovalRuleService } from './agent/approval-rules'
 import { buildMcpAttentionNotice, createAgentNotifier } from './agent/attention'
+import { pruneOrphanImages } from './agent/images'
 import { ensureDailyBackup } from './db/backup'
 import { startReminderLoop } from './reminders'
 import { registerHabitHandlers } from './ipc/habits'
@@ -309,6 +310,16 @@ if (!gotTheLock) {
     }
     // 上次进程退出后 run/wait 已不存在，重启时统一回落为 idle。
     database.agent.resetTransientStatuses()
+    // 兜底清理崩溃/切会话遗留的未发送图片；只删没有任何消息引用的文件。
+    try {
+      const pruned = pruneOrphanImages(
+        join(database.layout.dataDir, 'agent', 'images'),
+        database.agent.listImageRefs()
+      )
+      if (pruned > 0) console.log('[agent] 已清理孤儿图片', pruned)
+    } catch (error) {
+      console.error('[agent] 清理孤儿图片失败', error)
+    }
     // 捕获窗是另一个 BrowserWindow，Agent 事件只回主窗口
     agentHandlers = registerAgentHandlers({
       getWindow: () => mainWindow,

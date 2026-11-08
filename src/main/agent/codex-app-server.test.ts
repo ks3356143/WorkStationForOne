@@ -779,7 +779,7 @@ describe('startCodexAppServerRun · stub 链路', () => {
     const { events, done } = run('分叉验证', { forkThread: true })
     const exit = await done
 
-    expect(exit).toMatchObject({ code: 0, cancelled: false })
+    expect(exit).toMatchObject({ code: 1, cancelled: false })
     const error = events.find((event) => event.kind === 'error')
     expect(error?.kind === 'error' ? error.message : '').toContain('缺少源线程 id')
     expect(events.some((event) => event.kind === 'result')).toBe(false)
@@ -789,7 +789,7 @@ describe('startCodexAppServerRun · stub 链路', () => {
     const { events, done } = run('继续上次', { resumeId: 'missing-thread' })
     const exit = await done
 
-    expect(exit).toMatchObject({ code: 0, cancelled: false })
+    expect(exit).toMatchObject({ code: 1, cancelled: false })
     expect(events).toContainEqual(expect.objectContaining({ kind: 'error' }))
     const error = events.find((event) => event.kind === 'error')
     expect(error?.kind === 'error' ? error.message : '').toContain('无法续接')

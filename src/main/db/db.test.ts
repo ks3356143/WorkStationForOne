@@ -1,7 +1,7 @@
 import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MIGRATIONS, migrate, openDatabase, userVersion } from './database'
 import { TaskRepository } from './tasks'
 import type { TaskRecord } from '../../shared/ipc'
@@ -240,6 +240,26 @@ describe('TaskRepository · TODO 字段', () => {
     repo.setDone('t2', true)
 
     expect(typeof repo.list().find((task) => task.id === 't2')?.completedAt).toBe('number')
+    db.close()
+  })
+
+  it('重复完成已完成任务不重写完成时间', () => {
+    const db = tempDb()
+    migrate(db)
+    const repo = new TaskRepository(db)
+    repo.bootstrap(seed)
+    const created = repo.create({ title: '幂等完成', dueDate: '2026-10-24' })
+
+    repo.completeTask(created.id)
+    const completedAt = repo.list().find((task) => task.id === created.id)?.completedAt
+    expect(typeof completedAt).toBe('number')
+
+    vi.useFakeTimers()
+    vi.setSystemTime((completedAt ?? 0) + 60_000)
+    repo.completeTask(created.id)
+    vi.useRealTimers()
+
+    expect(repo.list().find((task) => task.id === created.id)?.completedAt).toBe(completedAt)
     db.close()
   })
 

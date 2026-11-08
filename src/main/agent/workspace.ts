@@ -1,5 +1,5 @@
 import type { Dirent } from 'node:fs'
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { readFileSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { WorkspaceEntry, WorkspaceFile } from '../../shared/ipc'
 
@@ -62,10 +62,20 @@ export function readWorkspaceText(root: string, relativePath: string): Workspace
   }
   const target = resolve(join(base, raw))
   if (!isInside(base, target)) throw new Error('文件不在工作区内')
-  const stat = statSync(target)
+  // 符号链接/目录联接解析后仍必须落在工作区内，避免读出界外文件。
+  let realBase = base
+  let realTarget = target
+  try {
+    realBase = realpathSync(base)
+    realTarget = realpathSync(target)
+  } catch {
+    throw new Error('文件不存在或不在工作区内')
+  }
+  if (!isInside(realBase, realTarget)) throw new Error('文件不在工作区内')
+  const stat = statSync(realTarget)
   if (!stat.isFile()) throw new Error('目标不是文件')
   if (stat.size > MAX_FILE_BYTES) throw new Error('文件超过 128 KB，未预览')
-  const buffer = readFileSync(target)
+  const buffer = readFileSync(realTarget)
   if (buffer.includes(0)) throw new Error('二进制文件不能预览')
   return { path: raw, text: buffer.toString('utf8') }
 }

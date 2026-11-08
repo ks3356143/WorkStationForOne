@@ -247,3 +247,24 @@ describe('startCodexRun · stub 链路', () => {
     expect(errors).toEqual([{ kind: 'error', message: '模拟 Codex 失败' }])
   })
 })
+
+describe('启动失败收尾', () => {
+  it('没有 CLI 时 onExit 延迟到微任务，调用方可先登记 run', async () => {
+    let exited = false
+    const events: AgentRunEvent[] = []
+    const handle = startCodexRun({
+      prompt: 'x',
+      cwd: process.cwd(),
+      cli: null,
+      onEvent: (event) => events.push(event),
+      onExit: () => {
+        exited = true
+      }
+    })
+    expect(exited).toBe(false)
+    handle.cancel()
+    await Promise.resolve()
+    expect(exited).toBe(true)
+    expect(events[0]).toMatchObject({ kind: 'error' })
+  })
+})

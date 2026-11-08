@@ -103,7 +103,7 @@ export function DatePicker({
           ))}
         </div>
 
-        <div className="w1-pickgrid" role="grid" aria-label={`${formatMonthTitle(view)}`}>
+        <div className="w1-pickgrid" role="group" aria-label={`${formatMonthTitle(view)}`}>
           {cells.map((cell, index) => (
             <button
               key={cell.key}

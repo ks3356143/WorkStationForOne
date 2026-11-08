@@ -24,6 +24,7 @@ export function ComboSelect({
   onChange
 }: ComboSelectProps) {
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const suppressOpenRef = useRef(false)
   const [open, setOpen] = useState(false)
   const [activeKey, setActiveKey] = useState<{ key: string; index: number } | null>(null)
 
@@ -42,7 +43,11 @@ export function ComboSelect({
   const commit = (next: string) => {
     onChange(next)
     setOpen(false)
-    inputRef.current?.focus()
+    const input = inputRef.current
+    if (input && document.activeElement !== input) {
+      suppressOpenRef.current = true
+      input.focus()
+    }
   }
 
   return (
@@ -58,7 +63,14 @@ export function ComboSelect({
         aria-expanded={open}
         aria-controls={`${id}-list`}
         aria-autocomplete="list"
-        onFocus={() => setOpen(true)}
+        aria-activedescendant={open && matches.length > 0 ? `${id}-opt-${active}` : undefined}
+        onFocus={() => {
+          if (suppressOpenRef.current) {
+            suppressOpenRef.current = false
+            return
+          }
+          setOpen(true)
+        }}
         onClick={() => setOpen(true)}
         onChange={(event) => {
           onChange(event.target.value)
@@ -102,8 +114,10 @@ export function ComboSelect({
           {matches.map((item, index) => (
             <button
               key={item || '__empty'}
+              id={`${id}-opt-${index}`}
               type="button"
               role="option"
+              tabIndex={-1}
               aria-selected={item === value}
               className={`w1-pickoption${index === active ? ' hot' : ''}${
                 item === value ? ' on' : ''

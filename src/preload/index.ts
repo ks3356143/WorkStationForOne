@@ -117,6 +117,7 @@ const api: WsApi = {
     rollback: (checkpointId) => ipcRenderer.invoke(IPC_CHANNELS.agentRollback, checkpointId),
     saveImage: (input) => ipcRenderer.invoke(IPC_CHANNELS.agentSaveImage, input),
     imageData: (image) => ipcRenderer.invoke(IPC_CHANNELS.agentImageData, image),
+    discardImage: (image) => ipcRenderer.invoke(IPC_CHANNELS.agentDiscardImage, image),
     savePreset: (input) => ipcRenderer.invoke(IPC_CHANNELS.agentSavePreset, input),
     removePreset: (id) => ipcRenderer.invoke(IPC_CHANNELS.agentRemovePreset, id),
     usage: (days) => ipcRenderer.invoke(IPC_CHANNELS.agentUsage, days),

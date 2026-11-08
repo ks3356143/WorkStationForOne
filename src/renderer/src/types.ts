@@ -223,6 +223,8 @@ export interface WorkstationData {
   permission: Permission | null
   /** 工具审批按会话保存，后台会话也能保有自己的卡片 */
   toolPermissions: Record<string, ToolPermission>
+  /** 同会话并发审批排队；当前卡应答后提升队首 */
+  toolPermissionQueues: Record<string, ToolPermission[]>
   /** MCP 审批按会话保存 */
   mcpPermissions: Record<string, McpPermissionRequest>
   /** Agent 追问按会话保存；问答卡与工具审批互斥但各自独立 */

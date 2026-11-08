@@ -301,13 +301,13 @@ export function startCodexRun(options: CodexRunOptions): CodexRunHandle {
 
   if (!cli) {
     options.onEvent({ kind: 'error', message: '未找到 Codex CLI，请先安装并登录 codex' })
-    options.onExit({ code: null, stderr: '', cancelled: false })
+    queueMicrotask(() => options.onExit({ code: null, stderr: '', cancelled: false }))
     return { sessionId, cancel: () => {}, respondPermission: () => false }
   }
 
   if (options.provider && !options.home) {
     options.onEvent({ kind: 'error', message: 'Codex Provider 缺少隔离目录' })
-    options.onExit({ code: null, stderr: '', cancelled: false })
+    queueMicrotask(() => options.onExit({ code: null, stderr: '', cancelled: false }))
     return { sessionId, cancel: () => {}, respondPermission: () => false }
   }
   if (options.provider && options.home) {

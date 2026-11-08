@@ -65,8 +65,12 @@ export function InboxTriageSheet({ onClose }: InboxTriageSheetProps) {
   }
 
   const save = (task: Task, patch: TaskPatch) => {
-    if (Object.keys(patch).length > 0) updateTask(task.id, patch)
-    setStats((value) => ({ ...value, organized: value.organized + 1 }))
+    if (Object.keys(patch).length > 0) {
+      updateTask(task.id, patch)
+      setStats((value) => ({ ...value, organized: value.organized + 1 }))
+    } else {
+      setStats((value) => ({ ...value, skipped: value.skipped + 1 }))
+    }
     advance()
   }
 

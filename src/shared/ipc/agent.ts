@@ -375,6 +375,8 @@ export interface AgentApi {
   saveImage: (input: AgentImageInput) => Promise<AgentImageRef>
   /** 读取已保存图片的 data URL，供消息缩略图使用 */
   imageData: (image: AgentImageRef) => Promise<string>
+  /** 丢弃未被任何消息引用的图片文件；已被引用时返回 false */
+  discardImage: (image: AgentImageRef) => Promise<boolean>
   exportSession: (id: string) => Promise<AgentExportResult>
   /** 打开原生目录选择器；取消返回 null */
   pickWorkspace: (current?: string) => Promise<string | null>

@@ -214,7 +214,7 @@ export function startCodexAppServerRun(options: CodexAppServerRunOptions): Codex
 
   if (!cli) {
     options.onEvent({ kind: 'error', message: '未找到 Codex CLI，请先安装并登录 codex' })
-    options.onExit({ code: null, stderr: '', cancelled: false })
+    queueMicrotask(() => options.onExit({ code: null, stderr: '', cancelled: false }))
     return { sessionId, cancel: () => {}, respondPermission: () => false }
   }
 
@@ -226,7 +226,7 @@ export function startCodexAppServerRun(options: CodexAppServerRunOptions): Codex
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     options.onEvent({ kind: 'error', message: `写入 Codex Provider 配置失败：${message}` })
-    options.onExit({ code: null, stderr: '', cancelled: false })
+    queueMicrotask(() => options.onExit({ code: null, stderr: '', cancelled: false }))
     return { sessionId, cancel: () => {}, respondPermission: () => false }
   }
 
@@ -285,7 +285,8 @@ export function startCodexAppServerRun(options: CodexAppServerRunOptions): Codex
   const fail = (message: string) => {
     if (settled) return
     options.onEvent({ kind: 'error', message })
-    terminate(0)
+    // 非 0 退出码：无 result 事件时上层按 code===0 判成功，失败回合不能记成成功。
+    terminate(1)
   }
 
   const respondApproval = (
@@ -414,15 +415,18 @@ export function startCodexAppServerRun(options: CodexAppServerRunOptions): Codex
 
   const handleNotification = (method: string, params: Record<string, unknown>) => {
     const events = parser.parse({ method, params })
+    let sawError = false
     for (const event of events) {
       if (event.kind === 'result' || event.kind === 'error') sawTerminal = true
+      if (event.kind === 'error') sawError = true
       options.onEvent(event)
     }
     if (method === 'turn/completed') {
-      terminate(0)
+      // 失败回合（parser 发 error、无 result）不能按 code===0 记成成功。
+      terminate(sawError ? 1 : 0)
       return
     }
-    if (method === 'error' && params.willRetry !== true) terminate(0)
+    if (method === 'error' && params.willRetry !== true) terminate(1)
   }
 
   const handleResponse = (record: Record<string, unknown>) => {

@@ -49,6 +49,7 @@ export function createInitialData(): WorkstationData {
     pendingReplyTo: null,
     permission: null,
     toolPermissions: {},
+    toolPermissionQueues: {},
     mcpPermissions: {},
     agentQuestions: {},
     resolution: null,

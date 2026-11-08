@@ -146,7 +146,7 @@ describe('hydrateTasks', () => {
     expect(useWorkstation.getState().tasks.some((task) => task.id === 't3')).toBe(false)
   })
 
-  it('新增写库失败时保留内存任务并记录错误', async () => {
+  it('新增写库失败时移除幽灵行并记录错误', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const d = deps({ create: vi.fn().mockRejectedValue(new Error('disk full')) })
     await hydrateTasks(d)
@@ -154,7 +154,7 @@ describe('hydrateTasks', () => {
     useWorkstation.getState().addTask({ title: '离线任务' })
     await vi.waitFor(() => expect(spy).toHaveBeenCalled())
 
-    expect(useWorkstation.getState().tasks[0].title).toBe('离线任务')
+    expect(useWorkstation.getState().tasks.some((task) => task.title === '离线任务')).toBe(false)
     spy.mockRestore()
   })
 

@@ -233,6 +233,33 @@ describe('发送请求', () => {
     ).toThrow(TypeError)
   })
 
+  it('续接 id 只接受安全字符，拒绝 flag 注入', () => {
+    expect(
+      registerAgentHandlersIPC.assertAgentSendInput({
+        sessionId: 's-1',
+        agent: 'codex',
+        prompt: 'x',
+        resumeId: '0192ab34-5678-7abc-8def-0123456789ab'
+      }).resumeId
+    ).toBe('0192ab34-5678-7abc-8def-0123456789ab')
+    expect(() =>
+      registerAgentHandlersIPC.assertAgentSendInput({
+        sessionId: 's-1',
+        agent: 'codex',
+        prompt: 'x',
+        resumeId: '--dangerously-bypass-approvals-and-sandbox'
+      })
+    ).toThrow(TypeError)
+    expect(() =>
+      registerAgentHandlersIPC.assertAgentSendInput({
+        sessionId: 's-1',
+        agent: 'codex',
+        prompt: 'x',
+        resumeId: 'a b'
+      })
+    ).toThrow(TypeError)
+  })
+
   it('接受去重后的附件路径，并限制数量与形状', () => {
     expect(
       registerAgentHandlersIPC.assertAgentSendInput({

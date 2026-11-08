@@ -254,7 +254,7 @@ let habitSeq = 0
 
 function nextMessageId(prefix: string): string {
   messageSeq += 1
-  return `${prefix}-${messageSeq}`
+  return `${prefix}-${Date.now()}-${messageSeq}`
 }
 
 function nextTaskId(): string {
@@ -439,7 +439,13 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
           lastAddedTaskId: state.lastAddedTaskId === local.id ? saved.id : state.lastAddedTaskId
         }))
       })
-      .catch(reportPersistenceError)
+      .catch((error) => {
+        set((state) => ({
+          tasks: state.tasks.filter((task) => task.id !== local.id),
+          lastAddedTaskId: state.lastAddedTaskId === local.id ? null : state.lastAddedTaskId
+        }))
+        reportPersistenceError(error)
+      })
   },
 
   updateTask: (taskId, patch) => {
@@ -779,10 +785,12 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       else storage?.removeItem(ACTIVE_AGENT_KEY)
     }
     const toolPermissions = { ...state.toolPermissions }
+    const toolPermissionQueues = { ...state.toolPermissionQueues }
     const mcpPermissions = { ...state.mcpPermissions }
     const agentQuestions = { ...state.agentQuestions }
     if (archived) {
       delete toolPermissions[sessionId]
+      delete toolPermissionQueues[sessionId]
       delete mcpPermissions[sessionId]
       delete agentQuestions[sessionId]
     }
@@ -796,6 +804,7 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       }),
       activeSessionId,
       toolPermissions,
+      toolPermissionQueues,
       mcpPermissions,
       agentQuestions,
       permission: archived && state.permission?.sessionId === sessionId ? null : state.permission,
@@ -838,6 +847,8 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     delete streams[sessionId]
     const toolPermissions = { ...state.toolPermissions }
     delete toolPermissions[sessionId]
+    const toolPermissionQueues = { ...state.toolPermissionQueues }
+    delete toolPermissionQueues[sessionId]
     const mcpPermissions = { ...state.mcpPermissions }
     delete mcpPermissions[sessionId]
     const agentQuestions = { ...state.agentQuestions }
@@ -858,6 +869,7 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       threadsLoaded,
       streams,
       toolPermissions,
+      toolPermissionQueues,
       mcpPermissions,
       agentQuestions,
       pendingPrompts,
@@ -944,23 +956,43 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
   },
 
   setToolPermission: (sessionId, request) =>
-    set((state) => ({
-      toolPermissions: {
-        ...state.toolPermissions,
-        [sessionId]: { ...request, sessionId }
-      },
-      sessions: state.sessions.map((session) =>
-        session.id === sessionId ? { ...session, status: 'wait' as const } : session
-      )
-    })),
+    set((state) => {
+      const entry = { ...request, sessionId }
+      if (state.toolPermissions[sessionId]) {
+        return {
+          toolPermissionQueues: {
+            ...state.toolPermissionQueues,
+            [sessionId]: [...(state.toolPermissionQueues[sessionId] ?? []), entry]
+          },
+          sessions: state.sessions.map((session) =>
+            session.id === sessionId ? { ...session, status: 'wait' as const } : session
+          )
+        }
+      }
+      return {
+        toolPermissions: { ...state.toolPermissions, [sessionId]: entry },
+        sessions: state.sessions.map((session) =>
+          session.id === sessionId ? { ...session, status: 'wait' as const } : session
+        )
+      }
+    }),
 
   clearToolPermission: (sessionId) =>
     set((state) => {
       const toolPermissions = { ...state.toolPermissions }
       delete toolPermissions[sessionId]
-      const waiting = Boolean(state.mcpPermissions[sessionId] || state.agentQuestions[sessionId])
+      const queue = [...(state.toolPermissionQueues[sessionId] ?? [])]
+      const next = queue.shift()
+      const toolPermissionQueues = { ...state.toolPermissionQueues }
+      if (next) toolPermissions[sessionId] = next
+      if (queue.length) toolPermissionQueues[sessionId] = queue
+      else delete toolPermissionQueues[sessionId]
+      const waiting = Boolean(
+        next || state.mcpPermissions[sessionId] || state.agentQuestions[sessionId]
+      )
       return {
         toolPermissions,
+        toolPermissionQueues,
         sessions: state.sessions.map((session) =>
           session.id === sessionId && session.status === 'wait' && !waiting
             ? { ...session, status: 'run' as const }
@@ -1209,6 +1241,8 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     const now = Date.now()
     const toolPermissions = { ...get().toolPermissions }
     delete toolPermissions[sessionId]
+    const toolPermissionQueues = { ...get().toolPermissionQueues }
+    delete toolPermissionQueues[sessionId]
     const mcpPermissions = { ...get().mcpPermissions }
     delete mcpPermissions[sessionId]
     const agentQuestions = { ...get().agentQuestions }
@@ -1269,6 +1303,7 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
         },
         streams,
         toolPermissions,
+        toolPermissionQueues,
         mcpPermissions,
         agentQuestions,
         typing: remaining.length > 0 || state.pendingPrompts.length > 0,
@@ -1568,7 +1603,12 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
           learningItems: state.learningItems.map((item) => (item.id === local.id ? saved : item))
         }))
       })
-      .catch(reportPersistenceError)
+      .catch((error) => {
+        set((state) => ({
+          learningItems: state.learningItems.filter((item) => item.id !== local.id)
+        }))
+        reportPersistenceError(error)
+      })
   },
 
   updateLearningItem: (itemId, patch) => {

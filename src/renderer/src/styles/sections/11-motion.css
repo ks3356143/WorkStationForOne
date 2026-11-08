@@ -127,7 +127,9 @@
 .w1-view {
   position: relative;
   opacity: 1;
-  transform: translateY(0);
+  /* 静止态必须为 none：非 none transform 会成为 fixed 后代的包含块，
+     使视图内模态遮罩只压暗舞台、背景仍可点击。入场靠 @starting-style 过渡。 */
+  transform: none;
   transition:
     opacity var(--dur-view) var(--ease-out),
     transform var(--dur-view) var(--ease-out);

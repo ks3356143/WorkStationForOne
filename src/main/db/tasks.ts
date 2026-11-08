@@ -268,10 +268,8 @@ export class TaskRepository {
    */
   completeTask(id: string): TaskRecord | null {
     const current = this.find(id)
-    if (!current || current.done) {
-      this.setDone(id, true)
-      return null
-    }
+    if (!current) return null
+    if (current.done) return current
 
     let created: TaskRecord | null = null
     this.transaction(() => {

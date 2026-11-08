@@ -30,6 +30,13 @@ const MAX_CONTEXT_PATH = 1000
 
 export const assertAgentId = (value: unknown, label: string) => assertId(value, label, MAX_ID)
 
+/** 续接 id 会成为 CLI 位置参数：拒绝以 - 开头或含空白/引号等字符，防 flag 注入。 */
+export function assertResumeId(value: unknown, label: string): string {
+  const id = assertAgentId(value, label)
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id)) throw new TypeError(`${label}无效`)
+  return id
+}
+
 export function assertAgentSendInput(value: unknown): AgentSendInput {
   const input = assertRecord(value, 'Agent 请求')
   const prompt = input.prompt
@@ -42,7 +49,7 @@ export function assertAgentSendInput(value: unknown): AgentSendInput {
     agent: assertAgentKind(input.agent),
     prompt: trimmed
   }
-  if (input.resumeId !== undefined) result.resumeId = assertAgentId(input.resumeId, '续接会话 id')
+  if (input.resumeId !== undefined) result.resumeId = assertResumeId(input.resumeId, '续接会话 id')
   if (input.contextFiles !== undefined) {
     result.contextFiles = assertContextFiles(input.contextFiles)
   }
@@ -88,7 +95,7 @@ function assertAgentKind(value: unknown): 'claude' | 'codex' {
 
 export function assertImportInput(value: unknown): AgentImportInput {
   const input = assertRecord(value, '导入会话')
-  const resumeId = assertAgentId(input.resumeId, '本机会话 id')
+  const resumeId = assertResumeId(input.resumeId, '本机会话 id')
   const rawTitle = typeof input.title === 'string' ? input.title.trim() : ''
   const title = (rawTitle || '导入的会话').slice(0, 80)
   return {
@@ -148,7 +155,7 @@ export function assertAgentSessionPatch(value: unknown): AgentSessionPatch {
   const result: AgentSessionPatch = {}
   if (patch.title !== undefined) result.title = assertTitle(patch.title)
   if (patch.status !== undefined) result.status = assertSessionStatus(patch.status)
-  if (patch.resumeId !== undefined) result.resumeId = assertAgentId(patch.resumeId, '续接会话 id')
+  if (patch.resumeId !== undefined) result.resumeId = assertResumeId(patch.resumeId, '续接会话 id')
   if (patch.pendingFork !== undefined) {
     if (typeof patch.pendingFork !== 'boolean') throw new TypeError('分叉续接标记无效')
     result.pendingFork = patch.pendingFork

@@ -1,8 +1,15 @@
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { imageDataUrl, imagePath, readImageBase64, removeImage, saveImage } from './images'
+import {
+  imageDataUrl,
+  imagePath,
+  pruneOrphanImages,
+  readImageBase64,
+  removeImage,
+  saveImage
+} from './images'
 
 const dirs: string[] = []
 const PNG =
@@ -57,5 +64,17 @@ describe('图片存储', () => {
         size: 10
       })
     ).toThrow()
+  })
+
+  it('清理没有任何消息引用的孤儿图片，保留无关文件', () => {
+    const root = dir()
+    const kept = saveImage(root, { mime: 'image/png', data: PNG })
+    const orphan = saveImage(root, { mime: 'image/png', data: PNG })
+    writeFileSync(join(root, 'notes.txt'), 'not an image')
+
+    expect(pruneOrphanImages(root, [kept])).toBe(1)
+    expect(existsSync(join(root, `${kept.id}.png`))).toBe(true)
+    expect(existsSync(join(root, `${orphan.id}.png`))).toBe(false)
+    expect(existsSync(join(root, 'notes.txt'))).toBe(true)
   })
 })
