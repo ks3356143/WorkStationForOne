@@ -1,5 +1,5 @@
 import { SpotlightLayer } from './effects/SpotlightLayer'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { AnimatePresence } from 'motion/react'
 import { dateKey } from '../../../shared/date-key'
 import { getTodayIndex, getWeekdayCn } from '../lib/date'
@@ -8,6 +8,7 @@ import { useNow } from '../lib/useNow'
 import { useWorkstation } from '../store/useWorkstation'
 import type { Habit } from '../types'
 import { HabitManageSheet } from './HabitManageSheet'
+import { HabitStatsSheet } from './HabitStatsSheet'
 
 const DAY_LABELS = ['一', '二', '三', '四', '五', '六', '日']
 
@@ -18,6 +19,8 @@ export function HabitCard() {
   const renameHabit = useWorkstation((state) => state.renameHabit)
   const removeHabit = useWorkstation((state) => state.removeHabit)
   const [manageOpen, setManageOpen] = useState(false)
+  const [statsOpen, setStatsOpen] = useState(false)
+  const statsButtonRef = useRef<HTMLButtonElement>(null)
   const now = useNow(60_000)
   const today = getTodayIndex(now)
   const todayKey = dateKey(now)
@@ -37,6 +40,15 @@ export function HabitCard() {
             <span>
               {doneCount} / {habits.length} · {getWeekdayCn(now)}
             </span>
+            <button
+              ref={statsButtonRef}
+              className="w1-hmanage"
+              type="button"
+              aria-label="习惯统计"
+              onClick={() => setStatsOpen(true)}
+            >
+              统计
+            </button>
             <button
               className="w1-hmanage"
               type="button"
@@ -108,6 +120,10 @@ export function HabitCard() {
             onRemove={removeHabit}
           />
         ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence onExitComplete={() => statsButtonRef.current?.focus()}>
+        {statsOpen ? <HabitStatsSheet habits={habits} onClose={() => setStatsOpen(false)} /> : null}
       </AnimatePresence>
     </>
   )

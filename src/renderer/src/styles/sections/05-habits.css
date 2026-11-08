@@ -230,3 +230,136 @@
   background: rgb(var(--wn-rgb) / 0.12);
   color: var(--wn-fg);
 }
+
+/* ---------- habit stats (v0.74.0) ---------- */
+
+.w1-hstats {
+  display: flex;
+  flex-direction: column;
+  width: 720px;
+  max-width: calc(100vw - 32px);
+  max-height: min(84vh, 820px);
+}
+
+.w1-hstatshead {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.w1-hstatshead h2 {
+  margin: 0;
+  font: 700 24px / 1.1 var(--disp);
+  letter-spacing: -0.02em;
+  color: var(--fg);
+}
+
+.w1-hstatshead p {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--mu);
+}
+
+.w1-hstatsbody {
+  flex: 1;
+  min-height: 0;
+  margin: 16px -6px 0;
+  padding: 0 6px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.w1-hstatrow {
+  padding: 12px 14px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.5);
+  background: rgb(var(--field-rgb) / 0.35);
+  animation: w1-item-in 240ms var(--ease-out) both;
+}
+
+.w1-hstatrowhead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.w1-hstatname {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 600 14px / 1.2 var(--sans);
+  color: var(--fg);
+}
+
+.w1-hstatmeta {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 14px;
+  font: 10.5px / 1.2 var(--mono);
+  color: var(--mu);
+}
+
+.w1-hstatmeta b {
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.w1-hstatgrid {
+  display: flex;
+  gap: 3px;
+  margin-top: 10px;
+  padding-bottom: 2px;
+  overflow-x: auto;
+}
+
+.w1-hstatcol {
+  display: grid;
+  grid-template-rows: repeat(7, 9px);
+  gap: 3px;
+  animation: w1-heat-in 360ms var(--ease-out) both;
+}
+
+.w1-hstatcell {
+  width: 9px;
+  height: 9px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.55);
+  background: rgb(var(--field-rgb) / 0.55);
+}
+
+.w1-hstatcell.on {
+  border-color: rgb(var(--ac2-rgb) / 0.6);
+  background: rgb(var(--ac2-rgb) / 0.62);
+  box-shadow: 0 0 5px rgb(var(--ac2-rgb) / 0.22);
+}
+
+.w1-hstatcell.is-empty {
+  visibility: hidden;
+}
+
+.w1-hstatsfoot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid rgb(var(--bd-rgb) / 0.55);
+  font: 10.5px / 1.4 var(--mono);
+  color: var(--mu);
+}
+
+.w1-hstatsempty {
+  padding: 28px 0;
+  color: var(--mu);
+  font-size: 13px;
+  text-align: center;
+}

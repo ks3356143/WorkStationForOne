@@ -345,6 +345,9 @@ const weeklyTheme = process.env.WS_SMOKE_WEEKLY_THEME?.trim()
 const triageShot = process.env.WS_SMOKE_TRIAGE_SHOT?.trim()
 const triageSize = process.env.WS_SMOKE_TRIAGE_SIZE?.trim()
 const triageTheme = process.env.WS_SMOKE_TRIAGE_THEME?.trim()
+const habitStatsShot = process.env.WS_SMOKE_HABIT_SHOT?.trim()
+const habitStatsSize = process.env.WS_SMOKE_HABIT_SIZE?.trim()
+const habitStatsTheme = process.env.WS_SMOKE_HABIT_THEME?.trim()
 // 工具面截图可指定窗口尺寸（如 1180x720），用于最小尺寸检查
 const toolsSize = (process.env.WS_SMOKE_TOOLS_SIZE?.trim() ?? '')
   .split('x')
@@ -444,6 +447,20 @@ app.on('browser-window-created', (_event, created) => {
           .catch(() => {})
       }, 900)
     }
+    if (habitStatsShot && String(event.message ?? '').includes('SMOKE_HABIT_SHOT')) {
+      if (habitStatsSize) {
+        const [shotWidth, shotHeight] = habitStatsSize.split('x').map(Number)
+        if (shotWidth >= 1180 && shotHeight >= 720) {
+          created.setContentSize(shotWidth, shotHeight)
+        }
+      }
+      setTimeout(() => {
+        void created.webContents
+          .capturePage()
+          .then((image) => writeFileSync(habitStatsShot, image.toPNG()))
+          .catch(() => {})
+      }, 900)
+    }
     if (
       toolsShot &&
       // SHOT2 的文本包含 SHOT，必须互斥判断，否则第一张会被拍两次
@@ -493,7 +510,7 @@ async function run() {
   await sleep(1800)
 
   await win.webContents.executeJavaScript(
-    `window.__WS_MCP_STUB__ = ${JSON.stringify(stubMcpServer)}; window.__WS_AGENT_WORKSPACE__ = ${JSON.stringify(agentWorkspace)}; window.__WS_UPDATE_SOURCE__ = ${JSON.stringify(updateSourceDir)}; window.__WS_SMOKE_SHOT__ = ${Boolean(contextShot)}; window.__WS_SMOKE_CHECKPOINT_SHOT__ = ${Boolean(checkpointShot)}; window.__WS_SMOKE_ERROR_SHOT__ = ${Boolean(errorShot)}; window.__WS_SMOKE_TOOLS_SHOT__ = ${Boolean(toolsShot)}; window.__WS_SMOKE_TOOLS_SHOT2__ = ${Boolean(toolsShot2)}; window.__WS_SMOKE_REVIEW_SHOT__ = ${Boolean(reviewShot)}; window.__WS_SMOKE_REVIEW_THEME__ = ${JSON.stringify(reviewTheme ?? '')}; window.__WS_SMOKE_TURN_SHOT__ = ${Boolean(turnShot)}; window.__WS_SMOKE_TURN_THEME__ = ${JSON.stringify(turnTheme ?? '')}; window.__WS_SMOKE_WEEKLY_SHOT__ = ${Boolean(weeklyShot)}; window.__WS_SMOKE_WEEKLY_THEME__ = ${JSON.stringify(weeklyTheme ?? '')}; window.__WS_SMOKE_TRIAGE_SHOT__ = ${Boolean(triageShot)}; window.__WS_SMOKE_TRIAGE_THEME__ = ${JSON.stringify(triageTheme ?? '')}`
+    `window.__WS_MCP_STUB__ = ${JSON.stringify(stubMcpServer)}; window.__WS_AGENT_WORKSPACE__ = ${JSON.stringify(agentWorkspace)}; window.__WS_UPDATE_SOURCE__ = ${JSON.stringify(updateSourceDir)}; window.__WS_SMOKE_SHOT__ = ${Boolean(contextShot)}; window.__WS_SMOKE_CHECKPOINT_SHOT__ = ${Boolean(checkpointShot)}; window.__WS_SMOKE_ERROR_SHOT__ = ${Boolean(errorShot)}; window.__WS_SMOKE_TOOLS_SHOT__ = ${Boolean(toolsShot)}; window.__WS_SMOKE_TOOLS_SHOT2__ = ${Boolean(toolsShot2)}; window.__WS_SMOKE_REVIEW_SHOT__ = ${Boolean(reviewShot)}; window.__WS_SMOKE_REVIEW_THEME__ = ${JSON.stringify(reviewTheme ?? '')}; window.__WS_SMOKE_TURN_SHOT__ = ${Boolean(turnShot)}; window.__WS_SMOKE_TURN_THEME__ = ${JSON.stringify(turnTheme ?? '')}; window.__WS_SMOKE_WEEKLY_SHOT__ = ${Boolean(weeklyShot)}; window.__WS_SMOKE_WEEKLY_THEME__ = ${JSON.stringify(weeklyTheme ?? '')}; window.__WS_SMOKE_TRIAGE_SHOT__ = ${Boolean(triageShot)}; window.__WS_SMOKE_TRIAGE_THEME__ = ${JSON.stringify(triageTheme ?? '')}; window.__WS_SMOKE_HABIT_SHOT__ = ${Boolean(habitStatsShot)}; window.__WS_SMOKE_HABIT_THEME__ = ${JSON.stringify(habitStatsTheme ?? '')}`
   )
   // Injected as a template literal: regex backslashes need double escaping.
   let results
@@ -4575,7 +4592,7 @@ async function run() {
       check('补打卡可再次取消', true, '周一没有过去日期，跳过')
     }
 
-    one('.w1-hmanage')?.click()
+    one('.w1-hmanage[aria-label="管理习惯"]')?.click()
     await waitFor(() => Boolean(one('.w1-habitmanage')), 2000)
     const habitAddInput = one('.w1-habitmanage-add input')
     setValue(habitAddInput, '冒烟习惯')
@@ -4620,6 +4637,68 @@ async function run() {
     one('.w1-habitmanage .w1-modalx')?.click()
     await waitFor(() => !one('.w1-habitmanage'), 2000)
     check('习惯管理面板可关闭', !one('.w1-habitmanage'))
+
+    one('.w1-hmanage[aria-label="习惯统计"]')?.click()
+    const habitStatsOpen = await waitFor(() => Boolean(one('.w1-hstats')), 2000)
+    const habitStatsFocused = await waitFor(
+      () => document.activeElement === one('.w1-hstats'),
+      1200
+    )
+    check(
+      '习惯统计面板可打开',
+      habitStatsOpen && habitStatsFocused,
+      document.activeElement?.className ?? ''
+    )
+    const habitStatRows = all('.w1-hstatrow')
+    const habitStatRow =
+      habitStatRows.find((row) => row.textContent?.includes('早起 07:30')) ?? habitStatRows[0]
+    const habitStatText = habitStatRow?.textContent ?? ''
+    check(
+      '习惯统计显示连续、完成率与 26 周网格',
+      habitStatRows.length >= 1 &&
+        habitStatRow?.querySelectorAll('.w1-hstatcell').length === 182 &&
+        habitStatText.includes('当前') &&
+        habitStatText.includes('近 30 天') &&
+        habitStatText.includes('累计') &&
+        habitStatRows.some((row) => row.querySelectorAll('.w1-hstatcell.on').length > 0),
+      String(habitStatRows.length) + ' | ' + habitStatText.slice(0, 70)
+    )
+    if (window.__WS_SMOKE_HABIT_SHOT__) {
+      const previousTheme = document.documentElement.dataset.theme
+      const previousStoredTheme = localStorage.getItem('workstation.theme')
+      if (window.__WS_SMOKE_HABIT_THEME__ === 'light') {
+        document.documentElement.dataset.theme = 'light'
+        localStorage.setItem('workstation.theme', 'light')
+        await sleep(400)
+      }
+      console.log('SMOKE_HABIT_SHOT')
+      await sleep(1200)
+      if (window.__WS_SMOKE_HABIT_THEME__ === 'light') {
+        if (previousTheme) document.documentElement.dataset.theme = previousTheme
+        else document.documentElement.removeAttribute('data-theme')
+        if (previousStoredTheme === null) localStorage.removeItem('workstation.theme')
+        else localStorage.setItem('workstation.theme', previousStoredTheme)
+        await sleep(300)
+      }
+    }
+    one('.w1-hstats .w1-modalx')?.click()
+    const habitStatsClosed = await waitFor(() => !one('.w1-hstats'), 2000)
+    const habitStatsFocusBack = await waitFor(
+      () => document.activeElement?.getAttribute('aria-label') === '习惯统计',
+      2000
+    )
+    check(
+      '习惯统计关闭后焦点回到入口',
+      habitStatsClosed && habitStatsFocusBack,
+      document.activeElement?.textContent ?? ''
+    )
+    one('.w1-hmanage[aria-label="习惯统计"]')?.click()
+    await waitFor(() => Boolean(one('.w1-hstats')), 2000)
+    one('.w1-hstats')?.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true })
+    )
+    const habitStatsEsc = await waitFor(() => !one('.w1-hstats'), 2000)
+    check('习惯统计 Esc 可关闭', habitStatsEsc, String(habitStatsEsc))
 
     byText('.w1-btn', '快速笔记')?.click()
     await sleep(350)

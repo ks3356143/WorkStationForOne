@@ -51,6 +51,7 @@
 - 已实现：收件箱整理（0.71.0）。任务视图收集箱标题栏显示「开始整理」，打开逐条整理面板：当前任务可设清单、截止日期与优先级，或标记完成、两段确认删除、留到以后；保存才写回任务，面板显示进度与完成汇总。队列只处理未完成、无清单的顶层任务；不新增 IPC 或数据库表。顺带修复 ComboBox（`ComboSelect`）Esc 关闭后 Popover 把焦点还给输入框导致下拉重新打开的问题（`Popover.restoreFocus`）。新增 14 项冒烟、2 项截图。
 - 已实现：同会话审批排队（0.73.0）。store 新增 `toolPermissionQueues[sessionId]`，`toolPermissions[sessionId]` 只放当前展示的一张；并发到达的第二张及以后入队，`clearToolPermission` 应答后提升队首；归档、删除、回合结束同步清队列。主进程 `permissionRuns` 与发卡链路不变，单卡场景行为不变。新增 3 项单测。
 - 已实现：孤儿图片回收（0.73.0）。移除未发送的图片 chip 走新增窄 IPC `agent:discard-image`，主进程确认无消息引用才删文件；启动时 `pruneOrphanImages(<dataDir>/agent/images, listImageRefs())` 兜底清理崩溃 / 切会话遗留的未引用文件，保留被引用与无关文件。新增 1 项单测。
+- 已实现：习惯统计（0.74.0）。今日习惯卡标题栏「统计」打开 `HabitStatsSheet`，按习惯展示近 26 周打卡热力图、当前 / 最佳连续、近 30 天完成率与累计打卡；规则在 `lib/habit-stats.ts` 纯函数（周一起始、未来留空、排除未来打卡），复用现有 `habit_checkins`，不新增表或 IPC。关闭后焦点回到入口，新增 5 项单测、4 项冒烟、2 项截图。
 - 已修复 / 重构：Markdown 高亮与学习组件模块化（0.70.1）。0.70.0 的自定义 lowlight 高亮插件没有递归进入根节点，代码块实际未高亮；现抽到 `lib/markdown-highlight.ts` 并补 4 项单测（`pre > code`、语言别名、未知语言、内联 code）。学习卡片行与新建表单拆到 `LearningItemRow` / `NewCardForm`，`LearningView` 只保留卡片库编排。冒烟长会话交接用例等待 Agent 视图卸载与导航就绪，消除懒加载时序 flake。不新增 IPC 或表。
 - 已优化：按需加载（0.70.0）。首屏渲染 JS 从 2.99 MB 降到 1.24 MB；任务 / 笔记 / 学习 / Agent / 设置 / 舰队按视图加载，Markdown 渲染与文件 diff 预览按需加载；Markdown 块从 862 KB 降到 698 KB（`lowlight` + `highlight.js` 语言子集，移除 `rehype-highlight`）。加载期间用 `StatePlaceholder`，命令面板保持静态加载。不新增 IPC 或表。
 - 已修复：学习统计与新卡限额对齐（0.69.1）。统计弹层在限额生效时把「今天到期」改为「今日队列」，按队列计算预计时长，并提示「另有 N 张新卡留到明天」；未触发限额时保持原口径，未来 7 天预测仍统计全部到期卡。新增 3 项冒烟。
