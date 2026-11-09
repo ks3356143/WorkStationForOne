@@ -109,6 +109,8 @@ export interface ChatMessage {
   turnId?: string
   /** 产生这条回复的应用运行 id，用于匹配回合检查点 */
   runId?: string
+  /** 产生这条回复的真实模型名（init 事件），旧消息为空时回退默认标签 */
+  model?: string
   /** 用户 @ 附加的工作区相对路径；只存路径，文件内容不落库 */
   contextFiles?: string[]
   /** 用户输入的图片引用；图片本体在应用私有目录 */

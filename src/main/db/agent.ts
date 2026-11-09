@@ -109,6 +109,7 @@ interface MessageRow {
   tools_json: string | null
   turn_id: string | null
   run_id: string | null
+  model: string | null
   context_files: string | null
   images_json: string | null
   created_at: number
@@ -168,6 +169,7 @@ function toMessage(row: MessageRow): AgentMessageRecord {
   if (row.error === 1) message.error = true
   if (row.turn_id) message.turnId = row.turn_id
   if (row.run_id) message.runId = row.run_id
+  if (row.model) message.model = row.model
   if (row.origin === 'import') message.origin = 'import'
   const tools = parseTools(row.tools_json)
   if (tools) message.tools = tools
@@ -431,8 +433,8 @@ export class AgentRepository {
       .prepare(
         `INSERT INTO agent_messages
           (id, session_id, role, text, time_label, error, tools_json, turn_id, run_id,
-           context_files, images_json, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           model, context_files, images_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            text = excluded.text,
            time_label = excluded.time_label,
@@ -440,6 +442,7 @@ export class AgentRepository {
            tools_json = excluded.tools_json,
            turn_id = excluded.turn_id,
            run_id = excluded.run_id,
+           model = excluded.model,
            context_files = excluded.context_files,
            images_json = excluded.images_json`
       )
@@ -453,6 +456,7 @@ export class AgentRepository {
         tools,
         message.turnId ?? null,
         message.runId ?? null,
+        message.model ?? null,
         contextFiles,
         images,
         message.createdAt

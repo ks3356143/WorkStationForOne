@@ -6,6 +6,54 @@
 
 暂无。
 
+## [0.77.0] - 2026-11-09
+
+### 新增
+
+- **工具推荐页**：能力中心第五个 tab「推荐」，内置 23 个精选 CLI（搜索 / 查看 / 文本 / 文件与磁盘 / 系统 / 开发流），winget 官方 ID 已逐条核对；主进程通过 `capability:cli-recommend` 只读扫描 PATH 判断已安装 / 未安装（不 spawn、不联网），支持关键词搜索、分类筛选、安装命令一键复制与仓库外开。不自动安装。
+
+### 修复
+
+- **消息模型标签**：流式 `init` 事件带回的真实模型名写入本轮助手消息并落库（DB v46 `agent_messages.model`），消息行不再永远显示默认占位；旧消息留空回退默认标签。
+- **MCP 写入失败审计**：写入事务失败时记 `action: 'fail'`，不再与成功写入一样记 `write`。
+
+### 优化
+
+- 问题卡等待超过 1 分钟显示提示（不自动作答，可「拒绝回答」结束）。
+- Codex 技能启停不再重复拉取工具面；Claude 内置工具目录标注内部工具 ToolSearch（常开，不给假开关）。
+
+### 验证
+
+- Biome 460 文件、typecheck、1246 项单测、557 项冒烟 0 失败 0 控制台报错（1440×900 暗色与 1180×720 亮色各跑一遍）、250/250 运行时断言；推荐页 + MCP + 内置工具三张能力中心页面在双尺寸双主题下截图检查，无溢出（推荐页正确识别本机已装的 ripgrep）。
+
+## [0.76.0] - 2026-11-09
+
+### 新增
+
+- **Codex 提问卡**：app-server 的 `item/tool/requestUserInput` 不再静默回 `{ answers: {} }`，改为解析问题（1–4 题、选项与描述、`isSecret` 透传为普通文本输入）并发同一张问题卡；用户作答按问题 id 回写 `{ answers: { [id]: { answers: [文本] } } }`，拒绝或答案不完整回空 answers，回合继续。问题计入待处理与后台通知。真实 Codex 计划模式下实测模型会提示该工具不可用，本改动为协议对齐与兜底。
+
+### 验证
+
+- 双 Agent 真实模型回归（用户同意，消耗少量 DeepSeek 额度，临时快照库不碰真实数据）：★ 首选被遵守（先加载首选技能并调用 agent-desktop；MCP 首选 echo 压过原生 echo）；AskUserQuestion 真链（问题卡作答 → 模型确认选择）；同会话并发审批（Claude / Codex 并行两卡，应答首卡后 511 / 512 ms 提升次卡，两文件落盘）；Codex 失败回合（一次错误回复 + 重试、状态 idle、无通知噪声）。
+- ★ 优先专项（真实 DeepSeek）：「指定谁优先谁就优先」——窗口任务连续 5 次工具调用全部走 agent-desktop（含最终 `list-windows`），全程未用 tasklist / PowerShell；★ MCP echo 在单任务、混合任务与重复回合中都被首先选中，混合任务同时使用两个 ★ 工具；端到端回合允许一次后 echo 返回 PR5_OK，模型确认已使用首选工具。探针桩 `stub-mcp-server.cjs` 补 `tools/call` 供结果交付验证。
+- Biome 455 文件、typecheck、1239 项单测、552 项冒烟 0 失败 0 控制台报错、250/250 运行时断言。
+
+## [0.75.0] - 2026-11-09
+
+### 变更
+
+- **能力中心重组为四个 tab**：插件（市场 / 插件源 / 本机导入 / 更新卸载）、技能（按 Claude / Codex 启停与信任、SKILL.md 详情、★ 首选 / 用途说明 / 排序）、MCP（外部 Server 全套管理 + ★ 首选 / 用途 / 排序）、内置工具（CLI 环境自检 + 按 Agent 的原生工具开关 + 优先级注入预览）。1277 行的 CapabilityPanel 拆成 PluginsTab / SkillsTab / McpTab / NativeToolsTab，启用开关只剩技能页一个入口；环境自检从 MCP 页搬到内置工具页。
+- **数据桥解耦**：任务 / 笔记 / 学习 / 习惯的 11 个内置数据工具与四域 read / ask / write 权限合并为基础设置的「数据桥」分区，能力中心不再混排应用数据工具。
+- **原生工具目录补齐**：对照本机 Claude Code 2.1.318 / Codex 0.167，Claude 补 LSP / NotebookRead / TaskStop / AgentOutputTool / TaskCreate 等任务管理、AskUserQuestion、Skill、EnterPlanMode / ExitPlanMode；Codex 的 read_file / update_plan / view_image 沙箱内自动执行、CLI 无关闭参数，标「常开」不给假开关。
+
+### 修复
+
+- **Codex 技能启停串路**：旧工具面对 Codex 插件行调的是 Claude 侧 `skills.setEnabled`（只改库、不写 config.toml）；技能页现按 Agent 分发，Codex 走 `setPluginEnabled` 同步私有 config.toml 与 skill 副本。工具面里 Codex 技能的启用态也不再被 Claude 侧的 `trusted` 门误挡。
+
+### 验证
+
+- Biome 455 文件、typecheck、1237 项单测、551 项冒烟 0 失败 0 控制台报错（1440×900 暗色与 1180×720 亮色各跑一遍）、250/250 运行时断言；能力中心 MCP 首选行与内置工具注入预览在双尺寸双主题下截图检查，无溢出。
+
 ## [0.74.0] - 2026-11-08
 
 ### 新增

@@ -5,23 +5,15 @@ import type {
   ApprovalRuleRecord,
   AuditLogDomain,
   AuditLogRecord,
-  McpDomain,
-  McpMode,
-  McpPolicyRecord,
   StorageInfo
 } from '../../../shared/ipc'
 import { DURATION, EASE_OUT } from '../lib/motion'
 import { skinLabel, themeLabel } from '../lib/theme'
-import {
-  AUDIT_DOMAIN_LABELS,
-  AUDIT_FILTERS,
-  MCP_DOMAIN_LABELS,
-  MCP_MODE_LABELS,
-  auditTime
-} from '../lib/labels'
+import { AUDIT_DOMAIN_LABELS, AUDIT_FILTERS, auditTime } from '../lib/labels'
 import { useWorkstation } from '../store/useWorkstation'
 import { CapabilityPanel } from './capability/CapabilityPanel'
 import { BackupRestore } from './settings/BackupRestore'
+import { DataBridgeSection } from './settings/DataBridgeSection'
 import { ProviderCard } from './settings/ProviderCard'
 
 interface SettingsSheetProps {
@@ -44,11 +36,8 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
   const [busy, setBusy] = useState(false)
   const [backupRevision, setBackupRevision] = useState(0)
   const [settingsTab, setSettingsTab] = useState<'basic' | 'capability'>('basic')
-  const mcpApi = typeof window === 'undefined' ? undefined : window.ws?.mcp
   const agentApi = typeof window === 'undefined' ? undefined : window.ws?.agent
   const auditApi = typeof window === 'undefined' ? undefined : window.ws?.audit
-  const [policies, setPolicies] = useState<McpPolicyRecord[]>([])
-  const [policyBusy, setPolicyBusy] = useState(false)
   const [approvalRules, setApprovalRules] = useState<ApprovalRuleRecord[]>([])
   const [ruleBusy, setRuleBusy] = useState(false)
   const [auditRows, setAuditRows] = useState<AuditLogRecord[]>([])
@@ -74,13 +63,6 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
   }, [])
 
   useEffect(() => {
-    void mcpApi
-      ?.policy()
-      .then(setPolicies)
-      .catch(() => setPolicies([]))
-  }, [mcpApi])
-
-  useEffect(() => {
     void agentApi
       ?.approvalRules()
       .then(setApprovalRules)
@@ -103,26 +85,11 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
     }
   }, [auditApi, auditDomain])
 
-  const changePolicy = (domain: McpDomain, mode: McpMode) => {
-    if (!mcpApi || policyBusy) return
-    const current = policies.find((policy) => policy.domain === domain)
-    if (current?.mode === mode) return
-    setPolicyBusy(true)
-    void mcpApi
-      .setPolicy(domain, mode)
-      .then(() => {
-        setPolicies((list) =>
-          list.map((policy) => (policy.domain === domain ? { ...policy, mode } : policy))
-        )
-        notify(`MCP ${MCP_DOMAIN_LABELS[domain]}权限：${MCP_MODE_LABELS[mode]}`)
-        return auditApi
-          ?.recent(30, auditDomain === 'all' ? undefined : auditDomain)
-          .then(setAuditRows)
-      })
-      .catch((error: unknown) =>
-        notify(error instanceof Error ? `权限保存失败：${error.message}` : '权限保存失败')
-      )
-      .finally(() => setPolicyBusy(false))
+  const refreshAudit = () => {
+    void auditApi
+      ?.recent(30, auditDomain === 'all' ? undefined : auditDomain)
+      .then(setAuditRows)
+      .catch(() => {})
   }
 
   const revokeRule = (id: string) => {
@@ -292,54 +259,7 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
 
               <ProviderCard notify={notify} />
 
-              <section className="w1-setgroup" aria-label="MCP 数据权限">
-                <h3>MCP 数据权限</h3>
-                <p className="w1-provnote">
-                  只读域拒绝写入；询问模式每次弹审批卡；可写域直接允许并写审计。切换会写审计。
-                </p>
-                {policies.length === 0 ? (
-                  <p className="w1-provnote">仅在桌面应用可用。</p>
-                ) : (
-                  policies.map((policy) => (
-                    <div className="w1-setrow" key={policy.domain}>
-                      <span>{MCP_DOMAIN_LABELS[policy.domain]}</span>
-                      <div
-                        className="w1-modepair"
-                        role="group"
-                        aria-label={`${MCP_DOMAIN_LABELS[policy.domain]} MCP 权限`}
-                      >
-                        <button
-                          type="button"
-                          className={`w1-setbtn${policy.mode === 'read' ? ' on' : ''}`}
-                          aria-pressed={policy.mode === 'read'}
-                          disabled={policyBusy}
-                          onClick={() => changePolicy(policy.domain, 'read')}
-                        >
-                          只读
-                        </button>
-                        <button
-                          type="button"
-                          className={`w1-setbtn${policy.mode === 'ask' ? ' on' : ''}`}
-                          aria-pressed={policy.mode === 'ask'}
-                          disabled={policyBusy}
-                          onClick={() => changePolicy(policy.domain, 'ask')}
-                        >
-                          询问
-                        </button>
-                        <button
-                          type="button"
-                          className={`w1-setbtn${policy.mode === 'write' ? ' on' : ''}`}
-                          aria-pressed={policy.mode === 'write'}
-                          disabled={policyBusy}
-                          onClick={() => changePolicy(policy.domain, 'write')}
-                        >
-                          可写
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </section>
+              <DataBridgeSection notify={notify} onAuditRefresh={refreshAudit} />
 
               <section className="w1-setgroup" aria-label="审批规则">
                 <h3>审批规则</h3>

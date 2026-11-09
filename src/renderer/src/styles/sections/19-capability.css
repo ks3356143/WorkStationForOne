@@ -466,6 +466,39 @@
   color: var(--wn-fg);
 }
 
+/* 常开原生工具：CLI 没有关闭参数，只展示不给开关 */
+.w1-capbadge.alwayson {
+  border-color: rgb(var(--bd-rgb) / 0.6);
+  color: var(--su);
+}
+
+/* 推荐工具的未安装徽标是中性态，不用成功色 */
+.w1-capbadge.off {
+  border-color: rgb(var(--bd-rgb) / 0.6);
+  color: var(--su);
+}
+
+/* 推荐行：为什么值得 + 安装命令第二行信息 */
+.w1-capwhy {
+  color: var(--mu);
+}
+
+.w1-capcmd {
+  display: block;
+  margin-top: 3px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ac2-fg);
+  font: 11px / 1.5 var(--mono);
+}
+
+/* 数据桥分区在基础设置里，与上方域权限行拉开间距 */
+.w1-databridge {
+  margin-top: 10px;
+}
+
 .w1-capmarket {
   display: flex;
   flex-direction: column;

@@ -166,6 +166,29 @@ describe('ToolSurfaceService', () => {
     })
   })
 
+  it('常开原生组不能关闭，工具面里始终启用', () => {
+    const service = new ToolSurfaceService(prefs(), repository(), builtin)
+    expect(() => service.setNative('codex', 'file-read', false)).toThrow('常开')
+    const surface = service.forAgent('codex')
+    const read = surface.native.find((group) => group.id === 'file-read')
+    expect(read?.enabled).toBe(true)
+    expect(read?.alwaysOn).toBe(true)
+  })
+
+  it('Codex 技能启用只看启用状态，信任是 Claude 侧的门', () => {
+    const repo = {
+      listMcpServers: () => [],
+      listPlugins: (agent?: string) =>
+        [
+          { id: 'cx', name: 'codex-imported', enabled: true, trusted: false, agent: 'codex' },
+          { id: 'cl', name: 'claude-untrusted', enabled: true, trusted: false, agent: 'claude' }
+        ].filter((plugin) => !agent || plugin.agent === agent)
+    } as unknown as CapabilityRepository
+    const service = new ToolSurfaceService(prefs(), repo, builtin)
+    expect(service.forAgent('codex').skills[0]?.enabled).toBe(true)
+    expect(service.forAgent('claude').skills[0]?.enabled).toBe(false)
+  })
+
   it('优先级提示只列启用的 MCP 与技能', () => {
     const service = new ToolSurfaceService(prefs(), repository(), builtin)
     const text = service.priorityPrompt('claude')

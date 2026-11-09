@@ -146,7 +146,7 @@ export const MessageRow = memo(function MessageRow({
           <b>{meta.name}</b>
           <span>{message.time}</span>
           <span>·</span>
-          <span>{meta.model}</span>
+          <span>{message.model ?? meta.model}</span>
           <button type="button" className="w1-copy" aria-label="复制这条回复" onClick={copy}>
             {copied ? '已复制' : '复制'}
           </button>

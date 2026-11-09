@@ -2,7 +2,7 @@
 
 Windows 上的个人 AI 工作站。把「今日看板 + 任务清单 + Agent 工作区 + 笔记库 + 闪卡复习」收进一个窗口：左侧导航一次只打开一个全宽工作区，Agent 视图里驱动本机 Claude Code CLI 对话，任务、笔记、学习与习惯全部落在本机 SQLite。
 
-> 当前版本 v0.74.0（2026-11-08），数据库 v45。逐项实现状态、数据库版本与最近验证结论以 [docs/status.md](docs/status.md) 为准；这里只保留用户视角的功能概览。
+> 当前版本 v0.77.0（2026-11-09），数据库 v45。逐项实现状态、数据库版本与最近验证结论以 [docs/status.md](docs/status.md) 为准；这里只保留用户视角的功能概览。
 
 ## 特点
 
@@ -21,7 +21,7 @@ Windows 上的个人 AI 工作站。把「今日看板 + 任务清单 + Agent �
 - **Agent 是独立工作区**：默认空态，可新建 Claude 或 Codex 会话；每个会话先选择自己的项目目录，未选择时输入框禁用，选择后 Claude 与 Codex 都只在该目录里运行。Claude 走本机 `claude` CLI（stream-json），流式文本与工具调用卡直接进线程；会话标题取自首条消息，消息与工具卡落 SQLite，resume id 也保存下来，重启后能继续。不同会话可以同时运行：各自的事件按运行 id 回到发起会话，后台会话的审批卡不会抢占当前聊天，输入栏上方会提示其它会话的待审批数量。读工具（Read / Glob / Grep / LS）自动放行；编辑、写入、Bash 等工具会弹出「允许一次 / 本会话允许 / 拒绝」审批卡，可逐次裁决或本会话放行。Codex 继承 CLI 时走 `codex exec --json` 的只读沙箱；保存并启用 Codex Provider 后改走 `codex app-server --stdio`，使用应用自己的 `codex-home`，线程以工作区权限 + `on-request` 运行，命令执行、文件改动和额外权限请求都会接到同一张审批卡。设置里可切「继承 CLI」或自定义 Provider；自定义配置只影响本应用启动的进程，API Key 用系统加密存本机，绝不回显。命令面板可跨任务、笔记、会话与学习卡全局搜索（笔记直接开详情、学习卡定位高亮）；助手消息悬停可「分叉」出新会话：Claude 最新一条回复用 `--resume --fork-session`，Codex 激活 Provider 后可从任意助手回合用 `thread/fork` 的 `lastTurnId` 延续到该回合为止的真实上下文；Claude 较早消息或没有 Provider 时只复制到此为止的对话与工作区，按钮提示与结果提示会区分两种模式。会话栏支持按标题与消息正文搜索（正文命中可跳到消息）、双击或 F2 重命名、悬停 ☆/★ 置顶、顶栏导出 Markdown，以及两段确认删除——删除只作用于应用内会话与消息，运行中禁用，外部 CLI 的历史文件不动。
 - **舰队控制台**：状态栏「舰队 N」、左侧舰队区和命令面板都能打开统一总览。所有 Claude / Codex 会话按 Agent 分组，显示运行 / 待审批 / 空闲、工作区、消息数、排队状态与审批数量；可筛选、打开、停止运行中的会话，归档/取消归档，或直接新建。还能保存「当前会话 + 工作区」为预设，一键用相同工作区新开会话；「用量」展示近 7 天运行、成本、时长、轮次与每日柱。「导入本机」只读扫描 Claude / Codex CLI 的 JSONL，导入标题、工作区、resume id、最近 200 条只读历史与工具卡；已有导入会话可「补历史」。它统一的是本应用启动/恢复的会话，不接管外部终端窗口。
 - **工作区文件与产物**：Agent 顶栏「文件」打开只读工作区文件树，跳过 `.git / node_modules / dist`，点击文件预览文本（上限 128 KB）；Write / Edit / Patch 工具里出现的文件汇总为「本回合产物」，可一键定位预览。不内置编辑器。
-- **能力中心**：设置页分「基础 / 能力中心」。Claude 插件从官方市场浏览、一键安装到应用私有目录，市场按安装量排序、显示热度并分批加载；也支持导入本地 `SKILL.md` / 插件目录，查看源文件与 SKILL.md 预览。官方市场走应用私有的浅层稀疏镜像（显示「Claude 官方」，不写全局市场记录），按会话通过 `--plugin-dir` 加载；外部 MCP 支持内置目录、自定义 stdio / HTTP、密钥加密、启停、更新检查、连接测试、工具级「自动 / 询问 / 禁止」、环境自检与 `mcpServers` JSON 导入导出，会进入本应用启动的 Claude 会话与激活 Provider 后的 Codex app-server 会话，Claude 会话的「询问」工具由本机桥审批中继接管；密钥只进子进程环境，继承 CLI 的 Codex exec 不接；「工具面」按 Claude / Codex 统一管理 CLI 原生工具开关、外部 MCP、技能与数据桥工具，MCP 与技能可调整顺序；会话启动只注入启用项，可把 MCP / 技能标为 ★ 首选写入系统提示的「首选」分组，并要求能做同一件事时不改用 CLI 原生工具（首选行还可写一句 80 字内的用途说明，随首选分组一起注入，URL / 密钥自动脱敏；Claude 走 `--disallowedTools` + `--append-system-prompt`，Codex 走 `-c` 参数 + `developerInstructions`），界面可直接预览注入原文，关闭 Shell 或修改文件时会在审批前直接拒绝。新装默认停用，带 hooks/MCP 的插件与外部 Server 需要二次确认信任；工具级自动批准只建议用于只读工具。所有记录都在 WorkStationForOne 自己的库里，不写 `~/.claude`、`~/.codex`、CC Switch 或桌面端配置。
+- **能力中心**：设置页分「基础 / 能力中心」，能力中心按「插件 / 技能 / MCP / 内置工具 / 推荐」五个 tab 组织。插件页管包生命周期：官方市场浏览安装（按热度排序、分批加载）、插件源、本机只读导入、本地 `SKILL.md` / 插件目录导入、更新与卸载；技能页按 Claude / Codex 统一启停与信任（唯一入口）、查看源文件与 SKILL.md 预览、调顺序；MCP 页管外部 Server：内置目录、自定义 stdio / HTTP、密钥加密、启停、更新检查、连接测试、工具级「自动 / 询问 / 禁止」、OAuth 登录与 `mcpServers` JSON 导入导出；内置工具页顶部是 CLI 环境自检（node / npx / uvx / git / claude / codex），下面按 Agent 列出原生工具开关（读文件 / 改文件 / 命令 / 网络 / 子任务 / 待办 / 问答 / 技能加载 / 计划模式，Codex 另有桌面 / 浏览器操作；CLI 拦不住的标「常开」不给假开关）。MCP 与技能可标 ★ 首选并写一句 80 字内的用途说明，会话启动注入系统提示的「首选」分组，要求能做同一件事时不改用 CLI 原生工具（URL / 密钥自动脱敏；Claude 走 `--disallowedTools` + `--append-system-prompt`，Codex 走 `-c` 参数 + `developerInstructions`），注入原文在内置工具页直接预览；关闭 Shell 或修改文件时会在审批前直接拒绝。应用自己的任务 / 笔记 / 学习 / 习惯数据桥与四域权限在基础设置的「数据桥」分区，不与编码能力混排。新装默认停用，带 hooks/MCP 的插件与外部 Server 需要二次确认信任；工具级自动批准只建议用于只读工具。所有记录都在 WorkStationForOne 自己的库里，不写 `~/.claude`、`~/.codex`、CC Switch 或桌面端配置。
 - **按需加载**：今日首屏只加载外壳与今日看板；任务、笔记、学习、Agent、设置与舰队工作区按视图加载，Markdown 渲染与文件 diff 预览也按需加载。首屏 JS 从约 2.99 MB 降到 1.24 MB（约 59%）。
 - **可扩展的外壳**：新应用作为一级导航项接入，各自拥有全宽工作区；看板与 Agent 不同屏，也不存在常驻右栏。
 - **本地优先**：数据只存在本机 SQLite；不使用云同步、不上传遥测；默认不保存 API Key，只有显式保存的自定义 Provider Key 会以系统加密存本机。
@@ -75,7 +75,7 @@ npm run dev
 | `npm run typecheck` | 类型检查（main/preload 与 renderer 各一套配置） |
 | `npm test` | 运行全部单元测试（1014 项） |
 | `npm run check` | Biome 检查格式与 lint（Rust 单二进制，不依赖 Prettier / ESLint） |
-| `npm run smoke` | 构建后跑 UI 交互冒烟（549 项，真实主进程 + 临时 SQLite） |
+| `npm run smoke` | 构建后跑 UI 交互冒烟（552 项，真实主进程 + 临时 SQLite） |
 | `npm run verify` | 启动真实主进程跑 250 项运行时断言（五视图、双主题/皮肤、跨重启） |
 | `npm run capture -- .screenshots/home.png 1440 900 .screenshots/audit.json` | 截图并输出布局审计 |
 | `npm run capture -- .screenshots/notes-1180.png 1180 720 .screenshots/audit-notes.json dark notes` | 指定主题 `dark|light` 与视图 `today|tasks|agent|notes|learning` 截图 |

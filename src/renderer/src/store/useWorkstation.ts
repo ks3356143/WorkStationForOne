@@ -215,6 +215,8 @@ interface WorkstationActions {
   beginAgentReply: (sessionId: string, runId: string | null) => void
   bindAgentRun: (sessionId: string, runId: string) => void
   setAgentTurnId: (sessionId: string, turnId: string) => void
+  /** init 事件带回的真实模型名，写进当前助手消息并随消息落库 */
+  setAgentRunModel: (sessionId: string, model: string) => void
   appendAgentText: (sessionId: string, chunk: string) => void
   upsertAgentTool: (sessionId: string, tool: ToolCall, status: string) => void
   setAgentToolStatus: (sessionId: string, toolId: string, status: string) => void
@@ -319,6 +321,7 @@ function persistAgentMessage(sessionId: string, message: ChatMessage): void {
   if (message.error) record.error = true
   if (message.turnId) record.turnId = message.turnId
   if (message.runId) record.runId = message.runId
+  if (message.model) record.model = message.model
   if (message.contextFiles?.length) record.contextFiles = message.contextFiles
   if (message.images?.length) record.images = message.images
   const tools = agentTools(message.tools)
@@ -1183,6 +1186,20 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       if (!stream || !turnId) return {}
       return { streams: { ...state.streams, [sessionId]: { ...stream, turnId } } }
     }),
+
+  setAgentRunModel: (sessionId, model) => {
+    const stream = get().streams[sessionId]
+    const label = model.trim().slice(0, 80)
+    if (!stream || !label) return
+    set((state) => ({
+      threads: {
+        ...state.threads,
+        [sessionId]: (state.threads[sessionId] ?? []).map((entry) =>
+          entry.id === stream.messageId ? { ...entry, model: label } : entry
+        )
+      }
+    }))
+  },
 
   appendAgentText: (sessionId, chunk) => {
     const stream = get().streams[sessionId]

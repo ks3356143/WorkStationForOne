@@ -175,6 +175,32 @@ describe('Agent 真分叉状态', () => {
       expect.objectContaining({ turnId: 'turn-1', text: '答复' })
     )
   })
+
+  it('init 带回的真实模型名写进本轮回复并落库', () => {
+    const saveMessage = vi.fn().mockResolvedValue(undefined)
+    bindAgentPersistence({
+      createSession: vi.fn(),
+      updateSession: vi.fn().mockResolvedValue(undefined),
+      saveMessage
+    })
+    useWorkstation.setState({
+      sessions: [session({ agent: 'claude' })],
+      activeSessionId: 's1',
+      threads: {}
+    })
+
+    const store = useWorkstation.getState()
+    store.beginAgentReply('s1', 'run-1')
+    store.setAgentRunModel('s1', 'deepseek-flash')
+    store.appendAgentText('s1', '答复')
+    store.finishAgentReply('s1')
+
+    expect(useWorkstation.getState().threads.s1?.[0]).toMatchObject({
+      text: '答复',
+      model: 'deepseek-flash'
+    })
+    expect(saveMessage).toHaveBeenCalledWith(expect.objectContaining({ model: 'deepseek-flash' }))
+  })
 })
 
 describe('习惯', () => {

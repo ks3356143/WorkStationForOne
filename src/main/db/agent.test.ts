@@ -56,7 +56,7 @@ describe('迁移 v16', () => {
     db.close()
   })
 
-  it('v44 升级到 v45 为消息增加 run_id，旧消息保持为空', () => {
+  it('v44 升级到最新版为消息增加 run_id 与 model，旧消息保持为空', () => {
     const dir = mkdtempSync(join(tmpdir(), 'wsfo-agent-run-'))
     dirs.push(dir)
     const db = openDatabase(join(dir, 'workstation.db'))
@@ -76,8 +76,9 @@ describe('迁移 v16', () => {
     migrate(db)
 
     const repo = new AgentRepository(db)
-    expect(userVersion(db)).toBe(45)
+    expect(userVersion(db)).toBe(46)
     expect(repo.listMessagesForSession('s1')[0]?.runId).toBeUndefined()
+    expect(repo.listMessagesForSession('s1')[0]?.model).toBeUndefined()
     db.close()
   })
 

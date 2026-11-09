@@ -333,6 +333,8 @@ const threadShot = process.env.WS_SMOKE_THREAD_SHOT?.trim()
 const errorShot = process.env.WS_SMOKE_ERROR_SHOT?.trim()
 const toolsShot = process.env.WS_SMOKE_TOOLS_SHOT?.trim()
 const toolsShot2 = process.env.WS_SMOKE_TOOLS_SHOT2?.trim()
+const toolsTheme = process.env.WS_SMOKE_TOOLS_THEME?.trim()
+const recShot = process.env.WS_SMOKE_REC_SHOT?.trim()
 const reviewShot = process.env.WS_SMOKE_REVIEW_SHOT?.trim()
 const reviewSize = process.env.WS_SMOKE_REVIEW_SIZE?.trim()
 const reviewTheme = process.env.WS_SMOKE_REVIEW_THEME?.trim()
@@ -389,6 +391,12 @@ app.on('browser-window-created', (_event, created) => {
       void created.webContents
         .capturePage()
         .then((image) => writeFileSync(toolsShot2, image.toPNG()))
+        .catch(() => {})
+    }
+    if (recShot && String(event.message ?? '').includes('SMOKE_REC_SHOT')) {
+      void created.webContents
+        .capturePage()
+        .then((image) => writeFileSync(recShot, image.toPNG()))
         .catch(() => {})
     }
     if (reviewShot && String(event.message ?? '').includes('SMOKE_REVIEW_SHOT')) {
@@ -510,7 +518,7 @@ async function run() {
   await sleep(1800)
 
   await win.webContents.executeJavaScript(
-    `window.__WS_MCP_STUB__ = ${JSON.stringify(stubMcpServer)}; window.__WS_AGENT_WORKSPACE__ = ${JSON.stringify(agentWorkspace)}; window.__WS_UPDATE_SOURCE__ = ${JSON.stringify(updateSourceDir)}; window.__WS_SMOKE_SHOT__ = ${Boolean(contextShot)}; window.__WS_SMOKE_CHECKPOINT_SHOT__ = ${Boolean(checkpointShot)}; window.__WS_SMOKE_ERROR_SHOT__ = ${Boolean(errorShot)}; window.__WS_SMOKE_TOOLS_SHOT__ = ${Boolean(toolsShot)}; window.__WS_SMOKE_TOOLS_SHOT2__ = ${Boolean(toolsShot2)}; window.__WS_SMOKE_REVIEW_SHOT__ = ${Boolean(reviewShot)}; window.__WS_SMOKE_REVIEW_THEME__ = ${JSON.stringify(reviewTheme ?? '')}; window.__WS_SMOKE_TURN_SHOT__ = ${Boolean(turnShot)}; window.__WS_SMOKE_TURN_THEME__ = ${JSON.stringify(turnTheme ?? '')}; window.__WS_SMOKE_WEEKLY_SHOT__ = ${Boolean(weeklyShot)}; window.__WS_SMOKE_WEEKLY_THEME__ = ${JSON.stringify(weeklyTheme ?? '')}; window.__WS_SMOKE_TRIAGE_SHOT__ = ${Boolean(triageShot)}; window.__WS_SMOKE_TRIAGE_THEME__ = ${JSON.stringify(triageTheme ?? '')}; window.__WS_SMOKE_HABIT_SHOT__ = ${Boolean(habitStatsShot)}; window.__WS_SMOKE_HABIT_THEME__ = ${JSON.stringify(habitStatsTheme ?? '')}`
+    `window.__WS_MCP_STUB__ = ${JSON.stringify(stubMcpServer)}; window.__WS_AGENT_WORKSPACE__ = ${JSON.stringify(agentWorkspace)}; window.__WS_UPDATE_SOURCE__ = ${JSON.stringify(updateSourceDir)}; window.__WS_SMOKE_SHOT__ = ${Boolean(contextShot)}; window.__WS_SMOKE_CHECKPOINT_SHOT__ = ${Boolean(checkpointShot)}; window.__WS_SMOKE_ERROR_SHOT__ = ${Boolean(errorShot)}; window.__WS_SMOKE_TOOLS_SHOT__ = ${Boolean(toolsShot)}; window.__WS_SMOKE_TOOLS_SHOT2__ = ${Boolean(toolsShot2)}; window.__WS_SMOKE_TOOLS_THEME__ = ${JSON.stringify(toolsTheme ?? '')}; window.__WS_SMOKE_REC_SHOT__ = ${Boolean(recShot)}; window.__WS_SMOKE_REVIEW_SHOT__ = ${Boolean(reviewShot)}; window.__WS_SMOKE_REVIEW_THEME__ = ${JSON.stringify(reviewTheme ?? '')}; window.__WS_SMOKE_TURN_SHOT__ = ${Boolean(turnShot)}; window.__WS_SMOKE_TURN_THEME__ = ${JSON.stringify(turnTheme ?? '')}; window.__WS_SMOKE_WEEKLY_SHOT__ = ${Boolean(weeklyShot)}; window.__WS_SMOKE_WEEKLY_THEME__ = ${JSON.stringify(weeklyTheme ?? '')}; window.__WS_SMOKE_TRIAGE_SHOT__ = ${Boolean(triageShot)}; window.__WS_SMOKE_TRIAGE_THEME__ = ${JSON.stringify(triageTheme ?? '')}; window.__WS_SMOKE_HABIT_SHOT__ = ${Boolean(habitStatsShot)}; window.__WS_SMOKE_HABIT_THEME__ = ${JSON.stringify(habitStatsTheme ?? '')}`
   )
   // Injected as a template literal: regex backslashes need double escaping.
   let results
@@ -3317,8 +3325,8 @@ async function run() {
     byText('.w1-provseg button', '自定义')?.click()
     await sleep(200)
     check(
-      '设置面板有 MCP 域权限',
-      settingsText.includes('MCP 数据权限') && all('.w1-modepair').length === 4,
+      '设置面板有数据桥分区',
+      settingsText.includes('数据桥') && all('.w1-modepair').length === 4,
       String(all('.w1-modepair').length)
     )
     await sleep(300)
@@ -3463,11 +3471,49 @@ async function run() {
     byText('.w1-settabs button', '能力中心')?.click()
     await waitFor(() => !!one('.w1-cap') && !!one('.w1-capnav'), 3000)
     check(
-      '设置里有能力中心三分区',
-      all('.w1-capnav button').length === 3 &&
+      '设置里有能力中心五分区',
+      all('.w1-capnav button').length === 5 &&
         (one('.w1-capscope')?.textContent ?? '').includes('应用私有'),
       one('.w1-capnav')?.textContent ?? 'missing'
     )
+    byText('.w1-capnav button', '推荐')?.click()
+    await waitFor(() => all('.w1-caprow.rec').length === 23, 4000)
+    check(
+      '推荐页展示精选 CLI 清单',
+      all('.w1-caprow.rec').length === 23 &&
+        (one('.w1-cap')?.textContent ?? '').includes('ripgrep') &&
+        (one('.w1-cap')?.textContent ?? '').includes('winget install --id'),
+      String(all('.w1-caprow.rec').length)
+    )
+    const recSearch = one('.w1-capsearch')
+    setValue(recSearch, 'ripgrep')
+    await sleep(250)
+    check(
+      '推荐页可按关键词过滤',
+      all('.w1-caprow.rec').length === 1 &&
+        (one('.w1-caprow.rec')?.textContent ?? '').includes('ripgrep'),
+      String(all('.w1-caprow.rec').length)
+    )
+    setValue(recSearch, '')
+    await sleep(200)
+    byText('.w1-capsort button', '系统')?.click()
+    await sleep(250)
+    check('推荐页可按分类过滤', all('.w1-caprow.rec').length === 4, String(all('.w1-caprow.rec').length))
+    byText('.w1-capsort button', '全部')?.click()
+    await sleep(200)
+    check(
+      '推荐页显示安装状态徽标',
+      all('.w1-caprow.rec .w1-capbadge').length === 23,
+      String(all('.w1-caprow.rec .w1-capbadge').length)
+    )
+    one('.w1-caprow.rec .w1-capmini[aria-label*="复制"]')?.click()
+    const recCopyToast = await waitFor(
+      () => (one('.w1-toast')?.textContent ?? '').includes('已复制 winget install'),
+      2000
+    )
+    check('推荐页可复制安装命令', recCopyToast, one('.w1-toast')?.textContent ?? 'missing')
+    byText('.w1-capnav button', '插件')?.click()
+    await sleep(250)
     check(
       '插件页有源管理与本机导入入口',
       (one('.w1-capsrcblock')?.textContent ?? '').includes('SOURCES') &&
@@ -3526,17 +3572,22 @@ async function run() {
     await sleep(300)
     const skillRow = byText('.w1-caprow', 'demo-skill')
     check('已安装列表显示私有插件', Boolean(skillRow), skillRow?.textContent ?? 'missing')
-    skillRow?.querySelector('.w1-setbtn')?.click()
+    // 启用开关只有一个入口：技能页
+    byText('.w1-capnav button', '技能')?.click()
+    await waitFor(() => Boolean(byText('.w1-caprow', 'demo-skill')), 3000)
+    byText('.w1-caprow', 'demo-skill')?.querySelector('.w1-setbtn')?.click()
     const skillEnabled = await waitFor(
       () => (byText('.w1-caprow', 'demo-skill')?.textContent ?? '').includes('已启用'),
       5000
     )
     const skillState = await window.ws.capability.skills.list()
     check(
-      '插件应用内启用并落库',
+      '技能页启用插件并落库',
       skillEnabled && skillState.length === 1 && skillState[0].enabled === true,
       JSON.stringify(skillState.map((item) => [item.name, item.enabled]))
     )
+    byText('.w1-capnav button', '插件')?.click()
+    await sleep(300)
 
     byText('.w1-caphead .w1-capmini', '本地导入')?.click()
     const localSkillReady = await waitFor(
@@ -3584,7 +3635,7 @@ async function run() {
       JSON.stringify(localList.map((item) => item.name))
     )
 
-    byText('.w1-capnav button', 'MCP 服务')?.click()
+    byText('.w1-capnav button', 'MCP')?.click()
     await sleep(300)
     check(
       '外部 MCP 说明包含 Codex Provider 会话',
@@ -3621,14 +3672,7 @@ async function run() {
       JSON.stringify(mcpState.map((server) => [server.name, server.enabled]))
     )
 
-    // 环境自检要 spawn 六次 --version，机器繁忙时返回慢；等它落盘再断言，不要立刻读 DOM
-    const envReady = await waitFor(() => all('.w1-capenvitem').length === 6, 15000)
-    const envItems = all('.w1-capenvitem')
-    check(
-      'MCP 环境自检显示本机命令',
-      envReady && (one('.w1-capenv')?.textContent ?? '').includes('node'),
-      String(envItems.length) + ' · ' + (one('.w1-capenv')?.textContent?.slice(0, 80) ?? 'missing')
-    )
+    // 环境自检搬到了内置工具页，随原生开关一起断言（见下方）
 
     byText('.w1-caphead .w1-capmini', '导出')?.click()
     const exportReady = await waitFor(
@@ -3895,7 +3939,7 @@ async function run() {
       ?.click()
     await waitFor(() => !byText('.w1-caprow', 'Codex Only'), 3000)
 
-    byText('.w1-capnav button', '工具面')?.click()
+    byText('.w1-capnav button', '插件')?.click()
     await sleep(250)
     // 插件源与更新检查：走主进程真实服务，不联网
     const pluginSourcesBefore = await window.ws.capability.pluginSources()
@@ -3935,7 +3979,7 @@ async function run() {
       JSON.stringify(detected)
     )
 
-    byText('.w1-capnav button', '技能 / 插件')?.click()
+    byText('.w1-capnav button', '插件')?.click()
     await sleep(200)
     const banner = await waitFor(() => Boolean(one('.w1-capupdate')), 3000)
     const applyButton = byText('.w1-capupdate .w1-capmini', '全部更新')
@@ -3983,16 +4027,15 @@ async function run() {
       JSON.stringify(updateOutcome.failed)
     )
 
-    // 上面的更新横幅断言切到了「技能 / 插件」页，这里切回来
-    byText('.w1-capnav button', '工具面')?.click()
+    // 数据桥与能力中心解耦：11 个数据工具在基础设置里断言
+    byText('.w1-settabs button', '基础')?.click()
     await waitFor(() => all('.w1-caprow.builtin').length === 11, 3000)
 
     check(
-      '内置工具目录展示 11 个数据工具',
+      '基础设置数据桥展示 11 个数据工具',
       all('.w1-caprow.builtin').length === 11 &&
-        (one('.w1-cap')?.textContent ?? '').includes('tasks_list') &&
-        (one('.w1-cap')?.textContent ?? '').includes('notes_create') &&
-        (one('.w1-cap')?.textContent ?? '').includes('CLI 原生工具'),
+        (one('.w1-setpane')?.textContent ?? '').includes('tasks_list') &&
+        (one('.w1-setpane')?.textContent ?? '').includes('notes_create'),
       String(all('.w1-caprow.builtin').length)
     )
 
@@ -4021,7 +4064,7 @@ async function run() {
       byText('.w1-caprow', 'notes_create')?.className ?? 'missing'
     )
 
-    // 工具面反馈：未启用的 Server 点 ☆、跨首选组的 ↑↓ 都要有可见说明，不能静默无反应
+    // MCP 页反馈：未启用的 Server 点 ☆、跨首选组的 ↑↓ 都要有可见说明，不能静默无反应
     await window.ws.capability.mcp.add({
       name: '未启用 MCP',
       transport: 'http',
@@ -4029,15 +4072,13 @@ async function run() {
       auth: 'headers',
       headers: {}
     })
-    // 工具面读的是面板挂载时的快照；切走再回来让它重新读库
-    byText('.w1-settabs button', '基础')?.click()
-    await sleep(150)
+    // 能力中心读的是面板挂载时的快照；从基础切回来让它重新读库
     byText('.w1-settabs button', '能力中心')?.click()
     await waitFor(() => !!one('.w1-cap'), 3000)
-    byText('.w1-capnav button', '工具面')?.click()
+    byText('.w1-capnav button', 'MCP')?.click()
     await waitFor(() => Boolean(byText('.w1-caprow', '未启用 MCP')), 3000)
 
-    // 工具面：按 Agent 切换原生开关，落库后进入下一次会话的注入参数
+    // 内置工具页：按 Agent 切换原生开关，落库后进入下一次会话的注入参数
     const surfaceInitial = await window.ws.capability.toolSurface()
     check(
       '工具面按 Agent 返回原生 / MCP / 技能 / 数据桥',
@@ -4051,6 +4092,25 @@ async function run() {
         mcp: surfaceInitial.claude.mcp.length,
         skills: surfaceInitial.claude.skills.length
       })
+    )
+    byText('.w1-capnav button', '内置工具')?.click()
+    await waitFor(() => Boolean(byText('.w1-caprow', '访问网络')), 3000)
+    // 环境自检要 spawn 六次 --version，机器繁忙时返回慢；等它落盘再断言，不要立刻读 DOM
+    const envReady = await waitFor(() => all('.w1-capenvitem').length === 6, 15000)
+    check(
+      '内置工具页环境自检显示本机命令',
+      envReady && (one('.w1-capenv')?.textContent ?? '').includes('node'),
+      String(all('.w1-capenvitem').length) +
+        ' · ' +
+        (one('.w1-capenv')?.textContent?.slice(0, 80) ?? 'missing')
+    )
+    const nativeText = one('.w1-cap')?.textContent ?? ''
+    check(
+      'Claude 原生目录覆盖问答技能计划场景',
+      nativeText.includes('交互问答') &&
+        nativeText.includes('技能加载') &&
+        nativeText.includes('计划模式'),
+      nativeText.slice(0, 120)
     )
     const claudeWebRow = byText('.w1-caprow', '访问网络')
     claudeWebRow?.querySelector('.w1-setbtn')?.click()
@@ -4067,7 +4127,9 @@ async function run() {
       byText('.w1-caprow', '访问网络')?.className ?? 'missing'
     )
 
-    // 首选：☆ → ★ 落库、置顶，并进入注入文本的「首选」分组
+    // 首选：MCP 页 ☆ → ★ 落库、置顶；注入预览在内置工具页
+    byText('.w1-capnav button', 'MCP')?.click()
+    await waitFor(() => Boolean(byText('.w1-caprow', 'HTTP MCP')), 3000)
     const httpRow = byText('.w1-caprow', 'HTTP MCP')
     httpRow?.querySelector('.w1-capprefbtn')?.click()
     const preferredSaved = await waitFor(async () => {
@@ -4076,19 +4138,25 @@ async function run() {
       return (
         bundle.claude.mcp.find((server) => server.name === 'HTTP MCP')?.preferred === true &&
         top?.name === 'HTTP MCP' &&
-        (httpRow?.querySelector('.w1-capprefbtn')?.textContent ?? '') === '★'
+        (byText('.w1-caprow', 'HTTP MCP')?.querySelector('.w1-capprefbtn')?.textContent ?? '') ===
+          '★'
       )
     }, 3000)
+    byText('.w1-capnav button', '内置工具')?.click()
+    const capPreviewReady = await waitFor(() => Boolean(one('.w1-capprompt')), 3000)
     const promptPreview = one('.w1-capprompt')?.textContent ?? ''
     check(
       '首选落库并置顶，注入文本单独成组',
       preferredSaved &&
+        capPreviewReady &&
         promptPreview.includes('首选：HTTP MCP') &&
         promptPreview.includes('CLI 原生工具'),
       promptPreview.slice(0, 160)
     )
 
-    // 用途说明：首选行出现输入框，失焦保存后同时进入注入预览
+    // 用途说明：MCP 页首选行出现输入框，失焦保存后进入内置工具页的注入预览
+    byText('.w1-capnav button', 'MCP')?.click()
+    await sleep(250)
     const findNoteInput = () =>
       [...document.querySelectorAll('.w1-capnoteedit input')].find((input) =>
         (input.closest('.w1-caprow')?.textContent ?? '').includes('HTTP MCP')
@@ -4114,16 +4182,17 @@ async function run() {
       noteSaved = await waitFor(async () => {
         const bundle = await window.ws.capability.toolSurface()
         const server = bundle.claude.mcp.find((item) => item.name === 'HTTP MCP')
-        const preview = one('.w1-capprompt')?.textContent ?? ''
-        return (
-          server?.note === '需要窗口截图时先调用' &&
-          preview.includes('用途：需要窗口截图时先调用')
-        )
+        return server?.note === '需要窗口截图时先调用'
       }, 2500)
     }
+    byText('.w1-capnav button', '内置工具')?.click()
+    const notePreview = await waitFor(
+      () => (one('.w1-capprompt')?.textContent ?? '').includes('用途：需要窗口截图时先调用'),
+      3000
+    )
     check(
       '首选用途说明落库并进入注入文本',
-      noteReady && noteSaved,
+      noteReady && noteSaved && notePreview,
       String(noteReady) +
         '/' +
         String(noteDraft) +
@@ -4132,6 +4201,8 @@ async function run() {
     )
 
     // 未启用：☆ 仍可点击，点击后说明原因（禁用按钮不会显示 title）
+    byText('.w1-capnav button', 'MCP')?.click()
+    await waitFor(() => Boolean(byText('.w1-caprow', '未启用 MCP')), 3000)
     const disabledRow = byText('.w1-caprow', '未启用 MCP')
     const disabledStar = disabledRow?.querySelector('.w1-capprefbtn')
     const starClickable =
@@ -4184,14 +4255,23 @@ async function run() {
       (server) => server.name === '未启用 MCP'
     )
     if (transientMcp) await window.ws.capability.mcp.remove(transientMcp.id)
+    // 面板快照还留着已删的 Server；重挂载刷新列表与工具面，再测 Codex 排序
+    byText('.w1-settabs button', '基础')?.click()
+    await sleep(150)
+    byText('.w1-settabs button', '能力中心')?.click()
+    await waitFor(() => !!one('.w1-cap'), 3000)
+    byText('.w1-capnav button', 'MCP')?.click()
+    await sleep(250)
 
     byText('.w1-capseg button', 'Codex')?.click()
-    await waitFor(() => Boolean(byText('.w1-caprow', 'Computer Use')), 2000)
+    await sleep(300)
     const mcpOrderBefore = (await window.ws.capability.toolSurface()).codex.mcp.map(
       (server) => server.name
     )
     const codexSurfaceMcp = all('.w1-caprow').find((row) =>
-      (row.textContent ?? '').includes('个工具')
+      [...row.querySelectorAll('.w1-capmini')].some(
+        (button) => button.textContent === '↓' && !button.disabled
+      )
     )
     const downButton = [...(codexSurfaceMcp?.querySelectorAll('.w1-capmini') ?? [])].find(
       (button) => button.textContent === '↓'
@@ -4207,11 +4287,21 @@ async function run() {
       (server) => server.name
     )
     check(
-      '工具面 MCP 可调整顺序',
+      'MCP 页可调整 Codex 工具顺序',
       mcpOrderChanged && mcpOrderAfter.length === mcpOrderBefore.length,
       mcpOrderBefore.join('|') + ' -> ' + mcpOrderAfter.join('|')
     )
 
+    byText('.w1-capnav button', '内置工具')?.click()
+    await waitFor(() => Boolean(byText('.w1-caprow', 'Computer Use')), 2000)
+    const alwaysOnRows = all('.w1-caprow.alwayson')
+    check(
+      'Codex 沙箱工具标常开且不给开关',
+      alwaysOnRows.length === 3 &&
+        alwaysOnRows.every((row) => !row.querySelector('.w1-setbtn')) &&
+        (one('.w1-cap')?.textContent ?? '').includes('read_file'),
+      String(alwaysOnRows.length)
+    )
     byText('.w1-caprow', 'Computer Use')?.querySelector('.w1-setbtn')?.click()
     const codexComputerOff = await waitFor(async () => {
       const bundle = await window.ws.capability.toolSurface()
@@ -4245,20 +4335,43 @@ async function run() {
       codexFirst ? codexFirst.name : 'missing'
     )
     if (window.__WS_SMOKE_TOOLS_SHOT__) {
-      // 截图看首选 ★ 与注入预览：切回 Claude 并滚到 MCP 区
+      // 第一张：MCP 页的首选 ★ 与用途说明；第二张：内置工具页的注入预览
+      const previousToolsTheme = document.documentElement.dataset.theme
+      const previousStoredToolsTheme = localStorage.getItem('workstation.theme')
+      if (window.__WS_SMOKE_TOOLS_THEME__ === 'light') {
+        document.documentElement.dataset.theme = 'light'
+        localStorage.setItem('workstation.theme', 'light')
+        await sleep(400)
+      }
+      byText('.w1-capnav button', 'MCP')?.click()
       byText('.w1-capseg button', 'Claude')?.click()
-      await waitFor(() => !one('.w1-setbtn[disabled]'), 3000)
+      await waitFor(() => Boolean(byText('.w1-caprow', 'HTTP MCP')), 3000)
       one('.w1-caphead .w1-capkicker')?.scrollIntoView({ block: 'start' })
       await sleep(500)
       console.log('SMOKE_TOOLS_SHOT')
       await sleep(1200)
-      // 第二张：滚到注入预览，确认 pre 排版与不溢出
       if (window.__WS_SMOKE_TOOLS_SHOT2__) {
+        byText('.w1-capnav button', '内置工具')?.click()
+        await waitFor(() => Boolean(one('.w1-capprompt')), 3000)
         one('.w1-capprompt')?.scrollIntoView({ block: 'center' })
         await sleep(500)
         console.log('SMOKE_TOOLS_SHOT2')
       }
+      if (window.__WS_SMOKE_REC_SHOT__) {
+        byText('.w1-capnav button', '推荐')?.click()
+        await waitFor(() => all('.w1-caprow.rec').length === 23, 4000)
+        await sleep(500)
+        console.log('SMOKE_REC_SHOT')
+        await sleep(900)
+      }
       await sleep(5000)
+      if (window.__WS_SMOKE_TOOLS_THEME__ === 'light') {
+        if (previousToolsTheme) document.documentElement.dataset.theme = previousToolsTheme
+        else document.documentElement.removeAttribute('data-theme')
+        if (previousStoredToolsTheme === null) localStorage.removeItem('workstation.theme')
+        else localStorage.setItem('workstation.theme', previousStoredToolsTheme)
+        await sleep(300)
+      }
     }
     byText('.w1-capseg button', 'Claude')?.click()
     await sleep(200)
@@ -4419,6 +4532,34 @@ async function run() {
       5000
     )
 
+    // Codex 的 request_user_input 走同一张问题卡，答案按问题 id 回写
+    const codexQuestionInput = one('#composer-input')
+    await waitFor(() => !one('.w1-typing'), 6000)
+    setValue(codexQuestionInput, '提问检查')
+    await sleep(80)
+    codexQuestionInput.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
+    )
+    const codexQuestionCard = await waitFor(
+      () => (one('.w1-question')?.textContent ?? '').includes('你喜欢猫还是狗？'),
+      5000
+    )
+    const codexQuestionOpt = all('.w1-question .w1-qopt').find((button) =>
+      (button.textContent ?? '').includes('狗')
+    )
+    codexQuestionOpt?.click()
+    await sleep(200)
+    byText('.w1-question button', '提交回答')?.click()
+    const codexQuestionDone = await waitFor(
+      () => !one('.w1-question') && (one('.w1-thread')?.textContent ?? '').includes('提问答案：狗'),
+      6000
+    )
+    check(
+      'Codex 提问卡可作答并回写',
+      codexQuestionCard && Boolean(codexQuestionOpt) && codexQuestionDone,
+      one('.w1-thread')?.textContent?.slice(-140) ?? 'missing'
+    )
+
     const codexMcpInput = one('#composer-input')
     await waitFor(() => !one('.w1-typing'), 6000)
     setValue(codexMcpInput, 'MCP 写入')
@@ -4481,9 +4622,10 @@ async function run() {
       new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
     )
     const codexSurfaceReply = await waitFor(
-      () => (one('.w1-thread')?.textContent ?? '').includes('工具面：'),
+      () => (one('.w1-thread')?.textContent ?? '').includes('工具面：') && !one('.w1-typing'),
       6000
     )
+    await sleep(200)
     const codexSurfaceText = all('.w1-amsg').at(-1)?.textContent ?? ''
     check(
       'Codex 工具面关闭项进入进程参数与优先级提示',

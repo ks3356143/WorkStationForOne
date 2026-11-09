@@ -1,24 +1,26 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import type {
-  EnvironmentCheckRecord,
+  AgentKind,
   ExternalMcpAuthMode,
   ExternalMcpCatalogEntry,
   ExternalMcpSaveInput,
   ExternalMcpServerRecord,
   ExternalMcpTargets,
   ExternalMcpUpdateInfo,
-  McpToolApproval
+  McpToolApproval,
+  ToolSurfaceMcpRecord
 } from '../../../../shared/ipc'
 import { friendlyMessage } from '../../lib/errors'
 import { replaceById } from '../../lib/collections'
 import {
-  envVersion,
   installedCatalogIds,
   keyPlaceholders,
   mcpStatus,
   mcpTarget,
   parseKeyValueLines
 } from '../../lib/capabilities'
+import { BeamLayer } from '../effects/BeamLayer'
+import { ToolNoteInput } from './ToolNoteInput'
 
 interface McpFormState {
   id?: string
@@ -71,15 +73,35 @@ function formFromServer(server: ExternalMcpServerRecord): McpFormState {
 
 interface McpTabProps {
   notify: (text: string) => void
+  agent: AgentKind
+  /** 当前 Agent 的工具面 MCP 行：★ / 用途 / 排序 */
+  surfaceMcp: ToolSurfaceMcpRecord[]
+  priorityBusy: string | null
+  onAgent: (agent: AgentKind) => void
+  onPreferred: (key: string, preferred: boolean) => void
+  onNote: (key: string, note: string) => void
+  onMove: (key: string, direction: 'up' | 'down') => void
+  /** Server 启停 / 信任 / 增删后刷新工具面快照 */
+  onSurfaceDirty: () => void
 }
 
-/** 「MCP 服务」页：自定义/目录 Server、JSON 导入导出、工具级权限与环境自检。 */
-export function McpTab({ notify }: McpTabProps) {
+const AGENT_LABELS: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex' }
+
+/** 「MCP」页：自定义/目录 Server、JSON 导入导出、工具级权限，以及按 Agent 的首选优先级。 */
+export function McpTab({
+  notify,
+  agent,
+  surfaceMcp,
+  priorityBusy,
+  onAgent,
+  onPreferred,
+  onNote,
+  onMove,
+  onSurfaceDirty
+}: McpTabProps) {
   const api = typeof window === 'undefined' ? undefined : window.ws?.capability
   const [mcp, setMcp] = useState<ExternalMcpServerRecord[]>([])
   const [catalog, setCatalog] = useState<ExternalMcpCatalogEntry[]>([])
-  const [environment, setEnvironment] = useState<EnvironmentCheckRecord[]>([])
-  const [envBusy, setEnvBusy] = useState(false)
   const [expandedTools, setExpandedTools] = useState<Record<string, boolean>>({})
   const [jsonMode, setJsonMode] = useState<'import' | 'export' | null>(null)
   const [jsonText, setJsonText] = useState('')
@@ -103,31 +125,12 @@ export function McpTab({ notify }: McpTabProps) {
       .catch((reason: unknown) => {
         if (alive) notify(friendlyMessage(reason, 'MCP 列表读取失败'))
       })
-    // 环境自检会 spawn 六次 --version，不能拖慢列表首屏
-    void api
-      .environment()
-      .then((list) => {
-        if (alive) setEnvironment(list)
-      })
-      .catch(() => {
-        if (alive) setEnvironment([])
-      })
     return () => {
       alive = false
     }
   }, [api, notify])
 
   const installedCatalog = useMemo(() => installedCatalogIds(mcp), [mcp])
-
-  const loadEnvironment = (force: boolean) => {
-    if (!api || envBusy) return
-    setEnvBusy(true)
-    void api
-      .environment(force)
-      .then(setEnvironment)
-      .catch((reason: unknown) => notify(friendlyMessage(reason, '环境检查失败')))
-      .finally(() => setEnvBusy(false))
-  }
 
   const toggleTools = (server: ExternalMcpServerRecord) => {
     setExpandedTools((current) => ({ ...current, [server.id]: !current[server.id] }))
@@ -186,6 +189,7 @@ export function McpTab({ notify }: McpTabProps) {
       .then(async (result) => {
         const next = await api.mcp.list()
         setMcp(next)
+        onSurfaceDirty()
         const firstError = result.errors[0]
         const parts = [
           `已导入 ${result.added.length} 个`,
@@ -221,6 +225,7 @@ export function McpTab({ notify }: McpTabProps) {
       .setEnabled(server.id, enable, enable && !server.trusted)
       .then((updated) => {
         setMcp((list) => replaceById(list, updated))
+        onSurfaceDirty()
         notify(enable ? `已启用 ${updated.name}` : `已停用 ${updated.name}`)
       })
       .catch((reason: unknown) => notify(friendlyMessage(reason, 'MCP 状态更新失败')))
@@ -262,6 +267,7 @@ export function McpTab({ notify }: McpTabProps) {
       .test(server.id)
       .then((updated) => {
         setMcp((list) => replaceById(list, updated))
+        onSurfaceDirty()
         if (updated.lastError) notify(`${updated.name} 测试失败：${updated.lastError}`)
         else notify(`${updated.name} 连接正常 · ${updated.toolNames.length} 个工具`)
       })
@@ -276,6 +282,7 @@ export function McpTab({ notify }: McpTabProps) {
       .add({ name: entry.name, transport: entry.transport, catalogId: entry.id })
       .then((created) => {
         setMcp((list) => [created, ...list])
+        onSurfaceDirty()
         notify(`已添加 ${created.name} · 启用前需确认信任`)
       })
       .catch((reason: unknown) => notify(friendlyMessage(reason, 'MCP 添加失败')))
@@ -310,6 +317,7 @@ export function McpTab({ notify }: McpTabProps) {
       .then((saved) => {
         setMcp((list) => [saved, ...list.filter((item) => item.id !== saved.id)])
         setForm(null)
+        onSurfaceDirty()
         notify(`${saved.name} 已保存 · 启用前需确认信任`)
         setUpdates((list) => list.filter((item) => item.id !== saved.id))
       })
@@ -330,6 +338,7 @@ export function McpTab({ notify }: McpTabProps) {
       .then(() => {
         setMcp((list) => list.filter((item) => item.id !== server.id))
         setUpdates((list) => list.filter((item) => item.id !== server.id))
+        onSurfaceDirty()
         notify(`已移除 ${server.name}`)
       })
       .catch((reason: unknown) => notify(friendlyMessage(reason, 'MCP 移除失败')))
@@ -357,6 +366,7 @@ export function McpTab({ notify }: McpTabProps) {
       .applyUpdate(server.id)
       .then((updated) => {
         setMcp((list) => replaceById(list, updated))
+        onSurfaceDirty()
         setUpdates((list) =>
           list.map((item) =>
             item.id === updated.id
@@ -378,7 +388,21 @@ export function McpTab({ notify }: McpTabProps) {
     <section className="w1-capsection" aria-label="MCP 服务">
       <div className="w1-caphead">
         <span className="w1-capkicker">// EXTERNAL MCP</span>
+        <span className="w1-capnote">★ 首选按 Agent 生效，优先于 CLI 原生工具</span>
         <div className="w1-capactions">
+          <div className="w1-capseg" role="group" aria-label="切换 Agent">
+            {(['claude', 'codex'] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                className={agent === value ? 'on' : ''}
+                aria-pressed={agent === value}
+                onClick={() => onAgent(value)}
+              >
+                {AGENT_LABELS[value]}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
             className="w1-capmini"
@@ -401,30 +425,6 @@ export function McpTab({ notify }: McpTabProps) {
             自定义 Server
           </button>
         </div>
-      </div>
-
-      <div className="w1-capenv" role="group" aria-label="MCP 环境自检">
-        <span className="w1-capenvlabel">// 环境</span>
-        {environment.map((item) => (
-          <span
-            className={`w1-capenvitem${item.available ? '' : ' missing'}`}
-            key={item.id}
-            title={`${item.command}${item.path ? ` · ${item.path}` : ''}${
-              item.version ? `\n${item.version}` : ''
-            }`}
-          >
-            <b>{item.command}</b>
-            {item.available ? envVersion(item.version, item.command) : '缺失'}
-          </span>
-        ))}
-        <button
-          type="button"
-          className="w1-capmini"
-          disabled={envBusy}
-          onClick={() => loadEnvironment(true)}
-        >
-          {envBusy ? '检查中…' : '刷新'}
-        </button>
       </div>
 
       {jsonMode ? (
@@ -626,14 +626,19 @@ export function McpTab({ notify }: McpTabProps) {
             {mcp.map((server) => {
               const update = updates.find((item) => item.id === server.id)
               const toolsOpen = Boolean(expandedTools[server.id])
+              const key = `mcp:${server.id}`
+              const surfaceItem = surfaceMcp.find((item) => item.id === key)
+              const surfaceIndex = surfaceMcp.findIndex((item) => item.id === key)
               return (
                 <Fragment key={server.id}>
                   <div className="w1-caprow">
+                    {surfaceItem?.preferred ? <BeamLayer /> : null}
                     <span className="w1-capglyph">MC</span>
                     <span className="w1-capcopy">
                       <b>
                         {server.name}
                         <i className="w1-capver">{server.transport}</i>
+                        {surfaceItem?.preferred ? <i className="w1-capprefer">首选</i> : null}
                       </b>
                       <p>{mcpTarget(server) || server.description}</p>
                       <span className="w1-captags">
@@ -683,6 +688,59 @@ export function McpTab({ notify }: McpTabProps) {
                       </span>
                     </span>
                     <span className="w1-capactions">
+                      {surfaceItem ? (
+                        <>
+                          <button
+                            type="button"
+                            className={`w1-capprefbtn${surfaceItem.preferred ? ' on' : ''}${surfaceItem.enabled ? '' : ' muted'}`}
+                            disabled={priorityBusy === `prefer:${key}`}
+                            aria-disabled={!surfaceItem.enabled}
+                            aria-pressed={surfaceItem.preferred}
+                            aria-label={`${server.name} ${surfaceItem.preferred ? '取消首选' : '设为首选'}`}
+                            title={
+                              surfaceItem.enabled
+                                ? '首选：能做同一件事时先调用它，不改用 CLI 原生工具'
+                                : '先启用并信任这个 Server 才能设为首选'
+                            }
+                            onClick={() => onPreferred(key, !surfaceItem.preferred)}
+                          >
+                            {surfaceItem.preferred ? '★' : '☆'}
+                          </button>
+                          <button
+                            type="button"
+                            className="w1-capmini"
+                            disabled={surfaceIndex === 0 || priorityBusy === `move:${key}`}
+                            aria-label={`${server.name} 上移`}
+                            title={
+                              surfaceIndex > 0 &&
+                              surfaceItem.preferred !== surfaceMcp[surfaceIndex - 1]?.preferred
+                                ? '首选分组固定置顶；先取消 ★ 再和其它项换位'
+                                : undefined
+                            }
+                            onClick={() => onMove(key, 'up')}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            className="w1-capmini"
+                            disabled={
+                              surfaceIndex === surfaceMcp.length - 1 ||
+                              priorityBusy === `move:${key}`
+                            }
+                            aria-label={`${server.name} 下移`}
+                            title={
+                              surfaceIndex < surfaceMcp.length - 1 &&
+                              surfaceItem.preferred !== surfaceMcp[surfaceIndex + 1]?.preferred
+                                ? '首选分组固定置顶；先取消 ★ 再和其它项换位'
+                                : undefined
+                            }
+                            onClick={() => onMove(key, 'down')}
+                          >
+                            ↓
+                          </button>
+                        </>
+                      ) : null}
                       <button
                         type="button"
                         className={`w1-setbtn${server.enabled ? ' on' : ''}`}
@@ -762,6 +820,13 @@ export function McpTab({ notify }: McpTabProps) {
                         {confirmKey === `mcp:${server.id}` ? '确认移除' : '移除'}
                       </button>
                     </span>
+                    {surfaceItem?.preferred && surfaceItem.enabled ? (
+                      <ToolNoteInput
+                        value={surfaceItem.note}
+                        disabled={priorityBusy === `note:${key}`}
+                        onSave={(note) => onNote(key, note)}
+                      />
+                    ) : null}
                   </div>
                   {toolsOpen ? (
                     <div className="w1-captoolpanel">

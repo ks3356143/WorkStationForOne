@@ -383,6 +383,38 @@ function runAppServer() {
         })
         return
       }
+      if (prompt.includes('提问检查')) {
+        emit({
+          id: 9101,
+          method: 'item/tool/requestUserInput',
+          params: {
+            threadId,
+            turnId: `turn-${turnSeq}`,
+            itemId: 'question_1',
+            isBlocking: true,
+            autoResolutionMs: null,
+            questions: [
+              {
+                id: 'q1',
+                header: '宠物',
+                question: '你喜欢猫还是狗？',
+                isOther: true,
+                isSecret: false,
+                options: [
+                  { label: '猫', description: '独立' },
+                  { label: '狗', description: '粘人' }
+                ]
+              }
+            ]
+          }
+        })
+        approval = (result) => {
+          approval = null
+          const answer = result.answers?.q1?.answers?.[0] ?? '无回答'
+          finishTurn(`提问答案：${answer}`)
+        }
+        return
+      }
       if (prompt.includes('额外权限')) {
         askPermissions()
         return

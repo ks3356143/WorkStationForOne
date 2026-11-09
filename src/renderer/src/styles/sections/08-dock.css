@@ -1264,6 +1264,12 @@
   margin-top: 12px;
 }
 
+.w1-qhint {
+  margin: 10px 0 0;
+  color: var(--wn-fg);
+  font: 11.5px / 1.6 var(--mono);
+}
+
 .w1-diff {
   display: flex;
   flex-direction: column;

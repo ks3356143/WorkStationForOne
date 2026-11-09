@@ -1,5 +1,6 @@
 import { dialog, ipcMain, shell } from 'electron'
 import type { CapabilityCenter } from '../capabilities'
+import { scanRecommended } from '../capabilities/recommend'
 import type { AuditLog } from '../db/audit'
 import type { ExternalMcpSaveInput, McpToolApproval } from '../../shared/ipc'
 import { EXTERNAL_MCP_TARGETS, IPC_CHANNELS } from '../../shared/ipc'
@@ -125,6 +126,8 @@ export function registerCapabilityHandlers(center: CapabilityCenter, audit?: Aud
   ipcMain.handle(IPC.capabilityEnvironment, (_event, force: unknown) =>
     center.environment(force === true)
   )
+
+  ipcMain.handle(IPC.capabilityCliRecommend, () => scanRecommended(process.env.PATH ?? ''))
 
   ipcMain.handle(IPC.capabilitySkillsList, () => center.plugins.list())
 

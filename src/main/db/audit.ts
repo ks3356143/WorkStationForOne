@@ -17,6 +17,7 @@ export type AuditAction =
   | 'write'
   | 'approve'
   | 'deny'
+  | 'fail'
   | 'settings'
 
 export interface AuditEntry {

@@ -32,6 +32,33 @@ describe('CLI 原生工具目录', () => {
   })
 })
 
+describe('原生工具目录覆盖（0.75.0）', () => {
+  it('Claude 目录补齐代码智能、任务管理、问答、技能与计划工具', () => {
+    expect(claudeDisabledTools(['file-read'])).toEqual(
+      expect.arrayContaining(['Read', 'Grep', 'Glob', 'LS', 'LSP', 'NotebookRead'])
+    )
+    expect(claudeDisabledTools(['task'])).toEqual(
+      expect.arrayContaining(['Task', 'TaskStop', 'AgentOutputTool'])
+    )
+    expect(claudeDisabledTools(['todo'])).toEqual(
+      expect.arrayContaining(['TodoWrite', 'TaskCreate', 'TaskGet', 'TaskUpdate', 'TaskList'])
+    )
+    expect(claudeDisabledTools(['question'])).toEqual(['AskUserQuestion'])
+    expect(claudeDisabledTools(['skill'])).toEqual(['Skill'])
+    expect(claudeDisabledTools(['plan'])).toEqual(['EnterPlanMode', 'ExitPlanMode'])
+  })
+
+  it('Codex 沙箱内自动执行的工具标常开，不产生进程参数与拒绝列表', () => {
+    const alwaysOn = CODEX_NATIVE_TOOLS.filter((group) => group.alwaysOn)
+    expect(alwaysOn.map((group) => group.id)).toEqual(
+      expect.arrayContaining(['file-read', 'plan', 'image'])
+    )
+    expect(alwaysOn).toHaveLength(3)
+    expect(codexFlags(['file-read', 'plan', 'image'])).toEqual([])
+    expect(codexDeniedTools(['file-read', 'plan', 'image'])).toEqual([])
+  })
+})
+
 describe('工具面拒绝文案', () => {
   it('命中关闭项时给出可读原因，不误伤数据桥工具', () => {
     expect(toolSurfaceDenial('WebSearch', ['WebFetch', 'WebSearch'])).toContain('WebSearch')

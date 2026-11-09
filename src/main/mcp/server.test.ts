@@ -241,6 +241,40 @@ describe('MCP HTTP 桥', () => {
     expect(missingBody.result.isError).toBe(true)
   })
 
+  it('写入事务失败时审计记 fail 而不是 write', async () => {
+    const source = data()
+    source.audit.recordStrict = vi.fn(() => {
+      throw new Error('audit down')
+    })
+    bridge = new McpBridge(source, 'test', {
+      mode: (domain) => (domain === 'task' ? 'write' : 'read')
+    })
+    await bridge.start()
+    const endpoint = bridge.issue('s-fail')
+    if (!endpoint) throw new Error('没有 issue token')
+
+    const call = await rpc(endpoint.url, endpoint.token, {
+      jsonrpc: '2.0',
+      id: 20,
+      method: 'tools/call',
+      params: {
+        name: 'tasks_create',
+        arguments: { title: '失败写入', idempotency_key: 'kf' }
+      }
+    })
+    const body = (await call.json()) as {
+      result: { isError?: boolean; content: { text: string }[] }
+    }
+    expect(body.result.isError).toBe(true)
+    expect(body.result.content[0].text).toBe('写入失败，事务已回滚')
+    expect(source.audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ domain: 'mcp', action: 'fail', detail: 'transaction_failed' })
+    )
+    expect(source.audit.record).not.toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'write' })
+    )
+  })
+
   it('询问模式先等用户决定，拒绝时不执行写入', async () => {
     const source = data()
     const create = vi.fn(source.tasks.create)

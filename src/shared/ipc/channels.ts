@@ -111,6 +111,7 @@ export const IPC_CHANNELS = {
   capabilityMcpImport: 'capability:mcp-import',
   capabilityMcpExport: 'capability:mcp-export',
   capabilityEnvironment: 'capability:environment',
+  capabilityCliRecommend: 'capability:cli-recommend',
   capabilityMcpCheckUpdates: 'capability:mcp-check-updates',
   capabilityMcpApplyUpdate: 'capability:mcp-apply-update',
   capabilityPluginSources: 'capability:plugin-sources',

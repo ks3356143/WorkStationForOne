@@ -62,7 +62,8 @@ export class ToolSurfaceService {
       .map((plugin) => ({
         id: `skill:${plugin.id}`,
         name: plugin.name,
-        enabled: plugin.enabled && plugin.trusted,
+        // 信任是 Claude 侧 hooks / MCP 的门；Codex 启停本身已写 config.toml 并同步 skill 副本
+        enabled: plugin.enabled && (agent === 'codex' || plugin.trusted),
         preferred: preferred.has(`skill:${plugin.id}`),
         note: notes.get(`skill:${plugin.id}`) ?? '',
         sortOrder: order.get(`skill:${plugin.id}`)
@@ -75,8 +76,9 @@ export class ToolSurfaceService {
         id: group.id,
         name: group.name,
         description: group.description,
-        enabled: !disabled.has(group.id),
-        ...(group.warning ? { warning: group.warning } : {})
+        enabled: group.alwaysOn === true ? true : !disabled.has(group.id),
+        ...(group.warning ? { warning: group.warning } : {}),
+        ...(group.alwaysOn ? { alwaysOn: true } : {})
       })),
       mcp: mcp.map((server) => ({
         id: server.id,
@@ -98,7 +100,9 @@ export class ToolSurfaceService {
   }
 
   setNative(agent: AgentKind, id: string, enabled: boolean): ToolSurfaceBundle {
-    if (!nativeTools(agent).some((group) => group.id === id)) throw new Error('原生工具不存在')
+    const group = nativeTools(agent).find((item) => item.id === id)
+    if (!group) throw new Error('原生工具不存在')
+    if (group.alwaysOn) throw new Error('常开工具不能关闭')
     this.prefs.setNative(agent, id, enabled)
     return this.bundle()
   }

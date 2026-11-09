@@ -15,6 +15,7 @@ export function QuestionCard({ request, onResolve }: QuestionCardProps) {
   const [otherText, setOtherText] = useState<Record<number, string>>({})
   const [preview, setPreview] = useState<{ index: number; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
+  const [waitedLong, setWaitedLong] = useState(false)
 
   // 新问题到达时 reset；与 ToolApprovalCard 一样，key 不变时也要解锁按钮
   // biome-ignore lint/correctness/useExhaustiveDependencies: request 只作身份触发
@@ -24,6 +25,9 @@ export function QuestionCard({ request, onResolve }: QuestionCardProps) {
     setOtherText({})
     setPreview(null)
     setBusy(false)
+    setWaitedLong(false)
+    const timer = window.setTimeout(() => setWaitedLong(true), 60_000)
+    return () => window.clearTimeout(timer)
   }, [request])
 
   const answers = useMemo(() => {
@@ -161,6 +165,11 @@ export function QuestionCard({ request, onResolve }: QuestionCardProps) {
         ))}
       </div>
 
+      {waitedLong ? (
+        <p className="w1-qhint" role="status">
+          已等待超过 1 分钟：不回答时这一轮会一直等待；可以「拒绝回答」结束。
+        </p>
+      ) : null}
       <div className="w1-qacts">
         <button
           className="w1-pb"

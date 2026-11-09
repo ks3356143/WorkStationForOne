@@ -15,6 +15,8 @@ export interface ToolSurfaceNativeRecord {
   description: string
   enabled: boolean
   warning?: string
+  /** CLI 未提供关闭手段：只展示，不给开关 */
+  alwaysOn?: boolean
 }
 
 export interface ToolSurfaceMcpRecord {
@@ -324,6 +326,8 @@ export interface CapabilityApi {
   /** 首选工具的使用场景说明；空字符串表示清空 */
   setToolNote: (agent: AgentKind, key: string, note: string) => Promise<ToolSurfaceBundle>
   environment: (force?: boolean) => Promise<EnvironmentCheckRecord[]>
+  /** 推荐 CLI 在本机 PATH 的安装状态；只读扫描，不 spawn、不联网 */
+  cliRecommend: () => Promise<Record<string, boolean>>
   skills: SkillApi
   mcp: ExternalMcpApi
   pluginSources: () => Promise<PluginSourceRecord[]>

@@ -46,6 +46,7 @@ function run(
     developerInstructions?: string
     autoApprove?: (toolName: string) => 'session' | 'workspace' | null
     onPermission?: (handle: ReturnType<typeof startCodexAppServerRun>) => void
+    onQuestion?: (handle: ReturnType<typeof startCodexAppServerRun>) => void
   } = {}
 ) {
   const events: AgentRunEvent[] = []
@@ -71,6 +72,7 @@ function run(
       onEvent: (event) => {
         events.push(event)
         if (event.kind === 'permission') options.onPermission?.(handle)
+        if (event.kind === 'question') options.onQuestion?.(handle)
       },
       onExit: resolve
     })
@@ -512,6 +514,50 @@ describe('startCodexAppServerRun · stub 链路', () => {
     })
     expect(streamText(events)).toBe('已拒绝写入。')
     expect(events).toContainEqual({ kind: 'result', ok: true })
+  })
+
+  it('request_user_input 发问题卡，答案按 Codex schema 回写', async () => {
+    let answered = false
+    const { events, done } = run('提问检查', {
+      onQuestion: (active) => {
+        const event = events.find((entry) => entry.kind === 'question')
+        if (event?.kind !== 'question') return
+        expect(event.request.questions[0]).toMatchObject({
+          question: '你喜欢猫还是狗？',
+          header: '宠物'
+        })
+        expect(event.request.questions[0]?.options.map((option) => option.label)).toEqual([
+          '猫',
+          '狗'
+        ])
+        expect(active.respondQuestion(event.request.requestId, { '你喜欢猫还是狗？': '狗' })).toBe(
+          true
+        )
+        expect(active.respondQuestion('missing-question', {})).toBe(false)
+        answered = true
+      }
+    })
+    const exit = await done
+
+    expect(exit).toMatchObject({ code: 0, cancelled: false })
+    expect(answered).toBe(true)
+    expect(streamText(events)).toBe('提问答案：狗')
+    expect(events).toContainEqual({ kind: 'result', ok: true })
+  })
+
+  it('拒绝回答回空 answers，回合继续', async () => {
+    const { events, done } = run('提问检查', {
+      onQuestion: (active) => {
+        const event = events.find((entry) => entry.kind === 'question')
+        if (event?.kind === 'question') {
+          expect(active.respondQuestion(event.request.requestId, undefined, true)).toBe(true)
+        }
+      }
+    })
+    const exit = await done
+
+    expect(exit).toMatchObject({ code: 0, cancelled: false })
+    expect(streamText(events)).toBe('提问答案：无回答')
   })
 
   it('文件改动审批把目标路径带进卡片，允许后继续', async () => {

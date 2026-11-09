@@ -11,6 +11,7 @@ function apply(event: AgentRunEvent, sessionId: string): void {
   switch (event.kind) {
     case 'init':
       if (event.sessionId) store.setAgentResume(sessionId, event.sessionId)
+      if (event.model) store.setAgentRunModel(sessionId, event.model)
       break
     case 'turn':
       store.setAgentTurnId(sessionId, event.turnId)

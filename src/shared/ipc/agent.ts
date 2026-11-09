@@ -49,6 +49,8 @@ export interface AgentMessageRecord {
   turnId?: string
   /** 产生这条助手消息的应用运行 id，用于匹配回合检查点 */
   runId?: string
+  /** 产生这条回复的真实模型名；旧消息为空时渲染层回退默认标签 */
+  model?: string
   /** app = 应用内产生；import = 从本机 CLI JSONL 只读导入 */
   origin?: 'app' | 'import'
   /** 用户 @ 附加的工作区相对路径；只存路径，文件内容不落库 */

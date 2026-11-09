@@ -1,6 +1,10 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import type { AgentPermissionRequest, AgentRunEvent } from '../../shared/agent-stream'
+import type {
+  AgentPermissionRequest,
+  AgentQuestion,
+  AgentRunEvent
+} from '../../shared/agent-stream'
 import type { CodexMcpRuntime } from '../capabilities/codex-mcp'
 import { isReadOnlyMcpTool } from '../mcp/tools'
 import type { McpEndpoint } from '../mcp/server'
@@ -102,12 +106,60 @@ export interface CodexAppServerHandle {
   sessionId: string
   cancel: () => void
   respondPermission: (requestId: string, behavior: 'allow' | 'deny', message?: string) => boolean
+  respondQuestion: (
+    requestId: string,
+    answers: Record<string, string> | undefined,
+    deny?: boolean
+  ) => boolean
 }
 
 interface PendingApproval {
   id: string | number
   method: string
   params: Record<string, unknown>
+}
+
+interface PendingQuestion {
+  id: string | number
+  /** Codex 问题 id 与问题文本；回写 answers 以问题 id 为键 */
+  questions: Array<{ id: string; question: string }>
+}
+
+const MAX_CODEX_QUESTIONS = 4
+
+/** item/tool/requestUserInput → 应用的问题卡结构；形状不对返回 null（调用方回空答案）。 */
+function parseCodexQuestions(
+  params: Record<string, unknown>
+): { questions: AgentQuestion[]; ids: Array<{ id: string; question: string }> } | null {
+  const raw = params.questions
+  if (!Array.isArray(raw) || raw.length === 0) return null
+  const questions: AgentQuestion[] = []
+  const ids: Array<{ id: string; question: string }> = []
+  for (const entry of raw.slice(0, MAX_CODEX_QUESTIONS)) {
+    const source = asRecord(entry) ?? {}
+    const question = asString(source.question)?.trim()
+    const id = asString(source.id)?.trim()
+    if (!question || !id) return null
+    const options = Array.isArray(source.options)
+      ? source.options
+          .map((option) => asRecord(option) ?? {})
+          .map((option) => ({
+            label: asString(option.label)?.trim() ?? '',
+            ...(asString(option.description)?.trim()
+              ? { description: asString(option.description)?.trim() ?? '' }
+              : {})
+          }))
+          .filter((option) => option.label)
+      : []
+    questions.push({
+      question,
+      header: asString(source.header)?.trim().slice(0, 12) || '问题',
+      options,
+      multiSelect: false
+    })
+    ids.push({ id, question })
+  }
+  return questions.length > 0 ? { questions, ids } : null
 }
 
 function approvalRequest(
@@ -210,12 +262,18 @@ export function startCodexAppServerRun(options: CodexAppServerRunOptions): Codex
 
   const parser = createCodexAppServerParser()
   const pendingApprovals = new Map<string, PendingApproval>()
+  const pendingQuestions = new Map<string, PendingQuestion>()
   const requestMethods = new Map<number, string>()
 
   if (!cli) {
     options.onEvent({ kind: 'error', message: '未找到 Codex CLI，请先安装并登录 codex' })
     queueMicrotask(() => options.onExit({ code: null, stderr: '', cancelled: false }))
-    return { sessionId, cancel: () => {}, respondPermission: () => false }
+    return {
+      sessionId,
+      cancel: () => {},
+      respondPermission: () => false,
+      respondQuestion: () => false
+    }
   }
 
   try {
@@ -227,7 +285,12 @@ export function startCodexAppServerRun(options: CodexAppServerRunOptions): Codex
     const message = error instanceof Error ? error.message : String(error)
     options.onEvent({ kind: 'error', message: `写入 Codex Provider 配置失败：${message}` })
     queueMicrotask(() => options.onExit({ code: null, stderr: '', cancelled: false }))
-    return { sessionId, cancel: () => {}, respondPermission: () => false }
+    return {
+      sessionId,
+      cancel: () => {},
+      respondPermission: () => false,
+      respondQuestion: () => false
+    }
   }
 
   const child: ChildProcessWithoutNullStreams = spawn(
@@ -273,6 +336,7 @@ export function startCodexAppServerRun(options: CodexAppServerRunOptions): Codex
     clearTimeout(timer)
     flush('', true)
     pendingApprovals.clear()
+    pendingQuestions.clear()
     options.onExit({ code, stderr, cancelled })
   }
 
@@ -406,7 +470,21 @@ export function startCodexAppServerRun(options: CodexAppServerRunOptions): Codex
     }
 
     if (method === 'item/tool/requestUserInput') {
-      send({ id, result: { answers: {} } })
+      const parsed = parseCodexQuestions(params)
+      if (!parsed) {
+        send({ id, result: { answers: {} } })
+        return
+      }
+      const requestId = String(id)
+      pendingQuestions.set(requestId, { id, questions: parsed.ids })
+      options.onEvent({
+        kind: 'question',
+        request: {
+          requestId,
+          toolUseId: asString(params.itemId) ?? '',
+          questions: parsed.questions
+        }
+      })
       return
     }
     // 不认识的宿主请求不猜测回应方式，明确拒绝而不是私自放行。
@@ -595,6 +673,25 @@ export function startCodexAppServerRun(options: CodexAppServerRunOptions): Codex
       if (!pending || settled) return false
       pendingApprovals.delete(requestId)
       return respondApproval(pending.id, pending.method, pending.params, behavior === 'allow')
+    },
+    respondQuestion: (requestId, answers, deny = false) => {
+      const pending = pendingQuestions.get(requestId)
+      if (!pending || settled) return false
+      const scoped: Record<string, { answers: string[] }> = {}
+      let complete = !deny && Boolean(answers)
+      if (complete) {
+        for (const question of pending.questions) {
+          const answer = answers?.[question.question]?.trim()
+          if (!answer) {
+            complete = false
+            break
+          }
+          scoped[question.id] = { answers: [answer] }
+        }
+      }
+      const ok = send({ id: pending.id, result: { answers: complete ? scoped : {} } })
+      if (ok) pendingQuestions.delete(requestId)
+      return ok
     }
   }
 }

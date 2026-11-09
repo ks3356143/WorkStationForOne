@@ -8,14 +8,16 @@ export interface NativeToolGroup {
   tools: string[]
   /** 关闭后的影响提示 */
   warning?: string
+  /** CLI 未提供关闭手段（沙箱内自动执行）：只展示，不给开关 */
+  alwaysOn?: boolean
 }
 
 export const CLAUDE_NATIVE_TOOLS: NativeToolGroup[] = [
   {
     id: 'file-read',
     name: '读取文件',
-    description: 'Read / Grep / Glob / LS',
-    tools: ['Read', 'Grep', 'Glob', 'LS']
+    description: 'Read / Grep / Glob / LS / LSP / NotebookRead',
+    tools: ['Read', 'Grep', 'Glob', 'LS', 'LSP', 'NotebookRead']
   },
   {
     id: 'file-write',
@@ -37,11 +39,64 @@ export const CLAUDE_NATIVE_TOOLS: NativeToolGroup[] = [
     tools: ['WebFetch', 'WebSearch'],
     warning: '关闭后模型无法联网抓取或搜索。'
   },
-  { id: 'task', name: '子任务', description: 'Task', tools: ['Task'] },
-  { id: 'todo', name: '待办清单', description: 'TodoWrite', tools: ['TodoWrite'] }
+  {
+    id: 'task',
+    name: '子任务',
+    description: 'Task / TaskStop / AgentOutputTool',
+    tools: ['Task', 'TaskStop', 'AgentOutputTool']
+  },
+  {
+    id: 'todo',
+    name: '待办清单',
+    description: 'TodoWrite / TaskCreate / TaskGet / TaskUpdate / TaskList',
+    tools: ['TodoWrite', 'TaskCreate', 'TaskGet', 'TaskUpdate', 'TaskList']
+  },
+  {
+    id: 'question',
+    name: '交互问答',
+    description: 'AskUserQuestion',
+    tools: ['AskUserQuestion'],
+    warning: '关闭后模型不再弹出交互问题卡。'
+  },
+  {
+    id: 'skill',
+    name: '技能加载',
+    description: 'Skill',
+    tools: ['Skill'],
+    warning: '关闭后模型不能调用已安装的技能。'
+  },
+  {
+    id: 'tool-search',
+    name: '工具检索',
+    description: 'ToolSearch · CLI 内部选择器',
+    tools: ['ToolSearch'],
+    alwaysOn: true
+  },
+  {
+    id: 'plan',
+    name: '计划模式',
+    description: 'EnterPlanMode / ExitPlanMode',
+    tools: ['EnterPlanMode', 'ExitPlanMode'],
+    warning: '关闭后模型不能自行进入计划模式；会话级计划开关不受影响。'
+  }
 ]
 
 export const CODEX_NATIVE_TOOLS: NativeToolGroup[] = [
+  {
+    id: 'shell',
+    name: '执行命令',
+    description: 'Shell',
+    tools: ['Shell'],
+    warning: '关闭后 Codex 无法执行命令；仍可对话与读取文件。'
+  },
+  { id: 'file-write', name: '修改文件', description: 'Patch / fileChange', tools: ['Patch'] },
+  {
+    id: 'file-read',
+    name: '读取文件',
+    description: 'read_file · 沙箱内自动执行，CLI 未提供关闭参数',
+    tools: [],
+    alwaysOn: true
+  },
   {
     id: 'web',
     name: '网络搜索',
@@ -63,13 +118,19 @@ export const CODEX_NATIVE_TOOLS: NativeToolGroup[] = [
     tools: ['BrowserUse'],
     warning: '关闭后 Codex 不能操作浏览器。'
   },
-  { id: 'file-write', name: '修改文件', description: 'Patch / fileChange', tools: ['Patch'] },
   {
-    id: 'shell',
-    name: '执行命令',
-    description: 'Shell',
-    tools: ['Shell'],
-    warning: '关闭后 Codex 无法执行命令；仍可对话与读取文件。'
+    id: 'plan',
+    name: '计划更新',
+    description: 'update_plan · CLI 未提供关闭参数',
+    tools: [],
+    alwaysOn: true
+  },
+  {
+    id: 'image',
+    name: '查看图片',
+    description: 'view_image · CLI 未提供关闭参数',
+    tools: [],
+    alwaysOn: true
   }
 ]
 

@@ -43,6 +43,34 @@ function handle(message) {
     })
     return
   }
+  if (message?.method === 'tools/call') {
+    const name = message.params?.name
+    if (name === 'echo') {
+      const text = JSON.stringify(message.params?.arguments ?? {})
+      send({
+        jsonrpc: '2.0',
+        id: message.id,
+        result: { content: [{ type: 'text', text }] }
+      })
+      return
+    }
+    if (name === 'stub_status') {
+      send({
+        jsonrpc: '2.0',
+        id: message.id,
+        result: {
+          content: [{ type: 'text', text: JSON.stringify({ ok: true, server: 'stub-mcp' }) }]
+        }
+      })
+      return
+    }
+    send({
+      jsonrpc: '2.0',
+      id: message.id,
+      error: { code: -32602, message: `unknown tool: ${String(name)}` }
+    })
+    return
+  }
   if (message?.id !== undefined) {
     send({
       jsonrpc: '2.0',

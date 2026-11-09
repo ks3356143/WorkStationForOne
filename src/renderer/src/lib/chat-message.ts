@@ -13,6 +13,7 @@ export function toChatMessage(record: AgentMessageRecord): ChatMessage {
     ...(record.origin === 'import' ? { imported: true } : {}),
     ...(record.turnId ? { turnId: record.turnId } : {}),
     ...(record.runId ? { runId: record.runId } : {}),
+    ...(record.model ? { model: record.model } : {}),
     ...(tools ? { tools } : {}),
     ...(record.contextFiles?.length ? { contextFiles: record.contextFiles } : {}),
     ...(record.images?.length ? { images: record.images } : {})

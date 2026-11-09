@@ -181,6 +181,7 @@ const api: WsApi = {
       return () => ipcRenderer.removeListener(IPC_CHANNELS.capabilityUpdateAvailable, handler)
     },
     environment: (force) => ipcRenderer.invoke(IPC_CHANNELS.capabilityEnvironment, force),
+    cliRecommend: () => ipcRenderer.invoke(IPC_CHANNELS.capabilityCliRecommend),
     skills: {
       list: () => ipcRenderer.invoke(IPC_CHANNELS.capabilitySkillsList),
       importLocal: () => ipcRenderer.invoke(IPC_CHANNELS.capabilitySkillsImportLocal),

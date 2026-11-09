@@ -547,7 +547,7 @@ export class McpBridge {
           this.data.audit.record({
             at: Date.now(),
             domain: 'mcp',
-            action: 'write',
+            action: 'fail',
             targetId: sessionId,
             title: name,
             source: 'agent',

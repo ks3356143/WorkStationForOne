@@ -794,6 +794,13 @@ export const MIGRATIONS: Migration[] = [
     sql: `
       ALTER TABLE agent_messages ADD COLUMN run_id TEXT;
     `
+  },
+  {
+    // 消息模型标签：记录产生该回复的真实模型；旧消息留空回退默认标签。
+    version: 46,
+    sql: `
+      ALTER TABLE agent_messages ADD COLUMN model TEXT;
+    `
   }
 ]
 
