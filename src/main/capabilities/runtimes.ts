@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import {
   copyFileSync,
+  cpSync,
   createWriteStream,
   existsSync,
   mkdirSync,
@@ -9,7 +11,7 @@ import {
   rmSync,
   writeFileSync
 } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { execFile } from 'node:child_process'
@@ -90,10 +92,27 @@ function escapePowerShellPath(value: string): string {
   return value.replace(/'/g, "''")
 }
 
-async function download(url: string, dest: string): Promise<void> {
+async function download(url: string, dest: string, sha256?: string): Promise<void> {
   const res = await fetch(url, { signal: AbortSignal.timeout(180_000) })
   if (!res.ok || !res.body) throw new Error(`下载失败：HTTP ${res.status}`)
   await pipeline(Readable.fromWeb(res.body as never), createWriteStream(dest))
+  if (sha256) {
+    const actual = createHash('sha256').update(readFileSync(dest)).digest('hex')
+    if (actual !== sha256) throw new Error('镜像校验失败：sha256 不匹配')
+  }
+}
+
+/** 解压目录里递归找二进制（限深 5，防异常资产拖死安装）。 */
+function findBinary(dir: string, name: string, depth = 0): string | null {
+  const direct = join(dir, name)
+  if (existsSync(direct)) return direct
+  if (depth >= 5) return null
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    const found = findBinary(join(dir, entry.name), name, depth + 1)
+    if (found) return found
+  }
+  return null
 }
 
 /**
@@ -107,7 +126,8 @@ export async function installRuntime(
 ): Promise<ManagedRuntime> {
   const meta = runtimeMeta(id)
   if (!meta) throw new Error('这个工具不是环境依赖，不能托管安装')
-  const version = options.version ?? (await fetchLatestVersion(meta))
+  const version =
+    options.version ?? (await fetchLatestVersion(meta)) ?? meta.fallbackVersion ?? null
   if (!version) throw new Error('拿不到最新版本号：网络不可达或接口变更，可手动下载后放置')
   const root = runtimeRoot(dataDir, id)
   mkdirSync(root, { recursive: true })
@@ -115,14 +135,15 @@ export async function installRuntime(
   rmSync(staging, { recursive: true, force: true })
   mkdirSync(staging, { recursive: true })
   const zipPath = join(staging, 'package.zip')
-  const urls = options.assetUrl
-    ? [options.assetUrl]
-    : [meta.assetUrl(version), ...(meta.mirrorUrl ? [meta.mirrorUrl(version)] : [])]
+  const mirror = options.assetUrl ? null : await meta.mirrorAsset?.(version)
+  const urls: { url: string; sha256?: string }[] = options.assetUrl
+    ? [{ url: options.assetUrl }]
+    : [{ url: meta.assetUrl(version) }, ...(mirror ? [mirror] : [])]
   let lastError: unknown = null
   let downloaded = false
-  for (const url of urls) {
+  for (const candidate of urls) {
     try {
-      await download(url, zipPath)
+      await download(candidate.url, zipPath, candidate.sha256)
       downloaded = true
       break
     } catch (error) {
@@ -149,14 +170,20 @@ export async function installRuntime(
   const binDir = join(root, version)
   rmSync(binDir, { recursive: true, force: true })
   mkdirSync(binDir, { recursive: true })
-  const strip = meta.strip ? meta.strip.replace('{version}', version) : ''
+  // 资产布局不一（zip 顶层 / 带版本目录 / PyPI wheel 的 uv/ 子目录），递归找二进制
+  let nodeHome: string | null = null
   for (const name of meta.binaries) {
-    const src = strip ? join(extractDir, strip, name) : join(extractDir, name)
-    if (!existsSync(src)) {
+    const src = findBinary(extractDir, name)
+    if (!src) {
       rmSync(staging, { recursive: true, force: true })
       throw new Error(`安装包里缺少 ${name}，资产命名可能已变更`)
     }
     copyFileSync(src, join(binDir, name))
+    if (name === 'node.exe') nodeHome = dirname(src)
+  }
+  // npx / npm 是 cmd 包装，真正入口在 node_modules/npm/bin/*-cli.js，整棵拷过来
+  if (nodeHome && existsSync(join(nodeHome, 'node_modules'))) {
+    cpSync(join(nodeHome, 'node_modules'), join(binDir, 'node_modules'), { recursive: true })
   }
   // bun 的 zip 只有 bun.exe；补一个 bunx 转发 shim，命令面与系统安装一致
   if (id === 'bun') {

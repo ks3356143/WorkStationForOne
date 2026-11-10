@@ -29,17 +29,23 @@ export const CLI_CATEGORY_LABELS: Record<CliRecommendCategory, string> = {
 }
 
 /** 环境依赖的托管安装元数据；资产命名参考 Cherry Studio 的 download-binaries。 */
+export interface MirrorAsset {
+  url: string
+  sha256?: string
+}
+
 export interface CliRuntimeMeta {
   /** 查最新版本的只读端点；失败静默跳过 */
   releaseApi: string
   /** release tag 前缀（bun-v / v），node 的 index.json 直接给纯版本 */
   tagPrefix: string
   assetUrl: (version: string) => string
-  mirrorUrl?: (version: string) => string
-  /** zip 内需要的二进制；解压后只拷贝这些 */
+  /** 可信回退源（npmmirror / 阿里云 PyPI）；可带 sha256 做校验 */
+  mirrorAsset?: (version: string) => MirrorAsset | null | Promise<MirrorAsset | null>
+  /** 版本查询不可达时的保底版本（已核对） */
+  fallbackVersion?: string
+  /** zip 内需要的二进制；解压后递归查找只拷贝这些 */
   binaries: string[]
-  /** zip 内顶层目录模板，{version} 会被替换 */
-  strip?: string
   /** 系统源行的升级命令 ID */
   wingetId: string
 }
@@ -306,6 +312,26 @@ export const RECOMMENDED_CLI_TOOLS: CliRecommendation[] = [
       assetUrl: (version) =>
         `https://github.com/astral-sh/uv/releases/download/${version}/uv-x86_64-pc-windows-msvc.zip`,
       binaries: ['uv.exe', 'uvx.exe'],
+      fallbackVersion: '0.13.7',
+      mirrorAsset: async (version) => {
+        // GitHub 在国内常不可达；uv 官方在 PyPI 发 wheel（内含 uv.exe/uvx.exe），走阿里云镜像
+        const res = await fetch('https://mirrors.aliyun.com/pypi/simple/uv/', {
+          signal: AbortSignal.timeout(8000)
+        })
+        if (!res.ok) return null
+        const html = await res.text()
+        const match = html.match(
+          new RegExp(
+            'href="([^"]*uv-' + version.replace(/[.]/g, '.') + '-py3-none-win_amd64.whl[^"]*)"'
+          )
+        )
+        if (!match) return null
+        const [pathPart, hashPart] = match[1].split('#')
+        return {
+          url: new URL(pathPart, 'https://mirrors.aliyun.com/pypi/simple/uv/').toString(),
+          ...(hashPart?.startsWith('sha256=') ? { sha256: hashPart.slice(7) } : {})
+        }
+      },
       wingetId: 'astral-sh.uv'
     }
   },
@@ -323,10 +349,11 @@ export const RECOMMENDED_CLI_TOOLS: CliRecommendation[] = [
       tagPrefix: 'bun-v',
       assetUrl: (version) =>
         `https://github.com/oven-sh/bun/releases/download/bun-v${version}/bun-windows-x64.zip`,
-      mirrorUrl: (version) =>
-        `https://registry.npmmirror.com/-/binary/bun/bun-v${version}/bun-windows-x64.zip`,
+      mirrorAsset: (version) => ({
+        url: `https://registry.npmmirror.com/-/binary/bun/bun-v${version}/bun-windows-x64.zip`
+      }),
+      fallbackVersion: '1.4.4',
       binaries: ['bun.exe'],
-      strip: 'bun-windows-x64',
       wingetId: 'Oven-sh.Bun'
     }
   },
@@ -343,10 +370,10 @@ export const RECOMMENDED_CLI_TOOLS: CliRecommendation[] = [
       releaseApi: 'https://nodejs.org/dist/index.json',
       tagPrefix: '',
       assetUrl: (version) => `https://nodejs.org/dist/v${version}/node-v${version}-win-x64.zip`,
-      mirrorUrl: (version) =>
-        `https://registry.npmmirror.com/-/binary/node/v${version}/node-v${version}-win-x64.zip`,
+      mirrorAsset: (version) => ({
+        url: `https://registry.npmmirror.com/-/binary/node/v${version}/node-v${version}-win-x64.zip`
+      }),
       binaries: ['node.exe', 'npm.cmd', 'npx.cmd'],
-      strip: 'node-v{version}-win-x64',
       wingetId: 'OpenJS.NodeJS'
     }
   }

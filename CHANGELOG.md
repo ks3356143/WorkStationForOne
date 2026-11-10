@@ -6,6 +6,19 @@
 
 暂无。
 
+## [0.78.1] - 2026-11-10
+
+### 修复
+
+- **托管安装真网络缺陷**（真安装探针发现）：uv/bun 的版本查询原先只走 api.github.com，国内不可达时安装直接失败；现加保底版本（uv 0.13.7 / bun 1.4.4，已核对）+ 可信回退源——bun 走 npmmirror，uv 走阿里云 PyPI 镜像的官方 wheel（内含 uv.exe/uvx.exe），并校验镜像给出的 sha256。
+- **node 托管后 npx/npm 无法解析**：原先只拷 exe/cmd，缺 `node_modules/npm/bin/*-cli.js`；现整棵拷贝 node_modules，npx/npm 经 node.exe + cli.js 解析。
+- 解压后二进制改为递归查找（限深 5），兼容 zip 顶层 / 带版本目录 / wheel 子目录三种布局。
+
+### 验证
+
+- 真网络安装探针复验：uv 0.13.7（阿里云 PyPI wheel + sha256 校验）3s、bun 1.4.4（npmmirror）11s、node 26.13.0（官方）114s，三者安装 / uvx·bunx·npx 解析 / 卸载全部成功。
+- typecheck、Biome 0 错误、1255 项单测、560 项冒烟 0 失败 0 控制台报错、250/250 运行时断言。
+
 ## [0.78.0] - 2026-11-09
 
 ### 新增

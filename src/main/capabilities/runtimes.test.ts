@@ -97,6 +97,25 @@ describe('托管运行时', () => {
     expect(latest).toBeNull()
   })
 
+  it('版本查询不可达时用保底版本继续安装', async () => {
+    const dataDir = tempDir()
+    const zip = fixtureZip()
+    const server = await serveFile(zip)
+    const origFetch = globalThis.fetch
+    globalThis.fetch = ((url: unknown, init?: unknown) => {
+      if (String(url).includes('api.github.com')) throw new Error('offline')
+      return origFetch(url as string, init as RequestInit)
+    }) as typeof fetch
+    try {
+      const installed = await installRuntime(dataDir, 'uv', { assetUrl: server.url })
+      expect(installed.version).toBe('0.13.7')
+      expect(readManaged(dataDir, 'uv')?.version).toBe('0.13.7')
+    } finally {
+      globalThis.fetch = origFetch
+      server.close()
+    }
+  }, 30000)
+
   it('GitHub 与 node index 两种响应都能解析', async () => {
     const bun = RECOMMENDED_CLI_TOOLS.find((tool) => tool.id === 'bun')!.runtime!
     const node = RECOMMENDED_CLI_TOOLS.find((tool) => tool.id === 'node')!.runtime!

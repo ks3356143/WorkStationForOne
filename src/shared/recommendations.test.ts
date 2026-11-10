@@ -39,6 +39,8 @@ describe('CLI 推荐清单', () => {
         /^https:\/\/github\.com\/|^https:\/\/nodejs\.org\/|^https:\/\/registry\.npmmirror\.com\//
       )
       expect(tool.detect).toContain(tool.id === 'uv' ? 'uvx' : tool.id === 'bun' ? 'bunx' : 'npx')
+      if (tool.id !== 'node') expect(tool.runtime?.fallbackVersion).toBeTruthy()
+      expect(tool.runtime?.mirrorAsset).toBeDefined()
     }
   })
 })
