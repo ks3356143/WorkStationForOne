@@ -5,14 +5,24 @@ import {
   CLI_RECOMMEND_CATEGORIES,
   RECOMMENDED_CLI_TOOLS,
   type CliRecommendCategory,
-  type CliRecommendation
+  type CliRecommendation,
+  MCP_RECOMMENDATIONS,
+  SKILL_SOURCE_RECOMMENDATIONS,
+  type McpRecommendation,
+  type SkillSourceRecommendation
 } from '../../../../shared/recommendations'
-import type { CliRuntimeState, CliRuntimeUpdate } from '../../../../shared/ipc'
+import type {
+  CliRuntimeState,
+  CliRuntimeUpdate,
+  ExternalMcpServerRecord,
+  PluginSourceRecord
+} from '../../../../shared/ipc'
 import { defaultSource, type CliSource } from '../../../../shared/runtime-source'
 import { StatePlaceholder } from '../StatePlaceholder'
 
 interface RecommendationsTabProps {
   notify: (text: string) => void
+  onOpenMarket: () => void
 }
 
 /** 环境依赖行：系统 / 托管二选一，托管可装可卸，新版只提示不自动更新。 */
@@ -146,13 +156,16 @@ function RuntimeRow({
  * 工具推荐：精选 CLI（winget 安装命令已核对），只读展示 + 本地 PATH 检测。
  * 不自动安装、不联网；清单随应用版本更新。
  */
-export function RecommendationsTab({ notify }: RecommendationsTabProps) {
+export function RecommendationsTab({ notify, onOpenMarket }: RecommendationsTabProps) {
   const api = typeof window === 'undefined' ? undefined : window.ws?.capability
   const [installed, setInstalled] = useState<Record<string, boolean> | null>(null)
   const [runtimes, setRuntimes] = useState<CliRuntimeState[]>([])
   const [updates, setUpdates] = useState<Record<string, CliRuntimeUpdate>>({})
   const [runtimeBusy, setRuntimeBusy] = useState<string | null>(null)
   const [confirmUninstall, setConfirmUninstall] = useState('')
+  const [mcpList, setMcpList] = useState<ExternalMcpServerRecord[]>([])
+  const [sources, setSources] = useState<PluginSourceRecord[]>([])
+  const [recBusy, setRecBusy] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<CliRecommendCategory | 'all'>('all')
 
@@ -199,6 +212,14 @@ export function RecommendationsTab({ notify }: RecommendationsTabProps) {
       })
     loadRuntimes()
     loadUpdates()
+    void api.mcp
+      .list()
+      .then(setMcpList)
+      .catch(() => setMcpList([]))
+    void api
+      .pluginSources()
+      .then(setSources)
+      .catch(() => setSources([]))
     return () => {
       alive = false
     }
@@ -225,6 +246,37 @@ export function RecommendationsTab({ notify }: RecommendationsTabProps) {
       return
     }
     fallbackCopy(command, done)
+  }
+
+  const addMcpRecommendation = (rec: McpRecommendation) => {
+    if (!api?.mcp || recBusy) return
+    setRecBusy(rec.id)
+    void api.mcp
+      .add({
+        name: rec.name,
+        transport: 'http',
+        url: rec.url,
+        auth: rec.auth === 'oauth' ? 'oauth' : 'headers'
+      })
+      .then((created) => {
+        setMcpList((list) => [created, ...list])
+        notify(`已添加 ${rec.name} · 去 MCP 页信任${rec.auth === 'oauth' ? '并登录' : ''}后启用`)
+      })
+      .catch((error: unknown) => notify(error instanceof Error ? error.message : '添加失败'))
+      .finally(() => setRecBusy(null))
+  }
+
+  const addSkillSource = (rec: SkillSourceRecommendation) => {
+    if (!api?.addPluginSource || recBusy) return
+    setRecBusy(rec.id)
+    void api
+      .addPluginSource({ name: rec.name, url: rec.url })
+      .then((saved) => {
+        setSources((list) => [...list, saved])
+        notify(`已添加插件源 ${rec.name} · ${saved.pluginCount} 个插件，去市场安装`)
+      })
+      .catch((error: unknown) => notify(error instanceof Error ? error.message : '添加插件源失败'))
+      .finally(() => setRecBusy(null))
   }
 
   const changeSource = (id: string, source: CliSource) => {
@@ -295,6 +347,100 @@ export function RecommendationsTab({ notify }: RecommendationsTabProps) {
           <span className="w1-capscope">
             已装 {installedCount}/{RECOMMENDED_CLI_TOOLS.length}
           </span>
+        </div>
+      </div>
+
+      <div className="w1-capdomain">
+        <h4>MCP 服务推荐</h4>
+        <div className="w1-caplist">
+          {MCP_RECOMMENDATIONS.map((rec) => {
+            const added = mcpList.some((server) => server.url === rec.url)
+            return (
+              <div className="w1-caprow static mcp-rec" key={rec.id}>
+                <span className="w1-capglyph">MC</span>
+                <span className="w1-capcopy">
+                  <b>
+                    {rec.name}
+                    <i className="w1-capver">{rec.authNote}</i>
+                  </b>
+                  <p>{rec.summary}</p>
+                  <p className="w1-capwhy">{rec.why}</p>
+                </span>
+                <span className="w1-capactions">
+                  {added ? (
+                    <span className="w1-capbadge">已添加</span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="w1-capmini pri"
+                      disabled={recBusy === rec.id}
+                      aria-label={`添加 ${rec.name}`}
+                      onClick={() => addMcpRecommendation(rec)}
+                    >
+                      {recBusy === rec.id ? '添加中…' : '添加'}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="w1-capmini"
+                    aria-label={`打开 ${rec.name} 文档`}
+                    onClick={() => window.open(rec.docs, '_blank', 'noopener')}
+                  >
+                    文档
+                  </button>
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="w1-capdomain">
+        <h4>技能库推荐</h4>
+        <div className="w1-caplist">
+          {SKILL_SOURCE_RECOMMENDATIONS.map((rec) => {
+            const added = sources.some((source) => source.url === rec.url)
+            return (
+              <div className="w1-caprow static skill-rec" key={rec.id}>
+                <span className="w1-capglyph">SK</span>
+                <span className="w1-capcopy">
+                  <b>{rec.name}</b>
+                  <p>{rec.summary}</p>
+                  <p className="w1-capwhy">{rec.why}</p>
+                  <span className="w1-captags">
+                    {rec.highlights.map((item) => (
+                      <i key={item}>{item}</i>
+                    ))}
+                  </span>
+                </span>
+                <span className="w1-capactions">
+                  {added ? (
+                    <button type="button" className="w1-capmini pri" onClick={onOpenMarket}>
+                      去市场
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="w1-capmini pri"
+                      disabled={recBusy === rec.id}
+                      aria-label={`添加插件源 ${rec.name}`}
+                      onClick={() => addSkillSource(rec)}
+                    >
+                      {recBusy === rec.id ? '添加中…' : '添加为插件源'}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="w1-capmini"
+                    aria-label={`打开 ${rec.name} 仓库`}
+                    onClick={() => window.open(rec.docs, '_blank', 'noopener')}
+                  >
+                    仓库
+                  </button>
+                </span>
+              </div>
+            )
+          })}
         </div>
       </div>
 

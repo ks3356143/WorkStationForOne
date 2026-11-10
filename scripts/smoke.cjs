@@ -3528,6 +3528,29 @@ async function run() {
       Boolean(nodeRuntimeRow?.querySelector('.w1-capmini[aria-label="安装 node 托管版本"]')),
       nodeRuntimeRow?.textContent?.slice(0, 80) ?? 'missing'
     )
+    check(
+      '推荐页 MCP 推荐组渲染',
+      all('.w1-caprow.mcp-rec').length === 3 &&
+        (one('.w1-caprow.mcp-rec')?.textContent ?? '').includes('无鉴权'),
+      String(all('.w1-caprow.mcp-rec').length)
+    )
+    one('.w1-caprow.mcp-rec .w1-capmini[aria-label="添加 DeepWiki"]')?.click()
+    const deepwikiAdded = await waitFor(async () => {
+      const list = await window.ws.capability.mcp.list()
+      const server = list.find((item) => item.url === 'https://mcp.deepwiki.com/mcp')
+      return Boolean(server) && server.enabled === false && server.trusted === false
+    }, 4000)
+    check('MCP 推荐一键添加且默认停用未信任', deepwikiAdded, 'deepwiki')
+    const deepwikiRow = (await window.ws.capability.mcp.list()).find(
+      (item) => item.url === 'https://mcp.deepwiki.com/mcp'
+    )
+    if (deepwikiRow) await window.ws.capability.mcp.remove(deepwikiRow.id)
+    check(
+      '技能库推荐带添加源入口',
+      all('.w1-caprow.skill-rec').length === 1 &&
+        Boolean(one('.w1-caprow.skill-rec .w1-capmini[aria-label*="添加插件源"]')),
+      one('.w1-caprow.skill-rec')?.textContent?.slice(0, 60) ?? 'missing'
+    )
     byText('.w1-capnav button', '插件')?.click()
     await sleep(250)
     check(
@@ -4373,21 +4396,35 @@ async function run() {
         await sleep(500)
         console.log('SMOKE_TOOLS_SHOT2')
       }
-      if (window.__WS_SMOKE_REC_SHOT__) {
-        byText('.w1-capnav button', '推荐')?.click()
-        await waitFor(() => all('.w1-caprow.rec').length === 26, 4000)
-        byText('.w1-capsort button', '环境依赖')?.click()
-        await waitFor(() => all('.w1-caprow.runtime').length === 3, 3000)
-        await sleep(500)
-        console.log('SMOKE_REC_SHOT')
-        await sleep(900)
-      }
       await sleep(5000)
       if (window.__WS_SMOKE_TOOLS_THEME__ === 'light') {
         if (previousToolsTheme) document.documentElement.dataset.theme = previousToolsTheme
         else document.documentElement.removeAttribute('data-theme')
         if (previousStoredToolsTheme === null) localStorage.removeItem('workstation.theme')
         else localStorage.setItem('workstation.theme', previousStoredToolsTheme)
+        await sleep(300)
+      }
+    }
+    if (window.__WS_SMOKE_REC_SHOT__) {
+      const recPrevTheme = document.documentElement.dataset.theme
+      const recPrevStored = localStorage.getItem('workstation.theme')
+      if (window.__WS_SMOKE_TOOLS_THEME__ === 'light') {
+        document.documentElement.dataset.theme = 'light'
+        localStorage.setItem('workstation.theme', 'light')
+        await sleep(400)
+      }
+      byText('.w1-capnav button', '推荐')?.click()
+      await waitFor(() => all('.w1-caprow.mcp-rec').length === 3, 4000)
+      const recPane = document.querySelector('.w1-setpane')
+      if (recPane) recPane.scrollTop = 0
+      await sleep(500)
+      console.log('SMOKE_REC_SHOT')
+      await sleep(900)
+      if (window.__WS_SMOKE_TOOLS_THEME__ === 'light') {
+        if (recPrevTheme) document.documentElement.dataset.theme = recPrevTheme
+        else document.documentElement.removeAttribute('data-theme')
+        if (recPrevStored === null) localStorage.removeItem('workstation.theme')
+        else localStorage.setItem('workstation.theme', recPrevStored)
         await sleep(300)
       }
     }

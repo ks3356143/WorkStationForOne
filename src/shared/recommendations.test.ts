@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { CLI_RECOMMEND_CATEGORIES, RECOMMENDED_CLI_TOOLS } from './recommendations'
+import {
+  CLI_RECOMMEND_CATEGORIES,
+  MCP_RECOMMENDATIONS,
+  RECOMMENDED_CLI_TOOLS,
+  SKILL_SOURCE_RECOMMENDATIONS
+} from './recommendations'
 
 describe('CLI 推荐清单', () => {
   it('id 唯一、分类合法、必有仓库与用途', () => {
@@ -42,5 +47,25 @@ describe('CLI 推荐清单', () => {
       if (tool.id !== 'node') expect(tool.runtime?.fallbackVersion).toBeTruthy()
       expect(tool.runtime?.mirrorAsset).toBeDefined()
     }
+  })
+
+  it('MCP 推荐端点为实测过的 https 地址且鉴权方式明确', () => {
+    expect(MCP_RECOMMENDATIONS.map((entry) => entry.id)).toEqual(['deepwiki', 'context7', 'notion'])
+    for (const entry of MCP_RECOMMENDATIONS) {
+      expect(entry.url).toMatch(/^https:\/\/mcp\./)
+      expect(['none', 'headers', 'oauth']).toContain(entry.auth)
+      expect(entry.authNote.trim()).not.toBe('')
+      expect(entry.summary.trim()).not.toBe('')
+      expect(entry.why.trim()).not.toBe('')
+      expect(entry.docs).toMatch(/^https:\/\//)
+    }
+  })
+
+  it('技能库推荐指向标准插件市场仓库并带亮点技能', () => {
+    expect(SKILL_SOURCE_RECOMMENDATIONS).toHaveLength(1)
+    const source = SKILL_SOURCE_RECOMMENDATIONS[0]
+    expect(source.url).toBe('https://github.com/anthropics/skills')
+    expect(source.highlights.length).toBeGreaterThan(2)
+    expect(source.why.trim()).not.toBe('')
   })
 })

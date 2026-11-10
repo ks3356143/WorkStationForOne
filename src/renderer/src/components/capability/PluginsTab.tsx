@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   InstalledPluginRecord,
   LocalScanRecord,
@@ -20,6 +20,8 @@ interface PluginsTabProps {
   /** 安装 / 更新 / 卸载 / 导入后刷新面板共享的插件与工具面状态 */
   onSkillsChanged: () => void
   onOpenSkills: () => void
+  /** 推荐页「去市场」跳转令牌；变化时切到市场视图 */
+  marketToken?: number
 }
 
 const COMPONENT_LABELS: Record<string, string> = {
@@ -40,7 +42,8 @@ export function PluginsTab({
   skills,
   installedCodex,
   onSkillsChanged,
-  onOpenSkills
+  onOpenSkills,
+  marketToken = 0
 }: PluginsTabProps) {
   const api = typeof window === 'undefined' ? undefined : window.ws?.capability
   const [skillTab, setSkillTab] = useState<'installed' | 'market'>('installed')
@@ -67,6 +70,14 @@ export function PluginsTab({
   const [installedAgent, setInstalledAgent] = useState<'all' | 'claude' | 'codex'>('all')
   const [pluginOpsBusy, setPluginOpsBusy] = useState<string | null>(null)
   const [confirmKey, setConfirmKey] = useState('')
+  const lastMarketToken = useRef(0)
+
+  useEffect(() => {
+    if (!marketToken || marketToken === lastMarketToken.current) return
+    lastMarketToken.current = marketToken
+    setSkillTab('market')
+    if (!market) loadMarket(false)
+  })
 
   useEffect(() => {
     if (!api) return

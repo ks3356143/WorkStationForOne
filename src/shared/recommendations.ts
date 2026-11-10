@@ -378,3 +378,71 @@ export const RECOMMENDED_CLI_TOOLS: CliRecommendation[] = [
     }
   }
 ]
+
+/** MCP 服务推荐：端点与鉴权方式均经真实连接实测；添加后仍走既有信任/登录流程。 */
+export interface McpRecommendation {
+  id: string
+  name: string
+  summary: string
+  why: string
+  url: string
+  auth: 'none' | 'headers' | 'oauth'
+  authNote: string
+  docs: string
+}
+
+export const MCP_RECOMMENDATIONS: McpRecommendation[] = [
+  {
+    id: 'deepwiki',
+    name: 'DeepWiki',
+    summary: '问答式读取 GitHub 仓库的文档与代码结构。',
+    why: '无鉴权即可用；已实测公网远程工具调用成功。',
+    url: 'https://mcp.deepwiki.com/mcp',
+    auth: 'none',
+    authNote: '无鉴权',
+    docs: 'https://docs.devin.ai/work-with-devin/deepwiki-mcp'
+  },
+  {
+    id: 'context7',
+    name: 'Context7',
+    summary: '把库的最新官方文档拉进上下文，减少过时 API 幻觉。',
+    why: '带 Key 实测 resolve-library-id / query-docs 返回真实库结果。',
+    url: 'https://mcp.context7.com/mcp',
+    auth: 'headers',
+    authNote: '需 API Key',
+    docs: 'https://context7.com/docs'
+  },
+  {
+    id: 'notion',
+    name: 'Notion',
+    summary: '读写 Notion 页面与数据库，把笔记库接进 Agent。',
+    why: 'OAuth 真登录实测 69 个工具，重启后仍保持连接。',
+    url: 'https://mcp.notion.com/mcp',
+    auth: 'oauth',
+    authNote: 'OAuth 登录',
+    docs: 'https://developers.notion.com/reference/mcp'
+  }
+]
+
+/** 技能库推荐：标准 Claude 插件市场仓库，走现有「插件源 → 市场 → 安装」链路。 */
+export interface SkillSourceRecommendation {
+  id: string
+  name: string
+  summary: string
+  why: string
+  url: string
+  highlights: string[]
+  docs: string
+}
+
+export const SKILL_SOURCE_RECOMMENDATIONS: SkillSourceRecommendation[] = [
+  {
+    id: 'anthropics-skills',
+    name: 'Anthropic 官方技能库',
+    summary: '官方维护的技能市场：文档处理、设计、API 指南等。',
+    why: '标准 .claude-plugin 市场格式，直接复用插件源 → 市场 → 安装与信任流程。',
+    url: 'https://github.com/anthropics/skills',
+    highlights: ['docx', 'pdf', 'pptx', 'xlsx', 'frontend-design'],
+    docs: 'https://github.com/anthropics/skills'
+  }
+]

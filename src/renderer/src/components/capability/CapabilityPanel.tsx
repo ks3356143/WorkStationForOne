@@ -47,6 +47,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
   const [loading, setLoading] = useState(true)
   const [updateBusy, setUpdateBusy] = useState(false)
   const [updateReport, setUpdateReport] = useState('')
+  const [marketToken, setMarketToken] = useState(0)
 
   const refreshSurface = () => {
     if (!api) return
@@ -354,6 +355,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
           installedCodex={installedCodex}
           onSkillsChanged={refreshLists}
           onOpenSkills={() => setTab('skills')}
+          marketToken={marketToken}
         />
       ) : null}
 
@@ -398,7 +400,15 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
         />
       ) : null}
 
-      {tab === 'recommend' ? <RecommendationsTab notify={notify} /> : null}
+      {tab === 'recommend' ? (
+        <RecommendationsTab
+          notify={notify}
+          onOpenMarket={() => {
+            setTab('plugins')
+            setMarketToken((token) => token + 1)
+          }}
+        />
+      ) : null}
     </div>
   )
 }
