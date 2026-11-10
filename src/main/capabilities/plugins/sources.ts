@@ -5,7 +5,7 @@ import { promisify } from 'node:util'
 
 const run = promisify(execFile)
 const MAX_NAME = 60
-const GIT_TIMEOUT = 90_000
+const GIT_TIMEOUT = 180_000
 
 /** 名称进 SQL、目录名与 CLI 参数，先卡死字符集。 */
 export function assertSourceName(value: string): string {

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -102,6 +102,37 @@ describe('PluginSourceService', () => {
     db.close()
   })
 
+  it('上次失败留下的目录不阻塞同名重试', async () => {
+    const { base, db, repository, service } = setup()
+    const market = makeMarketplace(tempDir('wsfo-market-'))
+    mkdirSync(join(base, 'agent', 'plugin-sources', 'community', 'partial'), { recursive: true })
+    const saved = await service.add({ name: 'community', url: market })
+    expect(saved.pluginCount).toBe(1)
+    expect(repository.listSources()).toHaveLength(1)
+    db.close()
+  })
+
+  it('注册市场失败不阻塞源入库，但写入可读错误', async () => {
+    const base = tempDir('wsfo-srcsvc-')
+    const db = openDatabase(join(base, 'workstation.db'))
+    migrate(db)
+    const repository = new CapabilityRepository(db)
+    const missing = { bin: join(base, 'missing-cli.exe'), prefixArgs: [], viaNode: false }
+    const service = new PluginSourceService({
+      repository,
+      appDataDir: base,
+      claudeConfigDir: join(base, 'claude-config'),
+      codexHome: join(base, 'codex-home'),
+      claudeCli: missing,
+      codexCli: missing
+    })
+    const market = makeMarketplace(tempDir('wsfo-market-'))
+    const saved = await service.add({ name: 'community', url: market })
+    expect(saved.lastError).not.toBe('')
+    expect(repository.listSources()).toHaveLength(1)
+    db.close()
+  })
+
   it('刷新记录插件数与时间，失败写可读错误', async () => {
     const { db, repository, service } = setup()
     const market = makeMarketplace(tempDir('wsfo-market-'))
@@ -127,6 +158,33 @@ describe('PluginSourceService', () => {
     await service.remove(saved.id)
     expect(repository.listSources()).toEqual([])
     expect(market).toBeTruthy()
+    db.close()
+  })
+
+  it('移除源时按市场名注销，市场不留残留条目', async () => {
+    const base = tempDir('wsfo-srcsvc-')
+    const db = openDatabase(join(base, 'workstation.db'))
+    migrate(db)
+    const repository = new CapabilityRepository(db)
+    const log = join(base, 'cli.log')
+    const stub = join(base, 'stub-cli.mjs')
+    writeFileSync(
+      stub,
+      `import { appendFileSync } from 'node:fs'\nappendFileSync(${JSON.stringify(log)}, process.argv.slice(2).join(' ') + '\\n')\n`
+    )
+    const cli = { bin: process.execPath, prefixArgs: [stub], viaNode: false }
+    const service = new PluginSourceService({
+      repository,
+      appDataDir: base,
+      claudeConfigDir: join(base, 'claude-config'),
+      codexHome: join(base, 'codex-home'),
+      claudeCli: cli,
+      codexCli: cli
+    })
+    const market = makeMarketplace(tempDir('wsfo-market-'), 'anthropic-agent-skills')
+    const saved = await service.add({ name: 'anthropics-skills', url: market })
+    await service.remove(saved.id)
+    expect(readFileSync(log, 'utf8')).toContain('marketplace remove anthropic-agent-skills')
     db.close()
   })
 

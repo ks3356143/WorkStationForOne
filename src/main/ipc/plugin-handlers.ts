@@ -179,7 +179,9 @@ export function registerPluginHandlers(
       repository: center.repository,
       agentDir: center.agentDir,
       codexHome: center.codexHome,
-      registerMarket: (market, root) => sources.register(market, root),
+      registerMarket: async (market, root) => {
+        await sources.register(market, root)
+      },
       installFromDirectory: (target, source, meta) => {
         const dir = copyPluginSnapshot(
           target,

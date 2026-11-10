@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { assertSourceName } from '../main/capabilities/plugins/sources'
 import {
   CLI_RECOMMEND_CATEGORIES,
   MCP_RECOMMENDATIONS,
@@ -67,5 +68,11 @@ describe('CLI 推荐清单', () => {
     expect(source.url).toBe('https://github.com/anthropics/skills')
     expect(source.highlights.length).toBeGreaterThan(2)
     expect(source.why.trim()).not.toBe('')
+  })
+
+  it('技能库推荐的源名称能通过插件源命名校验', () => {
+    for (const source of SKILL_SOURCE_RECOMMENDATIONS) {
+      expect(() => assertSourceName(source.sourceName)).not.toThrow()
+    }
   })
 })

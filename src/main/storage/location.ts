@@ -61,7 +61,8 @@ export function resolveLayout(root: string): StorageLayout {
     agentDir,
     pluginSourceDir: join(agentDir, 'plugin-sources'),
     claudePluginDir: join(agentDir, 'claude-plugins'),
-    claudeConfigDir: join(agentDir, 'claude-config'),
+    // 插件源注册与市场清单共用同一份 Claude CLI 配置，分成两个目录会导致源注册后在市场里看不到
+    claudeConfigDir: join(agentDir, 'claude-plugins', 'config'),
     codexHome: join(base, 'codex-home')
   }
 }

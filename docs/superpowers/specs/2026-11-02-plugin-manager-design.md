@@ -103,7 +103,7 @@ Electron 套壳产品的常见做法是「不给改，让用户自己建符号�
 ```
 <root>/
   data/          workstation.db、backups/
-  agent/         claude-plugins/、plugin-sources/、claude-config/
+  agent/         claude-plugins/（含 config/）、plugin-sources/
   codex-home/    Codex 隔离配置与插件缓存
 ```
 
@@ -203,7 +203,7 @@ CREATE UNIQUE INDEX idx_agent_plugins_key ON agent_plugins(agent, plugin_id);
 
 | Agent | 命令 | 环境 |
 | --- | --- | --- |
-| Claude | `claude plugin marketplace add <root>` | `CLAUDE_CONFIG_DIR=<data>/agent/claude-config` |
+| Claude | `claude plugin marketplace add <root>` | `CLAUDE_CONFIG_DIR=<data>/agent/claude-plugins/config`（与市场清单共用，源注册后市场才能看到） |
 | Codex | `codex plugin marketplace add <root>` | `CODEX_HOME=<data>/codex-home` |
 
 - 两边都通过现有 `resolveCommand()` 解析入口，`shell: false`，90 秒超时。

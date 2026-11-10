@@ -270,7 +270,7 @@ export function RecommendationsTab({ notify, onOpenMarket }: RecommendationsTabP
     if (!api?.addPluginSource || recBusy) return
     setRecBusy(rec.id)
     void api
-      .addPluginSource({ name: rec.name, url: rec.url })
+      .addPluginSource({ name: rec.sourceName, url: rec.url })
       .then((saved) => {
         setSources((list) => [...list, saved])
         notify(`已添加插件源 ${rec.name} · ${saved.pluginCount} 个插件，去市场安装`)

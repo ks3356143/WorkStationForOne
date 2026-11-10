@@ -29,6 +29,9 @@ describe('resolveLayout', () => {
     expect(layout.backupDir).toBe(join('D:\\WorkStationForOne', 'data', 'backups'))
     expect(layout.agentDir).toBe(join('D:\\WorkStationForOne', 'agent'))
     expect(layout.codexHome).toBe(join('D:\\WorkStationForOne', 'codex-home'))
+    expect(layout.claudeConfigDir).toBe(
+      join('D:\\WorkStationForOne', 'agent', 'claude-plugins', 'config')
+    )
   })
 
   it('默认根目录是 appData 下的应用目录', () => {

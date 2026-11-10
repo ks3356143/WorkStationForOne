@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, renameSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { resolveCodexCli, resolvePluginCli, type AgentCli } from '../../agent/cli'
 import type { CapabilityRepository, PluginSourceInput } from '../../db/capabilities'
@@ -16,7 +16,7 @@ import {
   type MarketplacePlugin
 } from './sources'
 
-const CLI_TIMEOUT = 90_000
+const CLI_TIMEOUT = 180_000
 
 /** 把 GitHub HTTPS / SSH 地址转成 `owner/repo`；非 GitHub 返回 null。 */
 export function githubSlug(url?: string): string | null {
@@ -81,7 +81,13 @@ export class PluginSourceService {
     const ref = (input.ref ?? '').trim()
     const url = input.url.trim()
     const root = join(this.sourceRoot, sourceSlug(name))
-    if (existsSync(root)) throw new Error('源目录已存在，请更换名称或先移除旧源')
+    if (existsSync(root)) {
+      // 有同名记录时这是有效快照；没有记录则是上次失败留下的半成品，清掉才能重试
+      if (this.options.repository.findSourceByName(name)) {
+        throw new Error('源目录已存在，请更换名称或先移除旧源')
+      }
+      this.removeDir(root, '上次添加留下的目录无法清理，请稍后重试')
+    }
 
     const record: PluginSourceInput = {
       id: `src-${sourceSlug(name)}-${Date.now().toString(36)}`,
@@ -102,13 +108,16 @@ export class PluginSourceService {
       const manifest = readMarketplace(record.root)
       const saved = this.options.repository.createSource(record)
       // 官方市场名被 Claude 保留，只能用 GitHub 源注册；Git 源一律优先传 owner/repo
-      await this.register(manifest.name, record.root, url).catch(() => {
-        // 注册失败不影响源入库，刷新时还能再试
-      })
-      this.options.repository.markSourceSynced(saved.id, '', manifest.plugins.length)
+      const registrationErrors = await this.register(manifest.name, record.root, url)
+      this.options.repository.markSourceSynced(
+        saved.id,
+        registrationErrors.join('；'),
+        manifest.plugins.length
+      )
       return this.options.repository.findSource(saved.id) ?? saved
     } catch (error) {
-      if (!isLocalPath(url)) rmSync(root, { recursive: true, force: true })
+      // 清理失败不能盖掉真正的原因，残留目录留给下次添加前清理
+      if (!isLocalPath(url)) this.removeDir(root, null)
       throw error
     }
   }
@@ -119,8 +128,12 @@ export class PluginSourceService {
     try {
       if (!isLocalPath(source.url)) await refreshSource(source.root, source.ref)
       const manifest = readMarketplace(source.root)
-      await this.register(manifest.name, source.root)
-      this.options.repository.markSourceSynced(id, '', manifest.plugins.length)
+      const registrationErrors = await this.register(manifest.name, source.root)
+      this.options.repository.markSourceSynced(
+        id,
+        registrationErrors.join('；'),
+        manifest.plugins.length
+      )
       return {
         source: this.options.repository.findSource(id) ?? source,
         plugins: manifest.plugins
@@ -136,11 +149,18 @@ export class PluginSourceService {
     const source = this.options.repository.findSource(id)
     if (!source) return
     if (source.kind === 'official') throw new Error('官方源不能移除')
-    await this.unregister(source.name).catch(() => {
+    // 市场按清单里的 name 注册，用源名称注销会留下残留条目
+    let marketName = source.name
+    try {
+      marketName = readMarketplace(source.root).name
+    } catch {
+      // 目录已不可读时退回源名称
+    }
+    await this.unregister(marketName).catch(() => {
       // CLI 侧没有这个市场时忽略
     })
     // 本地目录源只解除引用，不删用户的目录
-    if (!isLocalPath(source.url)) rmSync(source.root, { recursive: true, force: true })
+    if (!isLocalPath(source.url)) this.removeDir(source.root, '源目录无法删除，请稍后重试')
     this.options.repository.removeSource(id)
   }
 
@@ -152,14 +172,20 @@ export class PluginSourceService {
    * 向两个 Agent 注册市场。
    * Claude 对 `claude-plugins-official` 这类名字有保留限制，只接受 anthropics 组织的
    * GitHub 源；因此 GitHub 源优先传 `owner/repo`，本地目录源才传绝对路径。
+   * 返回注册失败原因（不抛出），由调用方写进源的 lastError。
    */
-  async register(marketName: string, root: string, url?: string): Promise<void> {
+  async register(marketName: string, root: string, url?: string): Promise<string[]> {
     const source = githubSlug(url) ?? root
-    await Promise.all([
-      this.runCli('claude', ['plugin', 'marketplace', 'add', source]).catch(() => undefined),
-      this.runCli('codex', ['plugin', 'marketplace', 'add', root]).catch(() => undefined)
+    const results = await Promise.allSettled([
+      this.runCli('claude', ['plugin', 'marketplace', 'add', source]),
+      this.runCli('codex', ['plugin', 'marketplace', 'add', root])
     ])
     void marketName
+    return results
+      .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+      .map((result) =>
+        result.reason instanceof Error ? result.reason.message : String(result.reason)
+      )
   }
 
   async unregister(marketName: string): Promise<void> {
@@ -186,6 +212,29 @@ export class PluginSourceService {
   async reinstallCodexPlugin(plugin: string, market: string): Promise<void> {
     await this.removeCodexPlugin(plugin, market).catch(() => undefined)
     await this.runCli('codex', ['plugin', 'add', `${plugin}@${market}`])
+  }
+
+  /** Windows 上刚结束的 git / CLI 进程可能仍持有句柄；删不掉时改名挪走，原名即可复用。 */
+  private removeDir(dir: string, note: string | null): void {
+    try {
+      rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 })
+      return
+    } catch {
+      // 落到改名兜底
+    }
+    try {
+      const stale = `${dir}.deleted-${Date.now().toString(36)}`
+      renameSync(dir, stale)
+      try {
+        rmSync(stale, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 })
+      } catch {
+        // 留给系统清理占位目录，不影响重新克隆
+      }
+      return
+    } catch {
+      // 改名也失败：交给调用方
+    }
+    if (note) throw new Error(note)
   }
 
   private runCli(agent: PluginAgent, args: string[]): Promise<string> {

@@ -428,6 +428,8 @@ export const MCP_RECOMMENDATIONS: McpRecommendation[] = [
 export interface SkillSourceRecommendation {
   id: string
   name: string
+  /** 插件源命名只允许 ASCII slug（assertSourceName），展示名与源名称分开。 */
+  sourceName: string
   summary: string
   why: string
   url: string
@@ -439,8 +441,9 @@ export const SKILL_SOURCE_RECOMMENDATIONS: SkillSourceRecommendation[] = [
   {
     id: 'anthropics-skills',
     name: 'Anthropic 官方技能库',
+    sourceName: 'anthropics-skills',
     summary: '官方维护的技能市场：文档处理、设计、API 指南等。',
-    why: '标准 .claude-plugin 市场格式，直接复用插件源 → 市场 → 安装与信任流程。',
+    why: '标准 .claude-plugin 市场格式；技能按合集插件分发（document-skills 含 docx/xlsx/pptx/pdf），复用插件源 → 市场 → 安装与信任流程。',
     url: 'https://github.com/anthropics/skills',
     highlights: ['docx', 'pdf', 'pptx', 'xlsx', 'frontend-design'],
     docs: 'https://github.com/anthropics/skills'

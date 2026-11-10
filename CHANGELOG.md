@@ -6,6 +6,20 @@
 
 暂无。
 
+## [0.79.1] - 2026-11-10
+
+### 修复
+
+- **技能库推荐一键加源失败**（真链路探针发现）：原先把展示名「Anthropic 官方技能库」传给 `addPluginSource`，被源名称校验（只收 ASCII slug）拒绝，导致推荐加源永远失败。推荐清单新增 `sourceName`（`anthropics-skills`）与展示名分离，加源传 slug；新增单测直接复用 `assertSourceName` 校验推荐数据。
+- **技能库推荐文案与真实市场不符**：anthropics/skills 的技能按合集插件分发（`document-skills` 含 docx/xlsx/pptx/pdf，`example-skills` 含 frontend-design 等），市场里没有裸 `docx` 条目；文案改为说明合集分发，探针改安装 `document-skills` 验证全链路。
+- **插件源注册超时与失败留残骸**（真链路探针发现）：`CLI_TIMEOUT` 原为 90s，短于 Claude CLI 自己克隆市场的 120s 预算，网络稍慢就静默超时；现放宽到 180s。源仓库克隆超时同样 90s→180s（17MB 仓库在本机慢速网络下要 110s+）。注册失败原先被吞掉，前端只能看到市场缺条目；现把失败原因写进源的 `lastError`（界面上可见，刷新可重试）。添加失败清理目录改为带重试 + 改名挪走兜底（Windows 句柄未释放时删不掉），且不覆盖原始错误；下次同名重试会先清掉上次的半成品目录，不再永久卡「源目录已存在」。
+- **插件源注册与市场清单不互通**（真链路探针发现）：源注册写进 `agent/claude-config`，市场清单读 `agent/claude-plugins/config`，加源后市场永远看不到该源。现统一共用 `agent/claude-plugins/config`（与已安装插件数据同目录，不迁移、不丢记录）；布局测试补断言。
+
+### 验证
+
+- 真链路探针（`scripts/probe-recommend.mjs`，独占临时数据根 + 真实网络，20/20）：DeepWiki 一键添加 → 默认停用未信任 → 信任启用 → 连接测试返回 ask_wiki_question / read_wiki_contents / read_wiki_structure；Context7 无 Key 连接测试列出 query-docs / resolve-library-id（调用工具才需 Key）；Notion 为 OAuth 未登录且有登录入口；anthropics/skills 真实克隆 + CLI 注册（anthropic-agent-skills）→ 市场归属 `document-skills@anthropic-agent-skills` → 真实安装 → 技能页启用；临时库三服务 / 3 个工具 / 插件 enabled=1 落库；渲染层零控制台报错，`~/.claude` 与 `~/.codex` 哈希前后一致。
+- 回归：typecheck、Biome 0 错误、1261 项单测、563 项冒烟 0 失败 0 控制台报错（1440×900 暗色与 1180×720 亮色）、250/250 运行时断言。
+
 ## [0.79.0] - 2026-11-10
 
 ### 新增
