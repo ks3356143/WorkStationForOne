@@ -582,6 +582,7 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
       notifyEvent(session, event)
     }
 
+    const runtimePathPrefix = capabilities?.runtimePathPrefix() ?? ''
     let codexExternalMcp: Awaited<ReturnType<AgentCapabilityRuntime['codexMcp']>> | undefined
     if (input.agent === 'codex' && codexProvider && codexHome && capabilities) {
       try {
@@ -703,6 +704,7 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
                 ...(resumeId ? { resumeId } : {}),
                 ...(forkPending ? { forkThread: true } : {}),
                 ...(forkTurnId ? { forkTurnId } : {}),
+                ...(runtimePathPrefix ? { runtimePathPrefix } : {}),
                 cwd: workspace,
                 provider: codexProvider,
                 home: codexHome,
@@ -713,6 +715,7 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
                   : {}),
                 ...(planMode ? { planMode: true } : {}),
                 ...(surfacePolicy.codexFlags.length > 0 ? { flags: surfacePolicy.codexFlags } : {}),
+                ...(runtimePathPrefix ? { runtimePathPrefix } : {}),
                 ...(codexInstructions ? { developerInstructions: codexInstructions } : {}),
                 ...(codexImages?.length ? { images: codexImages } : {}),
                 clientVersion: app.getVersion(),
@@ -755,6 +758,7 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
                 ? { disabledTools: surfacePolicy.disabledClaudeTools }
                 : {}),
               ...(toolPriority ? { appendSystemPrompt: toolPriority } : {}),
+              ...(runtimePathPrefix ? { runtimePathPrefix } : {}),
               ...(useBridgeApproval
                 ? { permissionPromptTool: 'mcp__workstationforone__approval_request' }
                 : {}),

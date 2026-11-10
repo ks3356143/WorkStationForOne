@@ -17,12 +17,28 @@ describe('CLI 推荐清单', () => {
     }
   })
 
-  it('覆盖搜索 / 查看 / 文本 / 文件 / 系统 / 开发流六类', () => {
+  it('覆盖搜索 / 查看 / 文本 / 文件 / 系统 / 开发流 / 环境依赖七类', () => {
     for (const category of CLI_RECOMMEND_CATEGORIES) {
       expect(
         RECOMMENDED_CLI_TOOLS.some((tool) => tool.category === category),
         category
       ).toBe(true)
+    }
+  })
+
+  it('环境依赖条目带运行时元数据且同包只占一行', () => {
+    const runtimes = RECOMMENDED_CLI_TOOLS.filter((tool) => tool.category === 'runtime')
+    expect(runtimes.map((tool) => tool.id)).toEqual(['uv', 'bun', 'node'])
+    for (const tool of runtimes) {
+      expect(tool.runtime).toBeDefined()
+      expect(tool.runtime?.binaries.length).toBeGreaterThan(0)
+      expect(tool.runtime?.releaseApi).toMatch(
+        /^https:\/\/(api\.github\.com|github\.com|nodejs\.org)\//
+      )
+      expect(tool.runtime?.assetUrl('1.2.3')).toMatch(
+        /^https:\/\/github\.com\/|^https:\/\/nodejs\.org\/|^https:\/\/registry\.npmmirror\.com\//
+      )
+      expect(tool.detect).toContain(tool.id === 'uv' ? 'uvx' : tool.id === 'bun' ? 'bunx' : 'npx')
     }
   })
 })

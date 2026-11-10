@@ -494,6 +494,48 @@
   font: 11px / 1.5 var(--mono);
 }
 
+/* 环境依赖的双源二选一：同一个 CLI 只能有一个生效源 */
+.w1-capsrcseg {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+}
+
+.w1-capsrcseg button {
+  padding: 3px 8px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.55);
+  background: rgb(var(--field-rgb) / 0.12);
+  color: var(--fs);
+  font: 11px / 1.4 var(--mono);
+  cursor: pointer;
+}
+
+.w1-capsrcseg button.on {
+  border-color: rgb(var(--ac-rgb) / 0.65);
+  color: var(--ac-fg);
+  background: rgb(var(--ac-rgb) / 0.12);
+}
+
+.w1-capsrcseg button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.w1-capsrcnote {
+  color: var(--su);
+  font: 10.5px / 1.4 var(--mono);
+}
+
+.w1-captags-update {
+  margin-left: 6px;
+  padding: 1px 5px;
+  border: 1px solid rgb(var(--wn-rgb) / 0.4);
+  color: var(--wn-fg);
+  font: 10px / 1.4 var(--mono);
+  font-style: normal;
+}
+
 /* 数据桥分区在基础设置里，与上方域权限行拉开间距 */
 .w1-databridge {
   margin-top: 10px;

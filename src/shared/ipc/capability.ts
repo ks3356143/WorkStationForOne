@@ -309,10 +309,33 @@ export interface EnvironmentCheckRecord {
   path: string
 }
 
+/** 环境依赖 CLI 的双源状态；effective 为最终生效源（两侧都无时为 null）。 */
+export interface CliRuntimeState {
+  id: string
+  system: { available: boolean; version: string; path: string }
+  managed: { installed: boolean; version: string; binDir: string }
+  preference: 'system' | 'managed' | null
+  effective: 'system' | 'managed' | null
+}
+
+export interface CliRuntimeUpdate {
+  id: string
+  installedVersion: string
+  latestVersion: string
+  hasUpdate: boolean
+}
+
 export interface CapabilityApi {
   builtinTools: () => Promise<BuiltinToolRecord[]>
   /** 切换单个内置工具；关闭后桥不再列出也不执行它 */
   setBuiltinTool: (name: string, enabled: boolean) => Promise<BuiltinToolRecord[]>
+  /** 环境依赖 CLI 的系统 / 托管状态与生效源 */
+  cliRuntimes: () => Promise<CliRuntimeState[]>
+  setCliSource: (id: string, source: 'system' | 'managed') => Promise<CliRuntimeState[]>
+  installCliRuntime: (id: string) => Promise<CliRuntimeState[]>
+  uninstallCliRuntime: (id: string) => Promise<CliRuntimeState[]>
+  /** 只识别有无新版并提示；不自动更新 */
+  cliRuntimeUpdates: () => Promise<CliRuntimeUpdate[]>
   /** 按 Agent 的统一工具面：原生工具、MCP、技能与数据桥工具 */
   toolSurface: () => Promise<ToolSurfaceBundle>
   setNativeTool: (agent: AgentKind, id: string, enabled: boolean) => Promise<ToolSurfaceBundle>

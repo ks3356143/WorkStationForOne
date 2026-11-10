@@ -3477,10 +3477,10 @@ async function run() {
       one('.w1-capnav')?.textContent ?? 'missing'
     )
     byText('.w1-capnav button', '推荐')?.click()
-    await waitFor(() => all('.w1-caprow.rec').length === 23, 4000)
+    await waitFor(() => all('.w1-caprow.rec').length === 26, 4000)
     check(
       '推荐页展示精选 CLI 清单',
-      all('.w1-caprow.rec').length === 23 &&
+      all('.w1-caprow.rec').length === 26 &&
         (one('.w1-cap')?.textContent ?? '').includes('ripgrep') &&
         (one('.w1-cap')?.textContent ?? '').includes('winget install --id'),
       String(all('.w1-caprow.rec').length)
@@ -3512,6 +3512,22 @@ async function run() {
       2000
     )
     check('推荐页可复制安装命令', recCopyToast, one('.w1-toast')?.textContent ?? 'missing')
+    check(
+      '推荐页环境依赖行带双源选择',
+      all('.w1-caprow.runtime').length === 3 &&
+        all('.w1-caprow.runtime .w1-capsrcseg').every((seg) => seg.querySelectorAll('button').length === 2),
+      String(all('.w1-caprow.runtime').length)
+    )
+    const nodeRuntimeRow = all('.w1-caprow.runtime').find((row) => (row.textContent ?? '').includes('node / npx'))
+    const nodeSystemBtn = [...(nodeRuntimeRow?.querySelectorAll('.w1-capsrcseg button') ?? [])].find((b) => (b.textContent ?? '').startsWith('系统'))
+    nodeSystemBtn?.click()
+    const sourceToast = await waitFor(() => (one('.w1-toast')?.textContent ?? '').includes('node 生效源：系统'), 2000)
+    check('环境依赖可切换生效源', sourceToast, one('.w1-toast')?.textContent ?? 'missing')
+    check(
+      '环境依赖托管安装入口存在',
+      Boolean(nodeRuntimeRow?.querySelector('.w1-capmini[aria-label="安装 node 托管版本"]')),
+      nodeRuntimeRow?.textContent?.slice(0, 80) ?? 'missing'
+    )
     byText('.w1-capnav button', '插件')?.click()
     await sleep(250)
     check(
@@ -4359,7 +4375,9 @@ async function run() {
       }
       if (window.__WS_SMOKE_REC_SHOT__) {
         byText('.w1-capnav button', '推荐')?.click()
-        await waitFor(() => all('.w1-caprow.rec').length === 23, 4000)
+        await waitFor(() => all('.w1-caprow.rec').length === 26, 4000)
+        byText('.w1-capsort button', '环境依赖')?.click()
+        await waitFor(() => all('.w1-caprow.runtime').length === 3, 3000)
         await sleep(500)
         console.log('SMOKE_REC_SHOT')
         await sleep(900)

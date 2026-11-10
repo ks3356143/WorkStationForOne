@@ -10,6 +10,7 @@ import type { CodexMcpRuntime } from './codex-mcp'
 import { McpServerService, type McpOAuthDeps, type McpServerRuntime } from './mcp-servers'
 import type { ToolPrefRepository } from '../db/tool-prefs'
 import { checkEnvironment } from './environment'
+import { createRuntimeService, type RuntimeService } from './runtimes'
 import { ToolSurfaceService } from './tool-surface'
 
 export interface CapabilityCenter {
@@ -25,6 +26,8 @@ export interface CapabilityCenter {
   setBuiltinTool: (name: string, enabled: boolean) => BuiltinToolRecord[]
   /** 按 Agent 的统一工具面（原生 / MCP / 技能 / 数据桥） */
   toolSurface: ToolSurfaceService
+  /** 环境依赖 CLI：双源状态、更新检查、托管安装与启动改写 */
+  runtimeService: RuntimeService
   environment: (force?: boolean) => Promise<EnvironmentCheckRecord[]>
 }
 
@@ -34,6 +37,7 @@ export interface AgentCapabilityRuntime {
   toolPolicy: () => { allowed: string[]; denied: string[] }
   codexMcp: () => Promise<CodexMcpRuntime>
   toolSurface: ToolSurfaceService
+  runtimePathPrefix: () => string
 }
 
 export function createCapabilityCenter(options: {
@@ -49,7 +53,16 @@ export function createCapabilityCenter(options: {
   toolPrefs: ToolPrefRepository
 }): CapabilityCenter {
   const plugins = new ClaudePluginService(options.repository, options.appDataDir, options.pluginCli)
-  const mcp = new McpServerService(options.repository, options.version, options.oauth)
+  const runtimeService = createRuntimeService({
+    dataDir: options.appDataDir,
+    repository: options.repository
+  })
+  const mcp = new McpServerService(
+    options.repository,
+    options.version,
+    options.oauth,
+    runtimeService
+  )
   const listBuiltin = (): BuiltinToolRecord[] => {
     const disabled = new Set(options.policy?.disabledTools() ?? [])
     return MCP_TOOLS.map((tool) => ({
@@ -73,6 +86,7 @@ export function createCapabilityCenter(options: {
       return listBuiltin()
     },
     toolSurface: new ToolSurfaceService(options.toolPrefs, options.repository, listBuiltin),
+    runtimeService,
     environment: (force = false) => checkEnvironment(force)
   }
 }
@@ -83,6 +97,7 @@ export function agentCapabilityRuntime(center: CapabilityCenter): AgentCapabilit
     mcpServers: () => center.mcp.runtimeServers('claude'),
     toolPolicy: () => center.mcp.claudeToolPolicy(),
     codexMcp: () => center.mcp.codexRuntime(),
-    toolSurface: center.toolSurface
+    toolSurface: center.toolSurface,
+    runtimePathPrefix: () => center.runtimeService.pathPrefix()
   }
 }

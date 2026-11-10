@@ -52,27 +52,26 @@ function readVersion(bin: string, args: string[]): Promise<string> {
 }
 
 async function checkOne(entry: (typeof CHECKS)[number]): Promise<EnvironmentCheckRecord> {
-  const resolved = resolveCommand(entry.command)
-  if (!resolved) {
-    return {
-      id: entry.id,
-      label: entry.label,
-      command: entry.command,
-      available: false,
-      version: '',
-      path: ''
-    }
-  }
-  const version = await readVersion(resolved.bin, [...resolved.prefixArgs, '--version'])
-  const path = resolved.viaNode ? (resolved.prefixArgs[0] ?? resolved.bin) : resolved.bin
+  const probed = await probeCli(entry.command)
   return {
     id: entry.id,
     label: entry.label,
     command: entry.command,
-    available: Boolean(version),
-    version,
-    path
+    ...probed
   }
+}
+
+/** 只读探测单个命令的版本与路径；环境自检与运行时源选择共用。 */
+export async function probeCli(
+  command: string
+): Promise<{ available: boolean; version: string; path: string }> {
+  const resolved = resolveCommand(command)
+  if (!resolved) {
+    return { available: false, version: '', path: '' }
+  }
+  const version = await readVersion(resolved.bin, [...resolved.prefixArgs, '--version'])
+  const path = resolved.viaNode ? (resolved.prefixArgs[0] ?? resolved.bin) : resolved.bin
+  return { available: Boolean(version), version, path }
 }
 
 /** 能力中心环境自检：只读版本与路径，不安装任何系统工具。 */

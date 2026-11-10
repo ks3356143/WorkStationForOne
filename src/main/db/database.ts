@@ -801,6 +801,16 @@ export const MIGRATIONS: Migration[] = [
     sql: `
       ALTER TABLE agent_messages ADD COLUMN model TEXT;
     `
+  },
+  {
+    // 环境依赖 CLI 的生效源：同一个 CLI 在系统 / 应用托管之间二选一。
+    version: 47,
+    sql: `
+      CREATE TABLE cli_runtime_prefs (
+        name TEXT PRIMARY KEY CHECK (name IN ('uv', 'bun', 'node')),
+        source TEXT NOT NULL CHECK (source IN ('system', 'managed'))
+      );
+    `
   }
 ]
 

@@ -129,6 +129,38 @@ export function registerCapabilityHandlers(center: CapabilityCenter, audit?: Aud
 
   ipcMain.handle(IPC.capabilityCliRecommend, () => scanRecommended(process.env.PATH ?? ''))
 
+  const assertCliRuntimeId = (value: unknown): string => {
+    if (value !== 'uv' && value !== 'bun' && value !== 'node') {
+      throw new TypeError('环境依赖 id 无效')
+    }
+    return value
+  }
+  const assertCliSource = (value: unknown): 'system' | 'managed' => {
+    if (value !== 'system' && value !== 'managed') throw new TypeError('源无效')
+    return value
+  }
+
+  ipcMain.handle(IPC.capabilityCliRuntimes, () => center.runtimeService.states())
+  ipcMain.handle(IPC.capabilityCliSetSource, (_event, id: unknown, source: unknown) => {
+    const runtimeId = assertCliRuntimeId(id)
+    center.runtimeService.setSource(runtimeId, assertCliSource(source))
+    record('cli-runtime', `${runtimeId} → ${String(source)}`)
+    return center.runtimeService.states()
+  })
+  ipcMain.handle(IPC.capabilityCliInstall, async (_event, id: unknown) => {
+    const runtimeId = assertCliRuntimeId(id)
+    await center.runtimeService.install(runtimeId)
+    record('cli-runtime', `${runtimeId} 托管安装`)
+    return center.runtimeService.states()
+  })
+  ipcMain.handle(IPC.capabilityCliUninstall, (_event, id: unknown) => {
+    const runtimeId = assertCliRuntimeId(id)
+    center.runtimeService.uninstall(runtimeId)
+    record('cli-runtime', `${runtimeId} 托管卸载`)
+    return center.runtimeService.states()
+  })
+  ipcMain.handle(IPC.capabilityCliUpdates, () => center.runtimeService.updates())
+
   ipcMain.handle(IPC.capabilitySkillsList, () => center.plugins.list())
 
   ipcMain.handle(IPC.capabilitySkillsMarket, (_event, force: unknown) =>

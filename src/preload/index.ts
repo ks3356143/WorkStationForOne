@@ -182,6 +182,12 @@ const api: WsApi = {
     },
     environment: (force) => ipcRenderer.invoke(IPC_CHANNELS.capabilityEnvironment, force),
     cliRecommend: () => ipcRenderer.invoke(IPC_CHANNELS.capabilityCliRecommend),
+    cliRuntimes: () => ipcRenderer.invoke(IPC_CHANNELS.capabilityCliRuntimes),
+    setCliSource: (id, source) =>
+      ipcRenderer.invoke(IPC_CHANNELS.capabilityCliSetSource, id, source),
+    installCliRuntime: (id) => ipcRenderer.invoke(IPC_CHANNELS.capabilityCliInstall, id),
+    uninstallCliRuntime: (id) => ipcRenderer.invoke(IPC_CHANNELS.capabilityCliUninstall, id),
+    cliRuntimeUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.capabilityCliUpdates),
     skills: {
       list: () => ipcRenderer.invoke(IPC_CHANNELS.capabilitySkillsList),
       importLocal: () => ipcRenderer.invoke(IPC_CHANNELS.capabilitySkillsImportLocal),

@@ -578,4 +578,24 @@ export class CapabilityRepository {
     write('env', env, removeEnv)
     write('header', headers, removeHeaders)
   }
+
+  /** 环境依赖 CLI 的显式源选择；未设置的键不出现在结果里（走默认规则）。 */
+  listCliSources(): Record<string, 'system' | 'managed'> {
+    const rows = this.db.prepare('SELECT name, source FROM cli_runtime_prefs').all() as unknown as {
+      name: string
+      source: 'system' | 'managed'
+    }[]
+    return Object.fromEntries(rows.map((row) => [row.name, row.source]))
+  }
+
+  setCliSource(name: string, source: 'system' | 'managed'): void {
+    if (!['uv', 'bun', 'node'].includes(name)) throw new Error('未知环境依赖')
+    if (source !== 'system' && source !== 'managed') throw new Error('源无效')
+    this.db
+      .prepare(
+        `INSERT INTO cli_runtime_prefs (name, source) VALUES (?, ?)
+         ON CONFLICT(name) DO UPDATE SET source = excluded.source`
+      )
+      .run(name, source)
+  }
 }

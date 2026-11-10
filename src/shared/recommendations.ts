@@ -1,5 +1,12 @@
 /** 本机 CLI 工具推荐清单：纯数据，随应用发布；安装命令已按 winget 官方 ID 核对。 */
-export type CliRecommendCategory = 'search' | 'view' | 'text' | 'files' | 'system' | 'dev'
+export type CliRecommendCategory =
+  | 'search'
+  | 'view'
+  | 'text'
+  | 'files'
+  | 'system'
+  | 'dev'
+  | 'runtime'
 
 export const CLI_RECOMMEND_CATEGORIES: CliRecommendCategory[] = [
   'search',
@@ -7,7 +14,8 @@ export const CLI_RECOMMEND_CATEGORIES: CliRecommendCategory[] = [
   'text',
   'files',
   'system',
-  'dev'
+  'dev',
+  'runtime'
 ]
 
 export const CLI_CATEGORY_LABELS: Record<CliRecommendCategory, string> = {
@@ -16,7 +24,24 @@ export const CLI_CATEGORY_LABELS: Record<CliRecommendCategory, string> = {
   text: '文本',
   files: '文件与磁盘',
   system: '系统',
-  dev: '开发流'
+  dev: '开发流',
+  runtime: '环境依赖'
+}
+
+/** 环境依赖的托管安装元数据；资产命名参考 Cherry Studio 的 download-binaries。 */
+export interface CliRuntimeMeta {
+  /** 查最新版本的只读端点；失败静默跳过 */
+  releaseApi: string
+  /** release tag 前缀（bun-v / v），node 的 index.json 直接给纯版本 */
+  tagPrefix: string
+  assetUrl: (version: string) => string
+  mirrorUrl?: (version: string) => string
+  /** zip 内需要的二进制；解压后只拷贝这些 */
+  binaries: string[]
+  /** zip 内顶层目录模板，{version} 会被替换 */
+  strip?: string
+  /** 系统源行的升级命令 ID */
+  wingetId: string
 }
 
 export interface CliRecommendation {
@@ -31,6 +56,8 @@ export interface CliRecommendation {
   install: { manager: 'winget'; command: string }
   /** PATH 里命中的可执行名（小写、无扩展名） */
   detect: string[]
+  /** 仅环境依赖：支持应用托管安装与源选择 */
+  runtime?: CliRuntimeMeta
 }
 
 export const RECOMMENDED_CLI_TOOLS: CliRecommendation[] = [
@@ -263,5 +290,64 @@ export const RECOMMENDED_CLI_TOOLS: CliRecommendation[] = [
     repo: 'https://github.com/jesseduffield/lazygit',
     install: { manager: 'winget', command: 'winget install --id JesseDuffield.lazygit -e' },
     detect: ['lazygit']
+  },
+  {
+    id: 'uv',
+    name: 'uv / uvx',
+    category: 'runtime',
+    summary: 'Python 包与工具启动器：uvx 直接跑 Python 系 MCP 服务。',
+    why: 'Rust 编写、极快；Cherry 等客户端的同款托管运行时。',
+    repo: 'https://github.com/astral-sh/uv',
+    install: { manager: 'winget', command: 'winget install --id astral-sh.uv -e' },
+    detect: ['uv', 'uvx'],
+    runtime: {
+      releaseApi: 'https://api.github.com/repos/astral-sh/uv/releases/latest',
+      tagPrefix: '',
+      assetUrl: (version) =>
+        `https://github.com/astral-sh/uv/releases/download/${version}/uv-x86_64-pc-windows-msvc.zip`,
+      binaries: ['uv.exe', 'uvx.exe'],
+      wingetId: 'astral-sh.uv'
+    }
+  },
+  {
+    id: 'bun',
+    name: 'bun / bunx',
+    category: 'runtime',
+    summary: 'JS/TS 运行时与包管理器：bunx 跑 npm 系 MCP 服务，比 npx 快。',
+    why: 'Zig 编写、启动极快；Cherry 托管的 JS 运行时同款。',
+    repo: 'https://github.com/oven-sh/bun',
+    install: { manager: 'winget', command: 'winget install --id Oven-sh.Bun -e' },
+    detect: ['bun', 'bunx'],
+    runtime: {
+      releaseApi: 'https://api.github.com/repos/oven-sh/bun/releases/latest',
+      tagPrefix: 'bun-v',
+      assetUrl: (version) =>
+        `https://github.com/oven-sh/bun/releases/download/bun-v${version}/bun-windows-x64.zip`,
+      mirrorUrl: (version) =>
+        `https://registry.npmmirror.com/-/binary/bun/bun-v${version}/bun-windows-x64.zip`,
+      binaries: ['bun.exe'],
+      strip: 'bun-windows-x64',
+      wingetId: 'Oven-sh.Bun'
+    }
+  },
+  {
+    id: 'node',
+    name: 'node / npx',
+    category: 'runtime',
+    summary: 'Node.js 运行时：npx 跑 npm 系 MCP 服务的传统路径。',
+    why: '生态最全；已有系统 Node 时可直接选系统源，零下载。',
+    repo: 'https://github.com/nodejs/node',
+    install: { manager: 'winget', command: 'winget install --id OpenJS.NodeJS -e' },
+    detect: ['node', 'npx'],
+    runtime: {
+      releaseApi: 'https://nodejs.org/dist/index.json',
+      tagPrefix: '',
+      assetUrl: (version) => `https://nodejs.org/dist/v${version}/node-v${version}-win-x64.zip`,
+      mirrorUrl: (version) =>
+        `https://registry.npmmirror.com/-/binary/node/v${version}/node-v${version}-win-x64.zip`,
+      binaries: ['node.exe', 'npm.cmd', 'npx.cmd'],
+      strip: 'node-v{version}-win-x64',
+      wingetId: 'OpenJS.NodeJS'
+    }
   }
 ]

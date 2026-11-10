@@ -144,6 +144,8 @@ export type {
   ExternalMcpUpdateInfo,
   ExternalMcpApi,
   EnvironmentCheckRecord,
+  CliRuntimeState,
+  CliRuntimeUpdate,
   CapabilityApi
 } from './ipc/capability'
 export type { AuditLogDomain, AuditLogRecord, AuditApi } from './ipc/audit'

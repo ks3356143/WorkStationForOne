@@ -178,6 +178,8 @@ export interface ClaudeRunOptions {
   disabledTools?: string[]
   /** 工具优先级说明，追加到系统提示 */
   appendSystemPrompt?: string
+  /** 托管运行时目录前缀；注入子进程 PATH 让模型 Bash 能用 uvx/bunx */
+  runtimePathPrefix?: string
   /** 规则命中时在发卡前直接放行；返回命中作用域或 null */
   autoApprove?: (toolName: string) => 'session' | 'workspace' | null
   /** 规则直接放行写入前通知快照；审批卡路径由主进程在允许时抓取 */
@@ -363,7 +365,10 @@ export function startClaudeRun(options: ClaudeRunOptions): RunHandle {
   const childEnv = withProviderEnv(
     {
       ...process.env,
-      ...(cli.viaNode ? { ELECTRON_RUN_AS_NODE: '1' } : {})
+      ...(cli.viaNode ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
+      ...(options.runtimePathPrefix
+        ? { PATH: options.runtimePathPrefix + ';' + (process.env.PATH ?? '') }
+        : {})
     },
     options.provider
   )

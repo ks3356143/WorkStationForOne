@@ -90,6 +90,8 @@ export interface CodexAppServerRunOptions {
   planMode?: boolean
   /** 工具面关闭项生成的进程级 -c 参数 */
   flags?: string[]
+  /** 托管运行时目录前缀；注入子进程 PATH */
+  runtimePathPrefix?: string
   /** 工具优先级说明；只含名称，不含密钥或命令 */
   developerInstructions?: string
   /** 规则命中时在发卡前直接放行；返回命中作用域或 null */
@@ -301,6 +303,9 @@ export function startCodexAppServerRun(options: CodexAppServerRunOptions): Codex
       env: {
         ...process.env,
         ...(cli.viaNode ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
+        ...(options.runtimePathPrefix
+          ? { PATH: options.runtimePathPrefix + ';' + (process.env.PATH ?? '') }
+          : {}),
         CODEX_HOME: options.home,
         WS_CODEX_PROVIDER_TOKEN: options.provider.token,
         ...(options.mcp ? { WS_CODEX_MCP_TOKEN: options.mcp.token } : {}),

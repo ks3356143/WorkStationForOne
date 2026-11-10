@@ -172,7 +172,10 @@ export class McpServerService {
   constructor(
     private readonly repository: CapabilityRepository,
     private readonly appVersion = '0.0.0',
-    private readonly oauth?: McpOAuthDeps
+    private readonly oauth?: McpOAuthDeps,
+    private readonly runtimes?: {
+      rewrite(command: string, args: string[]): { command: string; args: string[] }
+    }
   ) {}
 
   catalog(): ExternalMcpCatalogEntry[] {
@@ -404,8 +407,13 @@ export class McpServerService {
         transport: server.transport,
         ...(server.transport === 'stdio'
           ? {
-              command: server.command,
-              args: server.args,
+              ...(() => {
+                const rewritten = this.runtimes?.rewrite(server.command, [...server.args]) ?? {
+                  command: server.command,
+                  args: [...server.args]
+                }
+                return { command: rewritten.command, args: rewritten.args }
+              })(),
               ...(Object.keys(env).length ? { env } : {})
             }
           : { url: server.url, ...(Object.keys(headers).length ? { headers } : {}) }),
@@ -512,11 +520,15 @@ export class McpServerService {
         .filter((server) => targetsAgent(server.targets, 'codex'))
         .map((server) => {
           const runtime = live.get(server.key)
+          const rewritten = this.runtimes?.rewrite(server.command, [...server.args]) ?? {
+            command: server.command,
+            args: [...server.args]
+          }
           return {
             key: server.key,
             transport: server.transport,
-            command: server.command,
-            args: [...server.args],
+            command: rewritten.command,
+            args: rewritten.args,
             url: server.url,
             ...(runtime?.env ? { env: runtime.env } : {}),
             ...(runtime?.headers ? { headers: runtime.headers } : {}),
@@ -619,11 +631,15 @@ export class McpServerService {
     for (const server of servers) {
       if (server.transport === 'stdio') {
         const env = decryptSecrets(this.repository.secretsFor(server.id).env)
+        const rewritten = this.runtimes?.rewrite(server.command, [...server.args]) ?? {
+          command: server.command,
+          args: [...server.args]
+        }
         result.push({
           name: server.key,
           type: 'stdio' as const,
-          command: server.command,
-          args: [...server.args],
+          command: rewritten.command,
+          args: rewritten.args,
           ...(Object.keys(env).length > 0 ? { env } : {})
         })
         continue

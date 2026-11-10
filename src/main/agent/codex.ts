@@ -186,6 +186,8 @@ export interface CodexRunOptions {
   home?: string
   /** 工具面关闭项生成的进程级 -c 参数 */
   flags?: string[]
+  /** 托管运行时目录前缀；注入子进程 PATH */
+  runtimePathPrefix?: string
   onEvent: (event: AgentRunEvent) => void
   onExit: (info: { code: number | null; stderr: string; cancelled: boolean }) => void
   /** 省略时按环境解析；显式传 null 表示「没有可用的 CLI」 */
@@ -320,6 +322,9 @@ export function startCodexRun(options: CodexRunOptions): CodexRunHandle {
     env: {
       ...process.env,
       ...(cli.viaNode ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
+      ...(options.runtimePathPrefix
+        ? { PATH: options.runtimePathPrefix + ';' + (process.env.PATH ?? '') }
+        : {}),
       ...(options.provider
         ? {
             CODEX_HOME: options.home,
