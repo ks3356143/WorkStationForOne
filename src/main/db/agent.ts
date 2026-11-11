@@ -13,6 +13,7 @@ import type {
   AgentRunRecord,
   AgentSessionPatch,
   AgentSessionRecord,
+  AgentTeamNoteRecord,
   AgentToolRecord
 } from '../../shared/ipc'
 import { runInTransaction } from './transaction'
@@ -29,6 +30,9 @@ interface SessionRow {
   pinned: number
   archived: number
   plan_mode: number
+  persona: string
+  context_digest: string
+  team_id: string
   created_at: number
   updated_at: number
 }
@@ -132,6 +136,9 @@ function toSession(row: SessionRow): AgentSessionRecord {
   if (row.pinned === 1) session.pinned = true
   if (row.archived === 1) session.archived = true
   if (row.plan_mode === 1) session.planMode = true
+  if (row.persona) session.persona = row.persona
+  if (row.context_digest) session.contextDigest = row.context_digest
+  if (row.team_id) session.teamId = row.team_id
   return session
 }
 
@@ -221,7 +228,7 @@ export class AgentRepository {
     const rows = this.db
       .prepare(
         `SELECT s.id, s.agent, s.title, s.status, s.resume_id, s.pending_fork, s.fork_turn_id,
-           s.workspace, s.pinned, s.archived, s.plan_mode, s.created_at, s.updated_at,
+           s.workspace, s.pinned, s.archived, s.plan_mode, s.persona, s.context_digest, s.team_id, s.created_at, s.updated_at,
            (SELECT m.id FROM agent_messages m
             WHERE m.session_id = s.id AND m.text LIKE ? ESCAPE '\\'
             ORDER BY m.created_at DESC, m.rowid DESC LIMIT 1) AS message_id,
@@ -252,7 +259,7 @@ export class AgentRepository {
     const rows = this.db
       .prepare(
         `SELECT id, agent, title, status, resume_id, pending_fork, fork_turn_id, workspace,
-           pinned, archived, plan_mode, created_at, updated_at
+           pinned, archived, plan_mode, persona, context_digest, team_id, created_at, updated_at
          FROM agent_sessions ORDER BY pinned DESC, updated_at DESC, created_at DESC`
       )
       .all() as unknown as SessionRow[]
@@ -263,7 +270,7 @@ export class AgentRepository {
     const row = this.db
       .prepare(
         `SELECT id, agent, title, status, resume_id, pending_fork, fork_turn_id, workspace,
-           pinned, archived, plan_mode, created_at, updated_at
+           pinned, archived, plan_mode, persona, context_digest, team_id, created_at, updated_at
          FROM agent_sessions WHERE id = ?`
       )
       .get(id) as SessionRow | undefined
@@ -304,10 +311,10 @@ export class AgentRepository {
     const now = Date.now()
     this.db
       .prepare(
-        `INSERT INTO agent_sessions (id, agent, title, status, created_at, updated_at)
-         VALUES (?, ?, ?, 'idle', ?, ?)`
+        `INSERT INTO agent_sessions (id, agent, title, status, persona, created_at, updated_at)
+         VALUES (?, ?, ?, 'idle', ?, ?, ?)`
       )
-      .run(input.id, input.agent, input.title, now, now)
+      .run(input.id, input.agent, input.title, input.persona ?? '', now, now)
     return (
       this.findSession(input.id) ?? {
         id: input.id,
@@ -359,6 +366,18 @@ export class AgentRepository {
       assignments.push('plan_mode = ?')
       values.push(patch.planMode ? 1 : 0)
     }
+    if (patch.persona !== undefined) {
+      assignments.push('persona = ?')
+      values.push(patch.persona)
+    }
+    if (patch.contextDigest !== undefined) {
+      assignments.push('context_digest = ?')
+      values.push(patch.contextDigest)
+    }
+    if (patch.teamId !== undefined) {
+      assignments.push('team_id = ?')
+      values.push(patch.teamId)
+    }
     if (assignments.length === 0) return this.findSession(id)
 
     assignments.push('updated_at = ?')
@@ -391,10 +410,18 @@ export class AgentRepository {
     runInTransaction(this.db, () => {
       this.db
         .prepare(
-          `INSERT INTO agent_sessions (id, agent, title, status, workspace, created_at, updated_at)
-           VALUES (?, ?, ?, 'idle', ?, ?, ?)`
+          `INSERT INTO agent_sessions (id, agent, title, status, workspace, persona, created_at, updated_at)
+           VALUES (?, ?, ?, 'idle', ?, ?, ?, ?)`
         )
-        .run(input.id, source.agent, input.title, source.workspace ?? '', now, now)
+        .run(
+          input.id,
+          source.agent,
+          input.title,
+          source.workspace ?? '',
+          source.persona ?? '',
+          now,
+          now
+        )
       const insert = this.db.prepare(
         `INSERT INTO agent_messages
           (id, session_id, role, text, time_label, error, tools_json, turn_id, context_files,
@@ -666,6 +693,96 @@ export class AgentRepository {
         info.turns ?? null,
         id
       )
+  }
+
+  /** 评估落痕：工具调用序列（observed）与用户审批决策（allow/deny）。 */
+  recordToolCall(input: {
+    runId: string
+    sessionId: string
+    seq: number
+    toolName: string
+    kind: string
+    decision: string
+    at: number
+  }): void {
+    this.db
+      .prepare(
+        `INSERT INTO agent_tool_calls (run_id, session_id, seq, tool_name, kind, decision, at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        input.runId,
+        input.sessionId,
+        input.seq,
+        input.toolName,
+        input.kind,
+        input.decision,
+        input.at
+      )
+  }
+
+  listToolCalls(
+    runId: string
+  ): Array<{ seq: number; toolName: string; kind: string; decision: string }> {
+    const rows = this.db
+      .prepare(
+        'SELECT seq, tool_name, kind, decision FROM agent_tool_calls WHERE run_id = ? ORDER BY seq'
+      )
+      .all(runId) as Array<{ seq: number; tool_name: string; kind: string; decision: string }>
+    return rows.map((row) => ({
+      seq: row.seq,
+      toolName: row.tool_name,
+      kind: row.kind,
+      decision: row.decision
+    }))
+  }
+
+  /** 团队黑板：写一条消息，返回落库记录。 */
+  postTeamNote(input: {
+    teamId: string
+    sessionId: string
+    role: 'user' | 'assistant' | 'system'
+    text: string
+    at: number
+  }): AgentTeamNoteRecord {
+    const result = this.db
+      .prepare(
+        `INSERT INTO agent_team_notes (team_id, session_id, role, text, created_at)
+         VALUES (?, ?, ?, ?, ?)`
+      )
+      .run(input.teamId, input.sessionId, input.role, input.text, input.at)
+    return {
+      id: Number(result.lastInsertRowid),
+      teamId: input.teamId,
+      sessionId: input.sessionId,
+      role: input.role,
+      text: input.text,
+      createdAt: input.at
+    }
+  }
+
+  listTeamNotes(teamId: string): AgentTeamNoteRecord[] {
+    const rows = this.db
+      .prepare(
+        `SELECT id, team_id, session_id, role, text, created_at
+         FROM agent_team_notes WHERE team_id = ? ORDER BY created_at ASC, id ASC`
+      )
+      .all(teamId) as Array<{
+      id: number
+      team_id: string
+      session_id: string
+      role: 'user' | 'assistant' | 'system'
+      text: string
+      created_at: number
+    }>
+    return rows.map((row) => ({
+      id: row.id,
+      teamId: row.team_id,
+      sessionId: row.session_id,
+      role: row.role,
+      text: row.text,
+      createdAt: row.created_at
+    }))
   }
 
   listRuns(since: number): AgentRunRecord[] {

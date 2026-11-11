@@ -56,6 +56,55 @@ function ErrorDetail({ raw }: { raw: string }) {
   )
 }
 
+function FallbackRetry({
+  agent,
+  onRetry,
+  notify
+}: {
+  agent: AgentId
+  onRetry: () => void
+  notify: (text: string) => void
+}) {
+  const [fb, setFb] = useState<{ id: string; name: string } | null>(null)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    let alive = true
+    const api = typeof window === 'undefined' ? undefined : window.ws?.provider
+    if (!api) return
+    void api
+      .fallbackFor(agent)
+      .then((result) => {
+        if (alive) setFb(result)
+      })
+      .catch(() => {
+        if (alive) setFb(null)
+      })
+    return () => {
+      alive = false
+    }
+  }, [agent])
+  if (!fb) return null
+  const switchAndRetry = () => {
+    if (busy) return
+    const api = window.ws?.provider
+    if (!api) return
+    setBusy(true)
+    void api
+      .setActive(agent, fb.id)
+      .then(() => {
+        notify(`已切换到备用 Provider：${fb.name}`)
+        onRetry()
+      })
+      .catch((error: unknown) => notify(error instanceof Error ? error.message : '切换失败'))
+      .finally(() => setBusy(false))
+  }
+  return (
+    <button type="button" className="w1-retry" disabled={busy} onClick={switchAndRetry}>
+      {busy ? '切换中…' : `换备用重试（${fb.name}）`}
+    </button>
+  )
+}
+
 interface MessageRowProps {
   message: ChatMessage
   agent: AgentId
@@ -202,6 +251,9 @@ export const MessageRow = memo(function MessageRow({
           <button type="button" className="w1-retry" onClick={onRetry}>
             重试
           </button>
+        ) : null}
+        {message.error && onRetry ? (
+          <FallbackRetry agent={agent} onRetry={onRetry} notify={notify} />
         ) : null}
         <TurnChanges
           tools={message.tools}

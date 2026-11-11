@@ -6,6 +6,46 @@
 
 暂无。
 
+## [0.82.0] - 2026-11-11
+
+### 新增
+
+- **Provider 路由与错误驱动降级**（突破计划第 3 轮）：DB v51 `provider_profiles.priority` 控制备用顺序；`shared/provider-routing.ts` 的 `selectFallback` 纯函数；`provider:fallback-for` 返回非激活备用；错误卡新增「换备用重试」——用户显式点击才切换激活并重试，**不自动重试副作用回合**。
+- **多智能体编排地基**（第 4 轮）：DB v52 `agent_sessions.team_id` + `agent_team_notes` 共享黑板；`TeamService` 建团队（负责人 + 1–8 个 worker 会话，继承工作区与人设）；`agent:team-create/list/post/notes` IPC 与 preload；团队列表与黑板读写纯 SQLite，无云、无自动发送。
+- **提示注入防御**（第 5 轮）：`shared/prompt-guard.ts` 启发式检测（覆盖先前指令 / 角色劫持 / 索取系统提示 / 绕过审批 / 外带密钥）；工作区文件与笔记记忆命中时在上下文前加只读「安全提示」，不改原文、不执行。
+
+### 验证
+
+- typecheck、Biome 0 错误、1323 项单测（含 provider-routing / team / prompt-guard 新测试）、576 项冒烟 0 失败 0 控制台报错（新增备用优先级落库、建团队共享 teamId、黑板读写 3 项）。
+
+## [0.81.0] - 2026-11-11
+
+### 新增
+
+- **智能体评估 harness**（突破计划第 1 轮）：DB v49 `agent_tool_calls` 记录每回合工具调用序列（observed）与用户审批决策（allow/deny）；`shared/eval-metrics.ts` 纯函数算成功率 / 平均轮次 / 每回合成本 / 审批摩擦 / 首选命中与先行率；`npm run eval -- --db <库> [--preferred …] [--min-ok …] [--max-approval …]` 只读复算评分卡并做回归门，可对着冒烟临时库或真实库复跑。
+- **上下文工程**（突破计划第 2 轮）：DB v50 `agent_sessions.context_digest` 存滚动摘要；回合成功后用抽取式压缩（首条意图 + 最近若干条 + 省略计数）刷新摘要；发送时把摘要与笔记 FTS 检索命中的记忆块按预算装配成**系统提示前缀**（`--append-system-prompt` / `developerInstructions`），不污染用户消息；超预算先丢低优先级块、单块截断标记。
+
+### 修复
+
+- **记忆注入污染用户消息**（本轮冒烟抓出）：首版把记忆/摘要拼进用户 prompt，导致依赖 prompt 关键词的链路（含 stub 分支）被记忆内容里的词触发。改为系统提示侧注入后恢复；补「记忆/摘要走系统侧」的约定与测试。
+
+### 验证
+
+- typecheck、Biome 0 错误、1316 项单测、571 项冒烟 0 失败 0 控制台报错（新增工具落痕 / 审批落痕 / 滚动摘要 3 项）、eval 评分卡 fixture 复算正确。
+
+## [0.80.0] - 2026-11-11
+
+### 新增
+
+- **「xx专家」**：把「人设提示词 + 默认 skill/MCP 工具组合 + ★优先」打包成可一键切换的专家。内置 4 个（前端 / Office 文档 / 运维 / Go-Rust 后端）+ 自定义新建 / 编辑 / 删除 / 导出（Claude 子代理 Markdown 格式）。舰队控制台新增「专家」区，一键「用此专家新建会话」= 激活工具组合 + 会话携带人设快照。
+- **轻量专家市场**：Git / 本地目录源里的 Claude 子代理 `.md`，可浏览（搜索 / 按源过滤）+ 一键导入；源添加 / 移除 / 刷新复用插件源的克隆与地址白名单。扫描限深限量、跳过 `node_modules/.git`、解析失败跳过计数、拒绝越界路径；只落数据不执行。
+- **会话人设**（DB v48）：`agent_sessions.persona` 存会话级人设快照，发送时拼在工具优先级提示前，同走 Claude `--append-system-prompt` / Codex `developerInstructions`；分叉继承、导入为空。
+- **激活安全边界**：`resolveExpertTools` 只把已信任 MCP / 已装技能纳入可激活集合；激活不自动信任 MCP，单条失败不阻断，汇总「已启用 N 项 · 缺失/未信任 M 项」。
+
+### 验证
+
+- typecheck、Biome 0 错误、1298 项单测（含专家格式往返 / 激活只启用已信任 / 市场扫描与越界 / DB v48 迁移）、569 项冒烟 0 失败 0 控制台报错（新增专家区渲染 / 自定义新建删除 / 市场加源浏览导入 / 人设会话 6 项）、249/250 运行时断言（1 项帧率跳过）、双尺寸双主题五视图 20 套截图。
+
 ## [0.79.2] - 2026-11-11
 
 ### 修复

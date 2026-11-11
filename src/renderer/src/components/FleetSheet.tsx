@@ -8,6 +8,7 @@ import { formatCost, formatDuration, summarizeUsage, usageByDay } from '../lib/u
 import { useWorkstation } from '../store/useWorkstation'
 import type { AgentId, Session } from '../types'
 import { ClaudeGlyph, CodexGlyph, PlusIcon } from './Glyphs'
+import { ExpertsPanel } from './fleet/ExpertsPanel'
 
 interface FleetSheetProps {
   onClose: () => void
@@ -63,6 +64,7 @@ export function FleetSheet({ onClose, notify }: FleetSheetProps) {
   const [presets, setPresets] = useState<AgentPresetRecord[]>([])
   const [presetBusy, setPresetBusy] = useState(false)
   const [usageOpen, setUsageOpen] = useState(false)
+  const [expertsOpen, setExpertsOpen] = useState(false)
   const [usage, setUsage] = useState<AgentRunRecord[] | null>(null)
   const [usageBusy, setUsageBusy] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
@@ -299,6 +301,13 @@ export function FleetSheet({ onClose, notify }: FleetSheetProps) {
             </button>
             <button
               type="button"
+              className={`w1-capmini${expertsOpen ? ' pri' : ''}`}
+              onClick={() => setExpertsOpen((open) => !open)}
+            >
+              专家
+            </button>
+            <button
+              type="button"
               className={`w1-capmini${usageOpen ? ' pri' : ''}`}
               onClick={toggleUsage}
             >
@@ -468,6 +477,8 @@ export function FleetSheet({ onClose, notify }: FleetSheetProps) {
             )}
           </div>
         ) : null}
+
+        {expertsOpen ? <ExpertsPanel notify={notify} onLaunched={onClose} /> : null}
 
         <div className="w1-fleetbody">
           {sessions.length === 0 ? (

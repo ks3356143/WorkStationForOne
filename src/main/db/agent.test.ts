@@ -33,11 +33,14 @@ describe('迁移 v16', () => {
       .map((row) => (row as { name: string }).name)
     expect(tables).toEqual([
       'agent_checkpoints',
+      'agent_experts',
       'agent_messages',
       'agent_plugins',
       'agent_presets',
       'agent_runs',
       'agent_sessions',
+      'agent_team_notes',
+      'agent_tool_calls',
       'agent_tool_prefs'
     ])
     const columns = db
@@ -46,6 +49,7 @@ describe('迁移 v16', () => {
       .map((row) => (row as { name: string }).name)
     expect(columns).toContain('workspace')
     expect(columns).toContain('plan_mode')
+    expect(columns).toContain('persona')
     const messageColumns = db
       .prepare('PRAGMA table_info(agent_messages)')
       .all()
@@ -76,7 +80,7 @@ describe('迁移 v16', () => {
     migrate(db)
 
     const repo = new AgentRepository(db)
-    expect(userVersion(db)).toBe(47)
+    expect(userVersion(db)).toBe(52)
     expect(repo.listMessagesForSession('s1')[0]?.runId).toBeUndefined()
     expect(repo.listMessagesForSession('s1')[0]?.model).toBeUndefined()
     db.close()

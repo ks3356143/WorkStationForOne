@@ -13,7 +13,8 @@ const api: WsApi = {
     save: (input) => ipcRenderer.invoke(IPC_CHANNELS.providerSave, input),
     setActive: (target, id) => ipcRenderer.invoke(IPC_CHANNELS.providerSetActive, target, id),
     test: (input) => ipcRenderer.invoke(IPC_CHANNELS.providerTest, input),
-    listModels: (input) => ipcRenderer.invoke(IPC_CHANNELS.providerModels, input)
+    listModels: (input) => ipcRenderer.invoke(IPC_CHANNELS.providerModels, input),
+    fallbackFor: (target) => ipcRenderer.invoke(IPC_CHANNELS.providerFallbackFor, target)
   },
   tasks: {
     list: () => ipcRenderer.invoke(IPC_CHANNELS.tasksList),
@@ -124,6 +125,11 @@ const api: WsApi = {
     discoverSessions: () => ipcRenderer.invoke(IPC_CHANNELS.agentDiscoverSessions),
     importSession: (input) => ipcRenderer.invoke(IPC_CHANNELS.agentImportSession, input),
     forkSession: (input) => ipcRenderer.invoke(IPC_CHANNELS.agentForkSession, input),
+    createTeam: (input) => ipcRenderer.invoke(IPC_CHANNELS.agentTeamCreate, input),
+    listTeams: () => ipcRenderer.invoke(IPC_CHANNELS.agentTeamList),
+    postTeamNote: (teamId, sessionId, role, text) =>
+      ipcRenderer.invoke(IPC_CHANNELS.agentTeamPost, { teamId, sessionId, role, text }),
+    teamNotes: (teamId) => ipcRenderer.invoke(IPC_CHANNELS.agentTeamNotes, teamId),
     approvalRules: () => ipcRenderer.invoke(IPC_CHANNELS.agentApprovalRules),
     removeApprovalRule: (id) => ipcRenderer.invoke(IPC_CHANNELS.agentRemoveApprovalRule, id)
   },
@@ -218,6 +224,23 @@ const api: WsApi = {
       exportConfig: () => ipcRenderer.invoke(IPC_CHANNELS.capabilityMcpExport),
       checkUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.capabilityMcpCheckUpdates),
       applyUpdate: (id) => ipcRenderer.invoke(IPC_CHANNELS.capabilityMcpApplyUpdate, id)
+    }
+  },
+  experts: {
+    list: () => ipcRenderer.invoke(IPC_CHANNELS.expertsList),
+    save: (input) => ipcRenderer.invoke(IPC_CHANNELS.expertsSave, input),
+    remove: (id) => ipcRenderer.invoke(IPC_CHANNELS.expertsRemove, id),
+    importMarkdown: (text) => ipcRenderer.invoke(IPC_CHANNELS.expertsImport, text),
+    export: (id) => ipcRenderer.invoke(IPC_CHANNELS.expertsExport, id),
+    activate: (agent, id) => ipcRenderer.invoke(IPC_CHANNELS.expertsActivate, { agent, id }),
+    market: {
+      sources: () => ipcRenderer.invoke(IPC_CHANNELS.expertMarketSources),
+      addSource: (input) => ipcRenderer.invoke(IPC_CHANNELS.expertMarketAddSource, input),
+      removeSource: (id) => ipcRenderer.invoke(IPC_CHANNELS.expertMarketRemoveSource, id),
+      refresh: (id) => ipcRenderer.invoke(IPC_CHANNELS.expertMarketRefresh, id),
+      list: () => ipcRenderer.invoke(IPC_CHANNELS.expertMarketList),
+      import: (sourceId, relPath) =>
+        ipcRenderer.invoke(IPC_CHANNELS.expertMarketImport, { sourceId, relPath })
     }
   },
   audit: {

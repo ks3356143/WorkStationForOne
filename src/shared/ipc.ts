@@ -95,6 +95,9 @@ export type {
   AgentImageRef,
   AgentImageInput,
   AgentRunRecord,
+  AgentTeamNoteRecord,
+  AgentTeamSummary,
+  AgentTeamCreateInput,
   WorkspaceEntry,
   WorkspaceFile,
   AgentApi
@@ -150,6 +153,16 @@ export type {
 } from './ipc/capability'
 export type { AuditLogDomain, AuditLogRecord, AuditApi } from './ipc/audit'
 export type {
+  ExpertRecord,
+  ExpertSaveInput,
+  ExpertSourceRecord,
+  ExpertSourceInput,
+  ExpertMarketEntry,
+  ExpertActivateResult,
+  ExpertMarketApi,
+  ExpertApi
+} from './ipc/experts'
+export type {
   BackupResult,
   BackupEntry,
   BackupList,
@@ -174,6 +187,7 @@ export const WS_API_KEYS = [
   'agent',
   'mcp',
   'capability',
+  'experts',
   'audit',
   'app'
 ] as const satisfies readonly (keyof WsApi)[]

@@ -7,6 +7,7 @@ import type {
   ProviderWireApi
 } from '../../shared/ipc'
 import { IPC_CHANNELS } from '../../shared/ipc'
+import { selectFallback } from '../../shared/provider-routing'
 import type { ProviderService } from '../providers'
 
 const IPC = IPC_CHANNELS
@@ -27,10 +28,18 @@ function text(value: unknown, label: string, max: number): string {
 function assertSaveInput(value: unknown): ProviderSaveInput {
   if (typeof value !== 'object' || value === null) throw new TypeError('Provider 参数必须是对象')
   const connection = assertConnectionFields(value as Record<string, unknown>)
-  return {
+  const result: ProviderSaveInput = {
     ...connection,
     name: text((value as Record<string, unknown>).name, '名称', MAX_NAME)
   }
+  const priority = (value as Record<string, unknown>).priority
+  if (priority !== undefined) {
+    if (typeof priority !== 'number' || !Number.isFinite(priority)) {
+      throw new TypeError('优先级无效')
+    }
+    result.priority = priority
+  }
+  return result
 }
 
 function assertTestInput(value: unknown): ProviderTestInput {
@@ -120,4 +129,16 @@ export function registerProviderHandlers(service: ProviderService): void {
   ipcMain.handle(IPC.providerModels, (_event, value: unknown) =>
     service.listModels(assertModelsInput(value))
   )
+  ipcMain.handle(IPC.providerFallbackFor, (_event, target: unknown) => {
+    const t = assertTarget(target)
+    const profiles = service.list().filter((p) => p.target === t)
+    const activeId = profiles.find((p) => p.active)?.id ?? null
+    const fallback = selectFallback(
+      profiles.map((p) => ({ id: p.id, priority: p.priority, createdAt: p.createdAt })),
+      activeId
+    )
+    if (!fallback) return null
+    const profile = profiles.find((p) => p.id === fallback.id)
+    return profile ? { id: profile.id, name: profile.name } : null
+  })
 }

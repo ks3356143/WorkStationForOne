@@ -33,6 +33,7 @@ import {
 import { migrateRoot, type MigrateResult } from './storage/migrate'
 import { agentCapabilityRuntime, createCapabilityCenter } from './capabilities'
 import { registerCapabilityHandlers } from './ipc/capability'
+import { registerExpertHandlers } from './ipc/expert-handlers'
 import { registerPluginHandlers } from './ipc/plugin-handlers'
 import { IPC_CHANNELS } from '../shared/ipc'
 
@@ -226,6 +227,13 @@ if (!gotTheLock) {
     // 软删任务保留 30 天后清掉，避免已删行无限堆积。
     database.tasks.purgeDeleted(Date.now() - 30 * 24 * 60 * 60 * 1000)
     registerCapabilityHandlers(capabilities, database.audit)
+    registerExpertHandlers({
+      center: capabilities,
+      experts: database.experts,
+      appDataDir: database.layout.root,
+      audit: database.audit,
+      getWindow: () => mainWindow
+    })
     registerAppHandlers({
       db: database.db,
       dbFile: database.file,
@@ -325,6 +333,7 @@ if (!gotTheLock) {
     agentHandlers = registerAgentHandlers({
       getWindow: () => mainWindow,
       repository: database.agent,
+      notes: database.notes,
       getProvider: (target) => providers.runtime(target),
       mcp: mcpBridge,
       cancelPermissions: (sessionId) => mcpPermissions?.cancelSession(sessionId),

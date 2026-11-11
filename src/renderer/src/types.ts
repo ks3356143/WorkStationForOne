@@ -64,6 +64,8 @@ export interface Session {
   archived?: boolean
   /** 计划模式：只读调查并给方案，不执行写入 */
   planMode?: boolean
+  /** 专家人设快照；发送时拼进系统提示 */
+  persona?: string
 }
 
 export interface AgentStream {

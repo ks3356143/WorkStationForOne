@@ -188,7 +188,7 @@ interface WorkstationActions {
   clearAgentAttention: () => void
   clearAgentJump: () => void
   setAgentThread: (sessionId: string, messages: ChatMessage[]) => void
-  createAgentSession: (agent?: AgentId) => void
+  createAgentSession: (agent?: AgentId, persona?: string) => void
   setAgentResume: (sessionId: string, resumeId: string) => void
   renameAgentSession: (sessionId: string, title: string) => void
   toggleAgentSessionPin: (sessionId: string) => void
@@ -711,7 +711,7 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     }))
   },
 
-  createAgentSession: (agent = 'claude') => {
+  createAgentSession: (agent = 'claude', persona?: string) => {
     const now = Date.now()
     const id = `s-${crypto.randomUUID()}`
     const session: Session = {
@@ -720,7 +720,8 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
       title: '新会话',
       meta: agentSessionMeta(now, 0, now),
       status: 'idle',
-      threadDate: '今天'
+      threadDate: '今天',
+      ...(persona ? { persona } : {})
     }
     set((state) => ({
       sessions: [session, ...state.sessions],
@@ -735,7 +736,12 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
     const persistence = agentPersistence
     if (!persistence) return
     persistQuietly(async () => {
-      await persistence.createSession({ id, agent, title: '新会话' })
+      await persistence.createSession({
+        id,
+        agent,
+        title: '新会话',
+        ...(persona ? { persona } : {})
+      })
     })
   },
 

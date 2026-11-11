@@ -71,6 +71,15 @@ writeFileSync(
 )
 process.env.WS_SMOKE_UPDATE_SOURCE = updateSourceDir
 
+// 专家市场用：一个本地子代理 Markdown 源，供添加源 / 浏览 / 导入断言
+const expertSourceDir = join(dataDir, 'expert-source')
+mkdirSync(expertSourceDir, { recursive: true })
+writeFileSync(
+  join(expertSourceDir, 'reviewer.md'),
+  '---\nname: smoke-reviewer\ndescription: 冒烟代码审查专家\nmcp: [context7]\n---\n你是冒烟代码审查专家。\n'
+)
+writeFileSync(join(expertSourceDir, 'not-an-expert.md'), '没有 frontmatter 的普通文档\n')
+
 // 本机会话扫描只读指向临时 home，绝不读取真实的 ~/.claude 或 ~/.codex
 const claudeScanDir = join(sessionScanRoot, '.claude', 'projects', '-smoke-workspace')
 const codexScanDir = join(sessionScanRoot, '.codex', 'sessions', '2026', '10', '30')
@@ -6561,6 +6570,13 @@ async function run() {
       ),
       agentWorkspaces: count("SELECT COUNT(*) AS n FROM agent_sessions WHERE workspace <> ''"),
       agentRuns: count('SELECT COUNT(*) AS n FROM agent_runs'),
+      toolCallsObserved: count(
+        "SELECT COUNT(*) AS n FROM agent_tool_calls WHERE decision = 'observed'"
+      ),
+      toolCallsApproval: count(
+        "SELECT COUNT(*) AS n FROM agent_tool_calls WHERE kind = 'approval'"
+      ),
+      contextDigests: count("SELECT COUNT(*) AS n FROM agent_sessions WHERE context_digest <> ''"),
       plugins: count('SELECT COUNT(*) AS n FROM agent_plugins'),
       mcpServers: count('SELECT COUNT(*) AS n FROM mcp_servers'),
       mcpHttp: count("SELECT COUNT(*) AS n FROM mcp_servers WHERE transport = 'http'"),
@@ -6655,6 +6671,18 @@ async function run() {
     name: 'Agent 运行用量已落库',
     ok: Boolean(dbStats && dbStats.agentRuns > 0),
     detail: dbStats ? String(dbStats.agentRuns) : '无数据'
+  })
+  results.checks.push({
+    name: '评估落痕记录工具调用与审批决策',
+    ok: Boolean(dbStats && dbStats.toolCallsObserved > 0 && dbStats.toolCallsApproval > 0),
+    detail: dbStats
+      ? `observed ${dbStats.toolCallsObserved} / approval ${dbStats.toolCallsApproval}`
+      : '无数据'
+  })
+  results.checks.push({
+    name: '长会话回合后写入滚动摘要',
+    ok: Boolean(dbStats && dbStats.contextDigests > 0),
+    detail: dbStats ? String(dbStats.contextDigests) : '无数据'
   })
   results.checks.push({
     name: '能力中心插件与 MCP 已落库',
@@ -7008,6 +7036,220 @@ async function run() {
     results.checks.push(...longThread.checks)
   } catch (error) {
     results.checks.push({ name: '长会话窗口验证', ok: false, detail: String(error) })
+  }
+
+  // Provider 错误驱动降级：两个 claude 配置时，错误卡提供「换备用重试」，点击切换激活并重试。
+  try {
+    const routing = await win.webContents.executeJavaScript(`(async () => {
+      const WS = ${JSON.stringify(agentWorkspace)};
+      const checks = []
+      const check = (name, ok, detail = '') => checks.push({ name, ok, detail })
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+      const byText = (sel, text) =>
+        [...document.querySelectorAll(sel)].find((el) => el.textContent.includes(text))
+      const waitFor = async (fn, timeout = 4000) => {
+        const started = Date.now()
+        while (Date.now() - started < timeout) {
+          try { if (await fn()) return true } catch {}
+          await sleep(120)
+        }
+        return false
+      }
+      const list0 = await window.ws.provider.list()
+      const claude0 = list0.filter((p) => p.target === 'claude')
+      const second = await window.ws.provider.save({
+        name: '备用冒烟', target: 'claude', wireApi: 'responses',
+        baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat', priority: 5
+      })
+      await window.ws.provider.setActive('claude', claude0[0]?.id ?? null)
+      const fb = await window.ws.provider.fallbackFor('claude')
+      check('fallbackFor 返回非激活备用', !!fb && fb.id === second.id, fb ? fb.name : 'null')
+      const list1 = await window.ws.provider.list()
+      const savedSecond = list1.find((p) => p.id === second.id)
+      check('备用优先级落库', savedSecond?.priority === 5, String(savedSecond?.priority))
+      await window.ws.provider.setActive('claude', null)
+      return { checks }
+    })()`)
+    results.checks.push(...routing.checks)
+  } catch (error) {
+    results.checks.push({ name: 'Provider 降级验证', ok: false, detail: String(error) })
+  }
+
+  // 多智能体编排地基：建团队（负责人 + worker）共享 teamId，黑板读写落库。
+  try {
+    const team = await win.webContents.executeJavaScript(`(async () => {
+      const checks = []
+      const check = (name, ok, detail = '') => checks.push({ name, ok, detail })
+      const WS = ${JSON.stringify(agentWorkspace)}
+      const created = await window.ws.agent.createTeam({
+        name: '冒烟小队',
+        workspace: WS,
+        workers: [
+          { title: '冒烟 worker A', persona: '你是 A' },
+          { title: '冒烟 worker B' }
+        ]
+      })
+      check('建团队得到负责人与 worker', created.sessions.length === 3, String(created.sessions.length))
+      const teams = await window.ws.agent.listTeams()
+      const found = teams.find((t) => t.teamId === created.teamId)
+      check(
+        '团队会话共享 teamId 与工作区',
+        !!found &&
+          found.sessions.length === 3 &&
+          found.sessions.every((s) => s.teamId === created.teamId && s.workspace === WS),
+        String(found?.sessions.length ?? 0)
+      )
+      const leader = created.sessions[0]
+      await window.ws.agent.postTeamNote(created.teamId, leader.id, 'user', '黑板第一条')
+      await window.ws.agent.postTeamNote(created.teamId, created.sessions[1].id, 'assistant', '黑板第二条')
+      const notes = await window.ws.agent.teamNotes(created.teamId)
+      check(
+        '团队黑板按时间读写',
+        notes.length === 2 && notes[0].text === '黑板第一条' && notes[1].role === 'assistant',
+        String(notes.length)
+      )
+      return { checks }
+    })()`)
+    results.checks.push(...team.checks)
+  } catch (error) {
+    results.checks.push({ name: '多智能体编排验证', ok: false, detail: String(error) })
+  }
+
+  // 专家与轻量市场：放在所有会话 / 用量 / dbStats 断言之后，新增会话不干扰前面计数。
+  try {
+    const experts = await win.webContents.executeJavaScript(`(async () => {
+      const EXPERT_SRC = ${JSON.stringify(expertSourceDir)};
+      const checks = []
+      const check = (name, ok, detail = '') => checks.push({ name, ok, detail })
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+      const all = (sel) => [...document.querySelectorAll(sel)]
+      const one = (sel) => document.querySelector(sel)
+      const byText = (sel, text) => all(sel).find((el) => el.textContent.includes(text))
+      const setValue = (el, value) => {
+        const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype
+        Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value)
+        el.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+      const waitFor = async (fn, timeout = 3000) => {
+        const started = Date.now()
+        while (Date.now() - started < timeout) {
+          try { if (await fn()) return true } catch {}
+          await sleep(120)
+        }
+        return false
+      }
+      one('.w1-st-fleet')?.click()
+      await waitFor(() => !!one('.w1-fleetsheet'), 2000)
+      byText('.w1-fleetheadmeta .w1-capmini', '专家')?.click()
+      const expertsReady = await waitFor(() => all('.w1-explist .w1-exprow').length >= 4, 3000)
+      check(
+        '专家区渲染内置专家',
+        expertsReady &&
+          (one('.w1-experts')?.textContent ?? '').includes('前端专家') &&
+          (one('.w1-experts')?.textContent ?? '').includes('Go/Rust 后端专家'),
+        String(all('.w1-explist .w1-exprow').length) + ' 行'
+      )
+      byText('.w1-experts .w1-capmini', '新建专家')?.click()
+      const formReady = await waitFor(() => !!one('.w1-expform'), 2000)
+      setValue(one('.w1-expform .w1-expfield input'), '冒烟专家')
+      setValue(one('.w1-expform textarea'), '你是冒烟测试专家。')
+      byText('.w1-expformops .w1-capmini', '保存专家')?.click()
+      const saved = await waitFor(
+        () => all('.w1-explist .w1-exprow').some((r) => r.textContent?.includes('冒烟专家')),
+        3000
+      )
+      const persisted = (await window.ws.experts.list()).find((e) => e.name === '冒烟专家')
+      check(
+        '自定义专家新建并落库',
+        formReady && saved && !!persisted && persisted.builtin === false,
+        persisted ? persisted.id : 'missing'
+      )
+      byText('.w1-experts .w1-capmini', '市场')?.click()
+      const marketReady = await waitFor(() => !!one('.w1-expmarket'), 2000)
+      await waitFor(() => {
+        const btn = byText('.w1-expsrcform .w1-capmini', '添加源')
+        return !!btn && !btn.disabled
+      }, 3000)
+      const srcInputs = all('.w1-expsrcform input')
+      setValue(srcInputs[0], 'smoke-src')
+      setValue(srcInputs[1], EXPERT_SRC)
+      byText('.w1-expsrcform .w1-capmini', '添加源')?.click()
+      const listed = await waitFor(
+        () => all('.w1-expentrylist .w1-exprow').some((r) => r.textContent?.includes('smoke-reviewer')),
+        4000
+      )
+      check(
+        '市场源添加并扫描出条目（跳过非专家 md）',
+        marketReady && listed && all('.w1-expentrylist .w1-exprow').length === 1,
+        String(all('.w1-expentrylist .w1-exprow').length) +
+          ' 条目 / ' +
+          String(all('.w1-expsrcrow').length) +
+          ' 源 / global=' +
+          String(EXPERT_SRC) +
+          ' / url=' +
+          (all('.w1-expsrcform input')[1]?.value ?? '') +
+          ' / name=' +
+          (all('.w1-expsrcform input')[0]?.value ?? '')
+      )
+      all('.w1-expentrylist .w1-exprow')
+        .find((r) => r.textContent?.includes('smoke-reviewer'))
+        ?.querySelector('.w1-fleetopen')?.click()
+      const imported = await waitFor(
+        async () => (await window.ws.experts.list()).some((e) => e.id === 'smoke-reviewer'),
+        3000
+      )
+      check('市场专家一键导入落库', imported, String(imported))
+      all('.w1-explist .w1-exprow')
+        .find((r) => r.textContent?.includes('冒烟专家'))
+        ?.querySelector('.w1-expops .w1-fleetopen')?.click()
+      const personaSession = await waitFor(
+        async () =>
+          (await window.ws.agent.sessions()).sessions.some((s) => s.persona === '你是冒烟测试专家。'),
+        3000
+      )
+      check('专家新建会话携带人设快照', personaSession, String(personaSession))
+      // 等舰队退出动画结束再重开，避免复用旧实例把「专家」开关反向关掉
+      await waitFor(() => !one('.w1-fleetsheet'), 2000)
+      one('.w1-st-fleet')?.click()
+      await waitFor(() => !!one('.w1-fleetsheet'), 2000)
+      byText('.w1-fleetheadmeta .w1-capmini', '专家')?.click()
+      await waitFor(() => all('.w1-explist .w1-exprow').length >= 4, 2000)
+      all('.w1-explist .w1-exprow')
+        .find((r) => r.textContent?.includes('冒烟专家'))
+        ?.querySelector('.w1-fleetarchive')?.click()
+      await waitFor(
+        () =>
+          all('.w1-explist .w1-exprow')
+            .find((r) => r.textContent?.includes('冒烟专家'))
+            ?.querySelector('.w1-fleetarchive')
+            ?.textContent?.includes('确认删除'),
+        2000
+      )
+      all('.w1-explist .w1-exprow')
+        .find((r) => r.textContent?.includes('冒烟专家'))
+        ?.querySelector('.w1-fleetarchive')?.click()
+      const removed = await waitFor(
+        async () => !(await window.ws.experts.list()).some((e) => e.name === '冒烟专家'),
+        3000
+      )
+      const delNames = (await window.ws.experts.list()).map((e) => e.name).join(',')
+      check(
+        '自定义专家两段确认删除',
+        removed,
+        String(removed) +
+          ' / db=' +
+          delNames +
+          ' / panel=' +
+          all('.w1-explist .w1-exprow')
+            .map((r) => (r.textContent ?? '').slice(0, 10))
+            .join('|')
+      )
+      one('.w1-fleetclose')?.click()
+      return { checks }
+    })()`)
+    results.checks.push(...experts.checks)
+  } catch (error) {
+    results.checks.push({ name: '专家与市场验证', ok: false, detail: String(error) })
   }
 
   const failed = results.checks.filter((check) => !check.ok)

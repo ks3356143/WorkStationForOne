@@ -14,7 +14,7 @@ import {
 } from '../capabilities/plugins/local-import'
 import { detectComponents, splitPluginId } from '../capabilities/plugins/components'
 import { scanClaudeLocal, scanCodexLocal } from '../capabilities/plugins/local-scan'
-import { setCodexPluginEnabled } from '../capabilities/plugins/codex-config'
+import { enablePluginForAgent } from '../capabilities/plugins/enable'
 import {
   removeSyncedSkills,
   syncedSkillsOf,
@@ -258,32 +258,17 @@ export function registerPluginHandlers(
   })
 
   /**
-   * Codex 插件启停：改写私有 config.toml 的 enabled，并同步 skills 副本。
-   * 停用后必须删掉 CODEX_HOME/skills 下的副本，否则「停用」形同虚设。
+   * 插件启停：Claude 走 plugins.setEnabled；Codex 改写私有 config.toml 的 enabled
+   * 并同步 / 删除 CODEX_HOME/skills 副本（逻辑收敛在 enablePluginForAgent）。
    */
   ipcMain.handle(IPC.capabilityPluginSetEnabled, (_event, value: unknown) => {
     const input = assertRecord(value, '插件启停参数')
     const id = assertLongId(input.id, '插件 id')
     const agent = input.agent === 'codex' ? 'codex' : 'claude'
     const enabled = input.enabled === true
-    const plugin = center.repository.findPlugin(id, agent)
-    if (!plugin) throw new Error('插件未安装')
-    if (agent === 'codex') {
-      const { name, market } = splitPluginId(id)
-      setCodexPluginEnabled(center.codexHome, name, market, enabled, center.agentDir)
-      if (enabled) {
-        syncPluginSkills({
-          codexHome: center.codexHome,
-          pluginRoot: plugin.installPath,
-          pluginId: id
-        })
-      } else {
-        removeSyncedSkills(center.codexHome, id)
-      }
-    }
-    const updated = center.repository.setPluginEnabled(id, enabled, undefined, agent)
+    enablePluginForAgent(center, id, agent, enabled)
     record(enabled ? 'plugin.enable' : 'plugin.disable', id)
-    return updated
+    return center.repository.findPlugin(id, agent)
   })
 
   ipcMain.handle(IPC.capabilityPluginRemove, async (_event, value: unknown) => {

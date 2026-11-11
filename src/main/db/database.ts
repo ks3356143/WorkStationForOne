@@ -811,6 +811,85 @@ export const MIGRATIONS: Migration[] = [
         source TEXT NOT NULL CHECK (source IN ('system', 'managed'))
       );
     `
+  },
+  {
+    // 专家：人设 + 工具组合的可切换打包。内置不入库，自定义 builtin=0；
+    // 会话级人设快照随会话保存；专家市场源复用插件源的克隆 / 白名单语义。
+    version: 48,
+    sql: `
+      CREATE TABLE agent_experts (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        persona TEXT NOT NULL,
+        tools_json TEXT NOT NULL DEFAULT '[]',
+        builtin INTEGER NOT NULL DEFAULT 0 CHECK (builtin IN (0, 1)),
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      ALTER TABLE agent_sessions ADD COLUMN persona TEXT NOT NULL DEFAULT '';
+
+      CREATE TABLE expert_sources (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        url TEXT NOT NULL,
+        ref TEXT NOT NULL DEFAULT '',
+        root TEXT NOT NULL,
+        last_synced_at INTEGER,
+        last_error TEXT NOT NULL DEFAULT '',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+    `
+  },
+  {
+    // 评估落痕：每回合的工具调用序列与用户审批决策，供 eval 评分卡复算。
+    // decision=observed 为工具调用落痕；allow/deny 为用户审批决策（kind=approval）。
+    version: 49,
+    sql: `
+      CREATE TABLE agent_tool_calls (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        run_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        seq INTEGER NOT NULL,
+        tool_name TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        decision TEXT NOT NULL,
+        at INTEGER NOT NULL
+      );
+      CREATE INDEX idx_tool_calls_run ON agent_tool_calls (run_id, seq);
+    `
+  },
+  {
+    // 上下文工程：会话级滚动摘要（抽取式压缩），resume / 新回合时续摘要而非断片。
+    version: 50,
+    sql: `
+      ALTER TABLE agent_sessions ADD COLUMN context_digest TEXT NOT NULL DEFAULT '';
+    `
+  },
+  {
+    // Provider 路由：备用降级顺序 knob，越小越优先；默认 0 按创建时间兜底。
+    version: 51,
+    sql: `
+      ALTER TABLE provider_profiles ADD COLUMN priority INTEGER NOT NULL DEFAULT 0;
+    `
+  },
+  {
+    // 多智能体编排地基：会话按 team_id 分组，团队共享一块黑板（消息式协作）。
+    version: 52,
+    sql: `
+      ALTER TABLE agent_sessions ADD COLUMN team_id TEXT NOT NULL DEFAULT '';
+      CREATE TABLE agent_team_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        team_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        text TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX idx_team_notes ON agent_team_notes (team_id, created_at);
+    `
   }
 ]
 

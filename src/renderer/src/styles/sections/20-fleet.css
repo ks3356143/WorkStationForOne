@@ -689,3 +689,191 @@
   opacity: 0.4;
   cursor: default;
 }
+
+/* ---------- experts & lightweight market ---------- */
+
+.w1-experts {
+  flex: none;
+  max-height: 340px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--ac-rgb) / 0.3) transparent;
+}
+
+.w1-explist,
+.w1-expentrylist,
+.w1-expsrclist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.w1-exprow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 9px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.4);
+  background: rgb(var(--field-rgb) / 0.12);
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui);
+}
+
+.w1-exprow:hover {
+  border-color: rgb(var(--ac2-rgb) / 0.24);
+  background: rgb(var(--ac2-rgb) / 0.035);
+}
+
+.w1-expmain {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.w1-expmain b {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-strong);
+  font: 600 12.5px / 1.2 var(--disp);
+}
+
+.w1-expmain span {
+  overflow: hidden;
+  color: var(--fg);
+  font: 11px / 1.4 var(--sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.w1-expmain small {
+  overflow: hidden;
+  color: var(--su);
+  font: 9.5px / 1.4 var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.w1-expbuiltin {
+  padding: 1px 5px;
+  border: 1px solid rgb(var(--ac-rgb) / 0.4);
+  color: var(--ac-fg);
+  font: 9px / 1.4 var(--mono);
+  font-style: normal;
+}
+
+.w1-experr {
+  color: var(--dg-fg);
+}
+
+.w1-expops {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.w1-expform {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.5);
+  background: rgb(var(--panel-2-rgb) / 0.5);
+}
+
+.w1-expformhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.w1-expformhead b {
+  color: var(--fg-strong);
+  font: 600 12.5px / 1.2 var(--disp);
+}
+
+.w1-expfield {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.w1-expfield > span {
+  color: var(--mu);
+  font: 10px / 1 var(--mono);
+  letter-spacing: 0.04em;
+}
+
+.w1-expfield input,
+.w1-expfield textarea,
+.w1-expsrcform input,
+.w1-expmarketfilters input,
+.w1-expmarketfilters select {
+  padding: 6px 8px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.5);
+  background: rgb(var(--field-rgb) / 0.2);
+  color: var(--fg-strong);
+  font: 12px / 1.4 var(--sans);
+}
+
+.w1-expfield textarea {
+  resize: vertical;
+  min-height: 80px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.w1-exptools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.w1-exptool {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.4);
+  background: rgb(var(--field-rgb) / 0.12);
+  color: var(--fg);
+  font: 10.5px / 1.4 var(--mono);
+  cursor: pointer;
+}
+
+.w1-exptool input {
+  accent-color: rgb(var(--ac-rgb));
+}
+
+.w1-expformops {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.w1-expmarket {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid rgb(var(--bd-rgb) / 0.4);
+}
+
+.w1-expsrcform {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) 90px auto;
+  gap: 6px;
+}
+
+.w1-expmarketfilters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px;
+  gap: 6px;
+}

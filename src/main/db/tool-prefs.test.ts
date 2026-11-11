@@ -25,7 +25,7 @@ describe('工具面偏好', () => {
   it('迁移到最新版本并默认启用原生工具', () => {
     const { db, repo } = setup()
     expect(userVersion(db)).toBe(MIGRATIONS.at(-1)!.version)
-    expect(MIGRATIONS.at(-1)!.version).toBe(47)
+    expect(MIGRATIONS.at(-1)!.version).toBe(52)
     expect(repo.disabledNative('claude')).toEqual([])
     repo.setNative('claude', 'web', false)
     expect(repo.disabledNative('claude')).toEqual(['web'])

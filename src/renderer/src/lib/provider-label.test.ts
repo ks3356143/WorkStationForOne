@@ -16,6 +16,7 @@ function profile(
     baseUrl: 'https://api.deepseek.com',
     model,
     hasToken: true,
+    priority: 0,
     active,
     createdAt: 1,
     updatedAt: 1

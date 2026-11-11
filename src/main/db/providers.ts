@@ -17,6 +17,7 @@ interface ProviderRow {
   model: string
   token_encrypted: Uint8Array | null
   active: number
+  priority: number
   created_at: number
   updated_at: number
 }
@@ -31,6 +32,7 @@ function toRecord(row: ProviderRow): ProviderProfileRecord {
     model: row.model,
     hasToken: Boolean(row.token_encrypted && row.token_encrypted.length > 0),
     active: row.active === 1,
+    priority: row.priority,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   }
@@ -47,7 +49,7 @@ export class ProviderRepository {
   list(): ProviderProfileRecord[] {
     const rows = this.db
       .prepare(
-        `SELECT id, name, target, wire_api, base_url, model, token_encrypted, active, created_at, updated_at
+        `SELECT id, name, target, wire_api, base_url, model, token_encrypted, active, priority, created_at, updated_at
          FROM provider_profiles ORDER BY created_at ASC`
       )
       .all() as unknown as ProviderRow[]
@@ -83,6 +85,7 @@ export class ProviderRepository {
         'wire_api = ?',
         'base_url = ?',
         'model = ?',
+        'priority = ?',
         'updated_at = ?'
       ]
       const values: (string | number | Uint8Array | null)[] = [
@@ -90,6 +93,7 @@ export class ProviderRepository {
         input.wireApi,
         input.baseUrl,
         input.model,
+        input.priority ?? 0,
         now
       ]
       if (token !== undefined) {
@@ -104,8 +108,8 @@ export class ProviderRepository {
       this.db
         .prepare(
           `INSERT INTO provider_profiles
-            (id, name, target, wire_api, base_url, model, token_encrypted, active, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
+            (id, name, target, wire_api, base_url, model, token_encrypted, active, priority, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`
         )
         .run(
           id,
@@ -115,6 +119,7 @@ export class ProviderRepository {
           input.baseUrl,
           input.model,
           token ?? null,
+          input.priority ?? 0,
           createdAt,
           now
         )
@@ -122,7 +127,7 @@ export class ProviderRepository {
 
     const row = this.db
       .prepare(
-        `SELECT id, name, target, wire_api, base_url, model, token_encrypted, active, created_at, updated_at
+        `SELECT id, name, target, wire_api, base_url, model, token_encrypted, active, priority, created_at, updated_at
          FROM provider_profiles WHERE id = ?`
       )
       .get(id) as unknown as ProviderRow
@@ -144,7 +149,7 @@ export class ProviderRepository {
   activeSecret(target: ProviderTarget): ActiveProvider | undefined {
     const row = this.db
       .prepare(
-        `SELECT id, name, target, wire_api, base_url, model, token_encrypted, active, created_at, updated_at
+        `SELECT id, name, target, wire_api, base_url, model, token_encrypted, active, priority, created_at, updated_at
          FROM provider_profiles WHERE active = 1 AND target = ?`
       )
       .get(target) as ProviderRow | undefined

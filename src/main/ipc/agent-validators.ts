@@ -12,6 +12,7 @@ import type {
   AgentPresetInput,
   AgentSendInput,
   AgentSessionPatch,
+  AgentTeamCreateInput,
   AgentToolRecord
 } from '../../shared/ipc'
 import { assertId, assertNotEmpty, assertRecord } from '../validate'
@@ -29,6 +30,13 @@ const MAX_DIFF_TEXT = 30_000
 const MAX_CONTEXT_PATH = 1000
 
 export const assertAgentId = (value: unknown, label: string) => assertId(value, label, MAX_ID)
+
+/** 专家人设：可空（清空），上限与提示词一致；不做 trim 以保留正文格式。 */
+export function assertPersona(value: unknown): string {
+  if (typeof value !== 'string') throw new TypeError('人设无效')
+  if (value.length > MAX_PROMPT) throw new TypeError('人设过长')
+  return value
+}
 
 /** 续接 id 会成为 CLI 位置参数：拒绝以 - 开头或含空白/引号等字符，防 flag 注入。 */
 export function assertResumeId(value: unknown, label: string): string {
@@ -143,10 +151,53 @@ function assertTitle(value: unknown): string {
 
 export function assertAgentCreateInput(value: unknown): AgentCreateInput {
   const input = assertRecord(value, '会话')
-  return {
+  const result: AgentCreateInput = {
     id: assertAgentId(input.id, '会话 id'),
     agent: assertAgentKind(input.agent),
     title: assertTitle(input.title)
+  }
+  if (input.persona !== undefined) result.persona = assertPersona(input.persona)
+  return result
+}
+
+export function assertAgentTeamCreateInput(value: unknown): AgentTeamCreateInput {
+  const input = assertRecord(value, '团队参数')
+  const name = typeof input.name === 'string' ? input.name.trim().slice(0, 80) : ''
+  if (!name) throw new TypeError('团队名称不能为空')
+  const workspace = assertWorkspacePath(input.workspace)
+  const raw = Array.isArray(input.workers) ? input.workers : []
+  if (raw.length < 1 || raw.length > 8) throw new TypeError('团队 worker 数量需为 1–8')
+  const workers = raw.map((item) => {
+    const worker = assertRecord(item, '团队成员')
+    const title = typeof worker.title === 'string' ? worker.title.trim().slice(0, 80) : ''
+    if (!title) throw new TypeError('成员标题不能为空')
+    const persona = typeof worker.persona === 'string' ? worker.persona.slice(0, 20_000) : ''
+    return { title, ...(persona ? { persona } : {}) }
+  })
+  const leaderTitle =
+    typeof input.leaderTitle === 'string' ? input.leaderTitle.trim().slice(0, 80) : undefined
+  return { name, workspace, workers, ...(leaderTitle ? { leaderTitle } : {}) }
+}
+
+export function assertTeamPostInput(value: unknown): {
+  teamId: string
+  sessionId: string
+  role: 'user' | 'assistant' | 'system'
+  text: string
+} {
+  const input = assertRecord(value, '黑板参数')
+  const role = input.role
+  if (role !== 'user' && role !== 'assistant' && role !== 'system') {
+    throw new TypeError('黑板消息角色无效')
+  }
+  const text = typeof input.text === 'string' ? input.text.trim() : ''
+  if (!text) throw new TypeError('黑板消息不能为空')
+  if (text.length > 20_000) throw new TypeError('黑板消息过长')
+  return {
+    teamId: assertAgentId(input.teamId, '团队 id'),
+    sessionId: assertAgentId(input.sessionId, '会话 id'),
+    role,
+    text
   }
 }
 
@@ -176,6 +227,13 @@ export function assertAgentSessionPatch(value: unknown): AgentSessionPatch {
   if (patch.planMode !== undefined) {
     if (typeof patch.planMode !== 'boolean') throw new TypeError('计划模式状态无效')
     result.planMode = patch.planMode
+  }
+  if (patch.persona !== undefined) result.persona = assertPersona(patch.persona)
+  if (patch.contextDigest !== undefined) {
+    if (typeof patch.contextDigest !== 'string' || patch.contextDigest.length > 8000) {
+      throw new TypeError('会话摘要无效')
+    }
+    result.contextDigest = patch.contextDigest
   }
   return assertNotEmpty(result, '会话补丁')
 }

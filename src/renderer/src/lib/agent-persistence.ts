@@ -27,7 +27,8 @@ function toSession(record: AgentSessionRecord, messageCount: number, now: number
     ...(record.forkTurnId ? { forkTurnId: record.forkTurnId } : {}),
     ...(record.pinned ? { pinned: true } : {}),
     ...(record.archived ? { archived: true } : {}),
-    ...(record.planMode ? { planMode: true } : {})
+    ...(record.planMode ? { planMode: true } : {}),
+    ...(record.persona ? { persona: record.persona } : {})
   }
 }
 

@@ -32,6 +32,12 @@ export interface AgentSessionRecord {
   archived?: boolean
   /** 计划模式：只读调查并给方案，不执行写入 */
   planMode?: boolean
+  /** 会话级专家人设快照；发送时拼到工具优先级提示前 */
+  persona?: string
+  /** 滚动摘要（抽取式压缩）；发送时作为最高优先级上下文前缀 */
+  contextDigest?: string
+  /** 多智能体编排：同一团队的会话共享一块黑板 */
+  teamId?: string
   createdAt: number
   updatedAt: number
 }
@@ -89,6 +95,8 @@ export interface AgentCreateInput {
   id: string
   agent: AgentKind
   title: string
+  /** 专家人设快照；省略表示普通会话 */
+  persona?: string
 }
 
 export interface AgentSessionPatch {
@@ -101,6 +109,32 @@ export interface AgentSessionPatch {
   pinned?: boolean
   archived?: boolean
   planMode?: boolean
+  persona?: string
+  contextDigest?: string
+  teamId?: string
+}
+
+export interface AgentTeamNoteRecord {
+  id: number
+  teamId: string
+  sessionId: string
+  role: 'user' | 'assistant' | 'system'
+  text: string
+  createdAt: number
+}
+
+export interface AgentTeamSummary {
+  teamId: string
+  /** 负责人（最早创建的会话）标题，作为团队名展示 */
+  name: string
+  sessions: AgentSessionRecord[]
+}
+
+export interface AgentTeamCreateInput {
+  name: string
+  workspace: string
+  leaderTitle?: string
+  workers: Array<{ title: string; persona?: string }>
 }
 
 export interface AgentImageRef {
@@ -147,6 +181,8 @@ export interface ProviderProfileRecord {
   model: string
   hasToken: boolean
   active: boolean
+  /** 备用降级顺序，越小越优先 */
+  priority: number
   createdAt: number
   updatedAt: number
 }
@@ -160,6 +196,8 @@ export interface ProviderSaveInput {
   model: string
   /** 只写不读；省略表示保留旧 token */
   apiKey?: string
+  /** 备用降级顺序，越小越优先；省略默认 0 */
+  priority?: number
 }
 
 export interface ProviderTestInput {
@@ -204,6 +242,8 @@ export interface ProviderApi {
   setActive: (target: ProviderTarget, id: string | null) => Promise<void>
   test: (input: ProviderTestInput) => Promise<ProviderTestResult>
   listModels: (input: ProviderModelsInput) => Promise<ProviderModelsResult>
+  /** 错误驱动降级的备用候选（排除当前激活）；无备用返回 null */
+  fallbackFor: (target: ProviderTarget) => Promise<{ id: string; name: string } | null>
 }
 
 /** 工作区级审批规则；会话级放行只存在内存，不落库。 */
@@ -394,6 +434,16 @@ export interface AgentApi {
   discoverSessions: () => Promise<DiscoveredAgentSession[]>
   importSession: (input: AgentImportInput) => Promise<AgentImportResult>
   forkSession: (input: AgentForkInput) => Promise<AgentForkResult>
+  /** 多智能体编排：建团队（负责人 + 若干 worker 会话），共享一块黑板 */
+  createTeam: (input: AgentTeamCreateInput) => Promise<AgentTeamSummary>
+  listTeams: () => Promise<AgentTeamSummary[]>
+  postTeamNote: (
+    teamId: string,
+    sessionId: string,
+    role: AgentTeamNoteRecord['role'],
+    text: string
+  ) => Promise<AgentTeamNoteRecord>
+  teamNotes: (teamId: string) => Promise<AgentTeamNoteRecord[]>
   approvalRules: () => Promise<ApprovalRuleRecord[]>
   removeApprovalRule: (id: string) => Promise<void>
 }

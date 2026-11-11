@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path'
 import { AgentRepository } from './agent'
 import { ApprovalRuleRepository } from './approval-rules'
 import { AuditLog } from './audit'
+import { ExpertRepository } from './experts'
 import { ToolPrefRepository } from './tool-prefs'
 import { migrate, openDatabase } from './database'
 import { applyPendingRestore } from './restore'
@@ -36,6 +37,7 @@ export interface DatabaseContext {
   learning: LearningRepository
   habits: HabitRepository
   agent: AgentRepository
+  experts: ExpertRepository
   providers: ProviderRepository
   mcp: McpPolicyRepository
   approvalRules: ApprovalRuleRepository
@@ -90,6 +92,7 @@ export function initDatabase(): DatabaseContext {
     learning: new LearningRepository(db, audit),
     habits: new HabitRepository(db, audit),
     agent: new AgentRepository(db),
+    experts: new ExpertRepository(db),
     providers: new ProviderRepository(db),
     mcp: new McpPolicyRepository(db, audit),
     approvalRules: new ApprovalRuleRepository(db),

@@ -9,7 +9,7 @@ import type { ApprovalRuleService } from '../agent/approval-rules'
 import { discoverLocalSessions } from '../agent/discover'
 import { readSessionHistory } from '../agent/history'
 import { buildSessionMarkdown } from '../agent/export'
-import { buildContextPrompt } from '../agent/context'
+import { buildContextPrompt, buildMemoryPrefix } from '../agent/context'
 import { CheckpointAccumulator } from '../agent/checkpoint-accumulator'
 import { filePathsFromInput, restoreFiles } from '../agent/checkpoints'
 import { buildClaudeFileDiffs } from '../agent/file-diff'
@@ -21,6 +21,8 @@ import { startCodexAppServerRun } from '../agent/codex-app-server'
 import { startCodexRun } from '../agent/codex'
 import type { AuditLog } from '../db/audit'
 import type { AgentRepository } from '../db/agent'
+import type { NoteRepository } from '../db/notes'
+import { compactTurns } from '../../shared/context-budget'
 import type {
   McpEndpoint,
   McpExternalApprovalDecision,
@@ -33,6 +35,7 @@ import type { AgentCapabilityRuntime } from '../capabilities'
 import type { ProviderTarget } from '../../shared/ipc'
 import { IPC_CHANNELS, type AgentImportResult } from '../../shared/ipc'
 import { summarizeToolInput, type AgentRunEvent } from '../../shared/agent-stream'
+import { toolKind } from '../../shared/eval-metrics'
 import { canForkWithCli } from '../../shared/fork'
 import { planModeDenial, planModePrompt } from '../../shared/plan-mode'
 import { toolSurfaceDenial } from '../../shared/tool-surface'
@@ -48,8 +51,11 @@ import {
   assertQuestionResponse,
   assertPresetInput,
   assertResumeId,
+  assertAgentTeamCreateInput,
+  assertTeamPostInput,
   assertWorkspacePath
 } from './agent-validators'
+import { TeamService } from '../agent/team'
 
 const IPC = IPC_CHANNELS
 /** 工作区文件树的相对路径上限，与 agent/workspace.ts 的限制保持一致。 */
@@ -90,6 +96,8 @@ export interface McpAccess {
 export interface AgentHandlerOptions {
   getWindow: () => BrowserWindow | null
   repository: AgentRepository
+  /** 笔记检索作为跨会话记忆来源；省略时不注入记忆块 */
+  notes?: NoteRepository
   cli?: AgentCli | null
   getProvider?: (target: ProviderTarget) => ProviderRuntime | undefined
   codexCli?: AgentCli | null
@@ -120,6 +128,7 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
   const {
     getWindow,
     repository,
+    notes,
     cli,
     getProvider,
     codexCli,
@@ -141,6 +150,34 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
   // 只有配置了外部 MCP 的 Claude 会话才暴露桥内审批中继
   const bridgeRelaySessions = new Set<string>()
   let seq = 0
+  // 评估落痕的每运行序号；运行结束即清理，避免长会话累积
+  const toolSeqByRun = new Map<string, number>()
+  const nextToolSeq = (runId: string): number => {
+    const next = (toolSeqByRun.get(runId) ?? 0) + 1
+    toolSeqByRun.set(runId, next)
+    return next
+  }
+  const recordTool = (
+    runId: string,
+    sessionId: string,
+    toolName: string,
+    kind: string,
+    decision: string
+  ): void => {
+    try {
+      repository.recordToolCall({
+        runId,
+        sessionId,
+        seq: nextToolSeq(runId),
+        toolName,
+        kind,
+        decision,
+        at: Date.now()
+      })
+    } catch (error) {
+      console.error('[agent] 工具落痕失败', error)
+    }
+  }
 
   const notifyEvent = (session: AttentionSession, event: AgentRunEvent) => {
     if (!notifyAttention) return
@@ -294,6 +331,18 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
     const span = Math.min(90, Math.max(1, value))
     return repository.listRuns(Date.now() - span * 24 * 60 * 60 * 1000)
   })
+
+  ipcMain.handle(IPC.agentTeamCreate, (_event, value: unknown) =>
+    new TeamService(repository).create(assertAgentTeamCreateInput(value))
+  )
+  ipcMain.handle(IPC.agentTeamList, () => new TeamService(repository).list())
+  ipcMain.handle(IPC.agentTeamPost, (_event, value: unknown) => {
+    const input = assertTeamPostInput(value)
+    return new TeamService(repository).post(input.teamId, input.sessionId, input.role, input.text)
+  })
+  ipcMain.handle(IPC.agentTeamNotes, (_event, value: unknown) =>
+    new TeamService(repository).notes(assertAgentId(value, '团队 id'))
+  )
 
   ipcMain.handle(IPC.agentApprovalRules, () => approvalRules.list())
 
@@ -476,6 +525,22 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
         console.error('[agent] 读取工具面设置失败，本轮按默认启用处理', error)
       }
     }
+    // 记忆 / 摘要走系统提示侧（append-system-prompt / developerInstructions），不污染用户消息；
+    // 检索失败不阻断发送，降级为无前缀。
+    let memory: Array<{ label: string; text: string }> = []
+    if (notes) {
+      try {
+        memory = notes.search(input.prompt, 3).map((hit) => ({
+          label: `note:${hit.text.split('\n')[0].slice(0, 40)}`,
+          text: hit.snippet
+        }))
+      } catch (error) {
+        console.error('[agent] 记忆检索失败，本轮不注入记忆块', error)
+      }
+    }
+    const memoryPrefix = buildMemoryPrefix({ digest: session.contextDigest, memory })
+    // 记忆 / 人设 / 工具优先级同走 Claude appendSystemPrompt / Codex developerInstructions。
+    toolPriority = [memoryPrefix, session.persona, toolPriority].filter(Boolean).join('\n\n')
     const disabledNames =
       input.agent === 'claude' ? surfacePolicy.disabledClaudeTools : surfacePolicy.codexDeniedTools
     const disabledToolDenial = (toolName: string) => toolSurfaceDenial(toolName, disabledNames)
@@ -519,6 +584,9 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
 
     const emit = (runEvent: AgentRunEvent) => {
       let event = runEvent
+      if (runEvent.kind === 'tool') {
+        recordTool(runId, input.sessionId, runEvent.name, toolKind(runEvent.name), 'observed')
+      }
       if (runEvent.kind === 'result') runResult = runEvent
       if (runEvent.kind === 'init' && runEvent.sessionId) {
         // init 表示 CLI 已接受续接 / 分叉；这一刻才把新 session id 落库。
@@ -631,6 +699,7 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
     }) => {
       runs.delete(runId)
       checkpointRuns.delete(runId)
+      toolSeqByRun.delete(runId)
       const pendingFiles = checkpoints.take()
       if (pendingFiles.length > 0) {
         try {
@@ -668,6 +737,19 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
         ...(runResult?.durationMs !== undefined ? { durationMs: runResult.durationMs } : {}),
         ...(runResult?.turns !== undefined ? { turns: runResult.turns } : {})
       })
+      // 回合成功后刷新滚动摘要：长线程压缩成首条意图 + 最近若干条，下一轮续摘要而非断片。
+      if (!cancelled && (runResult?.ok ?? code === 0)) {
+        try {
+          const turns = repository
+            .listMessagesForSession(input.sessionId)
+            .filter((m) => m.role === 'user' || m.role === 'assistant')
+            .map((m) => ({ role: m.role as 'user' | 'assistant', text: m.text }))
+          const digest = compactTurns(turns)
+          if (digest) repository.updateSession(input.sessionId, { contextDigest: digest })
+        } catch (error) {
+          console.error('[agent] 滚动摘要更新失败', error)
+        }
+      }
       if (cancelled) {
         emit({ kind: 'error', message: '已取消' })
         return
@@ -803,6 +885,13 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
     const owner = permissionRuns.get(response.requestId)
     const run = owner ? runs.get(owner.runId) : undefined
     if (!owner || !run) return false
+    recordTool(
+      owner.runId,
+      run.sessionId,
+      owner.toolName,
+      'approval',
+      response.allow ? 'allow' : 'deny'
+    )
     if (response.allow && owner.paths?.length) {
       checkpointRuns.get(owner.runId)?.capture(owner.paths, owner.toolName)
     }

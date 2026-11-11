@@ -184,6 +184,7 @@ export function SessionRail() {
                 .filter(Boolean)
                 .join(' ')}
               aria-current={session.id === activeSessionId ? 'true' : undefined}
+              data-session-id={session.id}
               title="双击或按 F2 重命名"
               onClick={() => setActiveSession(session.id)}
               onDoubleClick={() => startRename(session.id, session.title)}
