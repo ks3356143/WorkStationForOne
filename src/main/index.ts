@@ -191,6 +191,7 @@ if (!gotTheLock) {
     const capabilities = createCapabilityCenter({
       repository: new CapabilityRepository(database.db),
       appDataDir: database.layout.root,
+      claudeConfigDir: database.layout.claudeConfigDir,
       audit: database.audit,
       version: app.getVersion(),
       oauth: {

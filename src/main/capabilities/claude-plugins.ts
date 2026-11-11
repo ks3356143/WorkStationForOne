@@ -28,7 +28,7 @@ const OFFICIAL_MARKETPLACE = 'https://github.com/anthropics/claude-plugins-offic
 // Claude CLI 不允许本地目录使用官方保留名；应用镜像改用私有名，界面仍标成 Claude 官方。
 const MARKET_NAME = 'wsfo-official'
 const MARKET_TTL = 6 * 60 * 60 * 1000
-const CLI_TIMEOUT = 60_000
+const CLI_TIMEOUT = 180_000
 const MARKET_ADD_TIMEOUT = 120_000
 const CLONE_TIMEOUT = 180_000
 const MAX_OUTPUT = 2 * 1024 * 1024
@@ -152,13 +152,24 @@ export class ClaudePluginService {
   constructor(
     private readonly repository: CapabilityRepository,
     appDataDir: string,
-    private readonly cliOverride?: AgentCli | null
+    private readonly cliOverride?: AgentCli | null,
+    claudeConfigDir?: string
   ) {
     this.root = join(appDataDir, 'agent', 'claude-plugins')
-    this.configDir = join(this.root, 'config')
+    // 与插件源注册共用 layout.claudeConfigDir，避免两处各自派生再次分叉
+    this.configDir = claudeConfigDir ?? join(this.root, 'config')
     this.cachePath = join(this.root, 'market.json')
     this.marketSourceDir = join(this.root, 'market-src')
     mkdirSync(this.configDir, { recursive: true })
+  }
+
+  /** 源增删 / 刷新后调用，丢弃市场缓存，下次读取重新列清单。 */
+  invalidateMarketCache(): void {
+    try {
+      rmSync(this.cachePath, { force: true })
+    } catch {
+      // 缓存可重建，删除失败不影响下次强制刷新
+    }
   }
 
   /** 路径必须落在私有根内；市场缓存与本地导入共用同一判定。 */

@@ -186,7 +186,7 @@ CREATE UNIQUE INDEX idx_agent_plugins_key ON agent_plugins(agent, plugin_id);
 
 1. 校验名称（1–60，唯一）与地址：本地绝对路径必须存在；Git 只接受 `owner/repo`、`https://`、`ssh://`、`git@`。
 2. 目标目录 `<data>/agent/plugin-sources/<slug>`；`slug` 由名称生成，冲突追加序号。
-3. `git clone --depth 1`，有 `ref` 时加 `--branch <ref>`；超时 90 秒，`shell: false`。
+3. `git clone --depth 1`，有 `ref` 时加 `--branch <ref>`；超时 180 秒，`shell: false`。
 4. clone 后校验 `<root>/.claude-plugin/marketplace.json` 存在且 `name` 为非空字符串，否则删除目录并报错。
 5. 注册到两边（见 5.3），源行落库。
 6. 失败回滚：删目录、删已注册项，不写半成品行。
@@ -206,7 +206,7 @@ CREATE UNIQUE INDEX idx_agent_plugins_key ON agent_plugins(agent, plugin_id);
 | Claude | `claude plugin marketplace add <root>` | `CLAUDE_CONFIG_DIR=<data>/agent/claude-plugins/config`（与市场清单共用，源注册后市场才能看到） |
 | Codex | `codex plugin marketplace add <root>` | `CODEX_HOME=<data>/codex-home` |
 
-- 两边都通过现有 `resolveCommand()` 解析入口，`shell: false`，90 秒超时。
+- 两边都通过现有 `resolveCommand()` 解析入口，`shell: false`，180 秒超时。
 - 注册结果以命令退出码为准；失败时把 stderr 最后一行转成可读原因（截断 200 字）。
 - **不提供任何向本机 `~/.claude` / `~/.codex` 注册的路径。** 两个 CLI 子进程都显式带私有配置环境变量，即使本机配置文件存在也只读不写。
 
@@ -297,7 +297,7 @@ interface PluginAdapter {
 
 ### 8.3 并发与超时
 
-- 全部源刷新（git）串行，单个 90 秒超时。
+- 全部源刷新（git）串行，单个 180 秒超时。
 - 插件版本比较不联网：刷新完成后读本地清单。
 - MCP 版本查询并发上限 4，单个 8 秒超时（沿用现有实现）。
 

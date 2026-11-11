@@ -43,6 +43,8 @@ export interface AgentCapabilityRuntime {
 export function createCapabilityCenter(options: {
   repository: CapabilityRepository
   appDataDir: string
+  /** 与插件源注册共用的 Claude CLI 配置目录；省略时插件服务自行派生 */
+  claudeConfigDir?: string
   audit?: AuditLog
   pluginCli?: AgentCli | null
   version?: string
@@ -52,7 +54,12 @@ export function createCapabilityCenter(options: {
   /** 工具面偏好仓储；省略时原生全部启用、MCP / 技能按名称排序 */
   toolPrefs: ToolPrefRepository
 }): CapabilityCenter {
-  const plugins = new ClaudePluginService(options.repository, options.appDataDir, options.pluginCli)
+  const plugins = new ClaudePluginService(
+    options.repository,
+    options.appDataDir,
+    options.pluginCli,
+    options.claudeConfigDir
+  )
   const runtimeService = createRuntimeService({
     dataDir: options.appDataDir,
     repository: options.repository

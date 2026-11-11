@@ -82,8 +82,9 @@ export class PluginSourceService {
     const url = input.url.trim()
     const root = join(this.sourceRoot, sourceSlug(name))
     if (existsSync(root)) {
-      // 有同名记录时这是有效快照；没有记录则是上次失败留下的半成品，清掉才能重试
-      if (this.options.repository.findSourceByName(name)) {
+      // slug 会小写/归一/截断，不同名称可能落到同一目录；只要有任何记录引用它就是有效快照，
+      // 不能当半成品删掉（否则两个源共用一个 root，失败时还会连带删掉原源的目录）。
+      if (this.options.repository.listSources().some((source) => source.root === root)) {
         throw new Error('源目录已存在，请更换名称或先移除旧源')
       }
       this.removeDir(root, '上次添加留下的目录无法清理，请稍后重试')
@@ -174,13 +175,12 @@ export class PluginSourceService {
    * GitHub 源；因此 GitHub 源优先传 `owner/repo`，本地目录源才传绝对路径。
    * 返回注册失败原因（不抛出），由调用方写进源的 lastError。
    */
-  async register(marketName: string, root: string, url?: string): Promise<string[]> {
+  async register(_marketName: string, root: string, url?: string): Promise<string[]> {
     const source = githubSlug(url) ?? root
     const results = await Promise.allSettled([
       this.runCli('claude', ['plugin', 'marketplace', 'add', source]),
       this.runCli('codex', ['plugin', 'marketplace', 'add', root])
     ])
-    void marketName
     return results
       .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
       .map((result) =>

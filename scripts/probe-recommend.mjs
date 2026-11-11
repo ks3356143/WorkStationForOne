@@ -456,7 +456,17 @@ async function run() {
       ),
     { timeout: 180000, interval: 500, label: 'real claude plugin install document-skills' }
   )
-  record('document-skills 真实安装到应用私有目录', true)
+  const installDb = new DatabaseSync(join(dataDir, 'workstation.db'), { readOnly: true })
+  const installRow = installDb
+    .prepare("SELECT install_path FROM agent_plugins WHERE id LIKE 'document-skills%'")
+    .get()
+  installDb.close()
+  const installPath = String(installRow?.install_path ?? '')
+  record(
+    'document-skills 真实安装到应用私有目录',
+    installPath !== '' && installPath.startsWith(join(rootDir, 'agent')),
+    installPath
+  )
 
   // —— 技能页启用（唯一入口）——
   await click('.w1-capnav button', '技能')

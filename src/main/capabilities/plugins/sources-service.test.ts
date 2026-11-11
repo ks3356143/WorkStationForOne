@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -112,6 +112,26 @@ describe('PluginSourceService', () => {
     db.close()
   })
 
+  it('名称 slug 冲突时不删除已被其它源引用的目录', async () => {
+    const { base, db, repository, service } = setup()
+    const market = makeMarketplace(tempDir('wsfo-market-'))
+    const sharedRoot = join(base, 'agent', 'plugin-sources', 'mysource')
+    mkdirSync(sharedRoot, { recursive: true })
+    repository.createSource({
+      id: 'src-existing',
+      name: 'mysource',
+      kind: 'git',
+      url: 'https://github.com/example/mysource',
+      ref: '',
+      root: sharedRoot
+    })
+    // MySource 与 mysource 归一到同一 slug；目录是有效快照，必须拒绝而非删除
+    await expect(service.add({ name: 'MySource', url: market })).rejects.toThrow(/源目录已存在/)
+    expect(existsSync(sharedRoot)).toBe(true)
+    expect(repository.listSources()).toHaveLength(1)
+    db.close()
+  })
+
   it('注册市场失败不阻塞源入库，但写入可读错误', async () => {
     const base = tempDir('wsfo-srcsvc-')
     const db = openDatabase(join(base, 'workstation.db'))
@@ -130,6 +150,29 @@ describe('PluginSourceService', () => {
     const saved = await service.add({ name: 'community', url: market })
     expect(saved.lastError).not.toBe('')
     expect(repository.listSources()).toHaveLength(1)
+    db.close()
+  })
+
+  it('刷新时注册失败同样写入可读错误且保留插件数', async () => {
+    const base = tempDir('wsfo-srcsvc-')
+    const db = openDatabase(join(base, 'workstation.db'))
+    migrate(db)
+    const repository = new CapabilityRepository(db)
+    const missing = { bin: join(base, 'missing-cli.exe'), prefixArgs: [], viaNode: false }
+    const service = new PluginSourceService({
+      repository,
+      appDataDir: base,
+      claudeConfigDir: join(base, 'claude-config'),
+      codexHome: join(base, 'codex-home'),
+      claudeCli: missing,
+      codexCli: missing
+    })
+    const market = makeMarketplace(tempDir('wsfo-market-'))
+    const saved = await service.add({ name: 'community', url: market })
+    const refreshed = await service.refresh(saved.id)
+    expect(refreshed.plugins).toHaveLength(1)
+    expect(repository.findSource(saved.id)?.lastError).not.toBe('')
+    expect(repository.findSource(saved.id)?.pluginCount).toBe(1)
     db.close()
   })
 

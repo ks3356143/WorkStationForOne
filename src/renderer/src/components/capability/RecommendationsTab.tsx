@@ -214,12 +214,20 @@ export function RecommendationsTab({ notify, onOpenMarket }: RecommendationsTabP
     loadUpdates()
     void api.mcp
       .list()
-      .then(setMcpList)
-      .catch(() => setMcpList([]))
+      .then((next) => {
+        if (alive) setMcpList(next)
+      })
+      .catch(() => {
+        if (alive) setMcpList([])
+      })
     void api
       .pluginSources()
-      .then(setSources)
-      .catch(() => setSources([]))
+      .then((next) => {
+        if (alive) setSources(next)
+      })
+      .catch(() => {
+        if (alive) setSources([])
+      })
     return () => {
       alive = false
     }
@@ -273,7 +281,11 @@ export function RecommendationsTab({ notify, onOpenMarket }: RecommendationsTabP
       .addPluginSource({ name: rec.sourceName, url: rec.url })
       .then((saved) => {
         setSources((list) => [...list, saved])
-        notify(`已添加插件源 ${rec.name} · ${saved.pluginCount} 个插件，去市场安装`)
+        notify(
+          saved.lastError
+            ? `已添加插件源 ${rec.name} · 市场注册未完成，可在插件页刷新重试`
+            : `已添加插件源 ${rec.name} · ${saved.pluginCount} 个插件，去市场安装`
+        )
       })
       .catch((error: unknown) => notify(error instanceof Error ? error.message : '添加插件源失败'))
       .finally(() => setRecBusy(null))
@@ -373,7 +385,7 @@ export function RecommendationsTab({ notify, onOpenMarket }: RecommendationsTabP
                     <button
                       type="button"
                       className="w1-capmini pri"
-                      disabled={recBusy === rec.id}
+                      disabled={recBusy !== null}
                       aria-label={`添加 ${rec.name}`}
                       onClick={() => addMcpRecommendation(rec)}
                     >
@@ -422,7 +434,7 @@ export function RecommendationsTab({ notify, onOpenMarket }: RecommendationsTabP
                     <button
                       type="button"
                       className="w1-capmini pri"
-                      disabled={recBusy === rec.id}
+                      disabled={recBusy !== null}
                       aria-label={`添加插件源 ${rec.name}`}
                       onClick={() => addSkillSource(rec)}
                     >

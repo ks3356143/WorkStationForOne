@@ -76,6 +76,7 @@ export function registerPluginHandlers(
     if (!name || name.length > 60) throw new TypeError('源名称无效')
     if (!url || url.length > 2000) throw new TypeError('源地址无效')
     const saved = await sources.add({ name, url, ref })
+    center.plugins.invalidateMarketCache()
     record('plugin-source.add', `${saved.name} · ${saved.url}`)
     return saved
   })
@@ -83,6 +84,7 @@ export function registerPluginHandlers(
   ipcMain.handle(IPC.capabilityPluginSourceRefresh, async (_event, id: unknown) => {
     const target = assertLongId(id, '源 id')
     const result = await sources.refresh(target)
+    center.plugins.invalidateMarketCache()
     record('plugin-source.refresh', `${result.source.name} · ${result.plugins.length} plugins`)
     return result.source
   })
@@ -90,6 +92,7 @@ export function registerPluginHandlers(
   ipcMain.handle(IPC.capabilityPluginSourceRemove, async (_event, id: unknown) => {
     const target = assertLongId(id, '源 id')
     await sources.remove(target)
+    center.plugins.invalidateMarketCache()
     record('plugin-source.remove', target)
   })
 
