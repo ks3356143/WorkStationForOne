@@ -24,6 +24,7 @@ import { CheckpointSheet } from './CheckpointSheet'
 import { friendlyMessage } from '../../lib/errors'
 import { activeProviderLabel } from '../../lib/provider-label'
 import { messageToNote, messageToTask } from '../../lib/agent-capture'
+import { buildVerifyPrompt } from '../../../../shared/verify-repair'
 import { toChatMessage } from '../../lib/chat-message'
 import { StatePlaceholder } from '../StatePlaceholder'
 import { canForkWithCli } from '../../../../shared/fork'
@@ -47,6 +48,7 @@ export function AgentDock({ notify }: AgentDockProps) {
   const addTask = useWorkstation((state) => state.addTask)
   const agentDraftRequest = useWorkstation((state) => state.agentDraftRequest)
   const agentDraftText = useWorkstation((state) => state.agentDraftText)
+  const composeAgent = useWorkstation((state) => state.composeAgent)
   const agentDraftSessionId = useWorkstation((state) => state.agentDraftSessionId)
   const consumeAgentDraft = useWorkstation((state) => state.consumeAgentDraft)
   const createAgentSession = useWorkstation((state) => state.createAgentSession)
@@ -578,6 +580,15 @@ export function AgentDock({ notify }: AgentDockProps) {
     notify('已建任务 · 标题取自首行')
   }
 
+  const evolveExpertFrom = (messageId: string) => {
+    const api = typeof window === 'undefined' ? undefined : window.ws?.agent
+    if (!api) return
+    void api
+      .evolveExpert(activeSession.id, messageId)
+      .then((saved) => notify(`已提炼专家：${saved.name}`))
+      .catch((error: unknown) => notify(error instanceof Error ? error.message : '提炼专家失败'))
+  }
+
   const forkMessage = (messageId: string) => {
     const bridge = typeof window === 'undefined' ? undefined : window.ws?.agent
     if (!bridge?.forkSession || forkingId) return
@@ -818,6 +829,15 @@ export function AgentDock({ notify }: AgentDockProps) {
                     onSaveTask={
                       message.role === 'assistant' && !message.error && message.text.trim()
                         ? () => captureTask(message.text)
+                        : undefined
+                    }
+                    onVerify={(paths) => composeAgent(buildVerifyPrompt(paths))}
+                    onSaveExpert={
+                      message.role === 'assistant' &&
+                      !message.error &&
+                      !message.imported &&
+                      (message.tools?.length ?? 0) > 0
+                        ? () => evolveExpertFrom(message.id)
                         : undefined
                     }
                     onFork={

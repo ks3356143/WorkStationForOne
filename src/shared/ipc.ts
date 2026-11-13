@@ -98,6 +98,7 @@ export type {
   AgentTeamNoteRecord,
   AgentTeamSummary,
   AgentTeamCreateInput,
+  LocalModelConfig,
   WorkspaceEntry,
   WorkspaceFile,
   AgentApi

@@ -4,6 +4,7 @@ import { app, BrowserWindow, session, shell } from 'electron'
 import { initDatabase, type DatabaseContext } from './db'
 import { disposeCaptureShortcut, registerCaptureHandlers, registerCaptureShortcut } from './capture'
 import { registerAgentHandlers } from './ipc/agent'
+import { summarizeTurnsWithLocal } from './agent/local-model'
 import { registerProviderHandlers } from './ipc/providers'
 import { registerAppHandlers, WINDOW_PALETTE } from './ipc/app'
 import { ProviderService } from './providers'
@@ -334,6 +335,18 @@ if (!gotTheLock) {
       getWindow: () => mainWindow,
       repository: database.agent,
       notes: database.notes,
+      localModel: database.localModel,
+      experts: database.experts,
+      summarizeLocal: (turns) => {
+        if (!database) return Promise.resolve(null)
+        const config = database.localModel.get()
+        if (!config.enabled) return Promise.resolve(null)
+        return summarizeTurnsWithLocal({
+          baseUrl: config.baseUrl,
+          model: config.model,
+          turns
+        })
+      },
       getProvider: (target) => providers.runtime(target),
       mcp: mcpBridge,
       cancelPermissions: (sessionId) => mcpPermissions?.cancelSession(sessionId),

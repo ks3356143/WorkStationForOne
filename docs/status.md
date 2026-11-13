@@ -63,6 +63,9 @@
 - 已实现：环境依赖即 CLI（0.78.0，DB v47）。推荐页加 uv/bun/node 三组环境依赖（同包一行、打标签），系统 / 应用托管二选一生效（`cli_runtime_prefs`），默认系统优先；选托管时托管目录注入 MCP 与 Agent 子进程 PATH。托管安装参考 Cherry Studio 资产命名：官方 zip（bun/node 备 npmmirror）→ Expand-Archive → 拷贝二进制 → `--version` 校验 → 版本目录 + current.json；bun 补 bunx shim；两段确认卸载只删应用目录。更新检查只识别提示（GitHub releases / nodejs dist，8s 超时静默跳过），托管给更新按钮、系统给 winget upgrade 复制；不自动更新。新增 8 项单测（含本地 HTTP fixture 的真下载/解压/校验集成测试）、3 项冒烟。
 - 已实现：Provider 路由与降级（0.82.0，DB v51）。`provider_profiles.priority` 控备用顺序，`selectFallback` 纯函数选非激活备用；`provider:fallback-for` + 错误卡「换备用重试」为**用户显式**切换并重试，不自动重试副作用回合。
 - 已实现：多智能体编排地基（0.82.0，DB v52）。`agent_sessions.team_id` 分组 + `agent_team_notes` 共享黑板；`TeamService` 建团队（负责人 + 1–8 worker，继承工作区/人设）；`agent:team-*` IPC；无云、无自动发送，UI 待补。
+- 已实现：离线本地模型（0.83.0，DB v53）。`local_model_config` 单行配置；只接受回环地址的 OpenAI 兼容端点做会话摘要，抽取式同步兜底 + 异步升级；`agent:local-model-get/set`。
+- 已实现：执行后验证修复闭环（0.83.0，人 gated）。`shared/verify-repair.ts` 生成提示词，带改动的回复一键预填「验证并修复」，不自动发送/重试/提交。
+- 已实现：专家自进化（0.83.0）。`shared/evolution.ts` 只从成功且有工具步骤的回合提炼专家；`agent:evolve-expert` + 回复行「存为专家」。
 - 已实现：提示注入防御（0.82.0）。`shared/prompt-guard.ts` 启发式检测（覆盖先前指令 / 角色劫持 / 索取系统提示 / 绕过审批 / 外带密钥）；工作区文件与笔记记忆命中时在上下文前加只读「安全提示」，不改原文、不执行。
 - 已实现：智能体评估 harness（0.81.0，DB v49）。`agent_tool_calls` 落痕每回合工具调用序列与用户审批决策；`shared/eval-metrics.ts` 纯函数算成功率 / 轮次 / 成本 / 审批摩擦 / 首选命中与先行率；`npm run eval -- --db <库>` 只读复算评分卡 + 回归门（`--min-ok` / `--max-approval` / `--preferred`）。落痕在 `ipc/agent.ts` 的 emit(tool) 与审批响应处，运行结束清理序号。
 - 已实现：上下文工程（0.81.0，DB v50）。`agent_sessions.context_digest` 存滚动摘要；回合成功后抽取式压缩（首条意图 + 最近若干条）刷新；发送时摘要 + 笔记 FTS 检索记忆块按预算装配成**系统提示前缀**（不污染用户消息），超预算丢低优先级 / 截断标记。纯函数在 `shared/context-budget.ts`，装配在 `main/agent/context.ts` 的 `buildMemoryPrefix`。
@@ -106,6 +109,6 @@
 
 ## 智能体突破计划进度（2026-11-11，8 轮）
 
-已完成并通过验证（v0.81.0–0.82.0，DB v49–v52）：1 评估 harness（`agent_tool_calls` + `npm run eval`）、2 上下文工程（滚动摘要 + 笔记记忆系统前缀）、3 Provider 路由降级（priority + `selectFallback` + 错误卡「换备用重试」）、4 多智能体编排地基（`team_id` + 黑板 + `TeamService` + IPC）、5 提示注入防御（`prompt-guard` 只读警告）。
+已完成并通过验证（v0.81.0–0.83.0，DB v49–v53）：1 评估 harness（`agent_tool_calls` + `npm run eval`）、2 上下文工程（滚动摘要 + 笔记记忆系统前缀）、3 Provider 路由降级（priority + `selectFallback` + 错误卡「换备用重试」）、4 多智能体编排地基（`team_id` + 黑板 + `TeamService` + IPC）、5 提示注入防御（`prompt-guard` 只读警告）、6 离线本地模型（回环端点摘要 + 抽取式兜底）、7 执行后验证修复闭环（由用户点击预填、手动发送）、8 专家自进化（成功回合提炼 + 评估门 + 「存为专家」）。
 
-待做（明天）：6 离线本地模型 provider（localhost Ollama/llama.cpp 兼容端点 + 能力标记）；7 执行后验证修复闭环（用户 gated 的一键跑验证并修复，复用检查点）；8 专家/技能自进化（成功回合抽 procedure → skill，用评估 harness 做晋升门）。6 与 7 有 UI，8 依赖 1 的评分卡。
+后续 UI 补齐项：团队列表/黑板面板、本地模型设置开关（后端与 IPC 已就绪）。

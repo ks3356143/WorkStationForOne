@@ -113,6 +113,10 @@ interface MessageRowProps {
   onFork?: () => void
   onSaveNote?: () => void
   onSaveTask?: () => void
+  /** 本轮有文件改动时提供：一键把「跑验证并修复」预填到输入栏 */
+  onVerify?: (paths: string[]) => void
+  /** 成功且有工具步骤的回复可提炼为自定义专家 */
+  onSaveExpert?: () => void
   turnCheckpoint?: AgentCheckpointView
   turnRollbackEnabled?: boolean
   onRollbackTurn?: (checkpoint: AgentCheckpointView) => Promise<AgentRollbackResult>
@@ -130,6 +134,8 @@ export const MessageRow = memo(function MessageRow({
   onFork,
   onSaveNote,
   onSaveTask,
+  onVerify,
+  onSaveExpert,
   turnCheckpoint,
   turnRollbackEnabled = false,
   onRollbackTurn,
@@ -139,6 +145,9 @@ export const MessageRow = memo(function MessageRow({
   forking = false
 }: MessageRowProps) {
   const meta = AGENT_META[agent]
+  const changedPaths = Array.from(
+    new Set((message.tools ?? []).flatMap((tool) => tool.diffs?.map((diff) => diff.path) ?? []))
+  )
   const [copied, setCopied] = useState(false)
   const copyTimer = useRef<number | null>(null)
 
@@ -217,6 +226,26 @@ export const MessageRow = memo(function MessageRow({
               onClick={onSaveTask}
             >
               建任务
+            </button>
+          ) : null}
+          {onSaveExpert ? (
+            <button
+              type="button"
+              className="w1-copy w1-capture"
+              aria-label="把这次成功回合提炼为专家"
+              onClick={onSaveExpert}
+            >
+              存为专家
+            </button>
+          ) : null}
+          {onVerify && changedPaths.length > 0 ? (
+            <button
+              type="button"
+              className="w1-copy w1-capture"
+              aria-label="预填跑验证并修复"
+              onClick={() => onVerify(changedPaths)}
+            >
+              验证并修复
             </button>
           ) : null}
           {onFork ? (

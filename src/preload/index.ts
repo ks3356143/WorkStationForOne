@@ -130,6 +130,10 @@ const api: WsApi = {
     postTeamNote: (teamId, sessionId, role, text) =>
       ipcRenderer.invoke(IPC_CHANNELS.agentTeamPost, { teamId, sessionId, role, text }),
     teamNotes: (teamId) => ipcRenderer.invoke(IPC_CHANNELS.agentTeamNotes, teamId),
+    getLocalModel: () => ipcRenderer.invoke(IPC_CHANNELS.agentLocalModelGet),
+    setLocalModel: (config) => ipcRenderer.invoke(IPC_CHANNELS.agentLocalModelSet, config),
+    evolveExpert: (sessionId, messageId) =>
+      ipcRenderer.invoke(IPC_CHANNELS.agentEvolveExpert, { sessionId, messageId }),
     approvalRules: () => ipcRenderer.invoke(IPC_CHANNELS.agentApprovalRules),
     removeApprovalRule: (id) => ipcRenderer.invoke(IPC_CHANNELS.agentRemoveApprovalRule, id)
   },

@@ -56,6 +56,10 @@ import {
   assertWorkspacePath
 } from './agent-validators'
 import { TeamService } from '../agent/team'
+import type { LocalModelRepository } from '../db/local-model'
+import type { ExpertRepository } from '../db/experts'
+import { buildExpertCandidate } from '../../shared/evolution'
+import { isLocalEndpoint } from '../agent/local-model'
 
 const IPC = IPC_CHANNELS
 /** 工作区文件树的相对路径上限，与 agent/workspace.ts 的限制保持一致。 */
@@ -98,6 +102,14 @@ export interface AgentHandlerOptions {
   repository: AgentRepository
   /** 笔记检索作为跨会话记忆来源；省略时不注入记忆块 */
   notes?: NoteRepository
+  /** 本地模型配置；省略时该接口不可用 */
+  localModel?: LocalModelRepository
+  /** 专家库；省略时不支持从回合提炼专家 */
+  experts?: ExpertRepository
+  /** 用本机模型把回合摘要升级为要点；省略或失败都保留抽取式摘要 */
+  summarizeLocal?: (
+    turns: Array<{ role: 'user' | 'assistant'; text: string }>
+  ) => Promise<string | null>
   cli?: AgentCli | null
   getProvider?: (target: ProviderTarget) => ProviderRuntime | undefined
   codexCli?: AgentCli | null
@@ -129,6 +141,9 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
     getWindow,
     repository,
     notes,
+    localModel,
+    experts,
+    summarizeLocal,
     cli,
     getProvider,
     codexCli,
@@ -343,6 +358,50 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
   ipcMain.handle(IPC.agentTeamNotes, (_event, value: unknown) =>
     new TeamService(repository).notes(assertAgentId(value, '团队 id'))
   )
+  ipcMain.handle(IPC.agentLocalModelGet, () => {
+    if (!localModel) throw new Error('本地模型配置不可用')
+    return localModel.get()
+  })
+  ipcMain.handle(IPC.agentLocalModelSet, (_event, value: unknown) => {
+    if (!localModel) throw new Error('本地模型配置不可用')
+    const record = value as Record<string, unknown>
+    const baseUrl = typeof record.baseUrl === 'string' ? record.baseUrl.trim() : ''
+    const model = typeof record.model === 'string' ? record.model.trim() : ''
+    const enabled = record.enabled === true
+    if (enabled && !isLocalEndpoint(baseUrl)) {
+      throw new TypeError('本地模型只接受 127.0.0.1 / localhost 的 http(s) 端点')
+    }
+    if (model.length > 120) throw new TypeError('模型名过长')
+    return localModel.save({ baseUrl, model, enabled })
+  })
+
+  ipcMain.handle(IPC.agentEvolveExpert, (_event, value: unknown) => {
+    if (!experts) throw new Error('专家库不可用')
+    const input = (value ?? {}) as Record<string, unknown>
+    const sessionId = assertAgentId(input.sessionId, '会话 id')
+    const messageId = assertAgentId(input.messageId, '消息 id')
+    const messages = repository.listMessagesForSession(sessionId)
+    const index = messages.findIndex((message) => message.id === messageId)
+    if (index < 0) throw new Error('消息不存在')
+    const assistant = messages[index]
+    if (assistant.role !== 'assistant' || assistant.error) {
+      throw new TypeError('只能从成功的助手回复提炼专家')
+    }
+    const userText =
+      [...messages.slice(0, index)].reverse().find((message) => message.role === 'user')?.text ?? ''
+    const candidate = buildExpertCandidate({
+      userText,
+      assistantText: assistant.text,
+      toolNames: (assistant.tools ?? []).map((tool) => tool.name)
+    })
+    if (!candidate) throw new TypeError('该回复没有可提炼的工具步骤')
+    return experts.saveExpert({
+      name: candidate.name,
+      description: candidate.description,
+      persona: candidate.persona,
+      tools: []
+    })
+  })
 
   ipcMain.handle(IPC.agentApprovalRules, () => approvalRules.list())
 
@@ -746,6 +805,14 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
             .map((m) => ({ role: m.role as 'user' | 'assistant', text: m.text }))
           const digest = compactTurns(turns)
           if (digest) repository.updateSession(input.sessionId, { contextDigest: digest })
+          // 本机模型摘要作为异步升级；失败保留抽取式摘要，不影响回合结束。
+          if (digest && summarizeLocal) {
+            void summarizeLocal(turns)
+              .then((summary) => {
+                if (summary) repository.updateSession(input.sessionId, { contextDigest: summary })
+              })
+              .catch(() => undefined)
+          }
         } catch (error) {
           console.error('[agent] 滚动摘要更新失败', error)
         }

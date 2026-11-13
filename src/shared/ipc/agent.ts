@@ -137,6 +137,13 @@ export interface AgentTeamCreateInput {
   workers: Array<{ title: string; persona?: string }>
 }
 
+/** 离线本地模型：只允许回环地址的 OpenAI 兼容端点，用于会话摘要。 */
+export interface LocalModelConfig {
+  baseUrl: string
+  model: string
+  enabled: boolean
+}
+
 export interface AgentImageRef {
   id: string
   name: string
@@ -168,6 +175,8 @@ export interface AgentSendInput {
 export interface AgentRunStart {
   runId: string
 }
+
+import type { ExpertRecord } from './experts'
 
 export type ProviderTarget = 'claude' | 'codex'
 export type ProviderWireApi = 'responses' | 'chat'
@@ -444,6 +453,10 @@ export interface AgentApi {
     text: string
   ) => Promise<AgentTeamNoteRecord>
   teamNotes: (teamId: string) => Promise<AgentTeamNoteRecord[]>
+  getLocalModel: () => Promise<LocalModelConfig>
+  setLocalModel: (config: LocalModelConfig) => Promise<LocalModelConfig>
+  /** 专家自进化：从成功且有工具步骤的助手回复提炼一个自定义专家 */
+  evolveExpert: (sessionId: string, messageId: string) => Promise<ExpertRecord>
   approvalRules: () => Promise<ApprovalRuleRecord[]>
   removeApprovalRule: (id: string) => Promise<void>
 }

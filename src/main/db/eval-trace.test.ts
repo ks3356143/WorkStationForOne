@@ -22,7 +22,7 @@ afterEach(() => {
 describe('评估落痕 DB v49', () => {
   it('建立 agent_tool_calls 表', () => {
     const { db } = seed()
-    expect(userVersion(db)).toBe(52)
+    expect(userVersion(db)).toBe(53)
     const tables = db
       .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'agent_tool_calls'")
       .all()

@@ -6,6 +6,7 @@ import { AgentRepository } from './agent'
 import { ApprovalRuleRepository } from './approval-rules'
 import { AuditLog } from './audit'
 import { ExpertRepository } from './experts'
+import { LocalModelRepository } from './local-model'
 import { ToolPrefRepository } from './tool-prefs'
 import { migrate, openDatabase } from './database'
 import { applyPendingRestore } from './restore'
@@ -38,6 +39,7 @@ export interface DatabaseContext {
   habits: HabitRepository
   agent: AgentRepository
   experts: ExpertRepository
+  localModel: LocalModelRepository
   providers: ProviderRepository
   mcp: McpPolicyRepository
   approvalRules: ApprovalRuleRepository
@@ -93,6 +95,7 @@ export function initDatabase(): DatabaseContext {
     habits: new HabitRepository(db, audit),
     agent: new AgentRepository(db),
     experts: new ExpertRepository(db),
+    localModel: new LocalModelRepository(db),
     providers: new ProviderRepository(db),
     mcp: new McpPolicyRepository(db, audit),
     approvalRules: new ApprovalRuleRepository(db),

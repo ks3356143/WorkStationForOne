@@ -890,6 +890,18 @@ export const MIGRATIONS: Migration[] = [
       );
       CREATE INDEX idx_team_notes ON agent_team_notes (team_id, created_at);
     `
+  },
+  {
+    // 离线本地模型：只允许回环地址的 OpenAI 兼容端点，用于会话摘要；默认关闭。
+    version: 53,
+    sql: `
+      CREATE TABLE local_model_config (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        base_url TEXT NOT NULL DEFAULT '',
+        model TEXT NOT NULL DEFAULT '',
+        enabled INTEGER NOT NULL DEFAULT 0
+      );
+    `
   }
 ]
 

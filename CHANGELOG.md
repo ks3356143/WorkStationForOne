@@ -6,6 +6,18 @@
 
 暂无。
 
+## [0.83.0] - 2026-11-11
+
+### 新增
+
+- **离线本地模型**（突破计划第 6 轮，DB v53）：`local_model_config` 单行配置；`main/agent/local-model.ts` 只接受 `127.0.0.1 / localhost / ::1` 的 http(s) 端点，走 OpenAI 兼容 `/v1/chat/completions` 做会话摘要，8 秒超时；抽取式摘要同步先写，本机摘要成功后再异步升级，失败不影响回合。IPC `agent:local-model-get/set`（启用时校验回环地址）。
+- **执行后验证修复闭环**（第 7 轮，人 gated）：`shared/verify-repair.ts` 生成「跑验证并修复」提示词；带文件改动的助手回复显示「验证并修复」，一键预填到输入栏（不自动发送、不自动重试、不提交）。
+- **专家自进化**（第 8 轮，评估门）：`shared/evolution.ts` 从「成功且有工具步骤」的回合提炼专家（人设记录工具顺序与结论）；`agent:evolve-expert` IPC + 回复行「存为专家」；正文为空或无工具步骤时拒绝产出。
+
+### 验证
+
+- typecheck、Biome 0 错误、1336 项单测（含 local-model / verify-repair / evolution 新测试）、580 项冒烟 0 失败 0 控制台报错（新增本地模型三问 + 成功回合提炼专家）。
+
 ## [0.82.0] - 2026-11-11
 
 ### 新增

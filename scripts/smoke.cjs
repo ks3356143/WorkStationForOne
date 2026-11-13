@@ -7108,6 +7108,55 @@ async function run() {
         notes.length === 2 && notes[0].text === '黑板第一条' && notes[1].role === 'assistant',
         String(notes.length)
       )
+      const lm0 = await window.ws.agent.getLocalModel()
+      check('本地模型默认关闭', lm0.enabled === false && lm0.baseUrl === '', JSON.stringify(lm0))
+      let rejected = false
+      try {
+        await window.ws.agent.setLocalModel({
+          baseUrl: 'https://api.example.com',
+          model: 'm',
+          enabled: true
+        })
+      } catch {
+        rejected = true
+      }
+      check('本地模型拒绝非回环地址', rejected, String(rejected))
+      const lm1 = await window.ws.agent.setLocalModel({
+        baseUrl: 'http://127.0.0.1:11434',
+        model: 'qwen2.5:7b',
+        enabled: true
+      })
+      check(
+        '本地模型配置落库',
+        lm1.enabled === true && lm1.model === 'qwen2.5:7b',
+        JSON.stringify(lm1)
+      )
+      await window.ws.agent.setLocalModel({
+        baseUrl: lm1.baseUrl,
+        model: lm1.model,
+        enabled: false
+      })
+      const threads = await window.ws.agent.threads()
+      let source = null
+      for (const session of threads.sessions) {
+        const messages = await window.ws.agent.thread(session.id)
+        const hit = messages.find(
+          (m) => m.role === 'assistant' && !m.error && (m.tools?.length ?? 0) > 0
+        )
+        if (hit) {
+          source = { sessionId: session.id, messageId: hit.id }
+          break
+        }
+      }
+      const evolved = source
+        ? await window.ws.agent.evolveExpert(source.sessionId, source.messageId)
+        : null
+      const expertList = await window.ws.experts.list()
+      check(
+        '成功回合可提炼为专家',
+        !!evolved && expertList.some((e) => e.id === evolved.id && !e.builtin),
+        evolved ? evolved.name : 'missing'
+      )
       return { checks }
     })()`)
     results.checks.push(...team.checks)
