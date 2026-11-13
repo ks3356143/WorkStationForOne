@@ -1285,3 +1285,73 @@
     width: calc(100vw - 48px);
   }
 }
+
+/* ---------- local model (offline digest) ---------- */
+
+.w1-localmodel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.5);
+  background: rgb(var(--panel-2-rgb) / 0.5);
+}
+
+.w1-localmodelhead {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.w1-localmodelhead b {
+  color: var(--fg-strong);
+  font: 600 12.5px / 1.2 var(--disp);
+}
+
+.w1-localmodelhead span {
+  color: var(--su);
+  font: 10px / 1.5 var(--mono);
+}
+
+.w1-localgrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 160px;
+  gap: 8px;
+}
+
+.w1-localfield {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.w1-localfield.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.w1-localfield > span {
+  color: var(--mu);
+  font: 10px / 1 var(--mono);
+}
+
+.w1-localfield.inline > span {
+  color: var(--fg);
+  font: 12px / 1.4 var(--sans);
+}
+
+.w1-localgrid input {
+  padding: 6px 8px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.5);
+  background: rgb(var(--field-rgb) / 0.2);
+  color: var(--fg-strong);
+  font: 12px / 1.4 var(--sans);
+}
+
+.w1-localops {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}

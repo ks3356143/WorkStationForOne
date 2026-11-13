@@ -4,6 +4,7 @@ import type { ProviderProfileRecord, ProviderTarget, ProviderWireApi } from '../
 import { providerAuthScheme, providerEndpoint } from '../../../../shared/provider-profile'
 import { DURATION, EASE_OUT } from '../../lib/motion'
 import { ClaudeGlyph, CodexGlyph } from '../Glyphs'
+import { LocalModelCard } from './LocalModelCard'
 
 type ProviderTestState =
   | { kind: 'testing'; message: string }
@@ -497,6 +498,7 @@ export function ProviderCard({ notify }: ProviderCardProps) {
           )}
         </m.div>
       </div>
+      <LocalModelCard notify={notify} />
     </section>
   )
 }

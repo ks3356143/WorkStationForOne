@@ -111,4 +111,4 @@
 
 已完成并通过验证（v0.81.0–0.83.0，DB v49–v53）：1 评估 harness（`agent_tool_calls` + `npm run eval`）、2 上下文工程（滚动摘要 + 笔记记忆系统前缀）、3 Provider 路由降级（priority + `selectFallback` + 错误卡「换备用重试」）、4 多智能体编排地基（`team_id` + 黑板 + `TeamService` + IPC）、5 提示注入防御（`prompt-guard` 只读警告）、6 离线本地模型（回环端点摘要 + 抽取式兜底）、7 执行后验证修复闭环（由用户点击预填、手动发送）、8 专家自进化（成功回合提炼 + 评估门 + 「存为专家」）。
 
-后续 UI 补齐项：团队列表/黑板面板、本地模型设置开关（后端与 IPC 已就绪）。
+UI 已补齐：舰队「团队」面板（新建/列表/成员打开/黑板查看与发送，`components/fleet/TeamsPanel.tsx`）与设置「本机模型」卡（`components/settings/LocalModelCard.tsx`，挂在 Agent Provider 分区内）。

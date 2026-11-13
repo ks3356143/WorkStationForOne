@@ -3298,6 +3298,11 @@ async function run() {
 
     check('设置面板有 Provider 卡片', !!one('.w1-provcard'))
     check(
+      '本机模型设置卡就绪',
+      !!one('.w1-localmodel') && all('.w1-localmodel input').length >= 3,
+      String(all('.w1-localmodel input').length)
+    )
+    check(
       'Provider 接线台有双目标端口',
       all('.w1-provport').length === 2 && !!one('.w1-provdeckhead'),
       String(all('.w1-provport').length)
@@ -7081,6 +7086,18 @@ async function run() {
       const checks = []
       const check = (name, ok, detail = '') => checks.push({ name, ok, detail })
       const WS = ${JSON.stringify(agentWorkspace)}
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+      const all = (sel) => [...document.querySelectorAll(sel)]
+      const one = (sel) => document.querySelector(sel)
+      const byText = (sel, text) => all(sel).find((el) => el.textContent.includes(text))
+      const waitFor = async (fn, timeout = 3000) => {
+        const started = Date.now()
+        while (Date.now() - started < timeout) {
+          try { if (await fn()) return true } catch {}
+          await sleep(120)
+        }
+        return false
+      }
       const created = await window.ws.agent.createTeam({
         name: '冒烟小队',
         workspace: WS,
@@ -7157,6 +7174,33 @@ async function run() {
         !!evolved && expertList.some((e) => e.id === evolved.id && !e.builtin),
         evolved ? evolved.name : 'missing'
       )
+      // 舰队「团队」面板：列表 + 打开黑板
+      one('.w1-st-fleet')?.click()
+      await waitFor(() => !!one('.w1-fleetsheet'), 2000)
+      byText('.w1-fleetheadmeta .w1-capmini', '团队')?.click()
+      const teamRow = await waitFor(
+        () => all('.w1-teamrow').some((row) => row.textContent.includes('冒烟小队')),
+        3000
+      )
+      check(
+        '团队面板列出团队',
+        teamRow,
+        String(all('.w1-teamrow').length) + ' 行'
+      )
+      all('.w1-teamrow')
+        .find((row) => row.textContent.includes('冒烟小队'))
+        ?.click()
+      const boardReady = await waitFor(
+        () => !!one('.w1-teamboard') && (one('.w1-teamboard')?.textContent ?? '').includes('黑板'),
+        2000
+      )
+      check(
+        '团队黑板面板可打开',
+        boardReady && (one('.w1-teammember')?.textContent ?? '').includes('负责人'),
+        boardReady ? 'ok' : 'missing'
+      )
+      one('.w1-fleetclose')?.click()
+      await waitFor(() => !one('.w1-fleetsheet'), 2000)
       return { checks }
     })()`)
     results.checks.push(...team.checks)

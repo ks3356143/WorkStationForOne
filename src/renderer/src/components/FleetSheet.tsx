@@ -9,6 +9,7 @@ import { useWorkstation } from '../store/useWorkstation'
 import type { AgentId, Session } from '../types'
 import { ClaudeGlyph, CodexGlyph, PlusIcon } from './Glyphs'
 import { ExpertsPanel } from './fleet/ExpertsPanel'
+import { TeamsPanel } from './fleet/TeamsPanel'
 
 interface FleetSheetProps {
   onClose: () => void
@@ -65,6 +66,7 @@ export function FleetSheet({ onClose, notify }: FleetSheetProps) {
   const [presetBusy, setPresetBusy] = useState(false)
   const [usageOpen, setUsageOpen] = useState(false)
   const [expertsOpen, setExpertsOpen] = useState(false)
+  const [teamsOpen, setTeamsOpen] = useState(false)
   const [usage, setUsage] = useState<AgentRunRecord[] | null>(null)
   const [usageBusy, setUsageBusy] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
@@ -301,6 +303,13 @@ export function FleetSheet({ onClose, notify }: FleetSheetProps) {
             </button>
             <button
               type="button"
+              className={`w1-capmini${teamsOpen ? ' pri' : ''}`}
+              onClick={() => setTeamsOpen((open) => !open)}
+            >
+              团队
+            </button>
+            <button
+              type="button"
               className={`w1-capmini${expertsOpen ? ' pri' : ''}`}
               onClick={() => setExpertsOpen((open) => !open)}
             >
@@ -478,6 +487,7 @@ export function FleetSheet({ onClose, notify }: FleetSheetProps) {
           </div>
         ) : null}
 
+        {teamsOpen ? <TeamsPanel notify={notify} onOpened={onClose} /> : null}
         {expertsOpen ? <ExpertsPanel notify={notify} onLaunched={onClose} /> : null}
 
         <div className="w1-fleetbody">
