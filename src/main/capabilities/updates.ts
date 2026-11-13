@@ -2,13 +2,16 @@ import type { PluginAgent } from '../../shared/ipc'
 import { compareVersion } from './plugins/adapters'
 
 export interface UpdateCandidate {
-  kind: 'plugin' | 'mcp'
+  kind: 'plugin' | 'mcp' | 'cli'
   id: string
   name: string
   agent?: PluginAgent
   current: string
   latest: string
   sourceName?: string
+  source?: 'plugin' | 'mcp' | 'cli'
+  note?: string
+  command?: string
 }
 
 export interface PluginVersionInput {
@@ -50,6 +53,7 @@ export function collectCandidates(
       agent: plugin.agent,
       current: plugin.version,
       latest: plugin.latestVersion,
+      source: 'plugin',
       ...(plugin.sourceName ? { sourceName: plugin.sourceName } : {})
     })
   }
@@ -62,7 +66,8 @@ export function collectCandidates(
       id: item.id,
       name: item.name,
       current: item.currentVersion,
-      latest: item.latestVersion
+      latest: item.latestVersion,
+      source: 'mcp'
     })
   }
 
@@ -74,8 +79,10 @@ export function summarizeCandidates(candidates: UpdateCandidate[]): string {
   if (candidates.length === 0) return ''
   const plugins = candidates.filter((item) => item.kind === 'plugin').length
   const mcp = candidates.filter((item) => item.kind === 'mcp').length
+  const cli = candidates.filter((item) => item.kind === 'cli').length
   const parts: string[] = []
   if (plugins > 0) parts.push(`${plugins} 个插件`)
   if (mcp > 0) parts.push(`${mcp} 个 MCP`)
+  if (cli > 0) parts.push(`${cli} 个本机 CLI`)
   return `${parts.join('、')}可更新`
 }

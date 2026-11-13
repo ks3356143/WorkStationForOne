@@ -3486,7 +3486,7 @@ async function run() {
     await waitFor(() => !!one('.w1-cap') && !!one('.w1-capnav'), 3000)
     check(
       '设置里有能力中心五分区',
-      all('.w1-capnav button').length === 5 &&
+      all('.w1-capnav [role="tab"]').length === 5 &&
         (one('.w1-capscope')?.textContent ?? '').includes('应用私有'),
       one('.w1-capnav')?.textContent ?? 'missing'
     )
@@ -4041,6 +4041,11 @@ async function run() {
       banner && Boolean(applyButton),
       one('.w1-capupdate')?.textContent?.slice(0, 120) ?? 'missing'
     )
+    check(
+      '能力中心有检查更新入口',
+      (one('.w1-capnav')?.textContent ?? '').includes('检查更新'),
+      one('.w1-capnav')?.textContent?.slice(0, 80) ?? 'missing'
+    )
 
     // 批量更新：成功与失败要各自独立，失败项带原因且不拖垮其它条目
     const updateSkill = (await window.ws.capability.skills.list()).find(
@@ -4130,6 +4135,12 @@ async function run() {
     await waitFor(() => !!one('.w1-cap'), 3000)
     byText('.w1-capnav button', 'MCP')?.click()
     await waitFor(() => Boolean(byText('.w1-caprow', '未启用 MCP')), 3000)
+    check(
+      'MCP 行标注来源与依赖',
+      Boolean(one('.w1-capsrc')) &&
+        ['本机', '外部'].some((tag) => (one('.w1-capsrc')?.textContent ?? '').includes(tag)),
+      one('.w1-capsrc')?.textContent ?? 'missing'
+    )
 
     // 内置工具页：按 Agent 切换原生开关，落库后进入下一次会话的注入参数
     const surfaceInitial = await window.ws.capability.toolSurface()

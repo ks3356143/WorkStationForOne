@@ -17,6 +17,8 @@ export interface UpdateCheckDeps {
   claudeInstallRoot: (pluginId: string) => string | null
   /** 检查完成后的通知；由主进程推给渲染层 */
   onAvailable: (candidates: UpdateCandidate[]) => void
+  /** 本机 CLI 版本检查；只在手动检查时调用，避免启动联网 */
+  checkCli?: () => Promise<UpdateCandidate[]>
   log?: (message: string) => void
 }
 
@@ -50,14 +52,23 @@ export class UpdateChecker {
     this.timer = null
   }
 
-  /** 并发检查所有源与 MCP；同一时刻只跑一次。 */
-  async check(): Promise<UpdateCandidate[]> {
+  /** 并发检查所有源与 MCP；同一时刻只跑一次。includeCli 只用于手动检查。 */
+  async check(options: { includeCli?: boolean } = {}): Promise<UpdateCandidate[]> {
     if (this.running) return []
     this.running = true
     try {
       const plugins = await this.collectPluginVersions()
       const mcp = await this.collectMcpVersions()
       const candidates = collectCandidates(plugins, mcp)
+      if (options.includeCli && this.deps.checkCli) {
+        try {
+          candidates.push(...(await this.deps.checkCli()))
+        } catch (error) {
+          this.deps.log?.(
+            `[updates] 本机 CLI 检查失败：${error instanceof Error ? error.message : '未知错误'}`
+          )
+        }
+      }
       if (candidates.length > 0) this.deps.onAvailable(candidates)
       return candidates
     } finally {

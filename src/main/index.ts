@@ -33,6 +33,7 @@ import {
 } from './storage/location'
 import { migrateRoot, type MigrateResult } from './storage/migrate'
 import { agentCapabilityRuntime, createCapabilityCenter } from './capabilities'
+import { checkCliUpdates } from './capabilities/cli-updates'
 import { registerCapabilityHandlers } from './ipc/capability'
 import { registerExpertHandlers } from './ipc/expert-handlers'
 import { registerPluginHandlers } from './ipc/plugin-handlers'
@@ -221,7 +222,34 @@ if (!gotTheLock) {
         if (!win || win.isDestroyed()) return
         win.webContents.send(IPC_CHANNELS.capabilityUpdateAvailable, candidates)
       },
-      log: (message) => console.info(message)
+      log: (message) => console.info(message),
+      checkCli: async () => {
+        const env = await capabilities.environment()
+        const versions = {
+          claude: env.find((item) => item.id === 'claude')?.version ?? '',
+          codex: env.find((item) => item.id === 'codex')?.version ?? ''
+        }
+        return checkCliUpdates({
+          versions,
+          fetchLatest: async (pkg) => {
+            const controller = new AbortController()
+            const timer = setTimeout(() => controller.abort(), 8000)
+            try {
+              const response = await fetch(
+                `https://registry.npmjs.org/${encodeURIComponent(pkg)}/latest`,
+                { signal: controller.signal }
+              )
+              if (!response.ok) return null
+              const data = (await response.json()) as { version?: unknown }
+              return typeof data.version === 'string' ? data.version : null
+            } catch {
+              return null
+            } finally {
+              clearTimeout(timer)
+            }
+          }
+        })
+      }
     })
     updateChecker.scheduleStartup()
     registerPluginHandlers(capabilities, pluginSources, updateChecker, database.audit)

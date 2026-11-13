@@ -89,13 +89,19 @@ export interface PluginSourceRecord {
 }
 
 export interface UpdateCandidateRecord {
-  kind: 'plugin' | 'mcp'
+  kind: 'plugin' | 'mcp' | 'cli'
   id: string
   name: string
   agent?: PluginAgent
   current: string
   latest: string
   sourceName?: string
+  /** 来源标签：插件 / MCP / 本机 CLI */
+  source?: 'plugin' | 'mcp' | 'cli'
+  /** 更新说明（如更新后能用到什么） */
+  note?: string
+  /** 本机 CLI 的更新命令，复制给用户自己执行 */
+  command?: string
 }
 
 /** 批量更新的结果：失败项带原因，方便逐条重试。 */

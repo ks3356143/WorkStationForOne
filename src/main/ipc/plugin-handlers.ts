@@ -234,7 +234,8 @@ export function registerPluginHandlers(
     return outcome
   })
 
-  ipcMain.handle(IPC.capabilityUpdatesCheck, () => checker.check())
+  // 手动检查：额外带上本机 CLI 版本（启动检查不联网）
+  ipcMain.handle(IPC.capabilityUpdatesCheck, () => checker.check({ includeCli: true }))
 
   /**
    * 逐条应用更新。渲染层把候选原样传回来，主进程据此分发到

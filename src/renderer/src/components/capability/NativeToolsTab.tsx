@@ -112,7 +112,10 @@ export function NativeToolsTab({
       {surface ? (
         <>
           <div className="w1-capdomain">
-            <h4>CLI 原生工具</h4>
+            <h4>
+              CLI 原生工具
+              <i className="w1-capsrc">本机 CLI</i>
+            </h4>
             <div className="w1-caplist">
               {surface.native.map((tool) => (
                 <div

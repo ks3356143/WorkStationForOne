@@ -7,6 +7,7 @@ import type {
   UpdateCandidateRecord
 } from '../../../../shared/ipc'
 import { friendlyMessage } from '../../lib/errors'
+import { fallbackCopy } from '../../lib/clipboard'
 import { replaceById } from '../../lib/collections'
 import { buildToolPriorityPrompt } from '../../../../shared/tool-surface'
 import { PluginsTab } from './PluginsTab'
@@ -46,6 +47,7 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [updateBusy, setUpdateBusy] = useState(false)
+  const [checkBusy, setCheckBusy] = useState(false)
   const [updateReport, setUpdateReport] = useState('')
   const [marketToken, setMarketToken] = useState(0)
 
@@ -232,10 +234,29 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
       .finally(() => setSurfaceBusy(null))
   }
 
-  /** 全部更新：成功后从候选里剔除，失败的留在横幅里并显示原因。 */
+  /** 手动检查：额外带上本机 CLI 版本；不自动更新，CLI 只给复制命令。 */
+  const checkNow = () => {
+    if (!api?.checkUpdates || checkBusy) return
+    setCheckBusy(true)
+    setUpdateReport('')
+    void api
+      .checkUpdates()
+      .then((list) => {
+        setPendingUpdates(list)
+        if (list.length === 0) setUpdateReport('已是最新')
+      })
+      .catch((reason: unknown) => notify(friendlyMessage(reason, '检查更新失败')))
+      .finally(() => setCheckBusy(false))
+  }
+
+  /** 全部更新：插件 / MCP 直接更新；本机 CLI 只提供复制命令。 */
   const applyAllUpdates = () => {
     if (!api?.applyUpdates || updateBusy || pendingUpdates.length === 0) return
-    const batch = pendingUpdates
+    const batch = pendingUpdates.filter((item) => item.kind !== 'cli')
+    if (batch.length === 0) {
+      notify('本机 CLI 需要复制更新命令后自行执行')
+      return
+    }
     setUpdateBusy(true)
     setUpdateReport('')
     void api
@@ -266,58 +287,107 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
   }
 
   const currentSurface = surface ? surface[surfaceAgent] : null
+  const cliCandidates = pendingUpdates.filter((item) => item.kind === 'cli')
+  const pluginCount = pendingUpdates.filter((item) => item.kind === 'plugin').length
+  const mcpCount = pendingUpdates.filter((item) => item.kind === 'mcp').length
+  const updateSummary = [
+    pluginCount > 0 ? `${pluginCount} 个插件` : '',
+    mcpCount > 0 ? `${mcpCount} 个 MCP` : '',
+    cliCandidates.length > 0 ? `${cliCandidates.length} 个本机 CLI` : ''
+  ]
+    .filter(Boolean)
+    .join('、')
 
   return (
     <div className="w1-cap">
       {pendingUpdates.length > 0 || updateReport ? (
-        <div className="w1-capupdate" role="status">
-          <span>
-            {updateBusy
-              ? '正在更新…'
-              : pendingUpdates.length > 0
-                ? `${pendingUpdates.filter((item) => item.kind === 'plugin').length} 个插件、${
-                    pendingUpdates.filter((item) => item.kind === 'mcp').length
-                  } 个 MCP 可更新`
-                : '更新完成'}
-            {updateReport ? <em className="w1-capupdatenote">{updateReport}</em> : null}
-          </span>
-          <span className="w1-capupdateacts">
-            {pendingUpdates.length > 0 ? (
-              <button
-                type="button"
-                className="w1-capmini pri"
-                disabled={updateBusy}
-                onClick={applyAllUpdates}
-              >
-                {updateBusy ? '更新中…' : '全部更新'}
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className="w1-capmini"
-              disabled={updateBusy}
-              onClick={() => {
-                if (pendingUpdates.length > 0) {
-                  setTab(pendingUpdates.some((item) => item.kind === 'plugin') ? 'plugins' : 'mcp')
-                }
-                setPendingUpdates([])
-                setUpdateReport('')
-              }}
-            >
-              {pendingUpdates.length > 0 ? '查看' : '知道了'}
-            </button>
-            {pendingUpdates.length > 0 ? (
+        <>
+          <div className="w1-capupdate" role="status">
+            <span>
+              {updateBusy
+                ? '正在更新…'
+                : pendingUpdates.length > 0
+                  ? `${updateSummary}可更新`
+                  : '更新完成'}
+              {updateReport ? <em className="w1-capupdatenote">{updateReport}</em> : null}
+            </span>
+            <span className="w1-capupdateacts">
+              {pendingUpdates.length > 0 ? (
+                <button
+                  type="button"
+                  className="w1-capmini pri"
+                  disabled={updateBusy}
+                  onClick={applyAllUpdates}
+                >
+                  {updateBusy ? '更新中…' : '全部更新'}
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="w1-capmini"
                 disabled={updateBusy}
-                onClick={() => setPendingUpdates([])}
+                onClick={() => {
+                  if (pendingUpdates.length > 0) {
+                    setTab(
+                      pendingUpdates.some((item) => item.kind === 'plugin')
+                        ? 'plugins'
+                        : pendingUpdates.some((item) => item.kind === 'mcp')
+                          ? 'mcp'
+                          : 'native'
+                    )
+                  }
+                  setPendingUpdates([])
+                  setUpdateReport('')
+                }}
               >
-                稍后
+                {pendingUpdates.length > 0 ? '查看' : '知道了'}
               </button>
-            ) : null}
-          </span>
-        </div>
+              {pendingUpdates.length > 0 ? (
+                <button
+                  type="button"
+                  className="w1-capmini"
+                  disabled={updateBusy}
+                  onClick={() => setPendingUpdates([])}
+                >
+                  稍后
+                </button>
+              ) : null}
+            </span>
+          </div>
+          {cliCandidates.length > 0 ? (
+            <div className="w1-capupdatecli">
+              {cliCandidates.map((item) => (
+                <span key={item.id} className="w1-capupdateclirow">
+                  <b>{item.name}</b>
+                  <span>
+                    {item.current} → {item.latest}
+                  </span>
+                  <button
+                    type="button"
+                    className="w1-capmini"
+                    onClick={() => {
+                      const command = item.command ?? ''
+                      if (!command) return
+                      const done = () => notify(`已复制：${command}`)
+                      if (navigator.clipboard?.writeText) {
+                        navigator.clipboard
+                          .writeText(command)
+                          .then(done, () => fallbackCopy(command, done))
+                      } else {
+                        fallbackCopy(command, done)
+                      }
+                    }}
+                  >
+                    复制更新命令
+                  </button>
+                </span>
+              ))}
+              <em className="w1-capupdatenote">
+                本机 CLI 请复制命令自行更新；更新后新工具才会进入 agent
+              </em>
+            </div>
+          ) : null}
+        </>
       ) : null}
       <div className="w1-capnav" role="tablist" aria-label="能力中心">
         {TABS.map(([value, label]) => (
@@ -333,6 +403,9 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
           </button>
         ))}
         <span className="w1-capscope">应用私有 · 不写全局配置</span>
+        <button type="button" className="w1-capmini" disabled={checkBusy} onClick={checkNow}>
+          {checkBusy ? '检查中…' : '检查更新'}
+        </button>
       </div>
 
       {error ? (

@@ -6,6 +6,18 @@
 
 暂无。
 
+## [0.85.0] - 2026-11-11
+
+### 新增
+
+- **工具来源与依赖标签**：`shared/tool-update.ts` 的 `describeMcpSource` 在 MCP 行标注「本机 · Node / uv / git」「本机进程」「外部 · HTTPS」；内置工具页的 CLI 原生工具标注「本机 CLI」。让用户一眼分清本机 CLI、外部 MCP 与插件。
+- **本机 CLI 版本检查**：能力中心新增「检查更新」按钮（手动触发）。复用环境自检拿当前 `claude/codex` 版本，查 npm registry 最新版；有新版时列出 `current → latest` 并提供「复制更新命令」。**不代执行全局安装**，启动检查仍只查插件与内置目录 MCP（本地优先）。
+- `UpdateCandidate` 扩展 `kind: 'cli'` 与 `source / note / command`；「全部更新」自动过滤 CLI 条目。
+
+### 验证
+
+- typecheck、Biome 0 错误、1336 项单测、585 项冒烟 0 失败 0 控制台报错（新增「能力中心有检查更新入口」「MCP 行标注来源与依赖」）。
+
 ## [0.84.0] - 2026-11-11
 
 ### 新增

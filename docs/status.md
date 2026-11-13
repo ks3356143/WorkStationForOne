@@ -63,6 +63,7 @@
 - 已实现：环境依赖即 CLI（0.78.0，DB v47）。推荐页加 uv/bun/node 三组环境依赖（同包一行、打标签），系统 / 应用托管二选一生效（`cli_runtime_prefs`），默认系统优先；选托管时托管目录注入 MCP 与 Agent 子进程 PATH。托管安装参考 Cherry Studio 资产命名：官方 zip（bun/node 备 npmmirror）→ Expand-Archive → 拷贝二进制 → `--version` 校验 → 版本目录 + current.json；bun 补 bunx shim；两段确认卸载只删应用目录。更新检查只识别提示（GitHub releases / nodejs dist，8s 超时静默跳过），托管给更新按钮、系统给 winget upgrade 复制；不自动更新。新增 8 项单测（含本地 HTTP fixture 的真下载/解压/校验集成测试）、3 项冒烟。
 - 已实现：Provider 路由与降级（0.82.0，DB v51）。`provider_profiles.priority` 控备用顺序，`selectFallback` 纯函数选非激活备用；`provider:fallback-for` + 错误卡「换备用重试」为**用户显式**切换并重试，不自动重试副作用回合。
 - 已实现：多智能体编排地基（0.82.0，DB v52）。`agent_sessions.team_id` 分组 + `agent_team_notes` 共享黑板；`TeamService` 建团队（负责人 + 1–8 worker，继承工作区/人设）；`agent:team-*` IPC；无云、无自动发送，UI 待补。
+- 已实现：工具更新与来源标签（0.85.0）。`shared/tool-update.ts` 描述 MCP 来源/依赖（本机 · Node/uv/git / 外部 · HTTPS）；能力中心「检查更新」手动检测本机 Claude/Codex CLI（环境自检当前版本 + npm registry 最新版），只给 `current → latest` 与「复制更新命令」，不代执行全局安装；启动检查仍只查插件与内置目录 MCP。
 - 已实现：离线本地模型（0.83.0，DB v53）。`local_model_config` 单行配置；只接受回环地址的 OpenAI 兼容端点做会话摘要，抽取式同步兜底 + 异步升级；`agent:local-model-get/set`。
 - 已实现：执行后验证修复闭环（0.83.0，人 gated）。`shared/verify-repair.ts` 生成提示词，带改动的回复一键预填「验证并修复」，不自动发送/重试/提交。
 - 已实现：专家自进化（0.83.0）。`shared/evolution.ts` 只从成功且有工具步骤的回合提炼专家；`agent:evolve-expert` + 回复行「存为专家」。

@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
+import { describeMcpSource } from '../../../../shared/tool-update'
 import type {
   AgentKind,
   ExternalMcpAuthMode,
@@ -638,6 +639,9 @@ export function McpTab({
                       <b>
                         {server.name}
                         <i className="w1-capver">{server.transport}</i>
+                        <i className="w1-capsrc">
+                          {describeMcpSource(server.transport, server.command).label}
+                        </i>
                         {surfaceItem?.preferred ? <i className="w1-capprefer">首选</i> : null}
                       </b>
                       <p>{mcpTarget(server) || server.description}</p>
