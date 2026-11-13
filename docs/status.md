@@ -62,7 +62,7 @@
 - 已修复：托管安装真网络缺陷（0.78.1，真安装探针发现并复验）。uv/bun 版本查询只走 api.github.com 在国内不可达 → 加保底版本（uv 0.13.7 / bun 1.4.4）+ 可信回退源：bun 走 npmmirror、uv 走阿里云 PyPI 官方 wheel（含 uv.exe/uvx.exe）并校验镜像 sha256；node 托管后 npx/npm 因缺 node_modules 无法解析 → 整棵拷贝 node_modules；解压二进制改递归查找（限深 5）兼容三种资产布局。真探针复验：uv 3s / bun 11s / node 114s 全部安装+解析+卸载成功。新增 1 项保底版本单测。
 - 已实现：环境依赖即 CLI（0.78.0，DB v47）。推荐页加 uv/bun/node 三组环境依赖（同包一行、打标签），系统 / 应用托管二选一生效（`cli_runtime_prefs`），默认系统优先；选托管时托管目录注入 MCP 与 Agent 子进程 PATH。托管安装参考 Cherry Studio 资产命名：官方 zip（bun/node 备 npmmirror）→ Expand-Archive → 拷贝二进制 → `--version` 校验 → 版本目录 + current.json；bun 补 bunx shim；两段确认卸载只删应用目录。更新检查只识别提示（GitHub releases / nodejs dist，8s 超时静默跳过），托管给更新按钮、系统给 winget upgrade 复制；不自动更新。新增 8 项单测（含本地 HTTP fixture 的真下载/解压/校验集成测试）、3 项冒烟。
 - 已实现：Provider 路由与降级（0.82.0，DB v51）。`provider_profiles.priority` 控备用顺序，`selectFallback` 纯函数选非激活备用；`provider:fallback-for` + 错误卡「换备用重试」为**用户显式**切换并重试，不自动重试副作用回合。
-- 已实现：多智能体编排地基（0.82.0，DB v52）。`agent_sessions.team_id` 分组 + `agent_team_notes` 共享黑板；`TeamService` 建团队（负责人 + 1–8 worker，继承工作区/人设）；`agent:team-*` IPC；无云、无自动发送，UI 待补。
+- 已实现：多智能体编排地基（0.82.0，DB v52）。`agent_sessions.team_id` 分组 + `agent_team_notes` 共享黑板；`TeamService` 建团队（负责人 + 1–8 worker，继承工作区/人设）；`agent:team-*` IPC；统一入口在舰队「团队」面板（0.84.0），无云、无自动发送。
 - 已实现：工具更新与来源标签（0.85.0）。`shared/tool-update.ts` 描述 MCP 来源/依赖（本机 · Node/uv/git / 外部 · HTTPS）；能力中心「检查更新」手动检测本机 Claude/Codex CLI（环境自检当前版本 + npm registry 最新版），只给 `current → latest` 与「复制更新命令」，不代执行全局安装；启动检查仍只查插件与内置目录 MCP。
 - 已实现：离线本地模型（0.83.0，DB v53）。`local_model_config` 单行配置；只接受回环地址的 OpenAI 兼容端点做会话摘要，抽取式同步兜底 + 异步升级；`agent:local-model-get/set`。
 - 已实现：执行后验证修复闭环（0.83.0，人 gated）。`shared/verify-repair.ts` 生成提示词，带改动的回复一键预填「验证并修复」，不自动发送/重试/提交。
@@ -110,6 +110,6 @@
 
 ## 智能体突破计划进度（2026-11-11，8 轮）
 
-已完成并通过验证（v0.81.0–0.83.0，DB v49–v53）：1 评估 harness（`agent_tool_calls` + `npm run eval`）、2 上下文工程（滚动摘要 + 笔记记忆系统前缀）、3 Provider 路由降级（priority + `selectFallback` + 错误卡「换备用重试」）、4 多智能体编排地基（`team_id` + 黑板 + `TeamService` + IPC）、5 提示注入防御（`prompt-guard` 只读警告）、6 离线本地模型（回环端点摘要 + 抽取式兜底）、7 执行后验证修复闭环（由用户点击预填、手动发送）、8 专家自进化（成功回合提炼 + 评估门 + 「存为专家」）。
+已完成并通过验证（v0.81.0–0.85.0，DB v49–v53）：1 评估 harness（`agent_tool_calls` + `npm run eval`）、2 上下文工程（滚动摘要 + 笔记记忆系统前缀）、3 Provider 路由降级（priority + `selectFallback` + 错误卡「换备用重试」）、4 多智能体编排地基（`team_id` + 黑板 + `TeamService` + IPC）、5 提示注入防御（`prompt-guard` 只读警告）、6 离线本地模型（回环端点摘要 + 抽取式兜底）、7 执行后验证修复闭环（由用户点击预填、手动发送）、8 专家自进化（成功回合提炼 + 评估门 + 「存为专家」）。0.84.0 补团队面板与本机模型设置卡；0.85.0 补工具来源标签与本机 CLI 更新检查（只给复制命令）。
 
 UI 已补齐：舰队「团队」面板（新建/列表/成员打开/黑板查看与发送，`components/fleet/TeamsPanel.tsx`）与设置「本机模型」卡（`components/settings/LocalModelCard.tsx`，挂在 Agent Provider 分区内）。
