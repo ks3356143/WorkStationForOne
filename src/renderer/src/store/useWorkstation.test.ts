@@ -386,6 +386,23 @@ describe('对话', () => {
     expect(useWorkstation.getState().learningJumpId).toBeNull()
   })
 
+  it('每日笔记：首次创建并打开，再次打开复用同一篇', () => {
+    const store = useWorkstation.getState()
+    store.openDailyNote()
+    let state = useWorkstation.getState()
+    const title = `${dateKey()} 日记`
+    expect(state.activeView).toBe('notes')
+    expect(state.noteJump?.text.split('\n')[0]).toBe(title)
+    const createdId = state.noteJump?.id
+    expect(state.notes.some((note) => note.id === createdId && note.tag === '日记')).toBe(true)
+    const count = state.notes.length
+    store.clearNoteJump()
+    useWorkstation.getState().openDailyNote()
+    state = useWorkstation.getState()
+    expect(state.noteJump?.id).toBe(createdId)
+    expect(state.notes.length).toBe(count)
+  })
+
   it('删除活跃会话后回选下一个并清掉线程状态', () => {
     const store = useWorkstation.getState()
     store.setActiveSession('s-2')

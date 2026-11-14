@@ -259,6 +259,46 @@
   opacity: 0;
 }
 
+/* 全息箔光：专注盒内一道虹彩光泽缓慢扫过，soft-light 混合，仅在此强调面 */
+.w1-focus-foil {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+  mix-blend-mode: soft-light;
+  opacity: 0.5;
+}
+
+.w1-focus-foil::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -60%;
+  width: 55%;
+  background: linear-gradient(
+    100deg,
+    transparent,
+    rgb(var(--prism-1-rgb) / 0.4) 30%,
+    rgb(var(--ac2-rgb) / 0.35) 50%,
+    rgb(var(--prism-2-rgb) / 0.4) 70%,
+    transparent
+  );
+  transform: skewX(-12deg);
+  animation: w1-foil 6.5s var(--ease-soft) infinite;
+}
+
+@keyframes w1-foil {
+  0% {
+    transform: translateX(0) skewX(-12deg);
+  }
+  55%,
+  100% {
+    transform: translateX(300%) skewX(-12deg);
+  }
+}
+
 .w1-focus-box.done {
   border-color: rgb(var(--ok-rgb) / 0.42);
 }

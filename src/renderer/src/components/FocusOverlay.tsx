@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { m } from 'motion/react'
+import confetti from 'canvas-confetti'
+import { startAmbientAudio, type AmbientKind } from '../lib/ambient-audio'
 import { DURATION, EASE_OUT } from '../lib/motion'
 import type { FocusSession } from '../types'
 
@@ -18,6 +20,7 @@ export function FocusOverlay({ focus, onClose }: FocusOverlayProps) {
   const total = focus.minutes * 60
   const [remaining, setRemaining] = useState(total)
   const [paused, setPaused] = useState(false)
+  const [sound, setSound] = useState<'off' | AmbientKind>('off')
   const boxRef = useRef<HTMLDivElement>(null)
   const pauseRef = useRef<HTMLButtonElement>(null)
   const restoreRef = useRef<HTMLElement | null>(null)
@@ -43,6 +46,30 @@ export function FocusOverlay({ focus, onClose }: FocusOverlayProps) {
     const timer = window.setInterval(tick, 250)
     return () => window.clearInterval(timer)
   }, [paused, done])
+
+  // 环境音本地合成；切换音色或退出专注时释放 AudioContext。
+  useEffect(() => {
+    if (sound === 'off') return
+    const handle = startAmbientAudio(sound, 0.35)
+    return () => handle?.stop()
+  }, [sound])
+
+  // 完成里程碑喷一簇彩带（仅一次），尊重动效总闸与系统减少动效。
+  const celebratedRef = useRef(false)
+  useEffect(() => {
+    if (!done || celebratedRef.current) return
+    celebratedRef.current = true
+    if (document.querySelector('.w1.motion-off')) return
+    void confetti({
+      particleCount: 90,
+      spread: 70,
+      origin: { y: 0.6 },
+      disableForReducedMotion: true
+    })
+  }, [done])
+
+  const cycleSound = () =>
+    setSound((current) => (current === 'off' ? 'white' : current === 'white' ? 'rain' : 'off'))
 
   const togglePause = () => {
     if (paused) {
@@ -106,6 +133,7 @@ export function FocusOverlay({ focus, onClose }: FocusOverlayProps) {
         }}
       >
         <span className="w1-focus-glow" aria-hidden="true" />
+        <span className="w1-focus-foil" aria-hidden="true" />
         <div className="w1-focus-head">
           <span>// 专注模式</span>
           <span>{paused ? 'PAUSED' : done ? 'DONE' : 'FOCUS'}</span>
@@ -120,6 +148,15 @@ export function FocusOverlay({ focus, onClose }: FocusOverlayProps) {
           <span>{done ? '本轮完成' : `${focus.minutes} 分钟`}</span>
         </div>
         <div className="w1-focus-acts">
+          <button
+            className="w1-pb"
+            type="button"
+            aria-pressed={sound !== 'off'}
+            onClick={cycleSound}
+            title="本地合成环境音，不联网"
+          >
+            {sound === 'off' ? '环境音 关' : sound === 'white' ? '白噪音' : '雨声'}
+          </button>
           <button
             ref={pauseRef}
             className="w1-pb"

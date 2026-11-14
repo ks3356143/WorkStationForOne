@@ -7458,6 +7458,81 @@ async function run() {
     results.checks.push({ name: '提示词模板验证', ok: false, detail: String(error) })
   }
 
+  // 每日笔记：今日视图入口 → 创建并打开当天日记。
+  try {
+    const daily = await win.webContents.executeJavaScript(`(async () => {
+      const checks = []
+      const check = (name, ok, detail = '') => checks.push({ name, ok, detail: String(detail).slice(0, 100) })
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+      const all = (sel) => [...document.querySelectorAll(sel)]
+      const one = (sel) => document.querySelector(sel)
+      const waitFor = async (fn, timeout = 3000) => {
+        const started = Date.now()
+        while (Date.now() - started < timeout) { try { if (await fn()) return true } catch {} await sleep(120) }
+        return false
+      }
+      const navToday = all('.w1-navitem').find((el) => el.querySelector('.w1-navtext b')?.textContent?.trim() === '今日')
+      navToday?.click()
+      await sleep(500)
+      const btn = one('button[aria-label="打开今日日记"]')
+      check('今日视图有今日日记入口', !!btn, btn ? 'ok' : 'missing')
+      btn?.click()
+      const opened = await waitFor(() => one('.w1-navitem.on .w1-navtext b')?.textContent?.trim() === '笔记', 2000)
+      const key = new Date().toLocaleDateString('sv-SE')
+      const title = key + ' 日记'
+      const found = await waitFor(async () => (await window.ws.notes.search(title, 5, '日记')).some((n) => n.text.split('\\n')[0] === title), 2000)
+      check('今日日记创建并打开', opened && found, title)
+      return { checks }
+    })()`)
+    results.checks.push(...daily.checks)
+  } catch (error) {
+    results.checks.push({ name: '每日笔记验证', ok: false, detail: String(error) })
+  }
+
+  // 炫酷样式与专注增强：进度环 / 聚光描边 / 全息箔光 / 环境音。
+  try {
+    const flair = await win.webContents.executeJavaScript(`(async () => {
+      const checks = []
+      const check = (name, ok, detail = '') => checks.push({ name, ok, detail: String(detail).slice(0, 100) })
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+      const all = (sel) => [...document.querySelectorAll(sel)]
+      const one = (sel) => document.querySelector(sel)
+      const byText = (sel, text) => all(sel).find((el) => el.textContent.includes(text))
+      const waitFor = async (fn, timeout = 3000) => {
+        const started = Date.now()
+        while (Date.now() - started < timeout) { try { if (await fn()) return true } catch {} await sleep(120) }
+        return false
+      }
+      const navToday = all('.w1-navitem').find((el) => el.querySelector('.w1-navtext b')?.textContent?.trim() === '今日')
+      navToday?.click()
+      await sleep(500)
+      const rings = all('.w1-timeprog .w1-tpring')
+      check('今日进度环渲染（今日/今年）', rings.length === 2 && (one('.w1-timeprog')?.getAttribute('aria-label') ?? '').includes('%'), rings.length + ' 环')
+      check('卡片聚光描边层存在', !!one('.w1-card .w1-spotborder'), one('.w1-card .w1-spotborder') ? 'ok' : 'missing')
+      const tiltReady = await waitFor(() => {
+        const c = one('.w1-bento .w1-card')
+        return c ? getComputedStyle(c).transform.includes('matrix3d') : false
+      }, 2500)
+      const cardTransform = one('.w1-bento .w1-card') ? getComputedStyle(one('.w1-bento .w1-card')).transform : ''
+      check('今日卡片 3D 微倾底座', tiltReady, cardTransform.slice(0, 30))
+
+      one('.w1-acts .w1-btn.pri')?.click()
+      const focusOpen = await waitFor(() => !!one('.w1-focus-box'), 2000)
+      check('专注盒全息箔光层存在', focusOpen && !!one('.w1-focus-foil'), one('.w1-focus-foil') ? 'ok' : 'missing')
+      const soundBtn = byText('.w1-focus-acts .w1-pb', '环境音')
+      check('专注环境音开关存在', !!soundBtn, soundBtn?.textContent ?? 'missing')
+      soundBtn?.click()
+      const cycled = await waitFor(() => (byText('.w1-focus-acts .w1-pb', '白噪音') ?? null) !== null, 1500)
+      check('环境音可切换白噪音', cycled, byText('.w1-focus-acts .w1-pb', '白噪音')?.textContent ?? 'missing')
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
+      await waitFor(() => !one('.w1-focus-box'), 2000)
+      return { checks }
+    })()`)
+    results.checks.push(...flair.checks)
+  } catch (error) {
+    results.checks.push({ name: '炫酷样式与专注增强验证', ok: false, detail: String(error) })
+  }
+
   // 面板加载错误态：摘掉真实 IPC handler 制造真实拒绝，再装回空数据 handler 验证重试恢复。
   // 必须放在所有断言之后：恢复用的 handler 返回空数据，前面的断言会读到假结果。
   try {

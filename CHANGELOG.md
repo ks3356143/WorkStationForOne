@@ -6,6 +6,30 @@
 
 暂无。
 
+## [0.89.0] - 2026-11-14
+
+### 新增
+
+- **卡片 3D 微倾**：今日 bento 卡片随指针 ±2.5° 倾斜（`pointer-effects` 写 `--tilt-x/y`，`perspective + rotateX/Y`，不用 preserve-3d 避免玻璃压平），离开归零，受动效总闸控制。
+- **聚焦淡化**：hover 今日某卡时其余卡 opacity 淡出（纯 CSS，只动 opacity 不与微倾 transform 冲突），受总闸控制。
+- **完成彩带**：专注完成里程碑喷一簇彩带（成熟库 `canvas-confetti`，`disableForReducedMotion`，仅触发一次，尊重动效总闸）。
+- **数字滚动**：今日头部统计数字（在跑/待确认/待办）挂载与变化时缓动滚动（`lib/count-up.ts` 纯函数 `easeOutCubic`/`countUpValue` + `useCountUp` rAF hook，尊重系统减少动效）。
+
+## [0.88.0] - 2026-11-14
+
+### 新增
+
+- **年/日进度环**：今日视图头部 ambient 进度环，显示今天/今年已过去比例（纯函数 `lib/time-progress.ts`，SVG `stroke-dashoffset`，随 `useNow` 更新，闰年按 366 天）。
+- **聚光描边**：卡片 hover 时一圈渐变光边随指针移动（`SpotlightLayer` 新增 `.w1-spotborder` 子层，`radial-gradient` 跟随 `--spot-x/y` + `mask-composite: exclude` 只露 1px 环，直角成立），复用现有指针系统，受动效总闸控制。
+- **全息箔光**：专注盒内一道虹彩光泽缓慢扫过（`.w1-focus-foil`，`soft-light` 混合 + 斜向渐变带 `translateX` 动画），仅此强调面，受动效总闸控制。
+- **专注环境音**：专注计时可选本地合成白噪音/雨声（`lib/ambient-audio.ts`，Web Audio 噪声缓冲 + 雨声低通，纯本地不联网），关→白噪音→雨声循环，切换/退出释放 AudioContext。
+
+## [0.87.0] - 2026-11-14
+
+### 新增
+
+- **每日笔记（Daily Note）**：今日视图头部新增「今日日记」入口，按本地日期键自动创建/打开当天日记笔记（标题 `YYYY-MM-DD 日记`、标签「日记」），同一天复用同一篇。纯函数 `lib/daily-note.ts`（标题/首行匹配）+ store `openDailyNote`（有桥走 search→create，无桥/老桥回退内存）；`NotePersistence` 补可选 search。依据 Obsidian/Logseq 每日笔记。
+
 ## [0.86.0] - 2026-11-14
 
 ### 新增

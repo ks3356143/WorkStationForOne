@@ -26,6 +26,7 @@ import { clozeFrontText } from '../../../shared/cloze'
 import { createInitialData } from '../data/mock'
 import { dateKey } from '../../../shared/date-key'
 import { agentSessionDate, agentSessionMeta, sessionFromRecord } from '../lib/agent'
+import { dailyNoteTitle, findDailyNote } from '../lib/daily-note'
 import { toChatMessage } from '../lib/chat-message'
 import { toggleCheckin } from '../lib/habits'
 import { dueQueue, isNewCard } from '../lib/learning'
@@ -79,6 +80,7 @@ interface TaskPersistence {
 
 interface NotePersistence {
   create: (text: string, tag?: string) => Promise<Note>
+  search?: (query: string, limit: number, tag?: string) => Promise<Note[]>
   togglePin?: (id: string) => Promise<void>
   update?: (id: string, patch: NotePatch) => Promise<Note | undefined>
   remove?: (id: string) => Promise<boolean>
@@ -233,6 +235,7 @@ interface WorkstationActions {
   openQuickNote: () => void
   closeQuickNote: () => void
   addNote: (text: string, tag?: string) => void
+  openDailyNote: () => void
   toggleNotePin: (noteId: string) => void
   updateNote: (noteId: string, patch: NotePatch) => void
   removeNote: (noteId: string) => void
@@ -1490,6 +1493,48 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
         }))
       })
       .catch(reportPersistenceError)
+  },
+
+  openDailyNote: () => {
+    const title = dailyNoteTitle(dateKey())
+    const persistence = notePersistence
+    const open = (note: NoteJump) => set({ activeView: 'notes', noteJump: note })
+    const createAndOpen = () => {
+      if (!persistence) {
+        get().addNote(`${title}\n`, '日记')
+        const created = get().notes[0]
+        if (created) open(created)
+        return
+      }
+      void persistence
+        .create(`${title}\n`, '日记')
+        .then((saved) => {
+          set((state) => ({
+            notes: [saved, ...state.notes],
+            noteTotal: state.noteTotal + 1,
+            noteRevision: state.noteRevision + 1
+          }))
+          open(saved)
+        })
+        .catch(reportPersistenceError)
+    }
+    const local = findDailyNote(get().notes, title)
+    if (local) {
+      open(local)
+      return
+    }
+    if (!persistence?.search) {
+      createAndOpen()
+      return
+    }
+    void persistence
+      .search(title, 20, '日记')
+      .then((hits) => {
+        const existing = findDailyNote(hits, title)
+        if (existing) open(existing)
+        else createAndOpen()
+      })
+      .catch(() => createAndOpen())
   },
 
   openNotesView: () => set({ activeView: 'notes' }),

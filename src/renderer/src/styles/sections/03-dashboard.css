@@ -94,6 +94,60 @@
   flex: none;
 }
 
+.w1-timeprog {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  padding-top: 2px;
+}
+
+.w1-tpring {
+  position: relative;
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+}
+
+.w1-tpring svg {
+  transform: rotate(-90deg);
+}
+
+.w1-tpring-bg {
+  fill: none;
+  stroke: rgb(var(--bd-rgb) / 0.35);
+  stroke-width: 3;
+}
+
+.w1-tpring-fg {
+  fill: none;
+  stroke: rgb(var(--ac2-rgb) / 0.85);
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: stroke-dashoffset var(--dur-base) var(--ease-out);
+}
+
+.w1-tpringtxt {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+
+.w1-tpringtxt b {
+  font: 600 8.5px / 1 var(--mono);
+  color: var(--fg);
+}
+
+.w1-tpringtxt i {
+  font: 7px / 1 var(--sans);
+  font-style: normal;
+  color: var(--mu);
+}
+
 .w1-btn {
   height: 38px;
   display: inline-flex;
@@ -294,6 +348,22 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: stretch;
   gap: 16px;
+}
+
+/* 聚焦淡化：hover 某卡时其余卡淡出，视线聚焦；只动 opacity，不与卡片微倾的 transform 冲突 */
+.w1-bento:hover .w1-card:not(:hover) {
+  opacity: 0.6;
+}
+
+/* 卡片 3D 微倾：随指针 ±2.5°，--tilt-x/y 由 pointer-effects 写入；不用 preserve-3d 避免玻璃压平 */
+.w1-bento .w1-card {
+  transform: perspective(900px) rotateX(calc(var(--tilt-x, 0) * 1deg))
+    rotateY(calc(var(--tilt-y, 0) * 1deg));
+}
+
+.w1-bento .w1-card:hover {
+  transform: translateY(-3px) perspective(900px) rotateX(calc(var(--tilt-x, 0) * 1deg))
+    rotateY(calc(var(--tilt-y, 0) * 1deg));
 }
 
 .w1-card {

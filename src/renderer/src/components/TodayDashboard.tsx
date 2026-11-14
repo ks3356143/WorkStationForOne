@@ -6,6 +6,7 @@ import { withViewTransition } from '../lib/view-transition'
 import { formatDateLine, formatHM, getTimeMarkerPercent, toMinutes } from '../lib/date'
 import { summarizeFleet } from '../lib/fleet'
 import { blockMinutes, findNextBlock, findNextTask } from '../lib/schedule'
+import { useCountUp } from '../lib/count-up'
 import { tasksForTodayCard } from '../lib/todo'
 import { useNow } from '../lib/useNow'
 import { useWorkstation } from '../store/useWorkstation'
@@ -16,6 +17,7 @@ import { NoteCard } from './NoteCard'
 import { CheckIcon, PlayIcon, PlusIcon, TodayIcon } from './Glyphs'
 import { ReviewCard } from './ReviewCard'
 import { TaskCard } from './TaskCard'
+import { TimeProgress } from './TimeProgress'
 import { WeeklyReviewSheet } from './WeeklyReviewSheet'
 
 const TIMELINE = [
@@ -30,6 +32,7 @@ export function TodayDashboard() {
   const tasks = useWorkstation((state) => state.tasks)
   const sessions = useWorkstation((state) => state.sessions)
   const openQuickNote = useWorkstation((state) => state.openQuickNote)
+  const openDailyNote = useWorkstation((state) => state.openDailyNote)
   const startFocus = useWorkstation((state) => state.startFocus)
   const updateTask = useWorkstation((state) => state.updateTask)
   const [dropActive, setDropActive] = useState(false)
@@ -47,6 +50,9 @@ export function TodayDashboard() {
   const next = findNextTask(todayTasks, nowMinutes, today)
   const nextBlockTime = findNextBlock(TIMELINE, nowMinutes)?.time
   const marker = getTimeMarkerPercent(now)
+  const runningCount = useCountUp(fleet.running)
+  const waitingCount = useCountUp(fleet.waiting)
+  const todoCount = useCountUp(todo)
 
   return (
     <div className="w1-main">
@@ -60,7 +66,8 @@ export function TodayDashboard() {
           </h1>
           <div className="w1-sub">
             <span className="w1-subtag">状态</span>
-            <b>{fleet.running}</b> 个在跑 · <b>{fleet.waiting}</b> 个待确认 · <b>{todo}</b> 项待办
+            <b>{runningCount}</b> 个在跑 · <b>{waitingCount}</b> 个待确认 · <b>{todoCount}</b>{' '}
+            项待办
             {next ? (
               <span className="w1-sub-next">
                 {' '}
@@ -71,6 +78,7 @@ export function TodayDashboard() {
             )}
           </div>
         </div>
+        <TimeProgress now={now} />
         <div className="w1-acts">
           <button
             ref={reviewButtonRef}
@@ -90,6 +98,15 @@ export function TodayDashboard() {
           >
             <TodayIcon width={11} height={11} />
             本周
+          </button>
+          <button
+            className="w1-btn"
+            type="button"
+            aria-label="打开今日日记"
+            onClick={openDailyNote}
+          >
+            <TodayIcon width={11} height={11} />
+            今日日记
           </button>
           <button className="w1-btn" type="button" onClick={openQuickNote}>
             <PlusIcon width={12} height={12} />

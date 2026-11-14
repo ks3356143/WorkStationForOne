@@ -26,16 +26,29 @@ export function installPointerEffects(): () => void {
     activeMagnet?.style.setProperty('--mag-y', '0px')
   }
 
+  const resetTilt = (el: HTMLElement | null) => {
+    el?.style.setProperty('--tilt-x', '0')
+    el?.style.setProperty('--tilt-y', '0')
+  }
+
   const update = () => {
     frame = 0
     if (!fine.matches || motionDisabled()) {
       resetMagnet()
+      resetTilt(activeSpot)
       return
     }
     if (activeSpot) {
       const rect = activeSpot.getBoundingClientRect()
-      activeSpot.style.setProperty('--spot-x', `${pointerX - rect.left}px`)
-      activeSpot.style.setProperty('--spot-y', `${pointerY - rect.top}px`)
+      const px = pointerX - rect.left
+      const py = pointerY - rect.top
+      activeSpot.style.setProperty('--spot-x', `${px}px`)
+      activeSpot.style.setProperty('--spot-y', `${py}px`)
+      const max = 2.5
+      const ry = (px / rect.width - 0.5) * 2 * max
+      const rx = -(py / rect.height - 0.5) * 2 * max
+      activeSpot.style.setProperty('--tilt-x', rx.toFixed(2))
+      activeSpot.style.setProperty('--tilt-y', ry.toFixed(2))
     }
     if (activeMagnet) {
       const rect = activeMagnet.getBoundingClientRect()
@@ -52,12 +65,17 @@ export function installPointerEffects(): () => void {
 
   const onPointerOver = (event: PointerEvent) => {
     if (!fine.matches || motionDisabled() || !(event.target instanceof Element)) {
+      resetTilt(activeSpot)
       activeSpot = null
       resetMagnet()
       activeMagnet = null
       return
     }
-    activeSpot = event.target.closest<HTMLElement>('[data-spotlight]')
+    const nextSpot = event.target.closest<HTMLElement>('[data-spotlight]')
+    if (nextSpot !== activeSpot) {
+      resetTilt(activeSpot)
+      activeSpot = nextSpot
+    }
     const magnet = event.target.closest<HTMLElement>(MAGNET_SELECTOR)
     if (magnet !== activeMagnet) {
       resetMagnet()

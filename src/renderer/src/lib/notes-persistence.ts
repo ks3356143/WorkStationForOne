@@ -6,7 +6,7 @@ export interface HydrateNoteDeps {
   bootstrap: (notes: NoteRecord[]) => Promise<void>
   page: (offset: number, limit: number) => Promise<{ items: NoteRecord[]; total: number }>
   create: (text: string, tag?: string) => Promise<NoteRecord>
-  search?: (query: string, limit: number) => Promise<unknown>
+  search?: (query: string, limit: number, tag?: string) => Promise<NoteRecord[]>
   togglePin?: (id: string) => Promise<void>
   update?: (id: string, patch: NotePatch) => Promise<NoteRecord | undefined>
   remove?: (id: string) => Promise<boolean>
@@ -24,8 +24,12 @@ export async function hydrateNotes(
   const update = deps.update
   const remove = deps.remove
   const togglePin = deps.togglePin
+  const search = deps.search
   bindNotePersistence({
     create: (text, tag) => deps.create(text, tag),
+    ...(search
+      ? { search: (query: string, limit: number, tag?: string) => search(query, limit, tag) }
+      : {}),
     ...(togglePin ? { togglePin: (id: string) => togglePin(id) } : {}),
     ...(update ? { update: (id: string, patch: NotePatch) => update(id, patch) } : {}),
     ...(remove ? { remove: (id: string) => remove(id) } : {})

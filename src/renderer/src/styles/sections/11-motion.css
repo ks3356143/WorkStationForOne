@@ -469,6 +469,37 @@
   opacity: 1;
 }
 
+/* 聚光描边：随指针的 1px 渐变光边（mask 只露边框环），复用 --spot-x/y，直角成立 */
+.w1-spotborder {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: inherit;
+  padding: 1px;
+  background: radial-gradient(
+    240px circle at var(--spot-x, 50%) var(--spot-y, 50%),
+    rgb(var(--prism-1-rgb) / 0.7),
+    rgb(var(--prism-2-rgb) / 0.25) 40%,
+    transparent 65%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+
+[data-spotlight]:hover .w1-spotborder,
+[data-spotlight]:focus-within .w1-spotborder {
+  opacity: 1;
+}
+
 /* 流光边框：1px 的旋转光束，只给运行中 / 待审批 / 首选这类状态面 */
 @property --beam-angle {
   syntax: "<angle>";
@@ -612,9 +643,20 @@
 }
 
 .w1.motion-off .w1-spot,
+.w1.motion-off .w1-spotborder,
 .w1.motion-off .w1-beamlayer,
+.w1.motion-off .w1-focus-foil,
 .w1.motion-off .w1-ripple {
   display: none;
+}
+
+.w1.motion-off .w1-bento:hover .w1-card:not(:hover) {
+  opacity: 1;
+}
+
+.w1.motion-off .w1-bento .w1-card,
+.w1.motion-off .w1-bento .w1-card:hover {
+  transform: none;
 }
 
 .w1.motion-off .w1-send,
