@@ -117,3 +117,5 @@
 UI 已补齐：舰队「团队」面板（新建/列表/成员打开/黑板查看与发送，`components/fleet/TeamsPanel.tsx`）与设置「本机模型」卡（`components/settings/LocalModelCard.tsx`，挂在 Agent Provider 分区内）。
 
 真实模型验证（2026-11-14，临时 harness：真实库 `VACUUM INTO` 副本 + 真实 userData 解密 safeStorage + 真实 Claude CLI 2.1.325 + DeepSeek，不碰真实库 / `~/.claude` / `~/.codex`）：**专家自进化**与**换备用重试**两层 8/8 通过。自进化：`deepseek-flash` 真实回合调用 `mcp__workstationforone__tasks_list`，`evolveExpert` 从成功工具回合提炼出非内置专家（含人设）。备用重试：临时副本加 `deepseek-v4-pro` 备用，激活模型置无效触发真实 400 → `fallbackFor` 返回备用 → `setActive` 后真实回合成功且 `init.model` 为 `deepseek-v4-pro`。单回合成本约 $0.09–0.12。本机模型摘要层未验（本机无回环端点在跑，需先启动 Ollama/LM Studio）；团队编排层按用户决定保留功能但本轮不验证（个人工作站不以多 Agent 协作为重点）。harness 为一次性，验证后已删除。
+
+性能审计（2026-11-14，临时 harness 真实主进程 + 临时库灌 800 笔记 / 500 任务 / 150 消息，零额度）：**未发现真实瓶颈**。长列表滚动（笔记虚拟列表 / 任务列表 / Agent 线程）帧间隔 p95≈avg、jank=0；全程 PerformanceObserver 长任务 0 次；视图切换真实延迟 37–46ms（含懒加载 chunk）、任务勾选 12ms；auto-animate 连续增删 25 项 jank=0。Bundle 首屏 entry 1.22MB（与 0.70 基线持平），Markdown/diff/设置/各视图均懒加载拆分，highlight 语言按需小 chunk。帧间隔绝对值反映离屏测试窗口的 rAF 节奏，jank=0 与长任务=0 证明无卡顿。harness 一次性，审计后已删除。
