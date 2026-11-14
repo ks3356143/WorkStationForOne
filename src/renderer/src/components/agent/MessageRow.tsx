@@ -3,6 +3,7 @@ import { m } from 'motion/react'
 import { DURATION, EASE_OUT } from '../../lib/motion'
 import { AGENT_META } from '../../lib/agent'
 import { fallbackCopy } from '../../lib/clipboard'
+import { sharedFallbackFor } from '../../lib/fallback-cache'
 import type { AgentCheckpointView, AgentRollbackResult } from '../../../../shared/ipc'
 import type { AgentId, ChatMessage } from '../../types'
 import { AgentMarkdown } from './AgentMarkdown'
@@ -71,14 +72,9 @@ function FallbackRetry({
     let alive = true
     const api = typeof window === 'undefined' ? undefined : window.ws?.provider
     if (!api) return
-    void api
-      .fallbackFor(agent)
-      .then((result) => {
-        if (alive) setFb(result)
-      })
-      .catch(() => {
-        if (alive) setFb(null)
-      })
+    void sharedFallbackFor(agent, (target) => api.fallbackFor(target)).then((result) => {
+      if (alive) setFb(result)
+    })
     return () => {
       alive = false
     }
@@ -92,6 +88,7 @@ function FallbackRetry({
     void api
       .setActive(agent, fb.id)
       .then(() => {
+        window.dispatchEvent(new Event('ws:provider-changed'))
         notify(`已切换到备用 Provider：${fb.name}`)
         onRetry()
       })

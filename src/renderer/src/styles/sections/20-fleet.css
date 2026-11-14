@@ -614,6 +614,8 @@
   min-height: 2px;
   background: linear-gradient(180deg, rgb(var(--ac2-rgb) / 0.75), rgb(var(--ac-rgb) / 0.3));
   box-shadow: 0 0 6px rgb(var(--ac2-rgb) / 0.18);
+  transform-origin: bottom;
+  animation: w1-bar-grow 460ms var(--ease-out) both;
 }
 
 .w1-fleetbar b {

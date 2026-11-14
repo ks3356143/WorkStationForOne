@@ -150,6 +150,25 @@ describe('scanExpertDir', () => {
     const { entries } = scanExpertDir(root, 3)
     expect(entries.length).toBe(3)
   })
+
+  it('超过单文件上限的 .md 跳过并计数', () => {
+    const root = tempDir('wsfo-scan-big-')
+    writeFileSync(join(root, 'ok.md'), md('ok'))
+    writeFileSync(join(root, 'big.md'), md('big', 'x'.repeat(200)))
+    const { entries, skipped } = scanExpertDir(root, 400, 4, 100)
+    expect(entries.map((e) => e.id)).toEqual(['ok'])
+    expect(skipped).toBe(1)
+  })
+
+  it('恰好等于单文件上限仍收录', () => {
+    const root = tempDir('wsfo-scan-edge-')
+    const head = '---\nname: edge\ndescription: 描述\nmcp: [context7]\n---\n'
+    const cap = 200
+    writeFileSync(join(root, 'edge.md'), head + 'x'.repeat(cap - Buffer.byteLength(head)))
+    const { entries, skipped } = scanExpertDir(root, 400, 4, cap)
+    expect(entries.map((e) => e.id)).toEqual(['edge'])
+    expect(skipped).toBe(0)
+  })
 })
 
 describe('ExpertMarketService', () => {
@@ -205,6 +224,15 @@ describe('ExpertMarketService', () => {
     mkt.removeSource(source.id)
     expect(repo.findSource(source.id)).toBeUndefined()
     expect(mkt.list().length).toBe(0)
+  })
+
+  it('导入超过单文件上限的条目拒绝', async () => {
+    const repo = seedRepo()
+    const { mkt } = market(repo)
+    const src = tempDir('wsfo-src-big-')
+    writeFileSync(join(src, 'big.md'), md('big', 'x'.repeat(300 * 1024)))
+    const source = await mkt.addSource({ name: 'big', url: src })
+    expect(() => mkt.importEntry(source.id, 'big.md')).toThrow('过大')
   })
 
   it('非法地址与重名拒绝', async () => {

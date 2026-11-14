@@ -6,6 +6,7 @@ import { getTodayIndex, getWeekdayCn } from '../lib/date'
 import { currentStreak, habitsDoneToday, weekFlags, weekKeys } from '../lib/habits'
 import { useNow } from '../lib/useNow'
 import { useWorkstation } from '../store/useWorkstation'
+import { useListAnimate } from '../lib/use-list-animate'
 import type { Habit } from '../types'
 import { HabitManageSheet } from './HabitManageSheet'
 import { HabitStatsSheet } from './HabitStatsSheet'
@@ -14,6 +15,7 @@ const DAY_LABELS = ['一', '二', '三', '四', '五', '六', '日']
 
 export function HabitCard() {
   const habits = useWorkstation((state) => state.habits)
+  const habitsAnim = useListAnimate<HTMLDivElement>()
   const toggleHabitDay = useWorkstation((state) => state.toggleHabitDay)
   const addHabit = useWorkstation((state) => state.addHabit)
   const renameHabit = useWorkstation((state) => state.renameHabit)
@@ -60,7 +62,7 @@ export function HabitCard() {
           </div>
         </div>
 
-        <div className="w1-habits">
+        <div className="w1-habits" ref={habitsAnim}>
           <div className="w1-hrow">
             <span />
             {DAY_LABELS.map((label, index) => (

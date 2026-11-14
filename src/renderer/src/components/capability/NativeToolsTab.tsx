@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { AgentKind, EnvironmentCheckRecord, ToolSurfaceRecord } from '../../../../shared/ipc'
 import { friendlyMessage } from '../../lib/errors'
+import { useListAnimate } from '../../lib/use-list-animate'
 import { envVersion } from '../../lib/capabilities'
 import { MAX_TOOL_NOTE } from '../../../../shared/tool-surface'
 
@@ -31,6 +32,7 @@ export function NativeToolsTab({
   promptPreview
 }: NativeToolsTabProps) {
   const api = typeof window === 'undefined' ? undefined : window.ws?.capability
+  const nativeListAnim = useListAnimate<HTMLDivElement>()
   const [environment, setEnvironment] = useState<EnvironmentCheckRecord[]>([])
   const [envBusy, setEnvBusy] = useState(false)
 
@@ -116,7 +118,7 @@ export function NativeToolsTab({
               CLI 原生工具
               <i className="w1-capsrc">本机 CLI</i>
             </h4>
-            <div className="w1-caplist">
+            <div className="w1-caplist" ref={nativeListAnim}>
               {surface.native.map((tool) => (
                 <div
                   className={`w1-caprow with-toggle${tool.enabled ? '' : ' off'}${tool.alwaysOn ? ' alwayson' : ''}`}

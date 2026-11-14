@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import type {
   ExpertMarketEntry,
@@ -20,6 +20,7 @@ import {
 
 const MAX_ENTRIES = 400
 const MAX_DEPTH = 4
+const MAX_FILE_BYTES = 256 * 1024
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'dist'])
 
 export interface ScannedExpert {
@@ -30,11 +31,12 @@ export interface ScannedExpert {
   tools: string[]
 }
 
-/** 递归扫描源目录里的子代理 Markdown；限深限量，解析失败跳过并计数。 */
+/** 递归扫描源目录里的子代理 Markdown；限深限量限单文件大小，解析失败跳过并计数。 */
 export function scanExpertDir(
   root: string,
   maxEntries = MAX_ENTRIES,
-  maxDepth = MAX_DEPTH
+  maxDepth = MAX_DEPTH,
+  maxFileBytes = MAX_FILE_BYTES
 ): { entries: ScannedExpert[]; skipped: number } {
   const entries: ScannedExpert[] = []
   let skipped = 0
@@ -50,6 +52,7 @@ export function scanExpertDir(
       if (!item.isFile() || !item.name.endsWith('.md')) continue
       let parsed = null
       try {
+        if (statSync(full).size > maxFileBytes) throw new Error('oversize')
         parsed = parseExpertMarkdown(readFileSync(full, 'utf8'))
       } catch {
         parsed = null
@@ -166,6 +169,8 @@ export class ExpertMarketService {
     if (!source) throw new Error('专家源不存在')
     const abs = resolvePluginSource(source.root, relPath)
     if (!existsSync(abs)) throw new Error('条目文件不存在')
+    if (statSync(abs).size > MAX_FILE_BYTES)
+      throw new Error(`条目文件过大（上限 ${MAX_FILE_BYTES / 1024}KB）`)
     return this.deps.importMarkdown(readFileSync(abs, 'utf8'))
   }
 

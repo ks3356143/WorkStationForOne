@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { LocalModelConfig } from '../../../../shared/ipc'
+import { PanelLoadError } from '../PanelLoadError'
 
 /** 本机模型（离线摘要）：回环地址 + 模型名，启用后用于会话滚动摘要。 */
 export function LocalModelCard({ notify }: { notify: (text: string) => void }) {
@@ -9,7 +10,10 @@ export function LocalModelCard({ notify }: { notify: (text: string) => void }) {
   const [model, setModel] = useState('')
   const [busy, setBusy] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [loadSeq, setLoadSeq] = useState(0)
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: loadSeq 是「重试」触发器，effect 内不读取
   useEffect(() => {
     if (!api) {
       setLoaded(true)
@@ -23,15 +27,17 @@ export function LocalModelCard({ notify }: { notify: (text: string) => void }) {
         setEnabled(config.enabled)
         setBaseUrl(config.baseUrl)
         setModel(config.model)
+        setLoadError(null)
+        setLoaded(true)
       })
-      .catch(() => undefined)
-      .finally(() => {
-        if (alive) setLoaded(true)
+      .catch((error: unknown) => {
+        if (!alive) return
+        setLoadError(error instanceof Error ? error.message : '读取本机模型配置失败')
       })
     return () => {
       alive = false
     }
-  }, [api])
+  }, [api, loadSeq])
 
   const save = () => {
     if (!api || busy) return
@@ -57,6 +63,9 @@ export function LocalModelCard({ notify }: { notify: (text: string) => void }) {
         <b>本机模型</b>
         <span>只用 127.0.0.1 / localhost 的 OpenAI 兼容端点做会话摘要，数据不出本机。</span>
       </div>
+      {loadError ? (
+        <PanelLoadError message={loadError} onRetry={() => setLoadSeq((seq) => seq + 1)} />
+      ) : null}
       <label className="w1-localfield inline">
         <input
           type="checkbox"

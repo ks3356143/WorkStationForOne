@@ -1,7 +1,8 @@
 import { BeamLayer } from './effects/BeamLayer'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type Ref } from 'react'
 import type { AgentSessionSearchHit } from '../../../shared/ipc'
 import { sortPinnedFirst } from '../lib/agent'
+import { useListAnimate } from '../lib/use-list-animate'
 import { useWorkstation } from '../store/useWorkstation'
 import { ClaudeGlyph, CodexGlyph, PlusIcon } from './Glyphs'
 import { StatePlaceholder } from './StatePlaceholder'
@@ -125,8 +126,14 @@ export function SessionRail() {
     visibleSessions.filter((session) => session.agent === 'codex')
   )
 
-  const renderGroup = (agent: 'claude' | 'codex', list: typeof sessions) => (
-    <div className="w1-agroup">
+  const claudeAnim = useListAnimate<HTMLDivElement>()
+  const codexAnim = useListAnimate<HTMLDivElement>()
+  const renderGroup = (
+    agent: 'claude' | 'codex',
+    list: typeof sessions,
+    ref: Ref<HTMLDivElement>
+  ) => (
+    <div className="w1-agroup" ref={ref}>
       <div className="w1-ahead">
         <span className="w1-aglyph">
           {agent === 'claude' ? (
@@ -300,8 +307,8 @@ export function SessionRail() {
               {visibleSessions.length === 0 && sessions.length > 0 ? (
                 <p className="w1-srempty">所有会话已归档，可在舰队控制台恢复。</p>
               ) : null}
-              {renderGroup('claude', claudeSessions)}
-              {renderGroup('codex', codexSessions)}
+              {renderGroup('claude', claudeSessions, claudeAnim)}
+              {renderGroup('codex', codexSessions, codexAnim)}
             </>
           )
         ) : (

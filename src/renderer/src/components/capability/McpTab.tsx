@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { describeMcpSource } from '../../../../shared/tool-update'
+import { useListAnimate } from '../../lib/use-list-animate'
 import type {
   AgentKind,
   ExternalMcpAuthMode,
@@ -101,6 +102,7 @@ export function McpTab({
   onSurfaceDirty
 }: McpTabProps) {
   const api = typeof window === 'undefined' ? undefined : window.ws?.capability
+  const mcpListAnim = useListAnimate<HTMLDivElement>()
   const [mcp, setMcp] = useState<ExternalMcpServerRecord[]>([])
   const [catalog, setCatalog] = useState<ExternalMcpCatalogEntry[]>([])
   const [expandedTools, setExpandedTools] = useState<Record<string, boolean>>({})
@@ -623,7 +625,7 @@ export function McpTab({
             <span className="w1-capkicker">// 已安装 {mcp.length}</span>
             <span className="w1-capnote">启用并信任后可测试连接</span>
           </div>
-          <div className="w1-caplist">
+          <div className="w1-caplist" ref={mcpListAnim}>
             {mcp.map((server) => {
               const update = updates.find((item) => item.id === server.id)
               const toolsOpen = Boolean(expandedTools[server.id])

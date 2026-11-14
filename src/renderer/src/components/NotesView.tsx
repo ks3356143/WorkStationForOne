@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { NotePatch, NoteRecord, NoteSearchHit, NoteTags } from '../../../shared/ipc'
 import { useWorkstation } from '../store/useWorkstation'
+import { useListAnimate } from '../lib/use-list-animate'
 import { noteToCard } from '../lib/note-card'
 import { PlusIcon } from './Glyphs'
 import { NoteDetail, type NoteDetailValue } from './NoteDetail'
@@ -61,6 +62,7 @@ export function NotesView() {
   const [tags, setTags] = useState<NoteTags>({ total: 0, tags: [] })
   const [tagsLoaded, setTagsLoaded] = useState(false)
   const [activeTag, setActiveTag] = useState<string | null>(null)
+  const tagBarAnim = useListAnimate<HTMLDivElement>()
   const [pinningId, setPinningId] = useState<string | null>(null)
   const offsetRef = useRef(0)
   const searchSeq = useRef(0)
@@ -349,7 +351,7 @@ export function NotesView() {
         )}
 
         {!graphOpen && tags.tags.length > 0 ? (
-          <div className="w1-nvtagbar" role="group" aria-label="按标签筛选">
+          <div className="w1-nvtagbar" role="group" aria-label="按标签筛选" ref={tagBarAnim}>
             <button
               className={`w1-nvfilter${activeTag === null ? ' on' : ''}`}
               type="button"

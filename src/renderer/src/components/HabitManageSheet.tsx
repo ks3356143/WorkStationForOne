@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { m } from 'motion/react'
 import type { Habit } from '../types'
 import { DURATION, EASE_OUT } from '../lib/motion'
+import { useListAnimate } from '../lib/use-list-animate'
 
 interface HabitManageSheetProps {
   habits: Habit[]
@@ -19,6 +20,7 @@ export function HabitManageSheet({
   onRemove
 }: HabitManageSheetProps) {
   const [draft, setDraft] = useState('')
+  const habitListAnim = useListAnimate<HTMLDivElement>()
   const [edits, setEdits] = useState<Record<string, string>>(() =>
     Object.fromEntries(habits.map((habit) => [habit.id, habit.name]))
   )
@@ -140,7 +142,7 @@ export function HabitManageSheet({
           </button>
         </div>
 
-        <div className="w1-habitmanage-list" role="list" aria-label="习惯列表">
+        <div className="w1-habitmanage-list" role="list" aria-label="习惯列表" ref={habitListAnim}>
           {habits.map((habit) => (
             <div className="w1-habitmanage-row" key={habit.id} role="listitem">
               <input

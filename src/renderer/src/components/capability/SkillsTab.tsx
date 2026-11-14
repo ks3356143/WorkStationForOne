@@ -6,6 +6,7 @@ import type {
   ToolSurfaceRecord
 } from '../../../../shared/ipc'
 import { friendlyMessage } from '../../lib/errors'
+import { useListAnimate } from '../../lib/use-list-animate'
 import { BeamLayer } from '../effects/BeamLayer'
 import { ToolNoteInput } from './ToolNoteInput'
 
@@ -48,6 +49,7 @@ export function SkillsTab({
   onMove
 }: SkillsTabProps) {
   const api = typeof window === 'undefined' ? undefined : window.ws?.capability
+  const skillListAnim = useListAnimate<HTMLDivElement>()
   const [confirmKey, setConfirmKey] = useState('')
   const [detailId, setDetailId] = useState('')
   const [inspection, setInspection] = useState<SkillInspection | null>(null)
@@ -127,7 +129,7 @@ export function SkillsTab({
           <p>在「插件」页从市场安装或本地导入后，来这里启用并设 ★ 首选。</p>
         </div>
       ) : (
-        <div className="w1-caplist">
+        <div className="w1-caplist" ref={skillListAnim}>
           {items.map((item, index) => {
             const record = skills.find((entry) => `skill:${entry.id}` === item.id)
             const id = item.id.slice('skill:'.length)

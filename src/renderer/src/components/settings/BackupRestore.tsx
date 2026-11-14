@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { BackupEntry, RestoreStateInfo } from '../../../../shared/ipc'
+import { useListAnimate } from '../../lib/use-list-animate'
 
 interface BackupRestoreProps {
   notify: (text: string) => void
@@ -65,6 +66,7 @@ function statusCopy(status: RestoreStateInfo): { kind: string; title: string; bo
 
 export function BackupRestore({ notify, refreshToken, onChanged }: BackupRestoreProps) {
   const [entries, setEntries] = useState<BackupEntry[]>([])
+  const backupListAnim = useListAnimate<HTMLDivElement>()
   const [status, setStatus] = useState<RestoreStateInfo | null>(null)
   const [listState, setListState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [listError, setListError] = useState('')
@@ -213,7 +215,7 @@ export function BackupRestore({ notify, refreshToken, onChanged }: BackupRestore
           还没有备份。每天首次启动会自动生成一份，也可以点「立即备份」。
         </p>
       ) : (
-        <div className="w1-backuplist">
+        <div className="w1-backuplist" ref={backupListAnim}>
           {entries.map((entry) => (
             <div className="w1-backuprow" key={entry.name}>
               <div className="w1-backupmain">

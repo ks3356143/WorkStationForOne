@@ -8,6 +8,7 @@ import type {
   SkillRecord
 } from '../../../../shared/ipc'
 import { friendlyMessage } from '../../lib/errors'
+import { useListAnimate } from '../../lib/use-list-animate'
 import { replaceById } from '../../lib/collections'
 import { filterMarket, formatCount, marketLabel, sortMarket } from '../../lib/capabilities'
 import { StatePlaceholder } from '../StatePlaceholder'
@@ -46,6 +47,7 @@ export function PluginsTab({
   marketToken = 0
 }: PluginsTabProps) {
   const api = typeof window === 'undefined' ? undefined : window.ws?.capability
+  const codexPluginAnim = useListAnimate<HTMLDivElement>()
   const [skillTab, setSkillTab] = useState<'installed' | 'market'>('installed')
   const [market, setMarket] = useState<SkillMarketSnapshot | null>(null)
   const [marketBusy, setMarketBusy] = useState(false)
@@ -598,7 +600,7 @@ export function PluginsTab({
           {installedCodex.length > 0 && installedAgent !== 'claude' ? (
             <div className="w1-capdomain">
               <h4>Codex 插件</h4>
-              <div className="w1-caplist">
+              <div className="w1-caplist" ref={codexPluginAnim}>
                 {installedCodex.map((plugin) => (
                   <div className="w1-caprow static" key={plugin.id}>
                     <span className="w1-capglyph">CX</span>

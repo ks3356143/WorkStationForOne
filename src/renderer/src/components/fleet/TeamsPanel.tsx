@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import type { AgentTeamNoteRecord, AgentTeamSummary } from '../../../../shared/ipc'
 import { workspaceName } from '../../lib/agent'
 import { useWorkstation } from '../../store/useWorkstation'
+import { useListAnimate } from '../../lib/use-list-animate'
+import { PanelLoadError } from '../PanelLoadError'
 
 interface TeamsPanelProps {
   notify: (text: string) => void
@@ -19,8 +21,11 @@ export function TeamsPanel({ notify, onOpened }: TeamsPanelProps) {
     (state) => state.sessions.find((session) => session.id === state.activeSessionId)?.workspace
   )
   const [teams, setTeams] = useState<AgentTeamSummary[]>([])
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState('')
   const [notes, setNotes] = useState<AgentTeamNoteRecord[]>([])
+  const [notesError, setNotesError] = useState<string | null>(null)
+  const [notesSeq, setNotesSeq] = useState(0)
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
@@ -32,12 +37,16 @@ export function TeamsPanel({ notify, onOpened }: TeamsPanelProps) {
     void api
       .listTeams()
       .then((list) => {
+        setLoadError(null)
         setTeams(list)
         const wanted = preferredId ?? selectedId
         if (list.some((team) => team.teamId === wanted)) setSelectedId(wanted)
         else setSelectedId(list[0]?.teamId ?? '')
       })
-      .catch(() => setTeams([]))
+      .catch((error: unknown) => {
+        setTeams([])
+        setLoadError(errText(error))
+      })
   }
   useEffect(() => {
     if (!api) return
@@ -46,41 +55,50 @@ export function TeamsPanel({ notify, onOpened }: TeamsPanelProps) {
       .listTeams()
       .then((list) => {
         if (!alive) return
+        setLoadError(null)
         setTeams(list)
         setSelectedId((current) =>
           list.some((team) => team.teamId === current) ? current : (list[0]?.teamId ?? '')
         )
       })
-      .catch(() => {
-        if (alive) setTeams([])
+      .catch((error: unknown) => {
+        if (!alive) return
+        setTeams([])
+        setLoadError(errText(error))
       })
     return () => {
       alive = false
     }
   }, [api])
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: notesSeq 是黑板「重试」触发器，effect 内不读取
   useEffect(() => {
     if (!api || !selectedId) {
       setNotes([])
+      setNotesError(null)
       return
     }
     let alive = true
     setNotes([])
+    setNotesError(null)
     void api
       .teamNotes(selectedId)
       .then((list) => {
         if (alive) setNotes(list)
       })
-      .catch(() => {
-        if (alive) setNotes([])
+      .catch((error: unknown) => {
+        if (alive) setNotesError(errText(error))
       })
     return () => {
       alive = false
     }
-  }, [api, selectedId])
+  }, [api, selectedId, notesSeq])
 
   const selected = teams.find((team) => team.teamId === selectedId)
   const leader = selected?.sessions[0]
+  const teamListAnim = useListAnimate<HTMLDivElement>()
+  const membersAnim = useListAnimate<HTMLDivElement>()
+  const notesAnim = useListAnimate<HTMLDivElement>()
 
   const createTeam = () => {
     if (!api || busy) return
@@ -177,12 +195,14 @@ export function TeamsPanel({ notify, onOpened }: TeamsPanelProps) {
         </div>
       ) : null}
 
-      <div className="w1-teamlist">
-        {teams.map((team) => (
+      <div className="w1-teamlist" ref={teamListAnim}>
+        {loadError ? <PanelLoadError message={loadError} onRetry={() => reload()} /> : null}
+        {teams.map((team, index) => (
           <button
             type="button"
             key={team.teamId}
             className={`w1-teamrow${team.teamId === selectedId ? ' on' : ''}`}
+            style={{ '--i': index } as CSSProperties}
             onClick={() => setSelectedId(team.teamId)}
           >
             <b>{team.name}</b>
@@ -190,7 +210,7 @@ export function TeamsPanel({ notify, onOpened }: TeamsPanelProps) {
             <small>{workspaceName(team.sessions[0]?.workspace)}</small>
           </button>
         ))}
-        {teams.length === 0 ? (
+        {!loadError && teams.length === 0 ? (
           <p className="w1-fleetnone">还没有团队，点「新建团队」创建负责人 + worker。</p>
         ) : null}
       </div>
@@ -201,12 +221,13 @@ export function TeamsPanel({ notify, onOpened }: TeamsPanelProps) {
             <span>// 成员</span>
             <span>{selected.sessions.length} 个会话</span>
           </div>
-          <div className="w1-teammembers">
+          <div className="w1-teammembers" ref={membersAnim}>
             {selected.sessions.map((session, index) => (
               <button
                 type="button"
                 key={session.id}
                 className="w1-teammember"
+                style={{ '--i': index } as CSSProperties}
                 onClick={() => openSession(session.id)}
               >
                 <b>{session.title}</b>
@@ -218,14 +239,19 @@ export function TeamsPanel({ notify, onOpened }: TeamsPanelProps) {
             <span>// 黑板</span>
             <span>{notes.length} 条</span>
           </div>
-          <div className="w1-teamnotes">
-            {notes.map((note) => (
-              <div className="w1-teamnote" key={note.id}>
+          <div className="w1-teamnotes" ref={notesAnim}>
+            {notesError ? (
+              <PanelLoadError message={notesError} onRetry={() => setNotesSeq((seq) => seq + 1)} />
+            ) : null}
+            {notes.map((note, index) => (
+              <div className="w1-teamnote" key={note.id} style={{ '--i': index } as CSSProperties}>
                 <span className={`w1-teamrole ${note.role}`}>{note.role}</span>
                 <p>{note.text}</p>
               </div>
             ))}
-            {notes.length === 0 ? <p className="w1-fleetnone">黑板还是空的。</p> : null}
+            {!notesError && notes.length === 0 ? (
+              <p className="w1-fleetnone">黑板还是空的。</p>
+            ) : null}
           </div>
           <div className="w1-teampost">
             <input

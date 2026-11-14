@@ -25,6 +25,7 @@ import { useNow } from '../../lib/useNow'
 import { useWorkstation } from '../../store/useWorkstation'
 import { PlusIcon } from '../Glyphs'
 import { LearningItemRow } from './LearningItemRow'
+import { useListAnimate } from '../../lib/use-list-animate'
 import { LearningStatsModal } from './LearningStatsModal'
 import { NewCardForm } from './NewCardForm'
 import { StatePlaceholder } from '../StatePlaceholder'
@@ -77,6 +78,7 @@ export function LearningLibrary({ onStartReview }: LearningLibraryProps) {
   const inactiveCount = items.length - active.length
   const subjectDue = learningSubjects(items)
   const subjects = subjectDue.map((entry) => entry.subject)
+  const cardListAnim = useListAnimate<HTMLDivElement>()
   // MEM 四项始终排在前面，现有科目（含历史互联网卡）继续保留、可继续选。
   const subjectOptions = [...new Set([...MEM_SUBJECTS, ...subjects])]
   const subjectCounts = new Map(subjectDue.map((entry) => [entry.subject, entry.count]))
@@ -425,7 +427,7 @@ export function LearningLibrary({ onStartReview }: LearningLibraryProps) {
             />
           ) : null}
 
-          <div role="list" aria-label={title}>
+          <div role="list" aria-label={title} ref={cardListAnim}>
             {visible.map((item) => (
               <LearningItemRow
                 key={item.id}

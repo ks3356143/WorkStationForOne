@@ -1369,6 +1369,25 @@
   }
 }
 
+.w1-loaderr {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px 9px;
+  border: 1px solid rgb(var(--dg-rgb) / 0.38);
+  background: rgb(var(--dg-rgb) / 0.07);
+  color: var(--dg-fg);
+  font: 11.5px / 1.55 var(--sans);
+}
+
+.w1-loaderr span {
+  flex: 1;
+  min-width: 160px;
+  overflow-wrap: anywhere;
+}
+
 /* ---------- 周视图 ---------- */
 
 .w1-weekview {

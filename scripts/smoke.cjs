@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron')
+const { app, BrowserWindow, ipcMain } = require('electron')
 const { createServer } = require('node:http')
 const { join } = require('node:path')
 const {
@@ -2918,6 +2918,9 @@ async function run() {
         (one('.w1-fleetusagesum')?.textContent ?? '').includes(String(usageRuns.length)),
       String(usageRuns.length) + ' 轮 · ' + (one('.w1-fleetusagesum')?.textContent ?? 'missing')
     )
+    const fleetBarFill = one('.w1-fleetbar i')
+    const barAnim = fleetBarFill ? getComputedStyle(fleetBarFill).animationName : ''
+    check('舰队用量柱生长动效', barAnim === 'w1-bar-grow', barAnim)
     byText('.w1-fleetfilters button', '运行中')?.click()
     await sleep(250)
     check(
@@ -2925,6 +2928,10 @@ async function run() {
       !!one('.w1-fleetempty') && all('.w1-fleetrow').length === 0,
       one('.w1-fleetempty')?.textContent?.slice(0, 40) ?? 'missing'
     )
+    const fleetEmptyAnim = one('.w1-fleetempty')
+      ? getComputedStyle(one('.w1-fleetempty')).animationName
+      : ''
+    check('舰队空态入场动效', fleetEmptyAnim === 'w1-empty-in', fleetEmptyAnim)
     byText('.w1-fleetfilters button', '全部')?.click()
     await sleep(250)
 
@@ -2939,16 +2946,13 @@ async function run() {
         (session) => session.id === archiveId && session.archived === true
       )
     }, 3000)
-    const hiddenFromRail = !all('.w1-sess').some((el) =>
-      el.textContent?.includes('测一下多会话回复')
-    )
-    check(
-      '会话可归档并从会话栏隐藏',
-      archived &&
-        hiddenFromRail &&
+    const hiddenFromRail = await waitFor(
+      () =>
+        !all('.w1-sess').some((el) => el.textContent?.includes('测一下多会话回复')) &&
         !all('.w1-fleetrow').some((row) => row.getAttribute('data-session-id') === archiveId),
-      archiveId ?? 'missing'
+      3000
     )
+    check('会话可归档并从会话栏隐藏', archived && hiddenFromRail, archiveId ?? 'missing')
 
     byText('.w1-fleetfilters button', '已归档')?.click()
     await sleep(250)
@@ -7206,6 +7210,8 @@ async function run() {
         teamRow,
         String(all('.w1-teamrow').length) + ' 行'
       )
+      const teamAnim = teamRow ? getComputedStyle(all('.w1-teamrow')[0]).animationName : ''
+      check('团队行入场动效', teamAnim === 'w1-item-in', teamAnim)
       all('.w1-teamrow')
         .find((row) => row.textContent.includes('冒烟小队'))
         ?.click()
@@ -7261,6 +7267,17 @@ async function run() {
           (one('.w1-experts')?.textContent ?? '').includes('Go/Rust 后端专家'),
         String(all('.w1-explist .w1-exprow').length) + ' 行'
       )
+      const expRow1 = one('.w1-explist .w1-exprow')
+      const expRow2 = all('.w1-explist .w1-exprow')[1]
+      const expAnim = expRow1 ? getComputedStyle(expRow1).animationName : ''
+      const expD1 = expRow1 ? parseFloat(getComputedStyle(expRow1).animationDelay) : 0
+      const expD2 = expRow2 ? parseFloat(getComputedStyle(expRow2).animationDelay) : 0
+      check('专家行错峰入场', expAnim === 'w1-item-in' && expD2 > expD1, expAnim + ' / ' + expD1 + ',' + expD2)
+      const expShell = one('.w1')
+      expShell.classList.add('motion-off')
+      const expOff = expRow1 ? getComputedStyle(expRow1).animationName : ''
+      expShell.classList.remove('motion-off')
+      check('专家行入场受动效总闸控制', expOff === 'none', expOff)
       byText('.w1-experts .w1-capmini', '新建专家')?.click()
       const formReady = await waitFor(() => !!one('.w1-expform'), 2000)
       setValue(one('.w1-expform .w1-expfield input'), '冒烟专家')
@@ -7303,6 +7320,11 @@ async function run() {
           ' / name=' +
           (all('.w1-expsrcform input')[0]?.value ?? '')
       )
+      const entryAnim = one('.w1-expentrylist .w1-exprow')
+        ? getComputedStyle(one('.w1-expentrylist .w1-exprow')).animationName
+        : ''
+      const srcAnim = one('.w1-expsrcrow') ? getComputedStyle(one('.w1-expsrcrow')).animationName : ''
+      check('市场条目与源行入场动效', entryAnim === 'w1-item-in' && srcAnim === 'w1-item-in', entryAnim + ' / ' + srcAnim)
       all('.w1-expentrylist .w1-exprow')
         .find((r) => r.textContent?.includes('smoke-reviewer'))
         ?.querySelector('.w1-fleetopen')?.click()
@@ -7321,11 +7343,20 @@ async function run() {
       )
       check('专家新建会话携带人设快照', personaSession, String(personaSession))
       // 等舰队退出动画结束再重开，避免复用旧实例把「专家」开关反向关掉
-      await waitFor(() => !one('.w1-fleetsheet'), 2000)
+      await waitFor(() => !one('.w1-fleetsheet'), 3000)
       one('.w1-st-fleet')?.click()
       await waitFor(() => !!one('.w1-fleetsheet'), 2000)
-      byText('.w1-fleetheadmeta .w1-capmini', '专家')?.click()
-      await waitFor(() => all('.w1-explist .w1-exprow').length >= 4, 2000)
+      // 重开仍可能复用退出动画里的旧实例（专家 tab 还开着），单击会反向关掉；确保 tab 激活后再断言
+      for (let i = 0; i < 2; i += 1) {
+        const btn = byText('.w1-fleetheadmeta .w1-capmini', '专家')
+        if (btn?.classList.contains('pri')) break
+        btn?.click()
+        await waitFor(
+          () => byText('.w1-fleetheadmeta .w1-capmini', '专家')?.classList.contains('pri'),
+          1500
+        )
+      }
+      await waitFor(() => all('.w1-explist .w1-exprow').length >= 4, 3000)
       all('.w1-explist .w1-exprow')
         .find((r) => r.textContent?.includes('冒烟专家'))
         ?.querySelector('.w1-fleetarchive')?.click()
@@ -7362,6 +7393,139 @@ async function run() {
     results.checks.push(...experts.checks)
   } catch (error) {
     results.checks.push({ name: '专家与市场验证', ok: false, detail: String(error) })
+  }
+
+  // 面板加载错误态：摘掉真实 IPC handler 制造真实拒绝，再装回空数据 handler 验证重试恢复。
+  // 必须放在所有断言之后：恢复用的 handler 返回空数据，前面的断言会读到假结果。
+  try {
+    const runPage = (code) =>
+      win.webContents.executeJavaScript(`(async () => {
+        const checks = []
+        const check = (name, ok, detail = '') => checks.push({ name, ok, detail })
+        const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+        const all = (sel) => [...document.querySelectorAll(sel)]
+        const one = (sel) => document.querySelector(sel)
+        const byText = (sel, text) => all(sel).find((el) => el.textContent.includes(text))
+        const waitFor = async (fn, timeout = 3000) => {
+          const started = Date.now()
+          while (Date.now() - started < timeout) {
+            try { if (await fn()) return true } catch {}
+            await sleep(120)
+          }
+          return false
+        }
+        ${code}
+        return { checks }
+      })()`)
+
+    ipcMain.removeHandler('agent:team-list')
+    let r = await runPage(`
+      one('.w1-st-fleet')?.click()
+      await waitFor(() => !!one('.w1-fleetsheet'), 2000)
+      byText('.w1-fleetheadmeta .w1-capmini', '团队')?.click()
+      const err = await waitFor(() => !!one('.w1-teams .w1-loaderr'), 3000)
+      check(
+        '团队列表失败显示错误与重试',
+        err && !!one('.w1-teams .w1-loaderr .w1-capmini'),
+        one('.w1-teams .w1-loaderr')?.textContent?.slice(0, 60) ?? 'missing'
+      )
+    `)
+    results.checks.push(...r.checks)
+    ipcMain.handle('agent:team-list', () => [])
+    r = await runPage(`
+      const hadErr = !!one('.w1-teams .w1-loaderr')
+      one('.w1-teams .w1-loaderr .w1-capmini')?.click()
+      const ok = await waitFor(
+        () => !one('.w1-teams .w1-loaderr') && (one('.w1-teams')?.textContent ?? '').includes('还没有团队'),
+        3000
+      )
+      check('团队列表重试后恢复', hadErr && ok, one('.w1-teams')?.textContent?.slice(0, 60) ?? 'missing')
+      const noneAnim = one('.w1-teams .w1-fleetnone')
+        ? getComputedStyle(one('.w1-teams .w1-fleetnone')).animationName
+        : ''
+      check('团队空态入场动效', noneAnim === 'w1-empty-in', noneAnim)
+      one('.w1-fleetclose')?.click()
+      await waitFor(() => !one('.w1-fleetsheet'), 2000)
+    `)
+    results.checks.push(...r.checks)
+
+    ipcMain.removeHandler('experts:list')
+    r = await runPage(`
+      one('.w1-st-fleet')?.click()
+      await waitFor(() => !!one('.w1-fleetsheet'), 2000)
+      byText('.w1-fleetheadmeta .w1-capmini', '专家')?.click()
+      const err = await waitFor(() => !!one('.w1-experts .w1-loaderr'), 3000)
+      check(
+        '专家列表失败显示错误与重试',
+        err && !!one('.w1-experts .w1-loaderr .w1-capmini'),
+        one('.w1-experts .w1-loaderr')?.textContent?.slice(0, 60) ?? 'missing'
+      )
+    `)
+    results.checks.push(...r.checks)
+    ipcMain.handle('experts:list', () => [])
+    r = await runPage(`
+      const hadErr = !!one('.w1-experts .w1-loaderr')
+      one('.w1-experts .w1-loaderr .w1-capmini')?.click()
+      const ok = await waitFor(
+        () => !one('.w1-experts .w1-loaderr') && (one('.w1-experts')?.textContent ?? '').includes('还没有专家'),
+        3000
+      )
+      check('专家列表重试后恢复', hadErr && ok, one('.w1-experts')?.textContent?.slice(0, 60) ?? 'missing')
+    `)
+    results.checks.push(...r.checks)
+
+    ipcMain.removeHandler('experts:market-sources')
+    r = await runPage(`
+      byText('.w1-experts .w1-capmini', '市场')?.click()
+      const err = await waitFor(() => !!one('.w1-expmarket .w1-loaderr'), 3000)
+      check(
+        '专家市场失败显示错误与重试',
+        err && !!one('.w1-expmarket .w1-loaderr .w1-capmini'),
+        one('.w1-expmarket .w1-loaderr')?.textContent?.slice(0, 60) ?? 'missing'
+      )
+    `)
+    results.checks.push(...r.checks)
+    ipcMain.handle('experts:market-sources', () => [])
+    r = await runPage(`
+      const hadErr = !!one('.w1-expmarket .w1-loaderr')
+      one('.w1-expmarket .w1-loaderr .w1-capmini')?.click()
+      const ok = await waitFor(
+        () => !one('.w1-expmarket .w1-loaderr') && (one('.w1-expmarket')?.textContent ?? '').includes('还没有市场源'),
+        3000
+      )
+      check('专家市场重试后恢复', hadErr && ok, one('.w1-expmarket')?.textContent?.slice(0, 60) ?? 'missing')
+      one('.w1-fleetclose')?.click()
+      await waitFor(() => !one('.w1-fleetsheet'), 2000)
+    `)
+    results.checks.push(...r.checks)
+
+    ipcMain.removeHandler('agent:local-model-get')
+    r = await runPage(`
+      one('.w1-settings')?.click()
+      await waitFor(() => !!one('.w1-settings-sheet'), 2000)
+      const err = await waitFor(() => !!one('.w1-localmodel .w1-loaderr'), 3000)
+      check(
+        '本机模型读取失败显示错误与重试',
+        err && !!one('.w1-localmodel .w1-loaderr .w1-capmini') && one('.w1-localmodel input')?.disabled === true,
+        one('.w1-localmodel .w1-loaderr')?.textContent?.slice(0, 60) ?? 'missing'
+      )
+    `)
+    results.checks.push(...r.checks)
+    ipcMain.handle('agent:local-model-get', () => ({ enabled: false, baseUrl: '', model: '' }))
+    r = await runPage(`
+      const hadErr = !!one('.w1-localmodel .w1-loaderr')
+      one('.w1-localmodel .w1-loaderr .w1-capmini')?.click()
+      const ok = await waitFor(
+        () => !one('.w1-localmodel .w1-loaderr') && one('.w1-localmodel input')?.disabled === false,
+        3000
+      )
+      check('本机模型重试后恢复', hadErr && ok, one('.w1-localmodel')?.textContent?.slice(0, 60) ?? 'missing')
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
+      await waitFor(() => !one('.w1-settings-sheet'), 2000)
+    `)
+    results.checks.push(...r.checks)
+  } catch (error) {
+    results.checks.push({ name: '面板加载错误态', ok: false, detail: String(error) })
   }
 
   const failed = results.checks.filter((check) => !check.ok)

@@ -4,6 +4,7 @@ import type { AgentPresetRecord, AgentRunRecord, DiscoveredAgentSession } from '
 import { AGENT_META, sortPinnedFirst, workspaceName } from '../lib/agent'
 import { summarizeFleet } from '../lib/fleet'
 import { DURATION, EASE_OUT } from '../lib/motion'
+import { useListAnimate } from '../lib/use-list-animate'
 import { formatCost, formatDuration, summarizeUsage, usageByDay } from '../lib/usage'
 import { useWorkstation } from '../store/useWorkstation'
 import type { AgentId, Session } from '../types'
@@ -78,6 +79,11 @@ export function FleetSheet({ onClose, notify }: FleetSheetProps) {
   const summary = useMemo(() => summarizeFleet(activeSessions), [activeSessions])
   const usageSummary = useMemo(() => summarizeUsage(usage ?? []), [usage])
   const usageDays = useMemo(() => usageByDay(usage ?? [], 7), [usage])
+  const groupAnim = {
+    claude: useListAnimate<HTMLElement>(),
+    codex: useListAnimate<HTMLElement>()
+  }
+  const presetAnim = useListAnimate<HTMLDivElement>()
   const usageMax = Math.max(1, ...usageDays.map((day) => day.runs))
   const api = typeof window === 'undefined' ? undefined : window.ws?.agent
 
@@ -518,7 +524,12 @@ export function FleetSheet({ onClose, notify }: FleetSheetProps) {
                   <CodexGlyph width={13} height={13} />
                 )
               return (
-                <section className="w1-fleetgroup" key={group.id} aria-label={group.label}>
+                <section
+                  className="w1-fleetgroup"
+                  key={group.id}
+                  aria-label={group.label}
+                  ref={groupAnim[group.id]}
+                >
                   <div className="w1-fleetgrouph">
                     <span className="w1-fleetglyph">{glyph}</span>
                     <b>{group.label}</b>
@@ -633,7 +644,7 @@ export function FleetSheet({ onClose, notify }: FleetSheetProps) {
                 <span>{presets.length}</span>
                 <small>点击用相同工作区新建会话</small>
               </div>
-              <div className="w1-fleetpresetgrid">
+              <div className="w1-fleetpresetgrid" ref={presetAnim}>
                 {presets.map((preset) => (
                   <div className="w1-fleetpreset" key={preset.id}>
                     <button

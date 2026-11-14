@@ -320,7 +320,21 @@
 .w1-todoempty,
 .w1-agentempty,
 .w1-capemptycard,
-.w1-ldone {
+.w1-ldone,
+.w1-fleetnone,
+.w1-fleetempty,
+.w1-nvempty,
+.w1-dreviewempty,
+.w1-hstatsempty,
+.w1-reminderempty,
+.w1-lstatempty,
+.w1-rempty,
+.w1-srempty,
+.w1-backupempty,
+.w1-tempty,
+.w1-triageempty,
+.w1-planempty,
+.w1-schedempty {
   animation: w1-empty-in 320ms var(--ease-out) both;
 }
 
@@ -403,6 +417,16 @@
 .w1-captool,
 .w1-fleetrow {
   animation: w1-item-in 240ms var(--ease-out) both;
+}
+
+/* 专家 / 团队面板行：首次出现错峰入场，--i 由渲染层按序号写入，前 8 项错开、其余一起出现 */
+.w1-exprow,
+.w1-expsrcrow,
+.w1-teamrow,
+.w1-teammember,
+.w1-teamnote {
+  animation: w1-item-in 240ms var(--ease-out) both;
+  animation-delay: calc(min(var(--i, 0), 7) * 45ms);
 }
 
 /* ---------- 指针特效与状态流光（v0.64.0） ---------- */

@@ -11,6 +11,7 @@ import { DURATION, EASE_OUT } from '../lib/motion'
 import { skinLabel, themeLabel } from '../lib/theme'
 import { AUDIT_DOMAIN_LABELS, AUDIT_FILTERS, auditTime } from '../lib/labels'
 import { useWorkstation } from '../store/useWorkstation'
+import { useListAnimate } from '../lib/use-list-animate'
 import { CapabilityPanel } from './capability/CapabilityPanel'
 import { BackupRestore } from './settings/BackupRestore'
 import { DataBridgeSection } from './settings/DataBridgeSection'
@@ -25,6 +26,8 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
   const theme = useWorkstation((state) => state.theme)
   const skin = useWorkstation((state) => state.skin)
   const motionOn = useWorkstation((state) => state.motionOn)
+  const rulesAnim = useListAnimate<HTMLDivElement>()
+  const auditAnim = useListAnimate<HTMLDivElement>()
   const toggleTheme = useWorkstation((state) => state.toggleTheme)
   const toggleSkin = useWorkstation((state) => state.toggleSkin)
   const toggleMotion = useWorkstation((state) => state.toggleMotion)
@@ -272,7 +275,7 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
                 ) : approvalRules.length === 0 ? (
                   <p className="w1-provnote">还没有工作区审批规则。</p>
                 ) : (
-                  <div className="w1-setrules">
+                  <div className="w1-setrules" ref={rulesAnim}>
                     {approvalRules.map((rule) => (
                       <div className="w1-setrule" key={rule.id}>
                         <code className="w1-setruletool" title={rule.toolName}>
@@ -315,7 +318,7 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
                     </button>
                   ))}
                 </div>
-                <div className="w1-auditlist">
+                <div className="w1-auditlist" ref={auditAnim}>
                   {auditRows.length === 0 ? (
                     <p className="w1-provnote">还没有活动记录。</p>
                   ) : (
