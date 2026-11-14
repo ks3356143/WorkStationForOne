@@ -6,6 +6,26 @@
 
 暂无。
 
+## [0.92.0] - 2026-11-14
+
+### 新增
+
+- **呼吸引导**：今日视图「呼吸」入口，吸-屏-呼（4s-2s-4s）节奏球（`lib/breathing.ts` 纯函数 + 缩放/色变动画），减少动效时显示静态节奏说明。
+- **按钮弹簧回弹**：全局按钮释放时轻微过冲回弹（spring `cubic-bezier(0.34,1.56,0.64,1)`），按下仍快速缩放；reduced-motion 自动禁用。
+- **完成轻音 + 祝贺**：专注完成时柔和合成音（`lib/chime.ts` Web Audio E5→A5 软包络）+ 鼓励文案；设置页「完成提示音」开关（localStorage 持久化，默认开）。
+- **平滑滚动定位**：非虚拟列表容器（任务列表/设置/舰队）`scroll-behavior:smooth`，虚拟列表保持瞬时；reduced-motion 禁用。
+
+## [0.91.0] - 2026-11-14
+
+### 新增
+
+- **全局氛围特效**（`components/effects/AmbientEffects.tsx`，均 `pointer-events:none`、尊重 motion-off/reduced-motion）：
+  - 胶片颗粒噪点层：静态 SVG `feTurbulence` 噪点顶层覆盖（opacity 0.05，normal 混合避免全屏 blend 合成开销）。
+  - 极光漂移升级：多团软 radial-gradient 色雾在合成器线程慢漂（26–38s，不用 blur 滤镜）。
+  - 全局微粒子尘：canvas 浮尘（≤120 粒子、1/4 分辨率升采样省性能），窗口隐藏时暂停 rAF。
+  - HUD 网格氛围：极淡透视网格底纹，径向遮罩向边缘淡出。
+- 冒烟硬化：微倾断言先关入场动画再读 transform；错误态恢复改判空态文案（不依赖退场动画 DOM 移除）；团队等待 12s。perf 复测 jank 0、视图切换 58–67ms。
+
 ## [0.90.0] - 2026-11-14
 
 ### 新增

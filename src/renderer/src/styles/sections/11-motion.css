@@ -1,8 +1,22 @@
 /* ---------- entrance choreography ---------- */
 
+/* 按钮弹簧回弹：释放时轻微过冲回弹（spring），按下仍快速缩放；reduced-motion 全局禁用 transform 过渡 */
+.w1 :where(button):not(:disabled) {
+  transition: transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
 .w1 :where(button):not(:disabled):active {
-  transform: scale(0.98);
+  transform: scale(0.96);
   transition-duration: var(--dur-press) !important;
+}
+
+/* 平滑滚动定位：非虚拟列表容器缓动滚动（虚拟列表保持瞬时以免错位）；reduced-motion 禁用 */
+@media (prefers-reduced-motion: no-preference) {
+  .w1-todoscroll,
+  .w1-setpane,
+  .w1-fleetbody {
+    scroll-behavior: smooth;
+  }
 }
 
 /* ---------- prism flow ---------- */
@@ -49,6 +63,116 @@
     transform: translate3d(12%, 2%, 0);
     opacity: 0.12;
   }
+}
+
+/* ---------- 全局氛围特效（v0.91.0） ---------- */
+
+.w1-fx {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* 极光漂移：软 radial-gradient 色团（不用 blur 滤镜），transform 走合成器，26s 慢漂 */
+.w1-aurora {
+  position: absolute;
+  inset: 0;
+}
+
+.w1-aurora i {
+  position: absolute;
+  border-radius: 50%;
+  mix-blend-mode: screen;
+  opacity: 0.35;
+  will-change: transform;
+}
+
+.w1-aurora i:nth-child(1) {
+  width: 46vw;
+  height: 46vw;
+  left: -8%;
+  top: -12%;
+  background: radial-gradient(circle, rgb(var(--prism-1-rgb) / 0.4), transparent 70%);
+  animation: auroraA 26s var(--ease-soft) infinite alternate;
+}
+
+.w1-aurora i:nth-child(2) {
+  width: 38vw;
+  height: 38vw;
+  right: -6%;
+  top: 8%;
+  background: radial-gradient(circle, rgb(var(--prism-2-rgb) / 0.32), transparent 70%);
+  animation: auroraB 32s var(--ease-soft) infinite alternate;
+}
+
+.w1-aurora i:nth-child(3) {
+  width: 42vw;
+  height: 42vw;
+  left: 22%;
+  bottom: -18%;
+  background: radial-gradient(circle, rgb(var(--vio-rgb) / 0.3), transparent 70%);
+  animation: auroraC 38s var(--ease-soft) infinite alternate;
+}
+
+@keyframes auroraA {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(14%, 10%, 0);
+  }
+}
+
+@keyframes auroraB {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-12%, 14%, 0);
+  }
+}
+
+@keyframes auroraC {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(10%, -12%, 0);
+  }
+}
+
+/* HUD 网格：极淡透视网格底纹，径向遮罩向边缘淡出 */
+.w1-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgb(var(--bd-rgb) / 0.5) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--bd-rgb) / 0.5) 1px, transparent 1px);
+  background-size: 48px 48px;
+  opacity: 0.12;
+  -webkit-mask-image: radial-gradient(circle at 50% 38%, black, transparent 78%);
+  mask-image: radial-gradient(circle at 50% 38%, black, transparent 78%);
+}
+
+/* 浮尘：1/4 分辨率 canvas 由 CSS 放大成弥散微光 */
+.w1-dust {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.55;
+}
+
+/* 胶片颗粒：静态 SVG feTurbulence 噪点，顶层低透明度（normal 混合避免全屏 blend 合成开销），零动画 */
+.w1-grain {
+  position: absolute;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 @keyframes edgeSpin {

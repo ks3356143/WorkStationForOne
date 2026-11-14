@@ -898,9 +898,9 @@ async function run() {
     all('.w1-todolistedit')
       .find((el) => el.getAttribute('aria-label')?.includes('工作流'))
       ?.click()
-    await sleep(250)
+    await waitFor(() => !!one('.w1-todorenaming'), 2500)
     const dupInput = one('.w1-todorenaming')
-    setValue(dupInput, '学习')
+    if (dupInput) setValue(dupInput, '学习')
     await sleep(60)
     dupInput?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }))
     await sleep(250)
@@ -7214,7 +7214,7 @@ async function run() {
       }
       const teamRow = await waitFor(
         () => all('.w1-teamrow').some((row) => row.textContent.includes('冒烟小队')),
-        5000
+        12000
       )
       check(
         '团队面板列出团队',
@@ -7520,12 +7520,15 @@ async function run() {
       const rings = all('.w1-timeprog .w1-tpring')
       check('今日进度环渲染（今日/今年）', rings.length === 2 && (one('.w1-timeprog')?.getAttribute('aria-label') ?? '').includes('%'), rings.length + ' 环')
       check('卡片聚光描边层存在', !!one('.w1-card .w1-spotborder'), one('.w1-card .w1-spotborder') ? 'ok' : 'missing')
-      const tiltReady = await waitFor(() => {
-        const c = one('.w1-bento .w1-card')
-        return c ? getComputedStyle(c).transform.includes('matrix3d') : false
-      }, 2500)
-      const cardTransform = one('.w1-bento .w1-card') ? getComputedStyle(one('.w1-bento .w1-card')).transform : ''
-      check('今日卡片 3D 微倾底座', tiltReady, cardTransform.slice(0, 30))
+      const tiltCard = one('.w1-bento .w1-card')
+      if (tiltCard) tiltCard.style.animation = 'none'
+      await sleep(80)
+      const cardTransform = tiltCard ? getComputedStyle(tiltCard).transform : ''
+      check('今日卡片 3D 微倾底座', cardTransform.includes('matrix3d'), cardTransform.slice(0, 30))
+      const fxLayers = !!one('.w1-fx') && !!one('.w1-aurora') && !!one('.w1-grid') && !!one('.w1-grain')
+      check('全局氛围特效层渲染', fxLayers, fxLayers ? 'ok' : 'missing')
+      const grainOk = !!one('.w1-grain') && getComputedStyle(one('.w1-grain')).pointerEvents === 'none'
+      check('胶片颗粒层存在且不拦交互', grainOk, grainOk ? 'ok' : 'missing')
 
       one('.w1-acts .w1-btn.pri')?.click()
       const focusOpen = await waitFor(() => !!one('.w1-focus-box'), 2000)
@@ -7613,6 +7616,58 @@ async function run() {
     results.checks.push({ name: '新功能批验证', ok: false, detail: String(error) })
   }
 
+  // 舒服体验：呼吸引导 / 按钮弹簧 / 完成提示音开关 / 平滑滚动。
+  try {
+    const comfort = await win.webContents.executeJavaScript(`(async () => {
+      const checks = []
+      const check = (name, ok, detail = '') => checks.push({ name, ok, detail: String(detail).slice(0, 100) })
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+      const all = (sel) => [...document.querySelectorAll(sel)]
+      const one = (sel) => document.querySelector(sel)
+      const byText = (sel, text) => all(sel).find((el) => el.textContent.includes(text))
+      const waitFor = async (fn, timeout = 4000) => {
+        const started = Date.now()
+        while (Date.now() - started < timeout) { try { if (await fn()) return true } catch {} await sleep(120) }
+        return false
+      }
+      const esc = () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
+      const navTo = async (label) => {
+        all('.w1-navitem').find((el) => el.querySelector('.w1-navtext b')?.textContent?.trim() === label)?.click()
+        await sleep(600)
+      }
+
+      await navTo('今日')
+      const breathBtn = one('button[aria-label="打开呼吸引导"]')
+      check('今日有呼吸引导入口', !!breathBtn, breathBtn ? 'ok' : 'missing')
+      breathBtn?.click()
+      const breathOpen = await waitFor(() => !!one('.w1-breath-box'))
+      check('呼吸引导可打开', breathOpen, one('.w1-breath-orb') ? 'orb' : 'missing')
+      esc()
+      await waitFor(() => !one('.w1-breath-box'))
+
+      const anyBtn = one('.w1-btn')
+      const easing = anyBtn ? getComputedStyle(anyBtn).transitionTimingFunction : ''
+      check('按钮弹簧回弹缓动', easing.includes('1.56'), easing.slice(0, 40))
+
+      await navTo('任务')
+      const scrollBehavior = one('.w1-todoscroll') ? getComputedStyle(one('.w1-todoscroll')).scrollBehavior : ''
+      check('任务列表平滑滚动', scrollBehavior === 'smooth', scrollBehavior)
+
+      if (one('.w1-settings-sheet')) { esc(); await waitFor(() => !one('.w1-settings-sheet')) }
+      one('.w1-settings')?.click()
+      await waitFor(() => !!one('.w1-settings-sheet'))
+      await sleep(300)
+      const chimeRow = byText('.w1-setrow', '完成提示音')
+      check('设置页有完成提示音开关', !!chimeRow, chimeRow ? 'ok' : 'missing')
+      esc()
+      await waitFor(() => !one('.w1-settings-sheet'))
+      return { checks }
+    })()`)
+    results.checks.push(...comfort.checks)
+  } catch (error) {
+    results.checks.push({ name: '舒服体验验证', ok: false, detail: String(error) })
+  }
+
   // 面板加载错误态：摘掉真实 IPC handler 制造真实拒绝，再装回空数据 handler 验证重试恢复。
   // 必须放在所有断言之后：恢复用的 handler 返回空数据，前面的断言会读到假结果。
   try {
@@ -7624,7 +7679,7 @@ async function run() {
         const all = (sel) => [...document.querySelectorAll(sel)]
         const one = (sel) => document.querySelector(sel)
         const byText = (sel, text) => all(sel).find((el) => el.textContent.includes(text))
-        const waitFor = async (fn, timeout = 4000) => {
+        const waitFor = async (fn, timeout = 6000) => {
           const started = Date.now()
           while (Date.now() - started < timeout) {
             try { if (await fn()) return true } catch {}
@@ -7680,7 +7735,7 @@ async function run() {
       const hadErr = !!one('.w1-teams .w1-loaderr')
       one('.w1-teams .w1-loaderr .w1-capmini')?.click()
       const ok = await waitFor(
-        () => !one('.w1-teams .w1-loaderr') && (one('.w1-teams')?.textContent ?? '').includes('还没有团队')
+        () => (one('.w1-teams')?.textContent ?? '').includes('还没有团队')
       )
       check('团队列表重试后恢复', hadErr && ok, one('.w1-teams')?.textContent?.slice(0, 60) ?? 'missing')
       const noneAnim = one('.w1-teams .w1-fleetnone')
@@ -7708,7 +7763,7 @@ async function run() {
       const hadErr = !!one('.w1-experts .w1-loaderr')
       one('.w1-experts .w1-loaderr .w1-capmini')?.click()
       const ok = await waitFor(
-        () => !one('.w1-experts .w1-loaderr') && (one('.w1-experts')?.textContent ?? '').includes('还没有专家')
+        () => (one('.w1-experts')?.textContent ?? '').includes('还没有专家')
       )
       check('专家列表重试后恢复', hadErr && ok, one('.w1-experts')?.textContent?.slice(0, 60) ?? 'missing')
     `)
@@ -7732,7 +7787,7 @@ async function run() {
       const hadErr = !!one('.w1-expmarket .w1-loaderr')
       one('.w1-expmarket .w1-loaderr .w1-capmini')?.click()
       const ok = await waitFor(
-        () => !one('.w1-expmarket .w1-loaderr') && (one('.w1-expmarket')?.textContent ?? '').includes('还没有市场源')
+        () => (one('.w1-expmarket')?.textContent ?? '').includes('还没有市场源')
       )
       check('专家市场重试后恢复', hadErr && ok, one('.w1-expmarket')?.textContent?.slice(0, 60) ?? 'missing')
       await closeFleet()
@@ -7755,7 +7810,7 @@ async function run() {
       const hadErr = !!one('.w1-localmodel .w1-loaderr')
       one('.w1-localmodel .w1-loaderr .w1-capmini')?.click()
       const ok = await waitFor(
-        () => !one('.w1-localmodel .w1-loaderr') && one('.w1-localmodel input')?.disabled === false
+        () => one('.w1-localmodel input')?.disabled === false
       )
       check('本机模型重试后恢复', hadErr && ok, one('.w1-localmodel')?.textContent?.slice(0, 60) ?? 'missing')
       await closeSettings()

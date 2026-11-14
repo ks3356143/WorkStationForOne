@@ -31,6 +31,7 @@ import { installPointerEffects } from './lib/pointer-effects'
 import { installFallbackCacheInvalidation } from './lib/fallback-cache'
 import { applyAccent, readStoredAccent } from './lib/accent'
 import { browserStorage } from './lib/theme'
+import { AmbientEffects } from './components/effects/AmbientEffects'
 import { useAgentRun } from './lib/useAgentRun'
 
 /** 视图中文名，错误边界用它说清「哪一块坏了」 */
@@ -293,6 +294,7 @@ export default function App() {
         >
           <div className={`w1-scan${booting ? '' : ' run'}`} aria-hidden="true" />
           <div className="w1-ambient" aria-hidden="true" />
+          <AmbientEffects />
           <TopBar onCommand={openPalette} />
           <div className="w1-body">
             <WorkspaceNav

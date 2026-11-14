@@ -11,6 +11,7 @@ import { tasksForTodayCard } from '../lib/todo'
 import { useNow } from '../lib/useNow'
 import { useWorkstation } from '../store/useWorkstation'
 import { DailyReviewSheet } from './DailyReviewSheet'
+import { BreathingGuide } from './BreathingGuide'
 import { HabitCard } from './HabitCard'
 import { HeatmapCard } from './HeatmapCard'
 import { NoteCard } from './NoteCard'
@@ -38,6 +39,7 @@ export function TodayDashboard() {
   const [dropActive, setDropActive] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
   const [weekOpen, setWeekOpen] = useState(false)
+  const [breathOpen, setBreathOpen] = useState(false)
   const reviewButtonRef = useRef<HTMLButtonElement>(null)
   const weekButtonRef = useRef<HTMLButtonElement>(null)
   const now = useNow(30_000)
@@ -120,6 +122,15 @@ export function TodayDashboard() {
             <PlayIcon width={11} height={11} />
             开始专注
           </button>
+          <button
+            className="w1-btn"
+            type="button"
+            aria-label="打开呼吸引导"
+            onClick={() => setBreathOpen(true)}
+          >
+            <TodayIcon width={11} height={11} />
+            呼吸
+          </button>
         </div>
       </div>
 
@@ -193,6 +204,9 @@ export function TodayDashboard() {
       </AnimatePresence>
       <AnimatePresence onExitComplete={() => weekButtonRef.current?.focus()}>
         {weekOpen ? <WeeklyReviewSheet onClose={() => setWeekOpen(false)} /> : null}
+      </AnimatePresence>
+      <AnimatePresence>
+        {breathOpen ? <BreathingGuide onClose={() => setBreathOpen(false)} /> : null}
       </AnimatePresence>
     </div>
   )

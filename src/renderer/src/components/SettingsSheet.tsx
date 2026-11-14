@@ -10,6 +10,7 @@ import type {
 import { DURATION, EASE_OUT } from '../lib/motion'
 import { browserStorage, skinLabel, themeLabel } from '../lib/theme'
 import { persistAccent, readStoredAccent } from '../lib/accent'
+import { isChimeEnabled, setChimeEnabled } from '../lib/chime'
 import { AUDIT_DOMAIN_LABELS, AUDIT_FILTERS, auditTime } from '../lib/labels'
 import { useWorkstation } from '../store/useWorkstation'
 import { useListAnimate } from '../lib/use-list-animate'
@@ -37,6 +38,7 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
   const restoreRef = useRef<HTMLElement | null>(null)
   const [info, setInfo] = useState<AppInfo | null>(null)
   const [accent, setAccent] = useState(() => readStoredAccent(browserStorage()) ?? '#a78bfa')
+  const [chimeOn, setChimeOn] = useState(() => isChimeEnabled(browserStorage()))
   const [storage, setStorage] = useState<StorageInfo | null>(null)
   const [storageBusy, setStorageBusy] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -282,6 +284,21 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
                     }}
                   >
                     重置
+                  </button>
+                </div>
+                <div className="w1-setrow">
+                  <span>完成提示音</span>
+                  <button
+                    type="button"
+                    className={`w1-setbtn${chimeOn ? ' on' : ''}`}
+                    aria-pressed={chimeOn}
+                    onClick={() => {
+                      const next = !chimeOn
+                      setChimeOn(next)
+                      setChimeEnabled(next, browserStorage())
+                    }}
+                  >
+                    {chimeOn ? '开启' : '关闭'}
                   </button>
                 </div>
               </section>

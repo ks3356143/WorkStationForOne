@@ -417,6 +417,101 @@
   color: var(--su);
 }
 
+/* ---------- breathing guide ---------- */
+
+.w1-breath {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(var(--shadow-rgb) / 0.55);
+  backdrop-filter: blur(6px);
+}
+
+.w1-breath-box {
+  position: relative;
+  width: 420px;
+  padding: 24px 28px 28px;
+  border: 1px solid transparent;
+  background-image: var(--glass-spec), var(--glass-body);
+  background-origin: padding-box;
+  background-clip: padding-box, padding-box;
+  border-image: var(--glass-rim) 1;
+  backdrop-filter: blur(28px) saturate(165%);
+  box-shadow:
+    var(--neu-in),
+    0 36px 86px rgb(var(--shadow-rgb) / 0.5);
+  outline: none;
+}
+
+.w1-breath-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font: 10.5px / 1 var(--mono);
+  letter-spacing: 0.1em;
+  color: var(--mu);
+}
+
+.w1-breath-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 280px;
+  gap: 18px;
+}
+
+.w1-breath-orb {
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 38% 32%,
+    rgb(var(--ac2-rgb) / 0.55),
+    rgb(var(--ac-rgb) / 0.28) 60%,
+    transparent 75%
+  );
+  box-shadow:
+    0 0 60px rgb(var(--ac2-rgb) / 0.25),
+    inset 0 0 40px rgb(var(--glass-hi-rgb) / 0.12);
+  will-change: transform;
+}
+
+.w1-breath-orb.hold {
+  background: radial-gradient(
+    circle at 38% 32%,
+    rgb(var(--vio-rgb) / 0.5),
+    rgb(var(--ac-rgb) / 0.26) 60%,
+    transparent 75%
+  );
+}
+
+.w1-breath-orb.exhale {
+  background: radial-gradient(
+    circle at 38% 32%,
+    rgb(var(--ac-rgb) / 0.5),
+    rgb(var(--prism-2-rgb) / 0.24) 60%,
+    transparent 75%
+  );
+}
+
+.w1-breath-label {
+  font: 600 16px / 1 var(--sans);
+  letter-spacing: 0.2em;
+  color: var(--fg);
+}
+
+.w1-breath-foot {
+  text-align: center;
+  font: 10.5px / 1.5 var(--mono);
+  letter-spacing: 0.06em;
+  color: var(--su);
+}
+
 /* ---------- quick note modal ---------- */
 
 .w1-modalbackdrop {

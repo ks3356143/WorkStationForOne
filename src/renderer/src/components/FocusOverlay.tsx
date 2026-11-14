@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { m } from 'motion/react'
 import confetti from 'canvas-confetti'
+import { isChimeEnabled, playChime } from '../lib/chime'
+import { browserStorage } from '../lib/theme'
 import { startAmbientAudio, type AmbientKind } from '../lib/ambient-audio'
 import { DURATION, EASE_OUT } from '../lib/motion'
 import type { FocusSession } from '../types'
@@ -54,11 +56,12 @@ export function FocusOverlay({ focus, onClose }: FocusOverlayProps) {
     return () => handle?.stop()
   }, [sound])
 
-  // 完成里程碑喷一簇彩带（仅一次），尊重动效总闸与系统减少动效。
+  // 完成里程碑：柔和提示音 + 一簇彩带（仅一次）；音受提示音偏好控制，彩带尊重动效总闸。
   const celebratedRef = useRef(false)
   useEffect(() => {
     if (!done || celebratedRef.current) return
     celebratedRef.current = true
+    if (isChimeEnabled(browserStorage())) playChime()
     if (document.querySelector('.w1.motion-off')) return
     void confetti({
       particleCount: 90,
@@ -145,7 +148,7 @@ export function FocusOverlay({ focus, onClose }: FocusOverlayProps) {
         </div>
         <div className="w1-focus-meta">
           <span>单任务 · 本地 · 不发送上下文</span>
-          <span>{done ? '本轮完成' : `${focus.minutes} 分钟`}</span>
+          <span>{done ? '本轮完成 · 做得很棒～' : `${focus.minutes} 分钟`}</span>
         </div>
         <div className="w1-focus-acts">
           <button
