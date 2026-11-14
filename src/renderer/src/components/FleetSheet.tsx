@@ -5,7 +5,14 @@ import { AGENT_META, sortPinnedFirst, workspaceName } from '../lib/agent'
 import { summarizeFleet } from '../lib/fleet'
 import { DURATION, EASE_OUT } from '../lib/motion'
 import { useListAnimate } from '../lib/use-list-animate'
-import { formatCost, formatDuration, summarizeUsage, usageByDay } from '../lib/usage'
+import {
+  buildTimeline,
+  formatCost,
+  formatDuration,
+  groupTimelineByDay,
+  summarizeUsage,
+  usageByDay
+} from '../lib/usage'
 import { useWorkstation } from '../store/useWorkstation'
 import type { AgentId, Session } from '../types'
 import { ClaudeGlyph, CodexGlyph, PlusIcon } from './Glyphs'
@@ -85,6 +92,13 @@ export function FleetSheet({ onClose, notify }: FleetSheetProps) {
   }
   const presetAnim = useListAnimate<HTMLDivElement>()
   const usageMax = Math.max(1, ...usageDays.map((day) => day.runs))
+  const [timelineOpen, setTimelineOpen] = useState(false)
+  const [timelineRuns, setTimelineRuns] = useState<AgentRunRecord[] | null>(null)
+  const [timelineBusy, setTimelineBusy] = useState(false)
+  const timelineDays = useMemo(
+    () => groupTimelineByDay(buildTimeline(timelineRuns ?? [], sessions)),
+    [timelineRuns, sessions]
+  )
   const api = typeof window === 'undefined' ? undefined : window.ws?.agent
 
   useEffect(() => {
@@ -216,6 +230,27 @@ export function FleetSheet({ onClose, notify }: FleetSheetProps) {
       .finally(() => setUsageBusy(false))
   }
 
+  const toggleTimeline = () => {
+    if (!api) return
+    if (timelineOpen) {
+      setTimelineOpen(false)
+      return
+    }
+    setTimelineOpen(true)
+    setUsageOpen(false)
+    setTeamsOpen(false)
+    setExpertsOpen(false)
+    setTimelineBusy(true)
+    void api
+      .usage(14)
+      .then(setTimelineRuns)
+      .catch((error: unknown) => {
+        setTimelineOpen(false)
+        notify(error instanceof Error ? error.message : '时间轴读取失败')
+      })
+      .finally(() => setTimelineBusy(false))
+  }
+
   const loadDiscovered = () => {
     if (!api || discoverBusy) return
     setDiscoverBusy(true)
@@ -333,6 +368,13 @@ export function FleetSheet({ onClose, notify }: FleetSheetProps) {
               onClick={toggleUsage}
             >
               {usageBusy ? '读取中…' : '用量'}
+            </button>
+            <button
+              type="button"
+              className={`w1-capmini${timelineOpen ? ' pri' : ''}`}
+              onClick={toggleTimeline}
+            >
+              {timelineBusy ? '读取中…' : '时间轴'}
             </button>
             <button type="button" className="w1-fleetclose" onClick={onClose}>
               <kbd>Esc</kbd> 关闭
@@ -495,6 +537,55 @@ export function FleetSheet({ onClose, notify }: FleetSheetProps) {
                   ))}
                 </div>
               </>
+            )}
+          </div>
+        ) : null}
+
+        {timelineOpen ? (
+          <div className="w1-fleetusage">
+            <div className="w1-fleetusagehead">
+              <span>// 近 14 天活动时间轴</span>
+              <span>只统计应用内运行</span>
+            </div>
+            {timelineBusy && !timelineRuns ? (
+              <p className="w1-capnote">正在读取…</p>
+            ) : timelineDays.length === 0 ? (
+              <p className="w1-capnote">还没有运行记录。</p>
+            ) : (
+              <div className="w1-timeline">
+                {timelineDays.map((day) => (
+                  <div className="w1-tlday" key={day.key}>
+                    <div className="w1-tldaykey">{day.key}</div>
+                    {day.entries.map((entry) => (
+                      <button
+                        type="button"
+                        className="w1-tlentry"
+                        key={entry.id}
+                        onClick={() => {
+                          openAgentSession(entry.sessionId)
+                          onClose()
+                        }}
+                      >
+                        <span className="w1-tltime">
+                          {new Date(entry.startedAt).toLocaleTimeString('zh-CN', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                        <span
+                          className={`w1-tlstatus ${entry.cancelled ? 'cancel' : entry.ok ? 'ok' : 'fail'}`}
+                          aria-hidden="true"
+                        />
+                        <span className="w1-tltitle">{entry.title}</span>
+                        <span className="w1-tlmeta">
+                          {entry.agent === 'codex' ? 'Codex' : 'Claude'} ·{' '}
+                          {formatCost(entry.costUsd ?? 0)} · {formatDuration(entry.durationMs ?? 0)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         ) : null}

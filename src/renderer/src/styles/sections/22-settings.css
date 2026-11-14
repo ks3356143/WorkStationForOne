@@ -877,6 +877,15 @@
   color: var(--wn-fg);
 }
 
+.w1-accentpick {
+  width: 34px;
+  height: 26px;
+  padding: 2px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.55);
+  background: rgb(var(--panel-2-rgb) / 0.6);
+  cursor: pointer;
+}
+
 .w1-ptops {
   margin-top: 6px;
 }

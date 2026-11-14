@@ -8,7 +8,8 @@ import type {
   StorageInfo
 } from '../../../shared/ipc'
 import { DURATION, EASE_OUT } from '../lib/motion'
-import { skinLabel, themeLabel } from '../lib/theme'
+import { browserStorage, skinLabel, themeLabel } from '../lib/theme'
+import { persistAccent, readStoredAccent } from '../lib/accent'
 import { AUDIT_DOMAIN_LABELS, AUDIT_FILTERS, auditTime } from '../lib/labels'
 import { useWorkstation } from '../store/useWorkstation'
 import { useListAnimate } from '../lib/use-list-animate'
@@ -35,6 +36,7 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
   const boxRef = useRef<HTMLDivElement>(null)
   const restoreRef = useRef<HTMLElement | null>(null)
   const [info, setInfo] = useState<AppInfo | null>(null)
+  const [accent, setAccent] = useState(() => readStoredAccent(browserStorage()) ?? '#a78bfa')
   const [storage, setStorage] = useState<StorageInfo | null>(null)
   const [storageBusy, setStorageBusy] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -257,6 +259,29 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
                     onClick={toggleMotion}
                   >
                     {motionOn ? '开启' : '关闭'}
+                  </button>
+                </div>
+                <div className="w1-setrow">
+                  <span>强调色</span>
+                  <input
+                    type="color"
+                    className="w1-accentpick"
+                    value={accent}
+                    aria-label="自定义强调色"
+                    onChange={(event) => {
+                      setAccent(event.target.value)
+                      persistAccent(event.target.value, browserStorage())
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="w1-setbtn"
+                    onClick={() => {
+                      setAccent('#a78bfa')
+                      persistAccent(null, browserStorage())
+                    }}
+                  >
+                    重置
                   </button>
                 </div>
               </section>

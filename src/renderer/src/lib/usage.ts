@@ -70,3 +70,61 @@ export function formatDuration(ms: number): string {
   const seconds = Math.round((ms % 60_000) / 1000)
   return `${minutes}m ${seconds}s`
 }
+
+export interface TimelineEntry {
+  id: string
+  sessionId: string
+  title: string
+  agent: string
+  startedAt: number
+  ok: boolean | null
+  cancelled: boolean
+  costUsd: number | null
+  durationMs: number | null
+}
+
+export interface TimelineDay {
+  key: string
+  entries: TimelineEntry[]
+}
+
+/** 运行记录 join 会话标题/agent，按开始时间倒序；会话已删则回退标题。 */
+export function buildTimeline(
+  runs: AgentRunRecord[],
+  sessions: { id: string; title: string; agent: string }[]
+): TimelineEntry[] {
+  const meta = new Map(sessions.map((session) => [session.id, session]))
+  return runs
+    .map((run) => {
+      const session = meta.get(run.sessionId)
+      return {
+        id: run.id,
+        sessionId: run.sessionId,
+        title: session?.title ?? '已删除会话',
+        agent: session?.agent ?? '',
+        startedAt: run.startedAt,
+        ok: run.ok,
+        cancelled: run.cancelled,
+        costUsd: run.costUsd,
+        durationMs: run.durationMs
+      }
+    })
+    .sort((a, b) => b.startedAt - a.startedAt)
+}
+
+/** 按本地日期分组（输入须已倒序），组与组内均保持时间倒序。 */
+export function groupTimelineByDay(entries: TimelineEntry[]): TimelineDay[] {
+  const groups: TimelineDay[] = []
+  const index = new Map<string, TimelineDay>()
+  for (const entry of entries) {
+    const key = dateKey(new Date(entry.startedAt))
+    let group = index.get(key)
+    if (!group) {
+      group = { key, entries: [] }
+      groups.push(group)
+      index.set(key, group)
+    }
+    group.entries.push(entry)
+  }
+  return groups
+}

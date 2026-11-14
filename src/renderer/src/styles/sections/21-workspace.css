@@ -233,6 +233,44 @@
   scrollbar-color: rgb(var(--ac-rgb) / 0.3) transparent;
 }
 
+.w1-csvwrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--ac-rgb) / 0.3) transparent;
+}
+
+.w1-csvtable {
+  border-collapse: collapse;
+  width: 100%;
+  font: 10.5px / 1.45 var(--mono);
+}
+
+.w1-csvtable th,
+.w1-csvtable td {
+  padding: 4px 8px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.35);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.w1-csvtable th {
+  position: sticky;
+  top: 0;
+  background: rgb(var(--panel-2-rgb) / 0.95);
+  color: var(--ac-fg);
+  font-weight: 600;
+}
+
+.w1-csvtable td {
+  color: var(--fs);
+}
+
+.w1-csvtable tbody tr:nth-child(even) td {
+  background: rgb(var(--panel-2-rgb) / 0.3);
+}
+
 .w1-wsfoot {
   flex: none;
   display: flex;

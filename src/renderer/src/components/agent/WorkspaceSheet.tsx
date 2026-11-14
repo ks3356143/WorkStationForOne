@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { m } from 'motion/react'
 import type { WorkspaceEntry } from '../../../../shared/ipc'
+import { parseCsvRows } from '../../../../shared/csv'
 import { DURATION, EASE_OUT } from '../../lib/motion'
 import { FolderIcon } from '../Glyphs'
 import { friendlyMessage } from '../../lib/errors'
@@ -73,6 +74,8 @@ export function WorkspaceSheet({ sessionId, workspace, artifacts, onClose }: Wor
       setTreeError(friendlyMessage(error, '打开工作区失败'))
     })
   }
+
+  const csvRows = selected.toLowerCase().endsWith('.csv') ? parseCsvRows(preview, 200) : null
 
   const content = (
     <m.div
@@ -179,7 +182,33 @@ export function WorkspaceSheet({ sessionId, workspace, artifacts, onClose }: Wor
             ) : selected ? (
               <>
                 <div className="w1-wspath">{selected}</div>
-                <pre>{preview}</pre>
+                {csvRows && csvRows.length > 0 ? (
+                  <div className="w1-csvwrap">
+                    <table className="w1-csvtable">
+                      <thead>
+                        <tr>
+                          {csvRows[0].map((cell, index) => (
+                            // biome-ignore lint/suspicious/noArrayIndexKey: CSV 表头是静态位置数据，无稳定 id
+                            <th key={index}>{cell}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {csvRows.slice(1).map((row, rowIndex) => (
+                          // biome-ignore lint/suspicious/noArrayIndexKey: CSV 行是静态位置数据，无稳定 id
+                          <tr key={rowIndex}>
+                            {row.map((cell, cellIndex) => (
+                              // biome-ignore lint/suspicious/noArrayIndexKey: CSV 单元格是静态位置数据，无稳定 id
+                              <td key={cellIndex}>{cell}</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <pre>{preview}</pre>
+                )}
               </>
             ) : (
               <p className="w1-capnote">选择一个文件预览；只读，不超过 128 KB。</p>

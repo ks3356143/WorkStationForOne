@@ -45,6 +45,7 @@ mkdirSync(join(agentWorkspace, 'src'), { recursive: true })
 writeFileSync(join(agentWorkspace, 'smoke-note.txt'), 'workspace smoke preview')
 writeFileSync(join(agentWorkspace, 'src', 'main.ts'), 'const smoke = true')
 writeFileSync(join(agentWorkspace, 'checkpoint.txt'), '原始内容')
+writeFileSync(join(agentWorkspace, 'data.csv'), '名称,数量\n苹果,3\n香蕉,5\n')
 mkdirSync(localSkillDir, { recursive: true })
 writeFileSync(
   join(localSkillDir, 'SKILL.md'),
@@ -7541,6 +7542,75 @@ async function run() {
     results.checks.push(...flair.checks)
   } catch (error) {
     results.checks.push({ name: '炫酷样式与专注增强验证', ok: false, detail: String(error) })
+  }
+
+  // 新功能批：自定义强调色 / 会话时间轴 / CSV 预览。
+  try {
+    const batch = await win.webContents.executeJavaScript(`(async () => {
+      const checks = []
+      const check = (name, ok, detail = '') => checks.push({ name, ok, detail: String(detail).slice(0, 100) })
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+      const all = (sel) => [...document.querySelectorAll(sel)]
+      const one = (sel) => document.querySelector(sel)
+      const byText = (sel, text) => all(sel).find((el) => el.textContent.includes(text))
+      const waitFor = async (fn, timeout = 4000) => {
+        const started = Date.now()
+        while (Date.now() - started < timeout) { try { if (await fn()) return true } catch {} await sleep(120) }
+        return false
+      }
+      const esc = () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
+
+      if (one('.w1-settings-sheet')) { esc(); await waitFor(() => !one('.w1-settings-sheet')) }
+      one('.w1-settings')?.click()
+      await waitFor(() => !!one('.w1-settings-sheet'))
+      await sleep(300)
+      const pick = one('.w1-accentpick')
+      check('设置页有强调色选择器', !!pick, pick ? 'ok' : 'missing')
+      if (pick) {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(pick, '#ff0000')
+        pick.dispatchEvent(new Event('input', { bubbles: true }))
+        await sleep(100)
+        const token = getComputedStyle(document.documentElement).getPropertyValue('--ac-rgb').trim()
+        check('强调色写入根令牌', token === '255 0 0', token)
+        pick.closest('.w1-setrow')?.querySelector('.w1-setbtn')?.click()
+        await sleep(100)
+      }
+      esc()
+      await waitFor(() => !one('.w1-settings-sheet'))
+
+      if (one('.w1-fleetsheet')) { one('.w1-fleetclose')?.click(); await waitFor(() => !one('.w1-fleetsheet')) }
+      one('.w1-st-fleet')?.click()
+      await waitFor(() => !!one('.w1-fleetsheet'))
+      await sleep(300)
+      const tlBtn = byText('.w1-fleetheadmeta .w1-capmini', '时间轴')
+      check('舰队有时间轴入口', !!tlBtn, tlBtn ? 'ok' : 'missing')
+      tlBtn?.click()
+      const tlOpen = await waitFor(() => !!one('.w1-timeline') || (one('.w1-fleetusage')?.textContent ?? '').includes('还没有运行记录'))
+      check('时间轴面板可打开', tlOpen, one('.w1-timeline') ? 'timeline' : 'empty')
+      one('.w1-fleetclose')?.click()
+      await waitFor(() => !one('.w1-fleetsheet'))
+
+      const navAgent = all('.w1-navitem').find((el) => el.querySelector('.w1-navtext b')?.textContent?.trim() === 'Agent')
+      navAgent?.click()
+      await sleep(600)
+      if (one('#composer-input')?.disabled) {
+        one('.w1-gadd')?.click()
+        await waitFor(() => !!one('.w1-aworkspacegate .w1-pb'))
+        one('.w1-aworkspacegate .w1-pb')?.click()
+        await waitFor(() => one('#composer-input') && !one('#composer-input').disabled)
+      }
+      one('.w1-aworkspacefiles')?.click()
+      const wsOpen = await waitFor(() => !!one('.w1-wssheet'))
+      byText('.w1-wssheet button', 'data.csv')?.click()
+      const csvTable = await waitFor(() => !!one('.w1-csvtable'))
+      check('CSV 文件预览为表格', wsOpen && csvTable && (one('.w1-csvtable')?.textContent ?? '').includes('苹果'), one('.w1-csvtable') ? 'table' : 'missing')
+      esc()
+      await waitFor(() => !one('.w1-wssheet'))
+      return { checks }
+    })()`)
+    results.checks.push(...batch.checks)
+  } catch (error) {
+    results.checks.push({ name: '新功能批验证', ok: false, detail: String(error) })
   }
 
   // 面板加载错误态：摘掉真实 IPC handler 制造真实拒绝，再装回空数据 handler 验证重试恢复。

@@ -29,6 +29,8 @@ import { hydrateLearning } from './lib/learning-persistence'
 import { isTypingTarget } from './lib/shortcuts'
 import { installPointerEffects } from './lib/pointer-effects'
 import { installFallbackCacheInvalidation } from './lib/fallback-cache'
+import { applyAccent, readStoredAccent } from './lib/accent'
+import { browserStorage } from './lib/theme'
 import { useAgentRun } from './lib/useAgentRun'
 
 /** 视图中文名，错误边界用它说清「哪一块坏了」 */
@@ -115,6 +117,9 @@ export default function App() {
 
   useEffect(() => installPointerEffects(), [])
   useEffect(() => installFallbackCacheInvalidation(), [])
+  useEffect(() => {
+    applyAccent(readStoredAccent(browserStorage()))
+  }, [])
 
   const notify = useCallback(
     (text: string, action?: { label: string; run: () => void }, duration = 2400) => {
