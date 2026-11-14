@@ -7198,12 +7198,22 @@ async function run() {
         evolved ? evolved.name : 'missing'
       )
       // 舰队「团队」面板：列表 + 打开黑板
+      if (one('.w1-fleetsheet')) {
+        one('.w1-fleetclose')?.click()
+        await waitFor(() => !one('.w1-fleetsheet'), 3000)
+      }
       one('.w1-st-fleet')?.click()
-      await waitFor(() => !!one('.w1-fleetsheet'), 2000)
-      byText('.w1-fleetheadmeta .w1-capmini', '团队')?.click()
+      await waitFor(() => !!one('.w1-fleetsheet'), 3000)
+      await new Promise((r) => setTimeout(r, 300))
+      for (let i = 0; i < 2; i++) {
+        const b = byText('.w1-fleetheadmeta .w1-capmini', '团队')
+        if (b?.classList.contains('pri')) break
+        b?.click()
+        await waitFor(() => byText('.w1-fleetheadmeta .w1-capmini', '团队')?.classList.contains('pri'), 2000)
+      }
       const teamRow = await waitFor(
         () => all('.w1-teamrow').some((row) => row.textContent.includes('冒烟小队')),
-        3000
+        5000
       )
       check(
         '团队面板列出团队',
@@ -7544,7 +7554,7 @@ async function run() {
         const all = (sel) => [...document.querySelectorAll(sel)]
         const one = (sel) => document.querySelector(sel)
         const byText = (sel, text) => all(sel).find((el) => el.textContent.includes(text))
-        const waitFor = async (fn, timeout = 3000) => {
+        const waitFor = async (fn, timeout = 4000) => {
           const started = Date.now()
           while (Date.now() - started < timeout) {
             try { if (await fn()) return true } catch {}
@@ -7552,16 +7562,42 @@ async function run() {
           }
           return false
         }
+        const esc = () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
+        const closeFleet = async () => {
+          if (one('.w1-fleetsheet')) { one('.w1-fleetclose')?.click(); await waitFor(() => !one('.w1-fleetsheet')) }
+        }
+        const openFleet = async () => {
+          await closeFleet()
+          one('.w1-st-fleet')?.click()
+          await waitFor(() => !!one('.w1-fleetsheet'))
+          await sleep(300)
+        }
+        const activateTab = async (label) => {
+          for (let i = 0; i < 2; i++) {
+            const b = byText('.w1-fleetheadmeta .w1-capmini', label)
+            if (b?.classList.contains('pri')) return
+            b?.click()
+            await waitFor(() => byText('.w1-fleetheadmeta .w1-capmini', label)?.classList.contains('pri'), 2000)
+          }
+        }
+        const closeSettings = async () => {
+          if (one('.w1-settings-sheet')) { esc(); await waitFor(() => !one('.w1-settings-sheet')) }
+        }
+        const openSettings = async () => {
+          await closeSettings()
+          one('.w1-settings')?.click()
+          await waitFor(() => !!one('.w1-settings-sheet'))
+          await sleep(300)
+        }
         ${code}
         return { checks }
       })()`)
 
     ipcMain.removeHandler('agent:team-list')
     let r = await runPage(`
-      one('.w1-st-fleet')?.click()
-      await waitFor(() => !!one('.w1-fleetsheet'), 2000)
-      byText('.w1-fleetheadmeta .w1-capmini', '团队')?.click()
-      const err = await waitFor(() => !!one('.w1-teams .w1-loaderr'), 3000)
+      await openFleet()
+      await activateTab('团队')
+      const err = await waitFor(() => !!one('.w1-teams .w1-loaderr'))
       check(
         '团队列表失败显示错误与重试',
         err && !!one('.w1-teams .w1-loaderr .w1-capmini'),
@@ -7574,25 +7610,22 @@ async function run() {
       const hadErr = !!one('.w1-teams .w1-loaderr')
       one('.w1-teams .w1-loaderr .w1-capmini')?.click()
       const ok = await waitFor(
-        () => !one('.w1-teams .w1-loaderr') && (one('.w1-teams')?.textContent ?? '').includes('还没有团队'),
-        3000
+        () => !one('.w1-teams .w1-loaderr') && (one('.w1-teams')?.textContent ?? '').includes('还没有团队')
       )
       check('团队列表重试后恢复', hadErr && ok, one('.w1-teams')?.textContent?.slice(0, 60) ?? 'missing')
       const noneAnim = one('.w1-teams .w1-fleetnone')
         ? getComputedStyle(one('.w1-teams .w1-fleetnone')).animationName
         : ''
       check('团队空态入场动效', noneAnim === 'w1-empty-in', noneAnim)
-      one('.w1-fleetclose')?.click()
-      await waitFor(() => !one('.w1-fleetsheet'), 2000)
+      await closeFleet()
     `)
     results.checks.push(...r.checks)
 
     ipcMain.removeHandler('experts:list')
     r = await runPage(`
-      one('.w1-st-fleet')?.click()
-      await waitFor(() => !!one('.w1-fleetsheet'), 2000)
-      byText('.w1-fleetheadmeta .w1-capmini', '专家')?.click()
-      const err = await waitFor(() => !!one('.w1-experts .w1-loaderr'), 3000)
+      await openFleet()
+      await activateTab('专家')
+      const err = await waitFor(() => !!one('.w1-experts .w1-loaderr'))
       check(
         '专家列表失败显示错误与重试',
         err && !!one('.w1-experts .w1-loaderr .w1-capmini'),
@@ -7605,8 +7638,7 @@ async function run() {
       const hadErr = !!one('.w1-experts .w1-loaderr')
       one('.w1-experts .w1-loaderr .w1-capmini')?.click()
       const ok = await waitFor(
-        () => !one('.w1-experts .w1-loaderr') && (one('.w1-experts')?.textContent ?? '').includes('还没有专家'),
-        3000
+        () => !one('.w1-experts .w1-loaderr') && (one('.w1-experts')?.textContent ?? '').includes('还没有专家')
       )
       check('专家列表重试后恢复', hadErr && ok, one('.w1-experts')?.textContent?.slice(0, 60) ?? 'missing')
     `)
@@ -7614,8 +7646,10 @@ async function run() {
 
     ipcMain.removeHandler('experts:market-sources')
     r = await runPage(`
-      byText('.w1-experts .w1-capmini', '市场')?.click()
-      const err = await waitFor(() => !!one('.w1-expmarket .w1-loaderr'), 3000)
+      await activateTab('专家')
+      const marketBtn = byText('.w1-experts .w1-capmini', '市场')
+      if (!marketBtn?.classList.contains('pri')) marketBtn?.click()
+      const err = await waitFor(() => !!one('.w1-expmarket .w1-loaderr'))
       check(
         '专家市场失败显示错误与重试',
         err && !!one('.w1-expmarket .w1-loaderr .w1-capmini'),
@@ -7628,20 +7662,17 @@ async function run() {
       const hadErr = !!one('.w1-expmarket .w1-loaderr')
       one('.w1-expmarket .w1-loaderr .w1-capmini')?.click()
       const ok = await waitFor(
-        () => !one('.w1-expmarket .w1-loaderr') && (one('.w1-expmarket')?.textContent ?? '').includes('还没有市场源'),
-        3000
+        () => !one('.w1-expmarket .w1-loaderr') && (one('.w1-expmarket')?.textContent ?? '').includes('还没有市场源')
       )
       check('专家市场重试后恢复', hadErr && ok, one('.w1-expmarket')?.textContent?.slice(0, 60) ?? 'missing')
-      one('.w1-fleetclose')?.click()
-      await waitFor(() => !one('.w1-fleetsheet'), 2000)
+      await closeFleet()
     `)
     results.checks.push(...r.checks)
 
     ipcMain.removeHandler('agent:local-model-get')
     r = await runPage(`
-      one('.w1-settings')?.click()
-      await waitFor(() => !!one('.w1-settings-sheet'), 2000)
-      const err = await waitFor(() => !!one('.w1-localmodel .w1-loaderr'), 3000)
+      await openSettings()
+      const err = await waitFor(() => !!one('.w1-localmodel .w1-loaderr'))
       check(
         '本机模型读取失败显示错误与重试',
         err && !!one('.w1-localmodel .w1-loaderr .w1-capmini') && one('.w1-localmodel input')?.disabled === true,
@@ -7654,12 +7685,10 @@ async function run() {
       const hadErr = !!one('.w1-localmodel .w1-loaderr')
       one('.w1-localmodel .w1-loaderr .w1-capmini')?.click()
       const ok = await waitFor(
-        () => !one('.w1-localmodel .w1-loaderr') && one('.w1-localmodel input')?.disabled === false,
-        3000
+        () => !one('.w1-localmodel .w1-loaderr') && one('.w1-localmodel input')?.disabled === false
       )
       check('本机模型重试后恢复', hadErr && ok, one('.w1-localmodel')?.textContent?.slice(0, 60) ?? 'missing')
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
-      await waitFor(() => !one('.w1-settings-sheet'), 2000)
+      await closeSettings()
     `)
     results.checks.push(...r.checks)
   } catch (error) {

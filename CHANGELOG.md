@@ -6,6 +6,13 @@
 
 暂无。
 
+## [0.89.1] - 2026-11-14
+
+### 优化
+
+- **冒烟时序抖动硬化**：错误态 section 改用「先确保弹层关闭→再打开→tab 幂等激活→settle 等待」助手（`openFleet/activateTab/openSettings`），消除复用未关闭弹层导致的 toggle 反向与加载竞态；团队行等待提到 5s。连续多次冒烟稳定全绿。
+- **可复用性能审计**：新增 `npm run perf`（`scripts/perf-audit.cjs/.mjs`），真实主进程 + 临时库灌数据，零额度测滚动帧率/视图切换/勾选延迟/长任务/auto-animate 开销，输出 PERF_RESULT JSON。
+
 ## [0.89.0] - 2026-11-14
 
 ### 新增

@@ -16,6 +16,7 @@
 - `npm run check:fix` — 自动修复格式与可安全修复的 lint 问题。
 - `npm run fmt` — 只格式化，不跑 lint。
 - `npm run smoke` — 先构建，再跑 UI 交互冒烟（真实主进程 + preload + 临时 SQLite）。覆盖面与各测试缝见 `docs/development/smoke.md`。
+- `npm run perf` — 先构建，再跑性能审计（真实主进程 + 临时库灌 800 笔记/500 任务/150 消息，零额度、不调真实模型）：长列表滚动帧间隔/p95、视图切换与勾选延迟、PerformanceObserver 长任务、auto-animate 增删开销，输出 `PERF_RESULT` JSON。
 - `npm run verify` — 构建后启动真实主进程（临时 `WS_DATA_DIR` + 临时 Chromium profile），运行 250 项运行时断言（起始主题不同会差 2 项分支）：五视图互斥、双主题/双皮肤持久化、跨重启数据。验证期间自动补齐 dark/prism 基线、使用透明非激活窗口（`setOpacity(0)` + `showInactive()` + `setSkipTaskbar(true)`）并关闭后台节流，避免真实应用偏好、抢前台和窗口遮挡干扰性能断言。帧率项在窗口被系统判定不可见时（Chromium 会暂停 rAF）记录为「跳过」而不是失败，只跳过这一条，布局与性能指标的其余断言照常执行。
 - `npm run capture -- .screenshots/shell-1440.png 1440 900 .screenshots/audit-1440.json` — 构建、保存截图并写入布局审计。
 - `npm run capture -- .screenshots/shell-1180.png 1180 720 .screenshots/audit-1180.json dark` — 在最小窗口尺寸下做同样的检查；主题参数为 `dark|light`，视图参数为 `today|tasks|agent|notes|learning|settings`，均可省略审计路径后按任意顺序追加（如 `... 1440 900 light tasks`、`... 1440 900 dark settings`）。

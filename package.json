@@ -1,6 +1,6 @@
 {
   "name": "workstation-for-one",
-  "version": "0.89.0",
+  "version": "0.89.1",
   "private": true,
   "description": "WorkStationForOne — 个人 AI 工作站",
   "main": "./out/main/index.js",
@@ -15,6 +15,7 @@
     "lint": "biome lint .",
     "fmt": "biome format --write .",
     "smoke": "npm run build && node scripts/smoke.mjs",
+    "perf": "npm run build && node scripts/perf-audit.mjs",
     "eval": "node scripts/eval.mjs",
     "verify": "npm run build && node scripts/runtime-verify.mjs",
     "capture": "npm run build && node scripts/capture.mjs",
