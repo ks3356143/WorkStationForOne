@@ -308,11 +308,13 @@ export function CapabilityPanel({ notify }: CapabilityPanelProps) {
                 ? '正在更新…'
                 : pendingUpdates.length > 0
                   ? `${updateSummary}可更新`
-                  : '更新完成'}
-              {updateReport ? <em className="w1-capupdatenote">{updateReport}</em> : null}
+                  : updateReport || '更新完成'}
+              {pendingUpdates.length > 0 && updateReport ? (
+                <em className="w1-capupdatenote">{updateReport}</em>
+              ) : null}
             </span>
             <span className="w1-capupdateacts">
-              {pendingUpdates.length > 0 ? (
+              {pendingUpdates.length > 0 && pluginCount + mcpCount > 0 ? (
                 <button
                   type="button"
                   className="w1-capmini pri"

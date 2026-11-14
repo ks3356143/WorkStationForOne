@@ -255,6 +255,11 @@ if (!gotTheLock) {
     registerPluginHandlers(capabilities, pluginSources, updateChecker, database.audit)
     // 软删任务保留 30 天后清掉，避免已删行无限堆积。
     database.tasks.purgeDeleted(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    try {
+      database.agent.purgeToolCalls(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    } catch (error) {
+      console.error('[agent] 清理评估落痕失败', error)
+    }
     registerCapabilityHandlers(capabilities, database.audit)
     registerExpertHandlers({
       center: capabilities,

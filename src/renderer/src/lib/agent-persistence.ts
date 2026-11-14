@@ -6,7 +6,7 @@ import {
   type AgentPersistence
 } from '../store/useWorkstation'
 import type { Session } from '../types'
-import { agentSessionDate, agentSessionMeta } from './agent'
+import { sessionFromRecord } from './agent'
 import { browserStorage } from './theme'
 
 export interface AgentHydrateDeps extends AgentPersistence {
@@ -14,22 +14,7 @@ export interface AgentHydrateDeps extends AgentPersistence {
 }
 
 function toSession(record: AgentSessionRecord, messageCount: number, now: number): Session {
-  return {
-    id: record.id,
-    agent: record.agent,
-    title: record.title,
-    status: record.status,
-    meta: agentSessionMeta(record.updatedAt, messageCount, now),
-    threadDate: agentSessionDate(record.updatedAt, now),
-    ...(record.workspace ? { workspace: record.workspace } : {}),
-    ...(record.resumeId ? { resumeId: record.resumeId } : {}),
-    ...(record.pendingFork ? { pendingFork: true } : {}),
-    ...(record.forkTurnId ? { forkTurnId: record.forkTurnId } : {}),
-    ...(record.pinned ? { pinned: true } : {}),
-    ...(record.archived ? { archived: true } : {}),
-    ...(record.planMode ? { planMode: true } : {}),
-    ...(record.persona ? { persona: record.persona } : {})
-  }
+  return sessionFromRecord(record, messageCount, now)
 }
 
 export async function hydrateAgent(deps = bridgeAgent()): Promise<void> {

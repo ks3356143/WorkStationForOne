@@ -206,3 +206,21 @@ describe('会话人设', () => {
     db.close()
   })
 })
+
+describe('专家仓储防御', () => {
+  it('拒绝占用内置 id，并夹住人设 / 工具上限', () => {
+    const { db, repo } = seedDb()
+    expect(() =>
+      repo.saveExpert({ id: 'frontend', name: 'x', description: '', persona: 'p', tools: [] })
+    ).toThrow(/内置/)
+    const saved = repo.saveExpert({
+      name: '长人设',
+      description: '',
+      persona: 'p'.repeat(30_000),
+      tools: Array.from({ length: 60 }, (_, i) => `skill:s${i}`)
+    })
+    expect(saved.persona.length).toBe(20_000)
+    expect(saved.tools.length).toBe(50)
+    db.close()
+  })
+})

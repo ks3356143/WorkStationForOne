@@ -32,7 +32,14 @@ export function toolKind(name: string): 'native' | 'mcp' {
 }
 
 function matchesPreferred(toolName: string, preferred: string[]): boolean {
-  return preferred.some((p) => toolName === p || toolName.endsWith(p) || toolName.includes(p))
+  // 边界匹配：'Read' 不能命中 'NotebookRead'，但要命中 'mcp__server__echo' / 'MCP · s/echo'。
+  return preferred.some(
+    (p) =>
+      toolName === p ||
+      toolName.endsWith(`__${p}`) ||
+      toolName.endsWith(`/${p}`) ||
+      toolName.endsWith(`· ${p}`)
+  )
 }
 
 const ZERO: EvalScore = {

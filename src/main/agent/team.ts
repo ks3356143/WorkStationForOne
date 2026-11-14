@@ -18,24 +18,17 @@ export class TeamService {
     const teamId = `team-${randomUUID()}`
     const leaderId = this.id()
     const leaderTitle = input.leaderTitle ?? `${input.name} · 负责人`
-    this.repository.createSession({ id: leaderId, agent: 'claude', title: leaderTitle })
-    this.repository.updateSession(leaderId, { workspace: input.workspace, teamId })
-    const workerIds = input.workers.map((worker) => {
-      const id = this.id()
-      this.repository.createSession({
-        id,
-        agent: 'claude',
-        title: worker.title,
-        ...(worker.persona ? { persona: worker.persona } : {})
-      })
-      this.repository.updateSession(id, {
-        workspace: input.workspace,
-        teamId,
-        ...(worker.persona ? { persona: worker.persona } : {})
-      })
-      return id
-    })
-    const sessions = [leaderId, ...workerIds]
+    const workers = input.workers.map((worker) => ({
+      id: this.id(),
+      title: worker.title,
+      ...(worker.persona ? { persona: worker.persona } : {})
+    }))
+    // 单事务写入：任一成员失败就整体回滚，不会留下半成品团队。
+    this.repository.createTeamSessions(teamId, input.workspace, [
+      { id: leaderId, title: leaderTitle },
+      ...workers
+    ])
+    const sessions = [leaderId, ...workers.map((worker) => worker.id)]
       .map((id) => this.repository.findSession(id))
       .filter((session): session is AgentSessionRecord => Boolean(session))
     return { teamId, name: leaderTitle, sessions }
@@ -61,6 +54,8 @@ export class TeamService {
     role: AgentTeamNoteRecord['role'],
     text: string
   ): AgentTeamNoteRecord {
+    const session = this.repository.findSession(sessionId)
+    if (!session || session.teamId !== teamId) throw new Error('会话不属于该团队')
     return this.repository.postTeamNote({ teamId, sessionId, role, text, at: Date.now() })
   }
 

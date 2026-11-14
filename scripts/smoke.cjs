@@ -6966,14 +6966,22 @@ async function run() {
       firstTaskRow?.querySelector('.w1-todobody')?.click()
       await waitFor(() => Boolean(document.querySelector('.w1-todohand')), 2500)
       document.querySelector('.w1-todohand')?.click()
-      const taskHandoff = await waitFor(() => {
+      let taskHandoff = await waitFor(() => {
         const input = document.querySelector('#composer-input')
         return Boolean(input) && (input.value ?? '').includes('标题：' + firstTaskTitle)
       }, 3000)
+      if (!taskHandoff) {
+        // 懒加载的 Agent 视图切入较慢时第一次点击可能落空，重试一次再判定
+        document.querySelector('.w1-todohand')?.click()
+        taskHandoff = await waitFor(() => {
+          const input = document.querySelector('#composer-input')
+          return Boolean(input) && (input.value ?? '').includes('标题：' + firstTaskTitle)
+        }, 4000)
+      }
       const agentViewAfterTask = await waitFor(
         () =>
           document.querySelector('.w1-navitem.on .w1-navtext b')?.textContent?.trim() === 'Agent',
-        3000
+        5000
       )
       // 选工作区会让 Composer 重挂载；提示词要能重新填回来
       const workspaceGate = document.querySelector('.w1-aworkspacegate .w1-pb')

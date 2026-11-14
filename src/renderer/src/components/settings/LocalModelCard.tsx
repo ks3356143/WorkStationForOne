@@ -52,7 +52,7 @@ export function LocalModelCard({ notify }: { notify: (text: string) => void }) {
   }
 
   return (
-    <div className="w1-localmodel" aria-label="本机模型">
+    <div className="w1-localmodel" role="group" aria-label="本机模型">
       <div className="w1-localmodelhead">
         <b>本机模型</b>
         <span>只用 127.0.0.1 / localhost 的 OpenAI 兼容端点做会话摘要，数据不出本机。</span>

@@ -147,7 +147,9 @@ describe('UpdateChecker', () => {
   it('并发调用时只跑一次', async () => {
     const { db, checker } = setup({ pluginLatestVersion: '2.0.0' })
     const [first, second] = await Promise.all([checker.check(), checker.check()])
-    expect(first.length + second.length).toBe(1)
+    // 复用同一次结果：不会返回空数组让「检查更新」误报已是最新。
+    expect(first).toBe(second)
+    expect(first.length).toBe(1)
     db.close()
   })
 })

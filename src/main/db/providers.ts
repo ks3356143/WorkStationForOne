@@ -78,6 +78,10 @@ export class ProviderRepository {
       : undefined
     const id = existing?.id ?? input.id ?? `provider-${randomUUID()}`
     const createdAt = existing?.created_at ?? now
+    // 更新路径改目标会让已存的 Codex 配置带着 Chat 协议落库；目标切换必须新建。
+    if (existing && existing.target !== input.target) {
+      throw new Error('Provider 目标不可修改，请新建一个配置')
+    }
 
     if (existing) {
       const assignments = [

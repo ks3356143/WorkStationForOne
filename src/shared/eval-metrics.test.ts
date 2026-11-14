@@ -82,4 +82,9 @@ describe('summarizeEval', () => {
     expect(score.preferredHitRate).toBe(0)
     expect(score.preferredFirstRate).toBe(0)
   })
+
+  it('首选按边界匹配，不误命中相似工具名', () => {
+    const score = summarizeEval([run('a')], [call('a', 1, 'NotebookRead')], ['Read'])
+    expect(score.preferredHitRate).toBe(0)
+  })
 })

@@ -737,6 +737,31 @@ export class AgentRepository {
     }))
   }
 
+  /** 评估落痕按时间清理，避免无限增长。 */
+  purgeToolCalls(before: number): number {
+    const result = this.db.prepare('DELETE FROM agent_tool_calls WHERE at < ?').run(before)
+    return Number(result.changes)
+  }
+
+  /** 团队建会话：负责人 + worker 在同一事务内落库，避免留下半成品团队。 */
+  createTeamSessions(
+    teamId: string,
+    workspace: string,
+    sessions: Array<{ id: string; title: string; persona?: string }>
+  ): void {
+    runInTransaction(this.db, () => {
+      for (const session of sessions) {
+        this.createSession({
+          id: session.id,
+          agent: 'claude',
+          title: session.title,
+          ...(session.persona ? { persona: session.persona } : {})
+        })
+        this.updateSession(session.id, { workspace, teamId })
+      }
+    })
+  }
+
   /** 团队黑板：写一条消息，返回落库记录。 */
   postTeamNote(input: {
     teamId: string

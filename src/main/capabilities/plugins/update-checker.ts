@@ -30,6 +30,7 @@ const STARTUP_DELAY = 6_000
  */
 export class UpdateChecker {
   private running = false
+  private inFlight: Promise<UpdateCandidate[]> | null = null
   private timer: NodeJS.Timeout | null = null
 
   constructor(private readonly deps: UpdateCheckDeps) {}
@@ -52,8 +53,20 @@ export class UpdateChecker {
     this.timer = null
   }
 
-  /** 并发检查所有源与 MCP；同一时刻只跑一次。includeCli 只用于手动检查。 */
+  /** 并发检查所有源与 MCP；includeCli 只用于手动检查。 */
   async check(options: { includeCli?: boolean } = {}): Promise<UpdateCandidate[]> {
+    // 已有检查在跑时直接复用其结果，避免同一时刻跑两遍（启动检查会挡住重复手动点击）。
+    if (this.inFlight) return this.inFlight
+    const run = this.runCheck(options)
+    this.inFlight = run
+    try {
+      return await run
+    } finally {
+      if (this.inFlight === run) this.inFlight = null
+    }
+  }
+
+  private async runCheck(options: { includeCli?: boolean }): Promise<UpdateCandidate[]> {
     if (this.running) return []
     this.running = true
     try {

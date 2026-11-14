@@ -14,6 +14,7 @@ const errText = (error: unknown): string => (error instanceof Error ? error.mess
 export function TeamsPanel({ notify, onOpened }: TeamsPanelProps) {
   const api = typeof window === 'undefined' ? undefined : window.ws?.agent
   const openAgentSession = useWorkstation((state) => state.openAgentSession)
+  const addAgentSessions = useWorkstation((state) => state.addAgentSessions)
   const workspace = useWorkstation(
     (state) => state.sessions.find((session) => session.id === state.activeSessionId)?.workspace
   )
@@ -26,17 +27,37 @@ export function TeamsPanel({ notify, onOpened }: TeamsPanelProps) {
   const [name, setName] = useState('')
   const [workers, setWorkers] = useState('')
 
-  const reload = () => {
+  const reload = (preferredId?: string) => {
     if (!api) return
     void api
       .listTeams()
       .then((list) => {
         setTeams(list)
-        if (!list.some((team) => team.teamId === selectedId)) setSelectedId(list[0]?.teamId ?? '')
+        const wanted = preferredId ?? selectedId
+        if (list.some((team) => team.teamId === wanted)) setSelectedId(wanted)
+        else setSelectedId(list[0]?.teamId ?? '')
       })
       .catch(() => setTeams([]))
   }
-  useEffect(reload, [api])
+  useEffect(() => {
+    if (!api) return
+    let alive = true
+    void api
+      .listTeams()
+      .then((list) => {
+        if (!alive) return
+        setTeams(list)
+        setSelectedId((current) =>
+          list.some((team) => team.teamId === current) ? current : (list[0]?.teamId ?? '')
+        )
+      })
+      .catch(() => {
+        if (alive) setTeams([])
+      })
+    return () => {
+      alive = false
+    }
+  }, [api])
 
   useEffect(() => {
     if (!api || !selectedId) {
@@ -44,6 +65,7 @@ export function TeamsPanel({ notify, onOpened }: TeamsPanelProps) {
       return
     }
     let alive = true
+    setNotes([])
     void api
       .teamNotes(selectedId)
       .then((list) => {
@@ -86,8 +108,9 @@ export function TeamsPanel({ notify, onOpened }: TeamsPanelProps) {
         setCreateOpen(false)
         setName('')
         setWorkers('')
-        reload()
-        setSelectedId(team.teamId)
+        // 新建的会话只在数据库里；补进 store 后 rail / 成员按钮才打得开。
+        addAgentSessions(team.sessions)
+        reload(team.teamId)
         notify(`已建团队：${team.name} · ${team.sessions.length} 个会话`)
       })
       .catch((error: unknown) => notify(errText(error)))
@@ -126,7 +149,7 @@ export function TeamsPanel({ notify, onOpened }: TeamsPanelProps) {
           >
             新建团队
           </button>
-          <button type="button" className="w1-capmini" onClick={reload}>
+          <button type="button" className="w1-capmini" onClick={() => reload()}>
             刷新
           </button>
         </span>
@@ -173,7 +196,7 @@ export function TeamsPanel({ notify, onOpened }: TeamsPanelProps) {
       </div>
 
       {selected ? (
-        <div className="w1-teamboard" aria-label="团队黑板">
+        <div className="w1-teamboard" role="group" aria-label="团队黑板">
           <div className="w1-fleetusagehead">
             <span>// 成员</span>
             <span>{selected.sessions.length} 个会话</span>

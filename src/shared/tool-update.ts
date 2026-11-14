@@ -18,8 +18,13 @@ export interface McpSourceInfo {
 /** 从 transport 与 stdio command 推断 MCP 的来源与本机依赖。 */
 export function describeMcpSource(transport: 'stdio' | 'http', command?: string): McpSourceInfo {
   if (transport === 'http') return { label: '外部 · HTTPS', dependency: '' }
-  const first = (command ?? '').trim().split(/\s+/)[0]?.toLowerCase() ?? ''
-  const base = first.replace(/\.(exe|cmd)$/i, '')
+  const first = (command ?? '').trim().split(/\s+/)[0] ?? ''
+  const base =
+    first
+      .split(/[\\/]/)
+      .pop()
+      ?.toLowerCase()
+      .replace(/\.(exe|cmd)$/i, '') ?? ''
   let dependency = ''
   if (base === 'npx' || base === 'node' || base === 'npm') dependency = 'Node'
   else if (base === 'uvx' || base === 'uv') dependency = 'uv'

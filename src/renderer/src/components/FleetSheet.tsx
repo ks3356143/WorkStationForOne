@@ -304,14 +304,20 @@ export function FleetSheet({ onClose, notify }: FleetSheetProps) {
             <button
               type="button"
               className={`w1-capmini${teamsOpen ? ' pri' : ''}`}
-              onClick={() => setTeamsOpen((open) => !open)}
+              onClick={() => {
+                setTeamsOpen((open) => !open)
+                setExpertsOpen(false)
+              }}
             >
               团队
             </button>
             <button
               type="button"
               className={`w1-capmini${expertsOpen ? ' pri' : ''}`}
-              onClick={() => setExpertsOpen((open) => !open)}
+              onClick={() => {
+                setExpertsOpen((open) => !open)
+                setTeamsOpen(false)
+              }}
             >
               专家
             </button>

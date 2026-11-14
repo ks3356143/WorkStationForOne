@@ -2,6 +2,7 @@
 // 用法：node scripts/eval.mjs --db <path> [--preferred echo,Read] [--min-ok 0.9] [--max-approval 1]
 // 不启动应用、不写库；可对着冒烟临时库或真实库复跑，作为提示词 / 专家改动的回归门。
 import { DatabaseSync } from 'node:sqlite'
+import { join } from 'node:path'
 import { summarizeEval } from '../src/shared/eval-metrics.ts'
 
 const args = process.argv.slice(2)
@@ -11,7 +12,7 @@ const flag = (name) => {
 }
 const dbPath =
   flag('--db') ??
-  (process.env.WS_DATA_DIR ? `${process.env.WS_DATA_DIR}/db/workstation.db` : undefined)
+  (process.env.WS_DATA_DIR ? join(process.env.WS_DATA_DIR, 'workstation.db') : undefined)
 if (!dbPath) {
   console.error(
     '用法：node scripts/eval.mjs --db <workstation.db 路径> [--preferred a,b] [--min-ok 0.9] [--max-approval 1]'
@@ -22,8 +23,18 @@ const preferred = (flag('--preferred') ?? '')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean)
-const minOk = flag('--min-ok') !== undefined ? Number(flag('--min-ok')) : null
-const maxApproval = flag('--max-approval') !== undefined ? Number(flag('--max-approval')) : null
+const numberFlag = (name) => {
+  const raw = flag(name)
+  if (raw === undefined) return null
+  const value = Number(raw)
+  if (!Number.isFinite(value)) {
+    console.error(`${name} 需要数字`)
+    process.exit(2)
+  }
+  return value
+}
+const minOk = numberFlag('--min-ok')
+const maxApproval = numberFlag('--max-approval')
 
 const db = new DatabaseSync(dbPath, { readOnly: true })
 const runRows = db

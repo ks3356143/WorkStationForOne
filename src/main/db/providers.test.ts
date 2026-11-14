@@ -119,3 +119,14 @@ describe('ProviderRepository', () => {
     db.close()
   })
 })
+
+describe('Provider 更新目标', () => {
+  it('已有配置不允许改目标', () => {
+    const { db, repo } = seedDb()
+    const saved = repo.save(profile)
+    expect(() =>
+      repo.save({ ...profile, id: saved.id, target: 'codex', wireApi: 'responses' })
+    ).toThrow(/目标不可修改/)
+    db.close()
+  })
+})

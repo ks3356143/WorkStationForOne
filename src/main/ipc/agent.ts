@@ -22,7 +22,8 @@ import { startCodexRun } from '../agent/codex'
 import type { AuditLog } from '../db/audit'
 import type { AgentRepository } from '../db/agent'
 import type { NoteRepository } from '../db/notes'
-import { compactTurns } from '../../shared/context-budget'
+import { clampSystemPrefix, compactTurns } from '../../shared/context-budget'
+import { guardNote, scanUntrusted } from '../../shared/prompt-guard'
 import type {
   McpEndpoint,
   McpExternalApprovalDecision,
@@ -590,7 +591,11 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
     if (notes) {
       try {
         memory = notes.search(input.prompt, 3).map((hit) => ({
-          label: `note:${hit.text.split('\n')[0].slice(0, 40)}`,
+          label: `note:${hit.text
+            .split('\n')[0]
+            .replace(/["<>\r\n]/g, ' ')
+            .trim()
+            .slice(0, 40)}`,
           text: hit.snippet
         }))
       } catch (error) {
@@ -598,20 +603,28 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
       }
     }
     const memoryPrefix = buildMemoryPrefix({ digest: session.contextDigest, memory })
+    // 市场导入的人设属于第三方内容：可疑时只加只读警告，不改原文。
+    const personaText = session.persona
+      ? scanUntrusted(session.persona).suspicious
+        ? `${guardNote(true)}\n${session.persona}`
+        : session.persona
+      : ''
     // 记忆 / 人设 / 工具优先级同走 Claude appendSystemPrompt / Codex developerInstructions。
-    toolPriority = [memoryPrefix, session.persona, toolPriority].filter(Boolean).join('\n\n')
+    // Windows 命令行总长有限，超长前缀会直接 spawn 失败，这里统一收紧上限。
+    toolPriority = clampSystemPrefix(
+      [memoryPrefix, personaText, toolPriority].filter(Boolean).join('\n\n')
+    )
     const disabledNames =
       input.agent === 'claude' ? surfacePolicy.disabledClaudeTools : surfacePolicy.codexDeniedTools
     const disabledToolDenial = (toolName: string) => toolSurfaceDenial(toolName, disabledNames)
     // 文件内容只在这一步进内存；发送前失败不会留下没有收尾的运行记录。
     const contextPrompt = buildContextPrompt(workspace, input.prompt, input.contextFiles ?? [])
     const prompt = planMode ? planModePrompt(contextPrompt) : contextPrompt
-    const codexInstructions = [
-      planMode ? '[计划模式] 只读调查并给出计划，不要修改文件或执行写入命令。' : '',
-      toolPriority
-    ]
-      .filter(Boolean)
-      .join('\n\n')
+    const codexInstructions = clampSystemPrefix(
+      [planMode ? '[计划模式] 只读调查并给出计划，不要修改文件或执行写入命令。' : '', toolPriority]
+        .filter(Boolean)
+        .join('\n\n')
+    )
     const codexProvider = input.agent === 'codex' ? getProvider?.('codex') : undefined
     const codexServer = Boolean(codexProvider && codexHome)
     if (input.images?.length && input.agent === 'codex' && !codexServer) {
@@ -639,6 +652,8 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
       checkpoints.capture(paths, toolName)
     }
     let runResult: Extract<AgentRunEvent, { kind: 'result' }> | null = null
+    // 助手正文在渲染层落库（done 之后），主进程这里独立累积一份用于回合摘要。
+    let streamedText = ''
     repository.recordRunStart(runId, input.sessionId, Date.now())
 
     const emit = (runEvent: AgentRunEvent) => {
@@ -646,6 +661,7 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
       if (runEvent.kind === 'tool') {
         recordTool(runId, input.sessionId, runEvent.name, toolKind(runEvent.name), 'observed')
       }
+      if (runEvent.kind === 'text') streamedText += runEvent.text
       if (runEvent.kind === 'result') runResult = runEvent
       if (runEvent.kind === 'init' && runEvent.sessionId) {
         // init 表示 CLI 已接受续接 / 分叉；这一刻才把新 session id 落库。
@@ -803,13 +819,18 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
             .listMessagesForSession(input.sessionId)
             .filter((m) => m.role === 'user' || m.role === 'assistant')
             .map((m) => ({ role: m.role as 'user' | 'assistant', text: m.text }))
+          // 助手正文由渲染层在 done 后落库，这里补上本轮正文，避免摘要落后一轮。
+          if (streamedText.trim()) turns.push({ role: 'assistant', text: streamedText })
           const digest = compactTurns(turns)
           if (digest) repository.updateSession(input.sessionId, { contextDigest: digest })
           // 本机模型摘要作为异步升级；失败保留抽取式摘要，不影响回合结束。
           if (digest && summarizeLocal) {
             void summarizeLocal(turns)
               .then((summary) => {
-                if (summary) repository.updateSession(input.sessionId, { contextDigest: summary })
+                if (!summary) return
+                // 慢请求可能晚于下一轮：只有摘要仍是本轮写入的那份才允许升级。
+                if (repository.findSession(input.sessionId)?.contextDigest !== digest) return
+                repository.updateSession(input.sessionId, { contextDigest: summary })
               })
               .catch(() => undefined)
           }
@@ -952,13 +973,6 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
     const owner = permissionRuns.get(response.requestId)
     const run = owner ? runs.get(owner.runId) : undefined
     if (!owner || !run) return false
-    recordTool(
-      owner.runId,
-      run.sessionId,
-      owner.toolName,
-      'approval',
-      response.allow ? 'allow' : 'deny'
-    )
     if (response.allow && owner.paths?.length) {
       checkpointRuns.get(owner.runId)?.capture(owner.paths, owner.toolName)
     }
@@ -989,6 +1003,14 @@ export function registerAgentHandlers(options: AgentHandlerOptions): AgentBridge
     }
 
     const ok = owner.respond(response.allow ? 'allow' : 'deny', response.message)
+    // 只有真正回写到 CLI 的决策才落痕；回写失败按拒绝记录。
+    recordTool(
+      owner.runId,
+      run.sessionId,
+      owner.toolName,
+      'approval',
+      response.allow && ok ? 'allow' : 'deny'
+    )
     permissionRuns.delete(response.requestId)
     return ok
   })

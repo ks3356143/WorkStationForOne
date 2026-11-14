@@ -25,7 +25,7 @@ import {
 import { clozeFrontText } from '../../../shared/cloze'
 import { createInitialData } from '../data/mock'
 import { dateKey } from '../../../shared/date-key'
-import { agentSessionDate, agentSessionMeta } from '../lib/agent'
+import { agentSessionDate, agentSessionMeta, sessionFromRecord } from '../lib/agent'
 import { toChatMessage } from '../lib/chat-message'
 import { toggleCheckin } from '../lib/habits'
 import { dueQueue, isNewCard } from '../lib/learning'
@@ -189,6 +189,8 @@ interface WorkstationActions {
   clearAgentJump: () => void
   setAgentThread: (sessionId: string, messages: ChatMessage[]) => void
   createAgentSession: (agent?: AgentId, persona?: string) => void
+  /** 主进程新建的会话（团队）补进内存，避免要刷新才能看到 */
+  addAgentSessions: (records: AgentSessionRecord[]) => void
   setAgentResume: (sessionId: string, resumeId: string) => void
   renameAgentSession: (sessionId: string, title: string) => void
   toggleAgentSessionPin: (sessionId: string) => void
@@ -742,6 +744,19 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
         title: '新会话',
         ...(persona ? { persona } : {})
       })
+    })
+  },
+
+  addAgentSessions: (records) => {
+    if (records.length === 0) return
+    const now = Date.now()
+    set((state) => {
+      const existing = new Set(state.sessions.map((session) => session.id))
+      const added = records
+        .filter((record) => !existing.has(record.id))
+        .map((record) => sessionFromRecord(record, 0, now))
+      if (added.length === 0) return {}
+      return { sessions: [...added, ...state.sessions] }
     })
   },
 

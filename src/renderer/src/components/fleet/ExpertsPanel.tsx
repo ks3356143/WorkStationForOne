@@ -92,7 +92,7 @@ function ExpertForm({ initial, mcp, skills, busy, onCancel, onSave }: ExpertForm
               <span>MCP {server.name}</span>
             </label>
           ))}
-          {skills.map((skill) => (
+          {[...new Map(skills.map((skill) => [skill.id, skill])).values()].map((skill) => (
             <label key={`skill:${skill.id}`} className="w1-exptool">
               <input
                 type="checkbox"
@@ -143,6 +143,13 @@ export function ExpertsPanel({ notify, onLaunched }: ExpertsPanelProps) {
       .catch(() => setExperts([]))
   }
   useEffect(reload, [api])
+
+  // 删除两段确认 4 秒后自动撤销，避免一次误触在很久之后生效。
+  useEffect(() => {
+    if (!armDelete) return
+    const timer = window.setTimeout(() => setArmDelete(null), 4000)
+    return () => window.clearTimeout(timer)
+  }, [armDelete])
 
   useEffect(() => {
     if (!form || !capApi) return

@@ -44,6 +44,15 @@ export interface TurnLike {
   text: string
 }
 
+/** 系统提示前缀上限：Windows 命令行总长约 32k，留出其它参数与余量。 */
+export const SYSTEM_PREFIX_MAX = 12_000
+
+/** 超长系统前缀截断并标记，避免 spawn 因命令行过长直接失败。 */
+export function clampSystemPrefix(text: string, max = SYSTEM_PREFIX_MAX): string {
+  if (text.length <= max) return text
+  return `${text.slice(0, Math.max(0, max - 12))}…已截断`
+}
+
 const trunc = (text: string, max: number): string =>
   text.length > max ? `${text.slice(0, max)}…` : text
 

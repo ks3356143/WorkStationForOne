@@ -86,4 +86,21 @@ describe('summarizeTurnsWithLocal', () => {
       })
     ).toBeNull()
   })
+
+  it('禁止重定向（回环跳远端）', async () => {
+    let redirect = ''
+    await summarizeTurnsWithLocal({
+      baseUrl: 'http://127.0.0.1:1',
+      model: 'm',
+      turns,
+      fetchImpl: (async (_url: string | URL | Request, init?: RequestInit) => {
+        redirect = (init?.redirect as string) ?? ''
+        return {
+          ok: true,
+          json: async () => ({ choices: [{ message: { content: 'x' } }] })
+        } as unknown as Response
+      }) as unknown as typeof fetch
+    })
+    expect(redirect).toBe('error')
+  })
 })

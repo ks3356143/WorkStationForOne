@@ -131,4 +131,10 @@ describe('resolvePluginSource', () => {
   it('拒绝越界路径', () => {
     expect(() => resolvePluginSource('D:\\src', '../outside')).toThrow(/仓库外/)
   })
+
+  it('拒绝绝对路径 / UNC / 盘符 source', () => {
+    expect(() => resolvePluginSource('D:\\src', 'C:\\Windows\\evil')).toThrow(/相对路径|仓库外/)
+    expect(() => resolvePluginSource('D:\\src', '\\\\host\\share')).toThrow(/相对路径|仓库外/)
+    expect(() => resolvePluginSource('D:\\src', '/etc/passwd')).toThrow(/相对路径|仓库外/)
+  })
 })

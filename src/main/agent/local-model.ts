@@ -52,6 +52,8 @@ export async function summarizeTurnsWithLocal(input: LocalSummaryInput): Promise
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         signal: controller.signal,
+        // 回环端点若 30x 跳转会把整段会话转发到远端，直接拒绝重定向。
+        redirect: 'error',
         body: JSON.stringify({
           model: input.model,
           messages: [

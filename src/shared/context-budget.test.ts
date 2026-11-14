@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { assembleBudgeted, compactTurns, type ContextBlock } from './context-budget'
+import {
+  assembleBudgeted,
+  clampSystemPrefix,
+  compactTurns,
+  SYSTEM_PREFIX_MAX,
+  type ContextBlock
+} from './context-budget'
 
 const block = (label: string, text: string, priority: number): ContextBlock => ({
   label,
@@ -44,6 +50,18 @@ describe('assembleBudgeted', () => {
 
   it('空块返回空串', () => {
     expect(assembleBudgeted([], 100).text).toBe('')
+  })
+})
+
+describe('clampSystemPrefix', () => {
+  it('短前缀原样返回', () => {
+    expect(clampSystemPrefix('短')).toBe('短')
+  })
+
+  it('超长前缀截断并标记，长度不超上限', () => {
+    const out = clampSystemPrefix('x'.repeat(SYSTEM_PREFIX_MAX + 500))
+    expect(out.length).toBeLessThanOrEqual(SYSTEM_PREFIX_MAX)
+    expect(out).toContain('已截断')
   })
 })
 

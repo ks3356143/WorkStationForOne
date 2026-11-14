@@ -4,6 +4,7 @@
   position: relative;
   width: min(820px, calc(100vw - 80px));
   max-height: min(680px, calc(100vh - 96px));
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 10px;

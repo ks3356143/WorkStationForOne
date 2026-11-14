@@ -1,5 +1,31 @@
 import { addDaysKey, dateKey } from '../../../shared/date-key'
-import type { AgentId, ToolCall } from '../types'
+import type { AgentSessionRecord } from '../../../shared/ipc'
+import type { AgentId, Session, ToolCall } from '../types'
+
+/** 数据库会话记录 → 渲染层 Session；hydrate 与新会话补录共用同一映射。 */
+export function sessionFromRecord(
+  record: AgentSessionRecord,
+  messageCount: number,
+  now: number
+): Session {
+  return {
+    id: record.id,
+    agent: record.agent,
+    title: record.title,
+    status: record.status,
+    meta: agentSessionMeta(record.updatedAt, messageCount, now),
+    threadDate: agentSessionDate(record.updatedAt, now),
+    ...(record.workspace ? { workspace: record.workspace } : {}),
+    ...(record.resumeId ? { resumeId: record.resumeId } : {}),
+    ...(record.pendingFork ? { pendingFork: true } : {}),
+    ...(record.forkTurnId ? { forkTurnId: record.forkTurnId } : {}),
+    ...(record.pinned ? { pinned: true } : {}),
+    ...(record.archived ? { archived: true } : {}),
+    ...(record.planMode ? { planMode: true } : {}),
+    ...(record.persona ? { persona: record.persona } : {}),
+    ...(record.teamId ? { teamId: record.teamId } : {})
+  }
+}
 
 export interface AgentMeta {
   name: string

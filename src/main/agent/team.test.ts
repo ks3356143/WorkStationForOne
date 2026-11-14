@@ -64,4 +64,13 @@ describe('TeamService', () => {
     expect(notes[1].role).toBe('assistant')
     db.close()
   })
+
+  it('黑板拒绝非本团队会话', () => {
+    const { db, svc } = seed()
+    const dir = mkdtempSync(join(tmpdir(), 'wsfo-ws-'))
+    dirs.push(dir)
+    const team = svc.create({ name: 't', workspace: dir, workers: [{ title: 'w' }] })
+    expect(() => svc.post(team.teamId, 's-missing', 'user', 'x')).toThrow(/不属于/)
+    db.close()
+  })
 })

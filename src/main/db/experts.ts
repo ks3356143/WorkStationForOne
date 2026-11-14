@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
+import { BUILTIN_EXPERTS } from '../../shared/experts'
 import type { ExpertRecord, ExpertSaveInput, ExpertSourceRecord } from '../../shared/ipc'
 
 interface ExpertRow {
@@ -98,8 +99,15 @@ export class ExpertRepository {
     const now = Date.now()
     const name = input.name.trim()
     const description = input.description.trim()
-    const toolsJson = JSON.stringify(input.tools)
+    // 仓储层再兜一次上限：市场导入与自进化绕过 IPC 校验时也不能无限注入系统提示。
+    const persona = input.persona.slice(0, 20_000)
+    const tools = input.tools.slice(0, 50)
+    const toolsJson = JSON.stringify(tools)
     const existing = input.id ? this.findExpert(input.id) : undefined
+    // 内置 id 保留给内置项；同 id 的自定义行会让 find() 静默遮蔽其中一个。
+    if (!existing && input.id && BUILTIN_EXPERTS.some((def) => def.id === input.id)) {
+      throw new Error('内置专家 id 不可占用')
+    }
     if (existing) {
       if (existing.builtin) throw new Error('内置专家不可覆盖')
       this.db
@@ -107,13 +115,13 @@ export class ExpertRepository {
           `UPDATE agent_experts SET name = ?, description = ?, persona = ?, tools_json = ?, updated_at = ?
            WHERE id = ?`
         )
-        .run(name, description, input.persona, toolsJson, now, existing.id)
+        .run(name, description, persona, toolsJson, now, existing.id)
       return {
         ...existing,
         name,
         description,
-        persona: input.persona,
-        tools: input.tools,
+        persona,
+        tools,
         updatedAt: now
       }
     }
@@ -123,13 +131,13 @@ export class ExpertRepository {
         `INSERT INTO agent_experts (id, name, description, persona, tools_json, builtin, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, 0, ?, ?)`
       )
-      .run(id, name, description, input.persona, toolsJson, now, now)
+      .run(id, name, description, persona, toolsJson, now, now)
     return {
       id,
       name,
       description,
-      persona: input.persona,
-      tools: input.tools,
+      persona,
+      tools,
       builtin: false,
       createdAt: now,
       updatedAt: now

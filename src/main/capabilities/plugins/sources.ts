@@ -110,11 +110,19 @@ function parseSource(raw: unknown): {
   return { source: '', sourceKind: 'local', subdir: '' }
 }
 
+/** source 不得跑出仓库：绝对路径 / 盘符 / UNC / `..` 都会让安装指向源目录之外。 */
 function assertInsideRoot(source: string): void {
   if (!source) return
-  const rel = relative('/', source.replace(/\\/g, '/'))
-  void rel
-  if (/^\.\.([\\/]|$)/.test(source) || source.includes('../') || source.includes('..\\')) {
+  if (
+    isAbsolute(source) ||
+    /^[A-Za-z]:[\\/]/.test(source) ||
+    source.startsWith('\\\\') ||
+    source.startsWith('/')
+  ) {
+    throw new Error('插件 source 必须是仓库内相对路径')
+  }
+  const parts = source.replace(/\\/g, '/').split('/')
+  if (parts.some((part) => part === '..')) {
     throw new Error('插件 source 指向仓库外，已拒绝')
   }
 }
@@ -162,7 +170,12 @@ export function readMarketplace(root: string): MarketplaceManifest {
 export function resolvePluginSource(root: string, source: string): string {
   if (!source) return root
   assertInsideRoot(source)
-  return resolve(root, source)
+  const resolved = resolve(root, source)
+  const rel = relative(root, resolved)
+  if (rel.startsWith('..') || isAbsolute(rel)) {
+    throw new Error('插件 source 指向仓库外，已拒绝')
+  }
+  return resolved
 }
 
 function gitEnv(): NodeJS.ProcessEnv {

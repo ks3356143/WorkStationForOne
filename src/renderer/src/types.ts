@@ -66,6 +66,8 @@ export interface Session {
   planMode?: boolean
   /** 专家人设快照；发送时拼进系统提示 */
   persona?: string
+  /** 多智能体编排：同一团队的会话共享黑板 */
+  teamId?: string
 }
 
 export interface AgentStream {
