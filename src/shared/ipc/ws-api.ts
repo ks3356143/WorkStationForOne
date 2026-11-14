@@ -8,6 +8,7 @@ import type { LearningApi } from './learning'
 import type { McpApi } from './mcp'
 import type { CaptureApi, NoteApi } from './notes'
 import type { ProviderApi } from './agent'
+import type { PromptApi } from './prompts'
 import type { ReminderApi } from './reminders'
 import type { TaskApi } from './tasks'
 
@@ -23,6 +24,7 @@ export interface WsApi {
   mcp: McpApi
   capability: CapabilityApi
   experts: ExpertApi
+  prompts: PromptApi
   audit: AuditApi
   app: AppApi
 }

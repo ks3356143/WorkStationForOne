@@ -247,6 +247,11 @@ const api: WsApi = {
         ipcRenderer.invoke(IPC_CHANNELS.expertMarketImport, { sourceId, relPath })
     }
   },
+  prompts: {
+    list: () => ipcRenderer.invoke(IPC_CHANNELS.promptsList),
+    save: (input) => ipcRenderer.invoke(IPC_CHANNELS.promptsSave, input),
+    remove: (id) => ipcRenderer.invoke(IPC_CHANNELS.promptsRemove, id)
+  },
   audit: {
     recent: (limit, domain) => ipcRenderer.invoke(IPC_CHANNELS.auditRecent, limit, domain)
   },

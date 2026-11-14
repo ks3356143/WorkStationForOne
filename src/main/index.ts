@@ -36,6 +36,7 @@ import { agentCapabilityRuntime, createCapabilityCenter } from './capabilities'
 import { checkCliUpdates } from './capabilities/cli-updates'
 import { registerCapabilityHandlers } from './ipc/capability'
 import { registerExpertHandlers } from './ipc/expert-handlers'
+import { registerPromptHandlers } from './ipc/prompt-handlers'
 import { registerPluginHandlers } from './ipc/plugin-handlers'
 import { IPC_CHANNELS } from '../shared/ipc'
 
@@ -282,6 +283,7 @@ if (!gotTheLock) {
     registerLearningHandlers(database.learning)
     registerHabitHandlers(database.habits)
     registerProviderHandlers(providers)
+    registerPromptHandlers(database.prompts)
     const approvalRules = new ApprovalRuleService({
       rules: database.approvalRules,
       sessions: database.agent,

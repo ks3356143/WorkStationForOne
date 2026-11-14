@@ -7,7 +7,7 @@ import {
   type KeyboardEvent
 } from 'react'
 import { MAX_CONTEXT_FILES } from '../../../../shared/agent-context'
-import type { AgentImageRef, WorkspaceEntry } from '../../../../shared/ipc'
+import type { AgentImageRef, PromptTemplateRecord, WorkspaceEntry } from '../../../../shared/ipc'
 import { AGENT_META } from '../../lib/agent'
 import {
   filterWorkspaceFiles,
@@ -15,6 +15,7 @@ import {
   removeMention,
   type MentionMatch
 } from '../../lib/mention'
+import { applyTemplate, filterTemplates, matchSlash, type SlashMatch } from '../../lib/prompt-slash'
 import type { AgentId } from '../../types'
 import { Popover } from '../fields/Popover'
 import { SendIcon } from '../Glyphs'
@@ -76,6 +77,9 @@ export function Composer({
   const [fileError, setFileError] = useState<string | null>(null)
   const [mention, setMention] = useState<MentionMatch | null>(null)
   const [highlight, setHighlight] = useState(0)
+  const [slash, setSlash] = useState<SlashMatch | null>(null)
+  const [templates, setTemplates] = useState<PromptTemplateRecord[] | null>(null)
+  const [slashHighlight, setSlashHighlight] = useState(0)
   const [attachError, setAttachError] = useState<string | null>(null)
   const [images, setImages] = useState<AgentImageRef[]>([])
   const [imageBusy, setImageBusy] = useState(false)
@@ -97,11 +101,39 @@ export function Composer({
   }, [draftRequest, draftText, draftSessionId, sessionId])
   const blocked = missingWorkspace || !threadReady
   const bridge = typeof window === 'undefined' ? undefined : window.ws?.agent
+  const promptBridge = typeof window === 'undefined' ? undefined : window.ws?.prompts
 
   const filtered = useMemo(
     () => (mention && files ? filterWorkspaceFiles(files, mention.query) : []),
     [files, mention]
   )
+  const filteredTemplates = useMemo(
+    () => (slash && templates ? filterTemplates(templates, slash.query) : []),
+    [templates, slash]
+  )
+
+  const loadTemplates = () => {
+    if (templates !== null || !promptBridge) return
+    void promptBridge
+      .list()
+      .then(setTemplates)
+      .catch(() => setTemplates([]))
+  }
+
+  const applyPrompt = (template: PromptTemplateRecord) => {
+    if (!slash) return
+    const { value, placeholder } = applyTemplate(draft, slash.start, slash.query, template.body)
+    setDraft(value)
+    setSlash(null)
+    onDraftApplied?.()
+    window.requestAnimationFrame(() => {
+      const input = inputRef.current
+      if (!input) return
+      input.focus()
+      if (placeholder) input.setSelectionRange(placeholder.start, placeholder.end)
+      else input.setSelectionRange(value.length, value.length)
+    })
+  }
 
   const loadFiles = () => {
     if (files !== null || loadingFiles) return
@@ -153,6 +185,7 @@ export function Composer({
     setAttachments([])
     setImages([])
     setMention(null)
+    setSlash(null)
     setAttachError(null)
   }
 
@@ -215,6 +248,34 @@ export function Composer({
       if (event.key === 'Escape') {
         event.preventDefault()
         setMention(null)
+        return
+      }
+    }
+    if (slash && !blocked) {
+      if (event.key === 'ArrowDown' && filteredTemplates.length > 0) {
+        event.preventDefault()
+        setSlashHighlight((current) => (current + 1) % filteredTemplates.length)
+        return
+      }
+      if (event.key === 'ArrowUp' && filteredTemplates.length > 0) {
+        event.preventDefault()
+        setSlashHighlight(
+          (current) => (current - 1 + filteredTemplates.length) % filteredTemplates.length
+        )
+        return
+      }
+      if (
+        (event.key === 'Enter' || event.key === 'Tab') &&
+        !composing &&
+        filteredTemplates.length > 0
+      ) {
+        event.preventDefault()
+        applyPrompt(filteredTemplates[Math.min(slashHighlight, filteredTemplates.length - 1)])
+        return
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setSlash(null)
         return
       }
     }
@@ -298,7 +359,7 @@ export function Composer({
           aria-label="给 agent 的消息"
           role="combobox"
           aria-autocomplete="list"
-          aria-expanded={Boolean(mention && !blocked)}
+          aria-expanded={Boolean((mention || slash) && !blocked)}
           aria-controls="composer-context-list"
           onPaste={onPaste}
           onChange={(event) => {
@@ -310,6 +371,10 @@ export function Composer({
             setMention(hit)
             setHighlight(0)
             if (hit) loadFiles()
+            const slashHit = matchSlash(value, caret)
+            setSlash(slashHit)
+            setSlashHighlight(0)
+            if (slashHit) loadTemplates()
           }}
           onKeyDown={onKeyDown}
         />
@@ -416,6 +481,40 @@ export function Composer({
             ))}
           </div>
           <div className="w1-ctxpick-foot">↑↓ 选择 · Enter 附加 · Esc 关闭</div>
+        </div>
+      </Popover>
+      <Popover
+        anchor={composeRef.current}
+        focusTarget={inputRef.current}
+        open={Boolean(slash && !blocked)}
+        onClose={() => setSlash(null)}
+        label="提示词模板"
+        width={420}
+      >
+        <div className="w1-ctxpick">
+          <div className="w1-ctxpick-head">
+            <span>// PROMPT TEMPLATES</span>
+            <span>{filteredTemplates.length} 个匹配</span>
+          </div>
+          {filteredTemplates.length === 0 ? (
+            <div className="w1-ctxpick-empty">没有匹配的模板（设置页可新建）</div>
+          ) : null}
+          <div className="w1-ctxpick-list" role="listbox" aria-label="提示词模板">
+            {filteredTemplates.map((template, index) => (
+              <button
+                key={template.id}
+                type="button"
+                role="option"
+                aria-selected={index === slashHighlight}
+                className={`w1-ctxpick-row${index === slashHighlight ? ' active' : ''}`}
+                onMouseEnter={() => setSlashHighlight(index)}
+                onClick={() => applyPrompt(template)}
+              >
+                <span className="w1-ctxpick-path">{template.name}</span>
+              </button>
+            ))}
+          </div>
+          <div className="w1-ctxpick-foot">↑↓ 选择 · Enter 插入 · Esc 关闭</div>
         </div>
       </Popover>
     </div>

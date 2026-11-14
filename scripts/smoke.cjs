@@ -7395,6 +7395,69 @@ async function run() {
     results.checks.push({ name: '专家与市场验证', ok: false, detail: String(error) })
   }
 
+  // 提示词模板：数据层 + 设置管理分区 + Composer / 选择器插入。
+  try {
+    const prompts = await win.webContents.executeJavaScript(`(async () => {
+      const checks = []
+      const check = (name, ok, detail = '') => checks.push({ name, ok, detail: String(detail).slice(0, 120) })
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+      const all = (sel) => [...document.querySelectorAll(sel)]
+      const one = (sel) => document.querySelector(sel)
+      const byText = (sel, text) => all(sel).find((el) => el.textContent.includes(text))
+      const waitFor = async (fn, timeout = 3000) => {
+        const started = Date.now()
+        while (Date.now() - started < timeout) { try { if (await fn()) return true } catch {} await sleep(120) }
+        return false
+      }
+      const setValue = (el, value) => {
+        const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype
+        Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value)
+        el.setSelectionRange(value.length, value.length)
+        el.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+      const ws = window.ws
+      const saved = await ws.prompts.save({ name: '冒烟审查', body: '审查 {文件} 并给出建议' })
+      const listed = (await ws.prompts.list()).some((t) => t.id === saved.id)
+      check('提示词模板保存落库', !!saved.id && listed, saved.id)
+
+      one('.w1-settings')?.click()
+      await waitFor(() => !!one('.w1-settings-sheet'), 2000)
+      const sectionShown = await waitFor(
+        () => (one('.w1-setgroup[aria-label="提示词模板"]')?.textContent ?? '').includes('冒烟审查'),
+        2000
+      )
+      check('设置页提示词分区列出模板', sectionShown, one('.w1-setgroup[aria-label="提示词模板"]')?.textContent?.slice(0, 40) ?? 'missing')
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
+      await waitFor(() => !one('.w1-settings-sheet'), 2000)
+
+      const navAgent = all('.w1-navitem').find((el) => el.querySelector('.w1-navtext b')?.textContent?.trim() === 'Agent')
+      navAgent?.click()
+      await sleep(600)
+      one('.w1-gadd')?.click()
+      await waitFor(() => !!one('.w1-aworkspacegate .w1-pb'), 2000)
+      one('.w1-aworkspacegate .w1-pb')?.click()
+      await waitFor(() => one('#composer-input') && !one('#composer-input').disabled, 3000)
+      const input = one('#composer-input')
+      let pickerShown = false
+      if (input && !input.disabled) {
+        setValue(input, '/')
+        pickerShown = await waitFor(
+          () => (one('.w1-ctxpick-list[aria-label="提示词模板"]')?.textContent ?? '').includes('冒烟审查'),
+          2000
+        )
+      }
+      check('Composer / 弹出模板选择器', pickerShown, one('#composer-input')?.disabled ? 'input disabled' : 'picker')
+      byText('.w1-ctxpick-list[aria-label="提示词模板"] .w1-ctxpick-row', '冒烟审查')?.click()
+      const inserted = await waitFor(() => (one('#composer-input')?.value ?? '').includes('审查'), 2000)
+      check('选择模板插入正文', inserted, one('#composer-input')?.value?.slice(0, 40) ?? 'missing')
+      await ws.prompts.remove(saved.id)
+      return { checks }
+    })()`)
+    results.checks.push(...prompts.checks)
+  } catch (error) {
+    results.checks.push({ name: '提示词模板验证', ok: false, detail: String(error) })
+  }
+
   // 面板加载错误态：摘掉真实 IPC handler 制造真实拒绝，再装回空数据 handler 验证重试恢复。
   // 必须放在所有断言之后：恢复用的 handler 返回空数据，前面的断言会读到假结果。
   try {

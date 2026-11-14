@@ -15,6 +15,7 @@ import { useListAnimate } from '../lib/use-list-animate'
 import { CapabilityPanel } from './capability/CapabilityPanel'
 import { BackupRestore } from './settings/BackupRestore'
 import { DataBridgeSection } from './settings/DataBridgeSection'
+import { PromptTemplatesSection } from './settings/PromptTemplatesSection'
 import { ProviderCard } from './settings/ProviderCard'
 
 interface SettingsSheetProps {
@@ -263,6 +264,8 @@ export function SettingsSheet({ onClose, notify }: SettingsSheetProps) {
               <ProviderCard notify={notify} />
 
               <DataBridgeSection notify={notify} onAuditRefresh={refreshAudit} />
+
+              <PromptTemplatesSection notify={notify} />
 
               <section className="w1-setgroup" aria-label="审批规则">
                 <h3>审批规则</h3>

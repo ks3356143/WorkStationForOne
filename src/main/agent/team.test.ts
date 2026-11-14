@@ -24,7 +24,7 @@ afterEach(() => {
 describe('TeamService', () => {
   it('迁移 v52 建黑板表', () => {
     const { db } = seed()
-    expect(userVersion(db)).toBe(53)
+    expect(userVersion(db)).toBe(54)
     const tables = db
       .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='agent_team_notes'")
       .all()

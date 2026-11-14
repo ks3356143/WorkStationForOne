@@ -25,7 +25,7 @@ afterEach(() => {
 describe('迁移 v48', () => {
   it('建立专家与市场源表，会话增加 persona', () => {
     const { db } = seedDb()
-    expect(userVersion(db)).toBe(53)
+    expect(userVersion(db)).toBe(54)
     const tables = db
       .prepare(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('agent_experts', 'expert_sources') ORDER BY name"
@@ -56,7 +56,7 @@ describe('迁移 v48', () => {
 
     migrate(db)
 
-    expect(userVersion(db)).toBe(53)
+    expect(userVersion(db)).toBe(54)
     const agent = new AgentRepository(db)
     expect(agent.findSession('s1')?.persona).toBeUndefined()
     db.close()

@@ -1717,11 +1717,11 @@ async function main() {
   record('渲染进程无 Node require', security.require === 'undefined', security.require)
   record('渲染进程无 process', security.process === 'undefined', security.process)
   record(
-    'preload 桥仅暴露窄接口（tasks/reminders/notes/capture/learning/habits/agent/mcp/capability/provider/experts/audit/app.setTheme+windowControls+backupRestore+info+storage）',
+    'preload 桥仅暴露窄接口（tasks/reminders/notes/capture/learning/habits/agent/mcp/capability/provider/experts/prompts/audit/app.setTheme+windowControls+backupRestore+info+storage）',
     security.invoke === 'function' &&
       !security.dbAccess &&
       [...security.wsKeys].sort().join() ===
-        'agent,app,audit,capability,capture,experts,habits,learning,mcp,notes,provider,reminders,tasks' &&
+        'agent,app,audit,capability,capture,experts,habits,learning,mcp,notes,prompts,provider,reminders,tasks' &&
       security.appKeys.join() ===
         'setTheme,windowMinimize,windowToggleMaximize,windowClose,windowState,onWindowState,backupNow,listBackups,restoreBackup,restoreStatus,relaunch,info,storage,pickStorage,cancelStorage',
     security

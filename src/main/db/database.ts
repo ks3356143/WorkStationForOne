@@ -902,6 +902,18 @@ export const MIGRATIONS: Migration[] = [
         enabled INTEGER NOT NULL DEFAULT 0
       );
     `
+  },
+  {
+    version: 54,
+    sql: `
+      CREATE TABLE prompt_templates (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        body TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+    `
   }
 ]
 

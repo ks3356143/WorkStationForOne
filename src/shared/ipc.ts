@@ -163,6 +163,7 @@ export type {
   ExpertMarketApi,
   ExpertApi
 } from './ipc/experts'
+export type { PromptTemplateRecord, PromptTemplateInput, PromptApi } from './ipc/prompts'
 export type {
   BackupResult,
   BackupEntry,
@@ -189,6 +190,7 @@ export const WS_API_KEYS = [
   'mcp',
   'capability',
   'experts',
+  'prompts',
   'audit',
   'app'
 ] as const satisfies readonly (keyof WsApi)[]

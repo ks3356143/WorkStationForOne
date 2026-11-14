@@ -15,6 +15,7 @@ import { LearningRepository } from './learning'
 import { McpPolicyRepository } from './mcp'
 import { NoteRepository } from './notes'
 import { ProviderRepository } from './providers'
+import { PromptTemplateRepository } from './prompt-templates'
 import { ReminderMuteRepository } from './reminders'
 import { runInTransaction } from './transaction'
 import { TaskRepository } from './tasks'
@@ -41,6 +42,7 @@ export interface DatabaseContext {
   experts: ExpertRepository
   localModel: LocalModelRepository
   providers: ProviderRepository
+  prompts: PromptTemplateRepository
   mcp: McpPolicyRepository
   approvalRules: ApprovalRuleRepository
   toolPrefs: ToolPrefRepository
@@ -97,6 +99,7 @@ export function initDatabase(): DatabaseContext {
     experts: new ExpertRepository(db),
     localModel: new LocalModelRepository(db),
     providers: new ProviderRepository(db),
+    prompts: new PromptTemplateRepository(db),
     mcp: new McpPolicyRepository(db, audit),
     approvalRules: new ApprovalRuleRepository(db),
     toolPrefs: new ToolPrefRepository(db),
