@@ -9,17 +9,20 @@
 - 备份：每天首次启动用 `VACUUM INTO` 生成一份快照到 `<库目录>/backups/`（`workstation-YYYYMMDD-HHmmss.db`），只保留最近 10 份；命令面板「立即备份数据」可手动触发并在提示条显示文件名与大小。VACUUM INTO 是一致性快照，不需要停写入，也不要把库文件直接 `copyFile`（会拷到 WAL 中间态）。
 - 已实现：备份恢复（0.38.0）。设置页「数据」列出快照（时间、大小、恢复前快照标记），两段确认；主进程只读校验完整性、版本与任务表，先留 `-pre` 安全快照，再写 `<dataDir>/restore.json`。下次启动开库前替换数据库：当前库改名留底 → 复制备份 → 开库校验并迁移；失败自动回滚，启动不阻断。运行中不替换数据库，「立即重启」调用 `app.relaunch`；损坏/更新版本备份给出可读错误。真实两阶段重启验证：恢复前任务保留、恢复后新增任务被回滚、状态为 `applied`。
 - 迁移前会自动 `VACUUM INTO` 备份到库文件旁。迁移 SQL 不得替用户伪造语义（例如给历史任务填「今天到期」）。
-- 渲染进程不直接访问数据库；新增数据能力必须走 `src/shared/ipc.ts` 的类型契约 + `src/main/ipc/` 的 handler，并在主进程校验入参。preload 桥目前暴露 `provider / tasks / reminders / notes / capture / learning / habits / agent / mcp / capability / experts / prompts / audit / app` 十四组接口（类型定义在 `src/shared/ipc/`，统一从 `shared/ipc` 导出），`runtime-verify.mjs` 会断言这个集合，扩面时同步更新。
+- 渲染进程不直接访问数据库；新增数据能力必须走 `src/shared/ipc.ts` 的类型契约 + `src/main/ipc/` 的 handler，并在主进程校验入参。preload 桥目前暴露 `provider / tasks / reminders / notes / capture / learning / habits / agent / mcp / capability / experts / prompts / mood / focus / audit / app` 十六组接口（类型定义在 `src/shared/ipc/`，统一从 `shared/ipc` 导出），`runtime-verify.mjs` 会断言这个集合，扩面时同步更新。
+- 已实现：心情打卡与专注工时持久化（0.93.0，DB v55/v56）。`mood_entries(day PK, mood, energy, note, updated_at)` 本地日期一天一条 upsert；`focus_sessions(id, task_id, label, kind focus|break, minutes, started_at, completed_at)` 记录专注/休息段，任务实际工时按 `task_id` 汇总派生（不给 tasks 加列）。两者各走 `mood` / `focus` IPC 组，审计 action 为 `mood-save` / `focus-log`（domain system，备注不落审计）。
 - 已实现：外壳「左侧主导航 + 单个全宽工作区」。今日（模块流）、任务（清单栏 + 任务列表）、Agent（会话栏 + 聊天区）、笔记（全宽工作区）、学习（科目栏 + 卡片列表 / 复习态）互斥渲染；左侧导航同时承载舰队总览、外部启动器与设置；命令面板可直接跳转视图或新建任务。
 - 已实现：全局快速捕获窗（`Ctrl+Alt+Space`）。独立 560×168 无边框窗口走同一 preload，用 `capture:create` 落库后广播 `tasks:changed`，主窗口调用 `refreshTasks()` 重新拉库；失焦或 Esc 自动隐藏。
 - 已实现：自绘窗口控制（0.45.3）。顶栏右侧改用 `.w1-winctl` 的三枚应用自绘按钮（最小化 / 最大化·还原 / 关闭），通过 `app:window-*` 窄 IPC 操作 BrowserWindow；最大化状态由主进程 `maximize` / `unmaximize` 事件推给渲染层并切换图标。移除原生 `titleBarOverlay` 后，黑块与系统图标不再覆盖顶栏；按钮沿用 HUD 细线图标、紫色 hover 与红色关闭态，顶栏仍可拖动，按钮区不可拖动。1440×900 / 1180×720、暗/亮、最大化/还原/最小化/关闭均已实测。
 - 已实现：全局搜索（0.38.0）。命令面板跨任务/笔记/会话/学习卡搜索，命令优先；任务跳详情、笔记直接打开详情、会话跳到消息、学习卡定位高亮；远程搜索防抖，归档会话不出现。
+- 已实现：命令面板内置计算器（0.93.0）。输入算式即时在列表顶部出「＝ 结果」行，Enter 复制；支持四则/幂/取模/百分数/常用函数与常量，以及小集合单位换算（长度/质量/温度）。解析在纯函数 `lib/calc.ts`（递归下降，**不用 eval/Function**，非法与非有限结果返回 null）；普通搜索词与单个常量不触发，避免劫持搜索。
 - 已实现：首屏读库占位与 hover 高亮间距（0.36.6）。任务列表 / 笔记 / Agent 会话栏 / 学习卡在第一次读库结束前显示 `components/StatePlaceholder.tsx` 骨架，不再先闪「还没有…」空态；`tasksReady / notesReady / sessionsReady / learningReady` 在成功、失败与无 preload 桥三种路径都会置 `true`，缺桥时不结束占位会永远停在骨架（`capture` 无桥，已实测）。能力中心首屏同样有骨架，读取失败的横幅多了「重试」。任务行（`.w1-todorowmain`）与今日看板任务行（`.w1-task`）改为左侧 8px 内边距，hover 的 2px 高亮线画在留白里，不再压住拖拽手柄与时间文字——`13-responsive.css` 的 1180 断点曾把值覆盖回 0，两个文件必须同步改；冒烟有两处几何断言兜底。
 
 ## 任务
 
 - 已实现：任务工作区与完整任务字段。`tasks` 迁移到 v6：v3 新增 `notes / due_date / priority / list`，v4 新增 `deleted_at` 做软删（删除保留 30 天后清理，撤销只需清空该列），v6 新增 `planned_for / estimate_minutes` 区分「计划做」与「截止」；仓库支持 `create / update / remove / restore`；今日卡只含今天与逾期；快速添加、去向提示、清单派生、搜索（Esc 清空）、行内详情、快捷日期、焦点归位和 `Ctrl+Shift+N` 已接入。权限卡顺延会同步截止日期；笔记总数独立保存在 `noteTotal`，导航与上下文用量使用数据库总数而非预览条数。
 - 已实现：任务周视图（0.38.0 → 0.41.0）。周一起始 7 列，按计划/截止日期归组，拖拽写计划日期；顶部未排期条可拖入某天，拖拽后 toast 可撤销；子任务不进入周看板。0.41.0 增加键盘排期：任务卡 `Alt + ←/→` 移动一天，跨周时看板跟随并恢复焦点；未排期条 `Alt + →` 排到本周一，键盘移动不走位移动画。
+- 已实现：任务月视图（0.93.0）。视图分段控件「列表/周/月」；月历周一起始固定 42 格（含前后月补位），每日格显示任务数 + 负载热力（`lib/month.ts` 的 `dayLoad` 分档）+ 至多两条任务 chip，拖拽改计划日期、点日期切回列表并按该日过滤（可清除）。子任务不进入；纯函数 `monthGrid/groupTasksByMonth/shiftMonth` 带单测。
 - 已实现：任务重复规则增强（0.61.0，DB v43）。`tasks.repeat` 历史值 `daily|weekly|monthly` 保留，新增 `weekday`、`every:N`（2–30）、`monthly-nth:N:W`（1–4 / 0–6），编码在文本列里，不需要新表。SQLite 不能直接改 CHECK，v43 重建 `tasks` 并临时关闭外键（否则 `reminder_mutes` 的级联会清空静音），提交前跑 `foreign_key_check`。规则集中在 `shared/repeat.ts`：工作日跳过周末，每月第 N 个周几严格取晚于到期日的下一个匹配日，每月日期不存在时收敛到月末；编辑器显示「下次」日期。
 - 已实现：提醒中心（0.38.0 → 0.44.0）。状态栏与命令面板入口，派生今天已错过/稍后，点击跳任务详情，行内可完成或延后 10 分钟；延后会在新时间再次提醒，不补发系统通知。0.44.0 在 `+10 分` 旁增加稍后菜单（10 / 30 / 60 分钟 / 明天 09:00）。
 - 已实现：提醒静音（0.39.0，DB v34）。提醒中心每行「今天不再提醒」按 `task_id + 本地日期` 写入 `reminder_mutes`，主进程轮询与状态栏计数共用同一集合；同一天改时间仍不提醒，换天自动恢复。底部显示「今天已静音 N 项 · 恢复全部」，提示条可撤销；硬删除任务级联清理，启动与跨天清理过期记录。静音只影响通知与提醒中心，不改任务本身。
@@ -31,6 +34,8 @@
 - 已实现：今日看板「完成记录」热力图。近 26 周 × 7 天（周一起始），四档色阶与「项完成 / 天有记录 / 最多一天」统计，规则在纯函数 `lib/heatmap.ts`；种子数据中今天已完成的两条任务带 `completedAt`，首次启动即可见当天格子。没有 `completedAt` 的旧数据不计入，也不要迁移伪造。
 - 已实现：今日收尾（0.66.0）。今日页头部「今日收尾」打开 `DailyReviewSheet`，汇总完成 / 未完成 / 习惯 / 到期复习 / Agent；未完成默认勾选，可顺延到明天（计划日改到明天，截止日在今天或更早时一并推后），面板打开时对任务 / 习惯 / 学习做快照。复盘笔记首行 `YYYY-MM-DD 今日复盘`，标签「复盘」，走现有 `addNote`，超过 4000 字截断；不新增 IPC 或数据库表。Esc / 遮罩关闭，关闭后焦点回到入口。新增 14 项单测、8 项冒烟。
 - 已实现：本周回顾（0.69.0 → 0.72.0）。今日页头部「本周」打开 `WeeklyReviewSheet`，按周一至周日汇总完成 / 未完成、每日完成数、习惯打卡、学习复习与 Agent 运行；支持切上一周 / 回到本周，生成 `YYYY-MM-DD 本周回顾` 笔记（标签「复盘」，4000 字截断）。任务只算顶层；完成按 `completedAt` 落入本周；未完成收之前逾期、本周到期与本周计划。0.72.0 增加顺延到下周：当前周的未完成项可逐项勾选，顺延把计划日与本周内到期的截止日写到下周一；面板打开时快照任务与习惯，顺延后仍按本周原貌生成笔记并在任务后标「已顺延」；上一周列表只读，无顺延入口。数据来自现有 store、`learning.reviewHistory(21)` 与 `agent:usage(21)`，不新增 IPC 或表。新增 9 项单测、15 项冒烟。
+- 已实现：今日心情卡（0.93.0）。今日 bento 新增「今日心情」：5 档心情 emoji + 5 档精力 + 一句话备注，保存写 `mood_entries`（一天一条可更新）；「趋势」打开 30 天心情/精力柱状图与均值（`lib/mood.ts` 纯函数）。无 preload 桥时走内存退路，capture/浏览器调试可用。
+- 已实现：今日专注卡 + 番茄钟（0.93.0）。今日 bento 新增「今日专注」：今日工时/轮次 + 近 7 天小柱 + 「开始番茄钟」；「统计」打开 7 天柱 + 按任务汇总 + 番茄节奏设置（专注/短休/长休/轮数，存 localStorage）。`FocusOverlay` 保留自由专注并新增番茄钟模式：专注/短休/长休自动切换、轮次计数、可关联任务，每段完成落 `focus_sessions`；任务详情显示「实际专注 X 分钟」（按 task 汇总）。状态机在 `lib/pomodoro.ts`、统计在 `lib/focus-stats.ts`（均纯函数带单测）。彩带用 `confetti.create(undefined,{useWorker:false})` 主线程 cannon——默认导出的 `useWorker:true` 会建 blob worker 被应用 CSP 拦截。自动化用 `window.__WS_FOCUS_FAST__` 快进缝验证完成落库。
 
 ## 笔记
 

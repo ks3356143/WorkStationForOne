@@ -37,6 +37,8 @@ import { checkCliUpdates } from './capabilities/cli-updates'
 import { registerCapabilityHandlers } from './ipc/capability'
 import { registerExpertHandlers } from './ipc/expert-handlers'
 import { registerPromptHandlers } from './ipc/prompt-handlers'
+import { registerMoodHandlers } from './ipc/mood-handlers'
+import { registerFocusHandlers } from './ipc/focus-handlers'
 import { registerPluginHandlers } from './ipc/plugin-handlers'
 import { IPC_CHANNELS } from '../shared/ipc'
 
@@ -284,6 +286,8 @@ if (!gotTheLock) {
     registerHabitHandlers(database.habits)
     registerProviderHandlers(providers)
     registerPromptHandlers(database.prompts)
+    registerMoodHandlers(database.mood)
+    registerFocusHandlers(database.focus)
     const approvalRules = new ApprovalRuleService({
       rules: database.approvalRules,
       sessions: database.agent,

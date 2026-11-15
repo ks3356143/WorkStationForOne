@@ -3,9 +3,11 @@ import type { AppApi } from './app'
 import type { AuditApi } from './audit'
 import type { CapabilityApi } from './capability'
 import type { ExpertApi } from './experts'
+import type { FocusApi } from './focus'
 import type { HabitApi } from './habits'
 import type { LearningApi } from './learning'
 import type { McpApi } from './mcp'
+import type { MoodApi } from './mood'
 import type { CaptureApi, NoteApi } from './notes'
 import type { ProviderApi } from './agent'
 import type { PromptApi } from './prompts'
@@ -25,6 +27,8 @@ export interface WsApi {
   capability: CapabilityApi
   experts: ExpertApi
   prompts: PromptApi
+  mood: MoodApi
+  focus: FocusApi
   audit: AuditApi
   app: AppApi
 }

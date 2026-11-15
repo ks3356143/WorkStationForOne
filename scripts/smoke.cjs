@@ -1615,7 +1615,7 @@ async function run() {
       return Boolean(task && !task.plannedFor && !task.dueDate)
     }, 3000)
     if (!unplannedReady) throw new Error('未排期任务创建失败')
-    byText('.w1-planbtn', '周视图')?.click()
+    byText('.w1-planbtn', '周')?.click()
     const weekReady = await waitFor(() => all('.w1-wkday').length === 7, 3000)
     await waitFor(() => Boolean(one('.w1-weekbacklog')), 2000)
     check(
@@ -1687,7 +1687,47 @@ async function run() {
     )
     byText('.w1-wkbtn', '今天')?.click()
     await sleep(200)
-    byText('.w1-planbtn', '列表视图')?.click()
+    byText('.w1-planbtn', '列表')?.click()
+    await sleep(200)
+
+    // 月视图（0.93.0）：42 格周一起始、点日切列表过滤、拖拽改期。
+    byText('.w1-planbtn', '月')?.click()
+    const monthReady = await waitFor(() => all('.w1-mday').length === 42, 3000)
+    check('任务月视图显示 42 格', monthReady, String(all('.w1-mday').length))
+    const monthFirst = one('.w1-mday')?.getAttribute('data-month-date') ?? ''
+    check('月视图周一起始', new Date(monthFirst).getDay() === 1, monthFirst)
+    const monthDayWithTask = all('.w1-mday').find((el) => el.querySelector('.w1-mtask'))
+    monthDayWithTask?.querySelector('.w1-mdaynum')?.click()
+    const dayFiltered = await waitFor(
+      () => (one('.w1-threebar')?.textContent ?? '').includes('的任务'),
+      2500
+    )
+    check(
+      '月视图点日切列表并过滤',
+      dayFiltered && activeNav() === '任务',
+      one('.w1-threebar')?.textContent ?? 'missing'
+    )
+    byText('.w1-threebar button', '清除')?.click()
+    await sleep(200)
+    byText('.w1-planbtn', '月')?.click()
+    await waitFor(() => all('.w1-mday').length === 42, 2000)
+    const monthDragChip = one('.w1-mtask')
+    const monthDragId = monthDragChip?.getAttribute('data-task-id') ?? ''
+    const monthDragTask = (await window.ws.tasks.list()).find((item) => item.id === monthDragId)
+    const monthTarget = all('.w1-mday').find(
+      (el) => el.getAttribute('data-month-date') !== monthDragTask?.plannedFor
+    )
+    const monthTargetDate = monthTarget?.getAttribute('data-month-date') ?? ''
+    const monthTransfer = new DataTransfer()
+    monthDragChip?.dispatchEvent(new DragEvent('dragstart', { dataTransfer: monthTransfer, bubbles: true }))
+    monthTarget?.dispatchEvent(new DragEvent('dragover', { dataTransfer: monthTransfer, bubbles: true }))
+    monthTarget?.dispatchEvent(new DragEvent('drop', { dataTransfer: monthTransfer, bubbles: true }))
+    const monthDragged = await waitFor(async () => {
+      const tasks = await window.ws.tasks.list()
+      return tasks.find((item) => item.id === monthDragId)?.plannedFor === monthTargetDate
+    }, 3000)
+    check('月视图拖拽改期', monthDragged, monthDragId + ' → ' + monthTargetDate)
+    byText('.w1-planbtn', '列表')?.click()
     await sleep(200)
 
     await navTo('Agent')
@@ -4927,6 +4967,105 @@ async function run() {
     const habitStatsEsc = await waitFor(() => !one('.w1-hstats'), 2000)
     check('习惯统计 Esc 可关闭', habitStatsEsc, String(habitStatsEsc))
 
+    // 今日心情打卡（0.93.0）：选心情/精力 + 备注 → 保存落库；趋势弹层渲染 30 天柱。
+    check('今日页有心情卡', !!one('.w1-moodcard'))
+    one('.w1-moodemoji[aria-label="心情 很棒"]')?.click()
+    one('.w1-moodlevel[aria-label="精力 充足"]')?.click()
+    const moodNote = one('.w1-moodnote')
+    if (moodNote) setValue(moodNote, '冒烟心情不错')
+    one('.w1-moodsave')?.click()
+    const moodSaved = await waitFor(
+      () => (one('.w1-moodcard .w1-ctmeta')?.textContent ?? '').includes('已记录'),
+      2500
+    )
+    check('心情打卡后显示已记录', moodSaved, one('.w1-moodcard .w1-ctmeta')?.textContent ?? '')
+    const moodNow = new Date()
+    const moodTodayKey =
+      moodNow.getFullYear() +
+      '-' +
+      String(moodNow.getMonth() + 1).padStart(2, '0') +
+      '-' +
+      String(moodNow.getDate()).padStart(2, '0')
+    const moodStored = await window.ws.mood.get(moodTodayKey)
+    check(
+      '心情打卡已落库',
+      moodStored?.mood === 5 && moodStored?.energy === 4 && moodStored?.note === '冒烟心情不错',
+      JSON.stringify(moodStored)
+    )
+    one('.w1-hmanage[aria-label="心情趋势"]')?.click()
+    const moodStatsOpen = await waitFor(() => Boolean(one('.w1-moodstats')), 2000)
+    check('心情趋势面板可打开', moodStatsOpen, String(moodStatsOpen))
+    const moodBars = all('.w1-moodchart.mood .w1-moodbar')
+    check(
+      '心情趋势渲染 30 天柱',
+      moodBars.length === 30 && all('.w1-moodchart.energy .w1-moodbar').length === 30,
+      String(moodBars.length)
+    )
+    check(
+      '心情趋势含已记录柱',
+      all('.w1-moodchart.mood .w1-moodbar:not(.is-empty)').length >= 1,
+      String(all('.w1-moodchart.mood .w1-moodbar:not(.is-empty)').length)
+    )
+    one('.w1-moodstats .w1-modalx')?.click()
+    const moodStatsClosed = await waitFor(() => !one('.w1-moodstats'), 2000)
+    const moodFocusBack = await waitFor(
+      () => document.activeElement?.getAttribute('aria-label') === '心情趋势',
+      2000
+    )
+    check(
+      '心情趋势关闭后焦点回到入口',
+      moodStatsClosed && moodFocusBack,
+      document.activeElement?.getAttribute('aria-label') ?? ''
+    )
+
+    // 番茄钟（0.93.0）：快进缝每段 1 秒，验证专注完成落库 + 阶段自动切换 + 统计面板 + 任务工时。
+    window.__WS_FOCUS_FAST__ = 1
+    one('.w1-focusstart')?.click()
+    const pomoOpen = await waitFor(
+      () => (one('.w1-focus-head')?.textContent ?? '').includes('番茄钟'),
+      2500
+    )
+    check('番茄钟模式可打开', pomoOpen, one('.w1-focus-head')?.textContent ?? '')
+    const pomoAdvanced = await waitFor(
+      () => (one('.w1-focus-meta')?.textContent ?? '').includes('已完成 1 轮'),
+      5000
+    )
+    check('番茄钟专注完成自动进入休息', pomoAdvanced, one('.w1-focus-meta')?.textContent ?? '')
+    const pomoLogged = await window.ws.focus.recent(7)
+    check(
+      '番茄钟专注段已落库',
+      pomoLogged.some((item) => item.kind === 'focus' && item.minutes === 25),
+      JSON.stringify(pomoLogged.slice(0, 2))
+    )
+    one('.w1-focus .w1-pb.pri')?.click()
+    await waitFor(() => !one('.w1-focus'), 2000)
+    window.__WS_FOCUS_FAST__ = undefined
+    one('.w1-hmanage[aria-label="专注统计"]')?.click()
+    const focusStatsOpen = await waitFor(() => Boolean(one('.w1-focusstats')), 2000)
+    check('专注统计面板可打开', focusStatsOpen, String(focusStatsOpen))
+    check(
+      '专注统计渲染 7 天柱',
+      all('.w1-focuschart .w1-focuscol').length === 7,
+      String(all('.w1-focuschart .w1-focuscol').length)
+    )
+    check(
+      '专注统计有番茄节奏设置',
+      all('.w1-focusfield input').length === 4,
+      String(all('.w1-focusfield input').length)
+    )
+    one('.w1-focusstats .w1-modalx')?.click()
+    await waitFor(() => !one('.w1-focusstats'), 2000)
+    await window.ws.focus.log({
+      taskId: 'smoke-task',
+      label: '测试',
+      kind: 'focus',
+      minutes: 30,
+      startedAt: Date.now(),
+      completedAt: Date.now()
+    })
+    const smokeTaskMinutes = await window.ws.focus.taskMinutes('smoke-task')
+    check('任务实际工时按任务汇总', smokeTaskMinutes === 30, String(smokeTaskMinutes))
+
     byText('.w1-btn', '快速笔记')?.click()
     await sleep(350)
     check('快速笔记弹窗', !!one('.w1-modal'))
@@ -5043,6 +5182,43 @@ async function run() {
       activeNav()
     )
     check('笔记页是独立工作区', !one('.w1-dock') && !one('.w1-main'))
+
+    // 命令面板内置计算器（0.93.0）：算式即时出结果、回车复制；单位换算同样支持。
+    one('.w1-motion')?.focus()
+    await openPalette()
+    const calcInput = one('.w1-paletteinput')
+    setValue(calcInput, '12*8+3')
+    await sleep(200)
+    const calcRow = one('.w1-palettecalc')
+    check(
+      '命令面板算式即时出结果',
+      !!calcRow && (calcRow.textContent ?? '').includes('99'),
+      calcRow?.textContent ?? '无计算行'
+    )
+    calcInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }))
+    await waitFor(
+      () => !one('.w1-palette') && (one('.w1-toast')?.textContent ?? '').includes('已复制 99'),
+      2500
+    )
+    check(
+      '计算结果回车复制并提示',
+      !one('.w1-palette') && (one('.w1-toast')?.textContent ?? '').includes('已复制 99'),
+      one('.w1-toast')?.textContent ?? '无提示'
+    )
+    await sleep(300)
+    one('.w1-motion')?.focus()
+    await openPalette()
+    const unitInput = one('.w1-paletteinput')
+    setValue(unitInput, '10 km to mile')
+    await sleep(200)
+    const unitRow = one('.w1-palettecalc')
+    check(
+      '命令面板支持单位换算',
+      !!unitRow && (unitRow.textContent ?? '').includes('6.21'),
+      unitRow?.textContent ?? '无换算行'
+    )
+    unitInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }))
+    await waitFor(() => !one('.w1-palette'), 2000)
 
     const noteSearch = one('.w1-nvinput')
     if (!noteSearch) {

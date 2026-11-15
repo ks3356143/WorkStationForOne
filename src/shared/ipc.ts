@@ -164,6 +164,8 @@ export type {
   ExpertApi
 } from './ipc/experts'
 export type { PromptTemplateRecord, PromptTemplateInput, PromptApi } from './ipc/prompts'
+export type { MoodRecord, MoodSaveInput, MoodApi } from './ipc/mood'
+export type { FocusKind, FocusRecord, FocusLogInput, FocusApi } from './ipc/focus'
 export type {
   BackupResult,
   BackupEntry,
@@ -191,6 +193,8 @@ export const WS_API_KEYS = [
   'capability',
   'experts',
   'prompts',
+  'mood',
+  'focus',
   'audit',
   'app'
 ] as const satisfies readonly (keyof WsApi)[]

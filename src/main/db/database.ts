@@ -914,6 +914,36 @@ export const MIGRATIONS: Migration[] = [
         updated_at INTEGER NOT NULL
       );
     `
+  },
+  {
+    // 每日心情/精力打卡：本地日期一天一条，可编辑；备注不落审计。
+    version: 55,
+    sql: `
+      CREATE TABLE mood_entries (
+        day TEXT PRIMARY KEY,
+        mood INTEGER NOT NULL,
+        energy INTEGER NOT NULL,
+        note TEXT NOT NULL DEFAULT '',
+        updated_at INTEGER NOT NULL
+      );
+    `
+  },
+  {
+    // 专注/番茄钟工时：专注段与休息段落库，任务实际工时按 task_id 汇总派生。
+    version: 56,
+    sql: `
+      CREATE TABLE focus_sessions (
+        id TEXT PRIMARY KEY,
+        task_id TEXT,
+        label TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        minutes INTEGER NOT NULL,
+        started_at INTEGER NOT NULL,
+        completed_at INTEGER
+      );
+      CREATE INDEX idx_focus_task ON focus_sessions (task_id);
+      CREATE INDEX idx_focus_started ON focus_sessions (started_at);
+    `
   }
 ]
 

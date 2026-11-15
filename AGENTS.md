@@ -124,6 +124,7 @@
 - 格式与 lint 统一走 Biome（`biome.json`，Rust 单二进制）。不要引入 Prettier / ESLint。配置里关掉的规则都是与项目设计冲突的：`<i>//</i>` 是终端风格装饰而非注释、带 `role` 的 div 是虚拟列表容器、无障碍降级必须用 `!important` 压过后导入的分节、跨分节特异性倒置是导入顺序的结果。新增例外优先写 `// biome-ignore <rule>: 原因`，不要全局关规则。
 - main 与 preload 以 CJS 构建（没有 `"type": "module"`）。未验证 Electron preload 与 sandbox 行为前，不要切换模块格式。
 - Vitest 覆盖 `src/**/*.test.ts` 与 `scripts/**/*.test.mjs`，运行在 Node 环境。添加 `.tsx` 测试前，先有意识地配置 DOM/组件测试环境。
+- 心情 / 专注 / 月历 / 计算器（v0.93.0，DB v55/v56）：`mood_entries` 一天一条 upsert、`focus_sessions` 记专注/休息段，任务实际工时按 `task_id` 汇总派生（不给 tasks 加列）；preload增至十六组（加 `mood` / `focus`），`runtime-verify` 的窄接口断言同步。纯函数集中在 `lib/mood.ts`、`lib/pomodoro.ts`（状态机 + 配置夹取）、`lib/focus-stats.ts`、`lib/month.ts`（周一起始 42 格）、`lib/calc.ts`（递归下降，**禁 eval/Function**），都带单测；组件只编排。番茄钟彩带必须 `confetti.create(undefined, { useWorker:false })`——默认导出 `useWorker:true` 会建 blob worker 被 CSP（script-src 'self'）拦截；`window.__WS_FOCUS_FAST__` 是冒烟快进缝（每段秒数），落库仍记真实分钟。月视图点日切列表用 `dayFilter` 状态，切换清单/搜索/视图时清除。
 
 ## UI 契约
 

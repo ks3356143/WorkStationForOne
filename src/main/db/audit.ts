@@ -19,6 +19,8 @@ export type AuditAction =
   | 'deny'
   | 'fail'
   | 'settings'
+  | 'mood-save'
+  | 'focus-log'
 
 export interface AuditEntry {
   at: number

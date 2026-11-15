@@ -704,6 +704,12 @@
   color: var(--su);
 }
 
+.w1-todoactual {
+  font: 13px / 1.4 var(--sans);
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
 .w1-todofield input,
 .w1-todofield textarea {
   width: 100%;
@@ -1667,6 +1673,167 @@
 
   .w1-wktask {
     padding: 4px 5px;
+  }
+}
+
+/* ---------- 视图分段控件 + 月视图（0.93.0） ---------- */
+
+.w1-viewseg {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.w1-monthview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 18px 14px;
+}
+
+.w1-monthweekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.w1-monthweekdays span {
+  color: var(--su);
+  font: 10px / 1 var(--mono);
+  letter-spacing: 0.06em;
+  text-align: center;
+}
+
+.w1-monthgrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.w1-mday {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 92px;
+  padding: 6px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.35);
+  background: rgb(var(--field-rgb) / 0.14);
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui);
+}
+
+.w1-mday.out {
+  opacity: 0.45;
+}
+
+.w1-mday.today {
+  border-color: rgb(var(--ac2-rgb) / 0.4);
+  box-shadow: inset 0 1px rgb(var(--ac2-rgb) / 0.18);
+}
+
+.w1-mday.drop {
+  border-color: rgb(var(--ac2-rgb) / 0.7);
+  background: rgb(var(--ac2-rgb) / 0.1);
+}
+
+.w1-mday.load-1 {
+  background: rgb(var(--ac-rgb) / 0.05);
+}
+
+.w1-mday.load-2 {
+  background: rgb(var(--ac-rgb) / 0.09);
+}
+
+.w1-mday.load-3 {
+  background: rgb(var(--ac-rgb) / 0.14);
+}
+
+.w1-mday.load-4 {
+  background: rgb(var(--ac-rgb) / 0.2);
+}
+
+.w1-mdaynum {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.w1-mdaynum b {
+  color: var(--fg);
+  font: 600 12px / 1 var(--mono);
+}
+
+.w1-mdaynum i {
+  margin-left: auto;
+  color: var(--su);
+  font: 9.5px / 1 var(--mono);
+  font-style: normal;
+}
+
+.w1-mdaynum:hover b {
+  color: var(--ac2);
+}
+
+.w1-mtasks {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.w1-mtask {
+  width: 100%;
+  padding: 3px 5px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.4);
+  border-left: 2px solid rgb(var(--ac-rgb) / 0.5);
+  background: rgb(var(--panel-1-rgb) / 0.55);
+  color: var(--fg);
+  font: 10.5px / 1.3 var(--sans);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: grab;
+}
+
+.w1-mtask:hover {
+  border-color: rgb(var(--ac2-rgb) / 0.45);
+}
+
+.w1-mtask.p2 {
+  border-left-color: var(--dg);
+}
+
+.w1-mtask.p1 {
+  border-left-color: var(--wn);
+}
+
+.w1-mtask.done {
+  opacity: 0.45;
+}
+
+.w1-mmore {
+  color: var(--su);
+  font: 9.5px / 1 var(--mono);
+}
+
+@media (max-width: 1280px) {
+  .w1-monthview {
+    padding: 0 14px 12px;
+  }
+
+  .w1-monthgrid {
+    gap: 4px;
+  }
+
+  .w1-mday {
+    min-height: 80px;
+    padding: 5px;
   }
 }
 

@@ -252,6 +252,16 @@ const api: WsApi = {
     save: (input) => ipcRenderer.invoke(IPC_CHANNELS.promptsSave, input),
     remove: (id) => ipcRenderer.invoke(IPC_CHANNELS.promptsRemove, id)
   },
+  mood: {
+    get: (day) => ipcRenderer.invoke(IPC_CHANNELS.moodGet, day),
+    save: (input) => ipcRenderer.invoke(IPC_CHANNELS.moodSave, input),
+    recent: (days) => ipcRenderer.invoke(IPC_CHANNELS.moodRecent, days)
+  },
+  focus: {
+    log: (input) => ipcRenderer.invoke(IPC_CHANNELS.focusLog, input),
+    recent: (days) => ipcRenderer.invoke(IPC_CHANNELS.focusRecent, days),
+    taskMinutes: (taskId) => ipcRenderer.invoke(IPC_CHANNELS.focusTaskMinutes, taskId)
+  },
   audit: {
     recent: (limit, domain) => ipcRenderer.invoke(IPC_CHANNELS.auditRecent, limit, domain)
   },

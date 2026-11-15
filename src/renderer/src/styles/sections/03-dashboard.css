@@ -1012,3 +1012,159 @@
   color: var(--mu);
   font-variant-numeric: tabular-nums;
 }
+
+/* 今日心情卡（0.93.0）：心情 emoji + 精力档位 + 一句话，直角玻璃语言 */
+.w1-moodbody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+
+.w1-moodrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.w1-moodlabel {
+  flex: none;
+  width: 30px;
+  font: 11px / 1 var(--mono);
+  letter-spacing: 0.04em;
+  color: var(--su);
+}
+
+.w1-moodpick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.w1-moodemoji {
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 19px;
+  line-height: 1;
+  opacity: 0.5;
+  cursor: pointer;
+  transition:
+    opacity var(--dur-ui),
+    transform var(--dur-ui) var(--ease-out),
+    border-color var(--dur-ui),
+    background-color var(--dur-ui);
+}
+
+.w1-moodemoji:hover {
+  opacity: 0.85;
+}
+
+.w1-moodemoji.on {
+  opacity: 1;
+  border-color: rgb(var(--ac-rgb) / 0.6);
+  background: rgb(var(--ac-rgb) / 0.12);
+  transform: scale(1.08);
+}
+
+.w1-moodlevel {
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.7);
+  background: transparent;
+  color: var(--mu);
+  font: 12px / 1 var(--mono);
+  cursor: pointer;
+  transition:
+    color var(--dur-ui),
+    border-color var(--dur-ui),
+    background-color var(--dur-ui);
+}
+
+.w1-moodlevel:hover {
+  color: var(--fg);
+}
+
+.w1-moodlevel.on {
+  color: var(--ac);
+  border-color: rgb(var(--ac-rgb) / 0.6);
+  background: rgb(var(--ac-rgb) / 0.12);
+}
+
+.w1-moodnote {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.7);
+  background: rgb(var(--panel-2-rgb) / 0.6);
+  color: var(--fg);
+  font: 13px / 1 var(--sans);
+}
+
+.w1-moodnote::placeholder {
+  color: var(--su);
+}
+
+.w1-moodnote:focus {
+  outline: none;
+  border-color: rgb(var(--ac-rgb) / 0.6);
+}
+
+.w1-moodsave {
+  align-self: flex-start;
+  margin-top: auto;
+}
+
+/* 今日专注卡（0.93.0）：今日工时 + 近 7 天小柱 + 番茄钟入口 */
+.w1-focusbody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+
+.w1-focusstat {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.w1-focusstat b {
+  font: 700 30px / 1 var(--disp);
+  letter-spacing: -0.02em;
+  color: var(--ac);
+  font-variant-numeric: tabular-nums;
+}
+
+.w1-focusstat span {
+  font: 11px / 1 var(--mono);
+  letter-spacing: 0.04em;
+  color: var(--su);
+}
+
+.w1-focusweek {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  height: 40px;
+  align-items: end;
+}
+
+.w1-focusdaybar {
+  width: 100%;
+  min-height: 4px;
+  align-self: end;
+  background: linear-gradient(180deg, rgb(var(--ac-rgb) / 0.9), rgb(var(--ac-rgb) / 0.4));
+}
+
+.w1-focusdaybar.is-empty {
+  background: rgb(var(--bd-rgb) / 0.35);
+}
+
+.w1-focusstart {
+  align-self: flex-start;
+  margin-top: auto;
+}

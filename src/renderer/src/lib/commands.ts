@@ -10,6 +10,7 @@ export type PaletteAction =
   | { kind: 'new-note' }
   | { kind: 'new-task' }
   | { kind: 'focus' }
+  | { kind: 'pomodoro' }
   | { kind: 'filter'; filter: TaskFilter }
   | { kind: 'motion' }
   | { kind: 'theme' }
@@ -183,6 +184,14 @@ export function buildPaletteCommands(input: PaletteInput): PaletteCommand[] {
       hint: '深度工作',
       value: '开始专注 深度工作 focus',
       action: { kind: 'focus' }
+    },
+    {
+      id: 'action:pomodoro',
+      group: '操作',
+      label: '开始番茄钟',
+      hint: '专注 / 休息循环',
+      value: '番茄钟 pomodoro 专注循环',
+      action: { kind: 'pomodoro' }
     },
     {
       id: 'action:motion',

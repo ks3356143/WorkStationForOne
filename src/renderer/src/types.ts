@@ -142,6 +142,9 @@ export interface Permission {
 export interface FocusSession {
   label: string
   minutes: number
+  /** free=单次倒计时（默认）；pomodoro=结构化番茄钟 */
+  mode?: 'free' | 'pomodoro'
+  taskId?: string | null
 }
 
 export interface ResolutionRecord {

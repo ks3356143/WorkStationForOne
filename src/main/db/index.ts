@@ -6,6 +6,7 @@ import { AgentRepository } from './agent'
 import { ApprovalRuleRepository } from './approval-rules'
 import { AuditLog } from './audit'
 import { ExpertRepository } from './experts'
+import { FocusRepository } from './focus'
 import { LocalModelRepository } from './local-model'
 import { ToolPrefRepository } from './tool-prefs'
 import { migrate, openDatabase } from './database'
@@ -13,6 +14,7 @@ import { applyPendingRestore } from './restore'
 import { HabitRepository } from './habits'
 import { LearningRepository } from './learning'
 import { McpPolicyRepository } from './mcp'
+import { MoodRepository } from './mood'
 import { NoteRepository } from './notes'
 import { ProviderRepository } from './providers'
 import { PromptTemplateRepository } from './prompt-templates'
@@ -43,6 +45,8 @@ export interface DatabaseContext {
   localModel: LocalModelRepository
   providers: ProviderRepository
   prompts: PromptTemplateRepository
+  mood: MoodRepository
+  focus: FocusRepository
   mcp: McpPolicyRepository
   approvalRules: ApprovalRuleRepository
   toolPrefs: ToolPrefRepository
@@ -100,6 +104,8 @@ export function initDatabase(): DatabaseContext {
     localModel: new LocalModelRepository(db),
     providers: new ProviderRepository(db),
     prompts: new PromptTemplateRepository(db),
+    mood: new MoodRepository(db, audit),
+    focus: new FocusRepository(db, audit),
     mcp: new McpPolicyRepository(db, audit),
     approvalRules: new ApprovalRuleRepository(db),
     toolPrefs: new ToolPrefRepository(db),

@@ -12,8 +12,10 @@ import { useNow } from '../lib/useNow'
 import { useWorkstation } from '../store/useWorkstation'
 import { DailyReviewSheet } from './DailyReviewSheet'
 import { BreathingGuide } from './BreathingGuide'
+import { FocusCard } from './FocusCard'
 import { HabitCard } from './HabitCard'
 import { HeatmapCard } from './HeatmapCard'
+import { MoodCard } from './MoodCard'
 import { NoteCard } from './NoteCard'
 import { CheckIcon, PlayIcon, PlusIcon, TodayIcon } from './Glyphs'
 import { ReviewCard } from './ReviewCard'
@@ -195,6 +197,8 @@ export function TodayDashboard() {
         <TaskCard nextTaskId={next?.id} />
         <NoteCard />
         <HabitCard />
+        <MoodCard />
+        <FocusCard />
         <ReviewCard />
         <HeatmapCard />
       </div>

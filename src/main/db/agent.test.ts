@@ -80,7 +80,7 @@ describe('迁移 v16', () => {
     migrate(db)
 
     const repo = new AgentRepository(db)
-    expect(userVersion(db)).toBe(54)
+    expect(userVersion(db)).toBe(56)
     expect(repo.listMessagesForSession('s1')[0]?.runId).toBeUndefined()
     expect(repo.listMessagesForSession('s1')[0]?.model).toBeUndefined()
     db.close()

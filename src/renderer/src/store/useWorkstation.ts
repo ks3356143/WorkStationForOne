@@ -231,6 +231,7 @@ interface WorkstationActions {
   toggleTheme: () => void
   toggleSkin: () => void
   startFocus: (label: string, minutes: number) => void
+  startPomodoro: (label: string, taskId?: string | null) => void
   closeFocus: () => void
   openQuickNote: () => void
   closeQuickNote: () => void
@@ -1460,6 +1461,11 @@ export const useWorkstation = create<WorkstationState>()((set, get) => ({
   },
 
   startFocus: (label, minutes) => set({ focus: { label, minutes } satisfies FocusSession }),
+
+  startPomodoro: (label, taskId) =>
+    set({
+      focus: { label, minutes: 25, mode: 'pomodoro', taskId: taskId ?? null } satisfies FocusSession
+    }),
 
   closeFocus: () => set({ focus: null }),
 

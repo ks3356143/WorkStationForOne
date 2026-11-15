@@ -81,6 +81,27 @@ export function TaskEditor({
   const [repeatNth, setRepeatNth] = useState(initialRepeat?.nth ?? 1)
   const [repeatWeekday, setRepeatWeekday] = useState(initialRepeat?.weekday ?? 1)
   const [confirming, setConfirming] = useState(false)
+  const [actualMinutes, setActualMinutes] = useState<number | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    const api = window.ws?.focus
+    if (!api) {
+      setActualMinutes(null)
+      return
+    }
+    void api
+      .taskMinutes(task.id)
+      .then((value) => {
+        if (alive) setActualMinutes(value)
+      })
+      .catch(() => {
+        if (alive) setActualMinutes(null)
+      })
+    return () => {
+      alive = false
+    }
+  }, [task.id])
 
   useEffect(() => {
     if (!confirming) return
@@ -338,6 +359,16 @@ export function TaskEditor({
               </button>
             ))}
           </div>
+        </div>
+        <div className="w1-todofield">
+          <span className="w1-todofieldlabel">实际专注</span>
+          <span className="w1-todoactual">
+            {actualMinutes === null
+              ? '—'
+              : actualMinutes > 0
+                ? `${actualMinutes} 分钟`
+                : '暂无记录'}
+          </span>
         </div>
         <div className="w1-todofield">
           <span className="w1-todofieldlabel">清单</span>

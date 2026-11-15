@@ -5,6 +5,8 @@ import type { AgentSessionSearchHit, NoteSearchHit } from '../../../shared/ipc'
 import { DURATION, EASE_OUT } from '../lib/motion'
 import { AGENT_META } from '../lib/agent'
 import { searchTasks } from '../lib/todo'
+import { calcQuery } from '../lib/calc'
+import { fallbackCopy } from '../lib/clipboard'
 import type { LearningItem } from '../types'
 import {
   buildPaletteCommands,
@@ -40,6 +42,7 @@ const ACTION_GLYPH: Record<PaletteCommand['action']['kind'], string> = {
   'new-note': '+',
   'new-task': '+',
   focus: '▶',
+  pomodoro: '◴',
   filter: '▤',
   motion: '◐',
   shortcuts: '?',
@@ -83,6 +86,7 @@ export function CommandPalette({
   const openQuickNote = useWorkstation((state) => state.openQuickNote)
   const composeTask = useWorkstation((state) => state.composeTask)
   const startFocus = useWorkstation((state) => state.startFocus)
+  const startPomodoro = useWorkstation((state) => state.startPomodoro)
   const setFilter = useWorkstation((state) => state.setFilter)
   const toggleMotion = useWorkstation((state) => state.toggleMotion)
   const toggleTheme = useWorkstation((state) => state.toggleTheme)
@@ -99,6 +103,7 @@ export function CommandPalette({
   const closingRef = useRef(false)
   const searchSeq = useRef(0)
   const trimmed = query.trim()
+  const calc = trimmed ? calcQuery(trimmed) : null
 
   useEffect(() => {
     const seq = ++searchSeq.current
@@ -237,6 +242,19 @@ export function CommandPalette({
     inputRef.current?.focus()
   }, [])
 
+  const copyCalc = () => {
+    if (!calc || closingRef.current) return
+    closingRef.current = true
+    const text = calc.copy
+    const done = () => notify(`已复制 ${text}`)
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done))
+    } else {
+      fallbackCopy(text, done)
+    }
+    onClose()
+  }
+
   const run = (command: PaletteCommand) => {
     if (command.disabled || closingRef.current) return
     closingRef.current = true
@@ -258,6 +276,9 @@ export function CommandPalette({
         break
       case 'focus':
         startFocus('深度工作', 25)
+        break
+      case 'pomodoro':
+        startPomodoro('深度工作')
         break
       case 'filter':
         setFilter(command.action.filter)
@@ -358,6 +379,20 @@ export function CommandPalette({
             <Command.Empty className="w1-paletteempty">
               没有匹配项 · 输入内容后可直接交给 Agent
             </Command.Empty>
+
+            {calc ? (
+              <Command.Group heading="计算" className="w1-palettegroup">
+                <Command.Item
+                  value={`calc-${calc.label}`}
+                  className="w1-paletteitem w1-palettecalc"
+                  onSelect={copyCalc}
+                >
+                  <span className="w1-palettebadge">＝</span>
+                  <span className="w1-palettelabel">{calc.label}</span>
+                  <span className="w1-palettehint">回车复制</span>
+                </Command.Item>
+              </Command.Group>
+            ) : null}
 
             {showSearchFirst ? renderSearchGroups() : null}
 

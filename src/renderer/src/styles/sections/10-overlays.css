@@ -1187,6 +1187,16 @@ button.w1-nlchip:hover {
   color: var(--ac2);
 }
 
+.w1-palettecalc .w1-palettelabel {
+  font: 600 15px / 1 var(--mono);
+  letter-spacing: 0.02em;
+  color: var(--ac);
+}
+
+.w1-palettecalc .w1-palettebadge {
+  color: var(--ac);
+}
+
 .w1-paletteempty {
   padding: 30px 12px;
   text-align: center;
@@ -1824,4 +1834,249 @@ button.w1-nlchip:hover {
   border: 1px solid rgb(var(--bd-rgb) / 0.3);
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+/* 心情趋势弹层（0.93.0）：近 30 天心情/精力柱状趋势 */
+.w1-moodstats {
+  width: 620px;
+}
+
+.w1-moodstatshead {
+  margin: 16px 0 4px;
+}
+
+.w1-moodstatshead h2 {
+  font: 700 24px / 1.1 var(--disp);
+  letter-spacing: -0.02em;
+  color: var(--fg);
+}
+
+.w1-moodstatshead p {
+  margin-top: 6px;
+  font: 12.5px / 1.5 var(--sans);
+  color: var(--su);
+}
+
+.w1-moodstatshead b {
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.w1-moodstatsbody {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin: 18px 0;
+}
+
+.w1-moodstatsempty {
+  padding: 30px 12px;
+  text-align: center;
+  font: 12px / 1.6 var(--mono);
+  color: var(--su);
+}
+
+.w1-moodchartrow {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.w1-moodchartlabel {
+  font: 11px / 1 var(--mono);
+  letter-spacing: 0.04em;
+  color: var(--su);
+}
+
+.w1-moodchart {
+  display: grid;
+  grid-template-columns: repeat(30, minmax(0, 1fr));
+  gap: 3px;
+  height: 64px;
+  align-items: end;
+}
+
+.w1-moodbar {
+  width: 100%;
+  min-height: 3px;
+  align-self: end;
+  background: linear-gradient(180deg, rgb(var(--ac-rgb) / 0.95), rgb(var(--ac-rgb) / 0.45));
+}
+
+.w1-moodchart.energy .w1-moodbar {
+  background: linear-gradient(180deg, rgb(var(--ac2-rgb) / 0.95), rgb(var(--ac2-rgb) / 0.45));
+}
+
+.w1-moodbar.is-empty {
+  height: 3px;
+  background: rgb(var(--bd-rgb) / 0.35);
+}
+
+.w1-moodstatsfoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 12px;
+  border-top: 1px solid rgb(var(--bd-rgb) / 0.5);
+  font: 10.5px / 1 var(--mono);
+  letter-spacing: 0.04em;
+  color: var(--su);
+}
+
+/* 专注统计弹层（0.93.0）：近 7 天柱 + 按任务汇总 + 番茄节奏设置 */
+.w1-focusstats {
+  width: 620px;
+}
+
+.w1-focusstatshead {
+  margin: 16px 0 4px;
+}
+
+.w1-focusstatshead h2 {
+  font: 700 24px / 1.1 var(--disp);
+  letter-spacing: -0.02em;
+  color: var(--fg);
+}
+
+.w1-focusstatshead p {
+  margin-top: 6px;
+  font: 12.5px / 1.5 var(--sans);
+  color: var(--su);
+}
+
+.w1-focusstatshead b {
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.w1-focusstatsbody {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin: 18px 0;
+}
+
+.w1-focusstatsempty {
+  padding: 30px 12px;
+  text-align: center;
+  font: 12px / 1.6 var(--mono);
+  color: var(--su);
+}
+
+.w1-focuschart {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  height: 120px;
+  align-items: end;
+}
+
+.w1-focuscol {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  height: 100%;
+}
+
+.w1-focuscol span {
+  font: 10px / 1 var(--mono);
+  color: var(--su);
+}
+
+.w1-focusbar {
+  width: 100%;
+  min-height: 3px;
+  background: linear-gradient(180deg, rgb(var(--ac-rgb) / 0.95), rgb(var(--ac-rgb) / 0.45));
+}
+
+.w1-focusbar.is-empty {
+  background: rgb(var(--bd-rgb) / 0.35);
+}
+
+.w1-focuschartlabel {
+  font: 11px / 1 var(--mono);
+  letter-spacing: 0.04em;
+  color: var(--su);
+}
+
+.w1-focustasks {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.w1-focustaskrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.w1-focustaskname {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: 13px / 1.3 var(--sans);
+  color: var(--fg);
+}
+
+.w1-focustaskrow b {
+  flex: none;
+  font: 12px / 1 var(--mono);
+  color: var(--ac);
+  font-variant-numeric: tabular-nums;
+}
+
+.w1-focusconfig {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.w1-focusconfigrow {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.w1-focusfield {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.w1-focusfield span {
+  font: 10.5px / 1 var(--mono);
+  color: var(--su);
+}
+
+.w1-focusfield input {
+  width: 64px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid rgb(var(--bd-rgb) / 0.7);
+  background: rgb(var(--panel-2-rgb) / 0.6);
+  color: var(--fg);
+  font: 13px / 1 var(--sans);
+}
+
+.w1-focusfield input:focus {
+  outline: none;
+  border-color: rgb(var(--ac-rgb) / 0.6);
+}
+
+.w1-focusstatsfoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 12px;
+  border-top: 1px solid rgb(var(--bd-rgb) / 0.5);
+  font: 10.5px / 1 var(--mono);
+  letter-spacing: 0.04em;
+  color: var(--su);
 }

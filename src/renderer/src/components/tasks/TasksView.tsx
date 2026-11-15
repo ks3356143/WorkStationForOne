@@ -18,9 +18,11 @@ import { StatePlaceholder } from '../StatePlaceholder'
 import { dayCapacity } from '../../lib/capacity'
 import { topThree } from '../../lib/focus'
 import { scopeDropPatch, TASK_DRAG_TYPE } from '../../lib/dnd'
+import { weekTaskDate } from '../../lib/week'
 import { withViewTransition } from '../../lib/view-transition'
 import { CapacityBar } from './CapacityBar'
 import { InboxTriageSheet } from './InboxTriageSheet'
+import { MonthBoard } from './MonthBoard'
 import { PlanningPanel } from './PlanningPanel'
 import { SchedulePreview } from './SchedulePreview'
 import { QuickAdd } from './QuickAdd'
@@ -92,7 +94,8 @@ export function TasksView({ notify }: TasksViewProps) {
   const [triageOpen, setTriageOpen] = useState(false)
   const triageButtonRef = useRef<HTMLButtonElement>(null)
   const [dragTarget, setDragTarget] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<'list' | 'week'>('list')
+  const [viewMode, setViewMode] = useState<'list' | 'week' | 'month'>('list')
+  const [dayFilter, setDayFilter] = useState<string | null>(null)
   const [scheduleOpen, setScheduleOpen] = useState(false)
   const renameTaskList = useWorkstation((state) => state.renameTaskList)
   const addSubtask = useWorkstation((state) => state.addSubtask)
@@ -112,16 +115,49 @@ export function TasksView({ notify }: TasksViewProps) {
   const searching = query.trim().length > 0
   // 三件事模式从「全部未完成」里挑，不受当前清单限制——它要回答的是「今天先做哪三件」
   const three = topThree(tasks, today)
-  const visible = threeOnly
+  const scoped = threeOnly
     ? three
     : searching
       ? searchTasks(tasks, query)
       : filterTasksByScope(tasks, scope, today)
+  const visible = dayFilter ? scoped.filter((task) => weekTaskDate(task) === dayFilter) : scoped
   const completedVisible = visible.reduce((count, task) => count + (task.done ? 1 : 0), 0)
-  const title =
-    viewMode === 'week'
+  const title = dayFilter
+    ? `${dayFilter.slice(5).replace('-', '.')} 的任务`
+    : viewMode === 'week'
       ? '本周'
-      : (activeList ?? SMART_LISTS.find((item) => item.scope === scope)?.label ?? '任务')
+      : viewMode === 'month'
+        ? '本月'
+        : (activeList ?? SMART_LISTS.find((item) => item.scope === scope)?.label ?? '任务')
+
+  const openFromBoard = (taskId: string) => {
+    setViewMode('list')
+    setDayFilter(null)
+    openTask(taskId)
+  }
+  const scheduleFromBoard = (taskId: string, date: string, options?: { instant?: boolean }) => {
+    const task = tasks.find((item) => item.id === taskId)
+    if (!task) return
+    const previous = task.plannedFor ?? null
+    const apply = () => updateTask(taskId, { plannedFor: date })
+    if (options?.instant) apply()
+    else withViewTransition(apply)
+    notify(
+      `已排到 ${date.slice(5).replace('-', '.')}`,
+      {
+        label: '撤销',
+        run: () => withViewTransition(() => updateTask(taskId, { plannedFor: previous }))
+      },
+      5000
+    )
+  }
+  const openDayFromBoard = (date: string) => {
+    setViewMode('list')
+    setScope('all')
+    setQuery('')
+    setThreeOnly(false)
+    setDayFilter(date)
+  }
 
   const beginRename = (name: string) => {
     setRenaming(name)
@@ -151,6 +187,7 @@ export function TasksView({ notify }: TasksViewProps) {
   useEffect(() => {
     if (jumpBusy.current) return
     setExpandedId(null)
+    setDayFilter(null)
   }, [scope, query])
 
   // 全局搜索/提醒中心跳转：展开详情、滚到行并把焦点交还任务行
@@ -459,23 +496,34 @@ export function TasksView({ notify }: TasksViewProps) {
           >
             只做三件事
           </button>
-          <button
-            className={`w1-planbtn${viewMode === 'week' ? ' on' : ''}`}
-            type="button"
-            aria-pressed={viewMode === 'week'}
-            title={viewMode === 'week' ? '切回列表视图' : '按周查看并拖拽改期'}
-            onClick={() => {
-              const next = viewMode === 'week' ? 'list' : 'week'
-              setViewMode(next)
-              if (next === 'week') {
-                setScope('all')
-                setQuery('')
-                setThreeOnly(false)
-              }
-            }}
-          >
-            {viewMode === 'week' ? '列表视图' : '周视图'}
-          </button>
+          <div className="w1-viewseg" role="group" aria-label="任务视图模式">
+            {(['list', 'week', 'month'] as const).map((mode) => (
+              <button
+                key={mode}
+                className={`w1-planbtn${viewMode === mode ? ' on' : ''}`}
+                type="button"
+                aria-pressed={viewMode === mode}
+                title={
+                  mode === 'list'
+                    ? '列表视图'
+                    : mode === 'week'
+                      ? '按周查看并拖拽改期'
+                      : '按月查看负载并拖拽改期'
+                }
+                onClick={() => {
+                  setViewMode(mode)
+                  setDayFilter(null)
+                  if (mode !== 'list') {
+                    setScope('all')
+                    setQuery('')
+                    setThreeOnly(false)
+                  }
+                }}
+              >
+                {mode === 'list' ? '列表' : mode === 'week' ? '周' : '月'}
+              </button>
+            ))}
+          </div>
         </div>
 
         {threeOnly ? (
@@ -492,6 +540,16 @@ export function TasksView({ notify }: TasksViewProps) {
           </div>
         ) : null}
 
+        {dayFilter && viewMode === 'list' ? (
+          <div className="w1-threebar" role="status">
+            <b>// {dayFilter} 的任务</b>
+            <span>{visible.length} 项 · 来自月视图</span>
+            <button type="button" onClick={() => setDayFilter(null)}>
+              清除
+            </button>
+          </div>
+        ) : null}
+
         {scope !== 'done' && !searching ? (
           <QuickAdd
             scope={scope}
@@ -501,31 +559,23 @@ export function TasksView({ notify }: TasksViewProps) {
           />
         ) : null}
 
-        {viewMode === 'week' && !searching && !threeOnly ? (
-          <WeekBoard
-            tasks={tasks}
-            today={today}
-            onOpen={(taskId) => {
-              setViewMode('list')
-              openTask(taskId)
-            }}
-            onSchedule={(taskId, date, options) => {
-              const task = tasks.find((item) => item.id === taskId)
-              if (!task) return
-              const previous = task.plannedFor ?? null
-              const apply = () => updateTask(taskId, { plannedFor: date })
-              if (options?.instant) apply()
-              else withViewTransition(apply)
-              notify(
-                `已排到 ${date.slice(5).replace('-', '.')}`,
-                {
-                  label: '撤销',
-                  run: () => withViewTransition(() => updateTask(taskId, { plannedFor: previous }))
-                },
-                5000
-              )
-            }}
-          />
+        {(viewMode === 'week' || viewMode === 'month') && !searching && !threeOnly ? (
+          viewMode === 'week' ? (
+            <WeekBoard
+              tasks={tasks}
+              today={today}
+              onOpen={openFromBoard}
+              onSchedule={scheduleFromBoard}
+            />
+          ) : (
+            <MonthBoard
+              tasks={tasks}
+              today={today}
+              onOpen={openFromBoard}
+              onOpenDay={openDayFromBoard}
+              onSchedule={scheduleFromBoard}
+            />
+          )
         ) : (
           <div className="w1-todoscroll" key={scope}>
             {groups.map((group) => (
